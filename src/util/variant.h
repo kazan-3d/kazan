@@ -173,23 +173,6 @@ struct variant_hypothetical_overload_set
     static void fn(); // not implemented
 };
 
-template <typename T, typename = void, typename... Types>
-struct variant_conversion_deduce_type_helper;
-
-template <typename T, typename... Types>
-struct variant_conversion_deduce_type_helper<T,
-                                             void_t<typename decltype(
-                                                 variant_hypothetical_overload_set<Types...>::fn(
-                                                     std::declval<T>()))::type>>
-{
-    typedef typename decltype(
-        variant_hypothetical_overload_set<Types...>::fn(std::declval<T>()))::type type;
-};
-
-template <typename T, typename... Types>
-using variant_conversion_deduce_type =
-    typename variant_conversion_deduce_type_helper<T, void, Types...>::type;
-
 template <typename... Types>
 union variant_values
 {
@@ -288,6 +271,20 @@ union variant_values<T, Types...>
         : other_values(in_place_index<index - 1>, std::forward<Args>(args)...)
     {
     }
+    template <
+        typename U,
+        typename... Args,
+        typename = typename std::
+            enable_if<std::is_constructible<T, std::initializer_list<U>, Args...>::value>::type>
+    constexpr variant_values(
+        in_place_index_t<0>,
+        std::initializer_list<U> il,
+        Args &&... args) noexcept(std::is_nothrow_constructible<T,
+                                                                std::initializer_list<U>,
+                                                                Args...>::value)
+        : current_value(il, std::forward<Args>(args)...)
+    {
+    }
     template <typename U>
     static constexpr std::size_t index_from_type() noexcept
     {
@@ -337,6 +334,21 @@ union variant_values<T, Types...>
             other_values.destruct(index - 1);
     }
 };
+
+template <typename T,
+          typename... Types,
+          typename Deduced_Type = typename decltype(
+              variant_hypothetical_overload_set<Types...>::fn(std::declval<T>()))::type,
+          std::size_t Index = variant_values<Types...>::index_from_type<Deduced_Type>(),
+          typename = typename std::enable_if<(Index < sizeof...(Types))>::type>
+constexpr std::size_t variant_conversion_deduce_index() noexcept
+{
+    return Index;
+}
+
+template <typename T, typename... Types>
+using variant_conversion_deduce_type =
+    variant_alternative_t<variant_conversion_deduce_index<T, Types...>(), Types...>;
 
 template <std::size_t Type_Count>
 struct variant_index_type
@@ -416,6 +428,30 @@ struct variant_base<true, Types...>
     }
     ~variant_base() = default;
 };
+
+template <typename T>
+struct variant_is_in_place_index
+{
+    static constexpr bool value = false;
+};
+
+template <std::size_t I>
+struct variant_is_in_place_index<in_place_index_t<I>>
+{
+    static constexpr bool value = true;
+};
+
+template <typename T>
+struct variant_is_in_place_type
+{
+    static constexpr bool value = false;
+};
+
+template <typename T>
+struct variant_is_in_place_type<in_place_type_t<T>>
+{
+    static constexpr bool value = true;
+};
 }
 
 template <typename... Types>
@@ -460,15 +496,44 @@ public:
         values.move_construct(std::move(rt.values), rt.index_value.get());
         index_value = rt.index_value;
     }
-    template <std::size_t index,
+    template <
+        typename T,
+        std::size_t Index = detail::variant_conversion_deduce_index<T, Types...>(),
+        typename = typename std::
+            enable_if<!std::is_same<typename std::decay<T>::type, variant>::value
+                      && !detail::variant_is_in_place_index<typename std::decay<T>::type>::value
+                      && !detail::variant_is_in_place_type<typename std::decay<T>::type>::value>::
+                type>
+    constexpr variant(T &&value) noexcept(
+        std::is_nothrow_constructible<variant_alternative_t<Index, variant<Types...>>, T>::value)
+        : base(Index, in_place_index<Index>, std::forward<T>(value))
+    {
+    }
+    template <std::size_t Index,
               typename... Args,
               typename = typename std::
-                  enable_if<std::is_constructible<variant_alternative_t<index, variant<Types...>>,
+                  enable_if<std::is_constructible<variant_alternative_t<Index, variant<Types...>>,
                                                   Args...>::value>::type>
-    constexpr explicit variant(in_place_index_t<index>, Args &&... args) noexcept(
-        std::is_nothrow_constructible<variant_alternative_t<index, variant<Types...>>,
+    constexpr explicit variant(in_place_index_t<Index>, Args &&... args) noexcept(
+        std::is_nothrow_constructible<variant_alternative_t<Index, variant<Types...>>,
                                       Args...>::value)
-        : base(index, in_place_index<index>, std::forward<Args>(args)...)
+        : base(Index, in_place_index<Index>, std::forward<Args>(args)...)
+    {
+    }
+    template <std::size_t Index,
+              typename U,
+              typename... Args,
+              typename = typename std::
+                  enable_if<std::is_constructible<variant_alternative_t<Index, variant<Types...>>,
+                                                  std::initializer_list<U>,
+                                                  Args...>::value>::type>
+    constexpr explicit variant(in_place_index_t<Index>,
+                               std::initializer_list<U> il,
+                               Args &&... args) //
+        noexcept(std::is_nothrow_constructible<variant_alternative_t<Index, variant<Types...>>,
+                                               std::initializer_list<U>,
+                                               Args...>::value)
+        : base(Index, in_place_index<Index>, il, std::forward<Args>(args)...)
     {
     }
 #error finish
