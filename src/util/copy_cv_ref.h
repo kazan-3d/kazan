@@ -21,8 +21,8 @@
  *
  */
 
-#ifndef SOURCE_UTIL_COPY_CV_REF_H_
-#define SOURCE_UTIL_COPY_CV_REF_H_
+#ifndef UTIL_COPY_CV_REF_H_
+#define UTIL_COPY_CV_REF_H_
 
 namespace vulkan_cpu
 {
@@ -99,4 +99,4 @@ using copy_cv_ref_t = typename copy_cv_ref<Source, Dest>::type;
 }
 }
 
-#endif /* SOURCE_UTIL_COPY_CV_REF_H_ */
+#endif /* UTIL_COPY_CV_REF_H_ */

@@ -21,8 +21,8 @@
  *
  */
 
-#ifndef SOURCE_UTIL_INVOKE_H_
-#define SOURCE_UTIL_INVOKE_H_
+#ifndef UTIL_INVOKE_H_
+#define UTIL_INVOKE_H_
 
 #include <type_traits>
 #include <utility>
@@ -274,4 +274,4 @@ constexpr bool is_nothrow_invocable_r_v = is_nothrow_invocable_r<R, Fn, Args...>
 }
 }
 
-#endif /* SOURCE_UTIL_INVOKE_H_ */
+#endif /* UTIL_INVOKE_H_ */

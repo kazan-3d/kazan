@@ -19,7 +19,6 @@
 # SOFTWARE.
 #
 cmake_minimum_required(VERSION 3.1 FATAL_ERROR)
-add_subdirectory(spirv)
-add_subdirectory(demo)
-add_subdirectory(json)
-add_subdirectory(util)
+set(sources json.cpp) 
+add_library(json STATIC ${sources})
+target_link_libraries(json util)

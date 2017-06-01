@@ -21,3 +21,4 @@
 cmake_minimum_required(VERSION 3.1 FATAL_ERROR)
 set(sources spirv.cpp) 
 add_library(spirv STATIC ${sources})
+target_link_libraries(spirv util)

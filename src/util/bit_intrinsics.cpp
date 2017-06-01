@@ -20,26 +20,4 @@
  * SOFTWARE.
  *
  */
-
-#ifndef UTIL_VOID_T_H_
-#define UTIL_VOID_T_H_
-
-namespace vulkan_cpu
-{
-namespace util
-{
-namespace detail
-{
-template <typename... Types>
-struct void_t_helper
-{
-    typedef void type;
-};
-}
-
-template <typename... Types>
-using void_t = typename detail::void_t_helper<Types...>::type;
-}
-}
-
-#endif /* UTIL_VOID_T_H_ */
+#include "bit_intrinsics.h"
