@@ -21,8 +21,10 @@
 cmake_minimum_required(VERSION 3.1 FATAL_ERROR)
 set(sources copy_cv_ref.cpp
             in_place.cpp
+            invoke.cpp
             is_referenceable.cpp
             is_swappable.cpp
             optional.cpp
+            variant.cpp
             void_t.cpp)
 add_library(util STATIC ${sources})
