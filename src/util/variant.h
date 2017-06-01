@@ -32,6 +32,8 @@
 #include <new>
 #include "in_place.h"
 #include "void_t.h"
+#include "copy_cv_ref.h"
+#include "is_swappable.h"
 
 namespace vulkan_cpu
 {
@@ -186,6 +188,8 @@ union variant_values
     static constexpr bool is_nothrow_copy_assignable = true;
     static constexpr bool is_nothrow_move_assignable = true;
     static constexpr bool is_trivially_destructible = true;
+    static constexpr bool is_swappable = true;
+    static constexpr bool is_nothrow_swappable = true;
     variant_values() = delete;
     template <std::size_t index>
     constexpr variant_values(in_place_index_t<index>) noexcept : value()
@@ -211,6 +215,9 @@ union variant_values
     void destroy(std::size_t index) noexcept
     {
     }
+    void swap(variant_values &rt, std::size_t index) noexcept
+    {
+    }
 };
 
 template <typename T, typename... Types>
@@ -232,19 +239,28 @@ union variant_values<T, Types...>
     static constexpr bool is_nothrow_move_constructible =
         std::is_nothrow_move_constructible<T>::value
         && variant_values<Types...>::is_nothrow_move_constructible;
-    static constexpr bool is_copy_assignable =
-        std::is_copy_assignable<T>::value && variant_values<Types...>::is_copy_assignable;
-    static constexpr bool is_move_assignable =
-        std::is_move_assignable<T>::value && variant_values<Types...>::is_move_assignable;
+    static constexpr bool is_copy_assignable = std::is_copy_assignable<T>::value
+                                               && std::is_copy_constructible<T>::value
+                                               && variant_values<Types...>::is_copy_assignable;
+    static constexpr bool is_move_assignable = std::is_move_assignable<T>::value
+                                               && std::is_move_constructible<T>::value
+                                               && variant_values<Types...>::is_move_assignable;
     static constexpr bool is_nothrow_copy_assignable =
-        std::is_nothrow_copy_assignable<T>::value
+        std::is_nothrow_copy_assignable<T>::value && std::is_nothrow_copy_constructible<T>::value
         && variant_values<Types...>::is_nothrow_copy_assignable;
     static constexpr bool is_nothrow_move_assignable =
-        std::is_nothrow_move_assignable<T>::value
+        std::is_nothrow_move_assignable<T>::value && std::is_nothrow_move_constructible<T>::value
         && variant_values<Types...>::is_nothrow_move_assignable;
     static constexpr bool is_trivially_destructible =
         std::is_trivially_destructible<T>::value
         && variant_values<Types...>::is_trivially_destructible;
+    static constexpr bool is_swappable =
+        is_swappable_v<T> && std::is_move_constructible<T> && variant_values<Types...>::
+                                                                  is_swappable;
+    static constexpr bool is_nothrow_swappable =
+        is_nothrow_swappable_v<T> && std::
+                                         is_nothrow_move_constructible<T> && variant_values<Types...>::
+                                                                                 is_nothrow_swappable;
     template <typename T2 = T,
               typename = typename std::enable_if<std::is_default_constructible<T2>::value>::type>
     constexpr variant_values() noexcept(std::is_nothrow_default_constructible<T2>::value)
@@ -333,7 +349,169 @@ union variant_values<T, Types...>
         else
             other_values.destruct(index - 1);
     }
+    void swap(variant_values &rt, std::size_t index) noexcept(is_nothrow_swappable)
+    {
+        using std::swap;
+        if(index == 0)
+            swap(current_value, rt.current_value);
+        else
+            other_values.swap(rt.other_values, index - 1);
+    }
 };
+
+template <std::size_t Index, typename... Types>
+struct variant_get;
+
+template <std::size_t Index, typename T, typename... Types>
+struct variant_get<Index, T, Types...>
+{
+    static constexpr auto get(const variant_values<T, Types...> &values) noexcept
+        -> decltype(variant_get<Index - 1, Types...>::get(values.other_values))
+    {
+        return variant_get<Index - 1, Types...>::get(values.other_values);
+    }
+    static constexpr auto get(variant_values<T, Types...> &values) noexcept
+        -> decltype(variant_get<Index - 1, Types...>::get(values.other_values))
+    {
+        return variant_get<Index - 1, Types...>::get(values.other_values);
+    }
+    static constexpr auto get(const variant_values<T, Types...> &&values) noexcept
+        -> decltype(variant_get<Index - 1, Types...>::get(std::move(values.other_values)))
+    {
+        return variant_get<Index - 1, Types...>::get(std::move(values.other_values));
+    }
+    static constexpr auto get(variant_values<T, Types...> &&values) noexcept
+        -> decltype(variant_get<Index - 1, Types...>::get(std::move(values.other_values)))
+    {
+        return variant_get<Index - 1, Types...>::get(std::move(values.other_values));
+    }
+};
+
+template <typename T, typename... Types>
+struct variant_get<0, T, Types...>
+{
+    static constexpr const T &get(const variant_values<T, Types...> &values) noexcept
+    {
+        return values.current_value;
+    }
+    static constexpr T &get(variant_values<T, Types...> &values) noexcept
+    {
+        return values.current_value;
+    }
+    static constexpr const T &&get(const variant_values<T, Types...> &&values) noexcept
+    {
+        return std::move(values.current_value);
+    }
+    static constexpr T &&get(variant_values<T, Types...> &&values) noexcept
+    {
+        return std::move(values.current_value);
+    }
+};
+
+#define VULKAN_CPU_UTIL_VARIANT_DISPATCH(Const, Ref)                                             \
+    template <typename Fn,                                                                       \
+              typename... Args,                                                                  \
+              typename... Types,                                                                 \
+              std::size_t... Indexes,                                                            \
+              typename Return_Type = typename std::common_type<decltype(std::declval<Fn>()(      \
+                  std::declval<Const Types Ref>(), std::declval<Args>()...))...>::type>          \
+    constexpr Return_Type variant_dispatch_helper(Fn &&fn,                                       \
+                                                  Const variant_values<Types...> Ref values,     \
+                                                  std::size_t index,                             \
+                                                  std::index_sequence<Indexes...>,               \
+                                                  Args &&... args)                               \
+    {                                                                                            \
+        typedef Return_Type (*Dispatch_Function)(                                                \
+            Fn && fn, Const variant_values<Types...> & values, Args && ... args);                \
+        static const Dispatch_Function dispatch_functions[sizeof...(Types)] = {                  \
+            static_cast<Dispatch_Function>(                                                      \
+                [](Fn &&fn, Const variant_values<Types...> &values, Args &&... args)             \
+                    -> Return_Type                                                               \
+                {                                                                                \
+                    return std::forward<Fn>(fn)(                                                 \
+                        variant_get<Indexes, Types...>::get(                                     \
+                            std::forward<Const variant_values<Types...> Ref>(values)),           \
+                        std::forward<Args>(args)...);                                            \
+                })...,                                                                           \
+        };                                                                                       \
+        if(index < sizeof...(Types))                                                             \
+            return dispatch_functions[index](                                                    \
+                std::forward<Fn>(fn), values, std::forward<Args>(args)...);                      \
+        throw bad_variant_access();                                                              \
+    }                                                                                            \
+                                                                                                 \
+    template <typename Fn, typename... Args, typename... Types>                                  \
+    constexpr auto variant_dispatch(                                                             \
+        Fn &&fn, Const variant_values<Types...> Ref values, std::size_t index, Args &&... args)  \
+        ->decltype(                                                                              \
+            variant_dispatch_helper(std::forward<Fn>(fn),                                        \
+                                    std::forward<Const variant_values<Types...> Ref>(values),    \
+                                    index,                                                       \
+                                    std::index_sequence_for<Types...>{},                         \
+                                    std::forward<Args>(args)...))                                \
+    {                                                                                            \
+        return variant_dispatch_helper(std::forward<Fn>(fn),                                     \
+                                       std::forward<Const variant_values<Types...> Ref>(values), \
+                                       index,                                                    \
+                                       std::index_sequence_for<Types...>{},                      \
+                                       std::forward<Args>(args)...);                             \
+    }                                                                                            \
+                                                                                                 \
+    template <typename Fn,                                                                       \
+              typename... Args,                                                                  \
+              typename... Types,                                                                 \
+              std::size_t... Indexes,                                                            \
+              typename Return_Type = typename std::common_type<decltype(std::declval<Fn>()(      \
+                  std::declval<Const Types Ref>(), std::declval<Args>()...))...>::type>          \
+    constexpr Return_Type variant_dispatch_helper_nothrow(                                       \
+        Fn &&fn,                                                                                 \
+        Const variant_values<Types...> Ref values,                                               \
+        std::size_t index,                                                                       \
+        std::index_sequence<Indexes...>,                                                         \
+        Args &&... args)                                                                         \
+    {                                                                                            \
+        typedef Return_Type (*Dispatch_Function)(                                                \
+            Fn && fn, Const variant_values<Types...> & values, Args && ... args);                \
+        static const Dispatch_Function dispatch_functions[sizeof...(Types)] = {                  \
+            static_cast<Dispatch_Function>(                                                      \
+                [](Fn &&fn, Const variant_values<Types...> &values, Args &&... args)             \
+                    -> Return_Type                                                               \
+                {                                                                                \
+                    return std::forward<Fn>(fn)(                                                 \
+                        variant_get<Indexes, Types...>::get(                                     \
+                            std::forward<Const variant_values<Types...> Ref>(values)),           \
+                        std::forward<Args>(args)...);                                            \
+                })...,                                                                           \
+        };                                                                                       \
+        if(index < sizeof...(Types))                                                             \
+            return dispatch_functions[index](                                                    \
+                std::forward<Fn>(fn), values, std::forward<Args>(args)...);                      \
+        return {};                                                                               \
+    }                                                                                            \
+                                                                                                 \
+    template <typename Fn, typename... Args, typename... Types>                                  \
+    constexpr auto variant_dispatch_nothrow(                                                     \
+        Fn &&fn, Const variant_values<Types...> Ref values, std::size_t index, Args &&... args)  \
+        ->decltype(variant_dispatch_helper_nothrow(                                              \
+            std::forward<Fn>(fn),                                                                \
+            std::forward<Const variant_values<Types...> Ref>(values),                            \
+            index,                                                                               \
+            std::index_sequence_for<Types...>{},                                                 \
+            std::forward<Args>(args)...))                                                        \
+    {                                                                                            \
+        return variant_dispatch_helper_nothrow(                                                  \
+            std::forward<Fn>(fn),                                                                \
+            std::forward<Const variant_values<Types...> Ref>(values),                            \
+            index,                                                                               \
+            std::index_sequence_for<Types...>{},                                                 \
+            std::forward<Args>(args)...);                                                        \
+    }
+
+VULKAN_CPU_UTIL_VARIANT_DISPATCH(, &)
+VULKAN_CPU_UTIL_VARIANT_DISPATCH(const, &)
+VULKAN_CPU_UTIL_VARIANT_DISPATCH(, &&)
+VULKAN_CPU_UTIL_VARIANT_DISPATCH(const, &&)
+#undef VULKAN_CPU_UTIL_VARIANT_DISPATCH
 
 template <typename T,
           typename... Types,
@@ -502,11 +680,39 @@ public:
         typename = typename std::
             enable_if<!std::is_same<typename std::decay<T>::type, variant>::value
                       && !detail::variant_is_in_place_index<typename std::decay<T>::type>::value
-                      && !detail::variant_is_in_place_type<typename std::decay<T>::type>::value>::
-                type>
+                      && !detail::variant_is_in_place_type<typename std::decay<T>::type>::value
+                      && std::is_constructible<variant_alternative_t<Index, variant<Types...>>,
+                                               T>::value>::type>
     constexpr variant(T &&value) noexcept(
         std::is_nothrow_constructible<variant_alternative_t<Index, variant<Types...>>, T>::value)
         : base(Index, in_place_index<Index>, std::forward<T>(value))
+    {
+    }
+    template <typename T,
+              typename... Args,
+              std::size_t Index = detail::variant_values<Types...>::index_from_type<T>(),
+              typename = typename std::enable_if<(Index < sizeof...(Types))
+                                                 && std::is_constructible<T, Args...>::value>::type>
+    constexpr explicit variant(in_place_type_t<T>, Args &&... args) noexcept(
+        std::is_nothrow_constructible<T, Args...>::value)
+        : base(Index, in_place_index<Index>, std::forward<Args>(args)...)
+    {
+    }
+    template <
+        typename T,
+        typename U,
+        typename... Args,
+        std::size_t Index = detail::variant_values<Types...>::index_from_type<T>(),
+        typename = typename std::
+            enable_if<(Index < sizeof...(Types))
+                      && std::is_constructible<T, std::initializer_list<U>, Args...>::value>::type>
+    constexpr explicit variant(
+        in_place_type_t<T>,
+        std::initializer_list<U> il,
+        Args &&... args) noexcept(std::is_nothrow_constructible<T,
+                                                                std::initializer_list<U>,
+                                                                Args...>::value)
+        : base(Index, in_place_index<Index>, il, std::forward<Args>(args)...)
     {
     }
     template <std::size_t Index,
@@ -536,12 +742,152 @@ public:
         : base(Index, in_place_index<Index>, il, std::forward<Args>(args)...)
     {
     }
-#error finish
+    template <
+        typename =
+            typename std::enable_if<detail::variant_values<Types...>::is_copy_assignable>::type>
+    variant &operator=(const variant &rt) noexcept(
+        detail::variant_values<Types...>::is_nothrow_copy_assignable)
+    {
+        if(index_value.get() == rt.index_value.get())
+        {
+            values.copy_assign(rt.values, index_value.get());
+        }
+        else
+        {
+            values.destruct(index_value.get());
+            index_value.set(variant_npos); // in case copy_construct throws
+            values.copy_construct(rt, rt.index_value.get());
+            index_value = rt.index_value;
+        }
+        return *this;
+    }
+    template <
+        typename =
+            typename std::enable_if<detail::variant_values<Types...>::is_move_assignable>::type>
+    variant &operator=(variant &&rt) noexcept(
+        detail::variant_values<Types...>::is_nothrow_move_assignable)
+    {
+        if(index_value.get() == rt.index_value.get())
+        {
+            values.move_assign(std::move(rt.values), index_value.get());
+        }
+        else
+        {
+            values.destruct(index_value.get());
+            index_value.set(variant_npos); // in case move_construct throws
+            values.move_construct(std::move(rt), rt.index_value.get());
+            index_value = rt.index_value;
+        }
+        return *this;
+    }
+    template <
+        typename T,
+        std::size_t Index = detail::variant_conversion_deduce_index<T, Types...>(),
+        typename = typename std::
+            enable_if<!std::is_same<typename std::decay<T>::type, variant>::value
+                      && !detail::variant_is_in_place_index<typename std::decay<T>::type>::value
+                      && !detail::variant_is_in_place_type<typename std::decay<T>::type>::value
+                      && std::is_constructible<variant_alternative_t<Index, variant<Types...>>,
+                                               T>::value
+                      && std::is_assignable<variant_alternative_t<Index, variant<Types...>>,
+                                            T>::value>::type>
+    variant &operator=(T &&new_value) noexcept(
+        std::is_nothrow_constructible<variant_alternative_t<Index, variant<Types...>>, T>::value
+            &&std::is_nothrow_assignable<variant_alternative_t<Index, variant<Types...>>, T>::value)
+    {
+        if(index_value.get() == Index)
+        {
+            detail::variant_get<Index, Types...>::get(values) = std::forward<T>(new_value);
+        }
+        else
+        {
+            values.destruct(index_value.get());
+            index_value.set(variant_npos); // in case construction throws
+            auto &value = detail::variant_get<Index, Types...>::get(values);
+            new(const_cast<void *>(std::addressof(value)))
+                variant_alternative_t<Index, variant<Types...>>(std::forward<T>(new_value));
+            index_value.set(Index);
+        }
+        return *this;
+    }
+    template <typename T,
+              typename... Args,
+              std::size_t Index = detail::variant_values<Types...>::index_from_type<T>(),
+              typename = typename std::enable_if<(Index < sizeof...(Types))
+                                                 && std::is_constructible<T, Args...>::value>::type>
+    void emplace(Args &&... args)
+    {
+        emplace<Index>(std::forward<Args>(args)...);
+    }
+    template <
+        typename T,
+        typename U,
+        typename... Args,
+        std::size_t Index = detail::variant_values<Types...>::index_from_type<T>(),
+        typename = typename std::
+            enable_if<(Index < sizeof...(Types))
+                      && std::is_constructible<T, std::initializer_list<U>, Args...>::value>::type>
+    void emplace(std::initializer_list<U> il, Args &&... args)
+    {
+        emplace<Index>(il, std::forward<Args>(args)...);
+    }
+    template <std::size_t Index,
+              typename... Args,
+              typename = typename std::
+                  enable_if<(Index < sizeof...(Types))
+                            && std::is_constructible<variant_alternative_t<Index,
+                                                                           variant<Types...>>,
+                                                     Args...>::value>::type>
+    void emplace(Args &&... args)
+    {
+        values.destruct(index_value.get());
+        index_value.set(variant_npos); // in case construction throws
+        auto &value = detail::variant_get<Index, Types...>::get(values);
+        new(const_cast<void *>(std::addressof(value)))
+            variant_alternative_t<Index, variant<Types...>>(std::forward<Args>(args)...);
+        index_value.set(Index);
+    }
+    template <std::size_t Index,
+              typename U,
+              typename... Args,
+              typename = typename std::
+                  enable_if<(Index < sizeof...(Types))
+                            && std::is_constructible<variant_alternative_t<Index,
+                                                                           variant<Types...>>,
+                                                     std::initializer_list<U>,
+                                                     Args...>::value>::type>
+    void emplace(std::initializer_list<U> il, Args &&... args)
+    {
+        values.destruct(index_value.get());
+        index_value.set(variant_npos); // in case construction throws
+        auto &value = detail::variant_get<Index, Types...>::get(values);
+        new(const_cast<void *>(std::addressof(value)))
+            variant_alternative_t<Index, variant<Types...>>(il, std::forward<Args>(args)...);
+        index_value.set(Index);
+    }
+    constexpr bool valueless_by_exception() const noexcept
+    {
+        return index_value.get() == variant_npos;
+    }
     constexpr std::size_t index() const noexcept
     {
         return index_value.get();
     }
+    template <
+        typename = typename std::enable_if<detail::variant_values<Types...>::is_swappable>::type>
+    void swap(variant &rt) noexcept(detail::variant_values<Types...>::is_nothrow_swappable)
+    {
+        if(index_value.get() == rt.index_value.get())
+            values.swap(rt.values, index_value.get());
+        else
+        {
+            variant temp = std::move(rt);
+            rt = std::move(*this);
+            *this = std::move(temp);
+        }
+    }
 };
+#error finish
 }
 }
 
@@ -555,6 +901,16 @@ struct hash<vulkan_cpu::util::monostate>
         return 5546275UL;
     }
 };
+
+template <typename... Types,
+          typename = typename std::
+              enable_if<vulkan_cpu::util::detail::variant_values<Types...>::is_swappable>::type>
+inline void
+    swap(vulkan_cpu::util::variant<Types...> &l, vulkan_cpu::util::variant<Types...> &r) noexcept(
+        vulkan_cpu::util::detail::variant_values<Types...>::is_nothrow_swappable)
+{
+    l.swap(r);
+}
 }
 
 #endif /* SOURCE_UTIL_VARIANT_H_ */

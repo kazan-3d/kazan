@@ -81,12 +81,18 @@ struct is_swappable_with
 };
 
 template <typename T, typename U>
+constexpr bool is_swappable_with_v = is_swappable_with<T, U>::value;
+
+template <typename T, typename U>
 struct is_nothrow_swappable_with
     : public std::integral_constant<bool,
                                     vulkan_cpu_util_is_swappable_unrelated_namespace::
                                         is_nothrow_swappable_with<T, U>::value>
 {
 };
+
+template <typename T, typename U>
+constexpr bool is_nothrow_swappable_with_v = is_nothrow_swappable_with<T, U>::value;
 
 namespace detail
 {
@@ -121,10 +127,16 @@ struct is_swappable : public std::integral_constant<bool, detail::is_swappable_h
 };
 
 template <typename T>
+constexpr bool is_swappable_v = is_swappable<T>::value;
+
+template <typename T>
 struct is_nothrow_swappable
     : public std::integral_constant<bool, detail::is_nothrow_swappable_helper<T>::value>
 {
 };
+
+template <typename T>
+constexpr bool is_nothrow_swappable_v = is_nothrow_swappable<T>::value;
 }
 }
 
