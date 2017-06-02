@@ -670,21 +670,6 @@ VULKAN_CPU_UTIL_VARIANT_DISPATCH(, &&)
 VULKAN_CPU_UTIL_VARIANT_DISPATCH(const, &&)
 #undef VULKAN_CPU_UTIL_VARIANT_DISPATCH
 
-template <typename T,
-          typename... Types,
-          typename Deduced_Type = typename decltype(
-              variant_hypothetical_overload_set<Types...>::fn(std::declval<T>()))::type,
-          std::size_t Index = variant_values<Types...>::template index_from_type<Deduced_Type>(),
-          typename = typename std::enable_if<(Index < sizeof...(Types))>::type>
-constexpr std::size_t variant_conversion_deduce_index() noexcept
-{
-    return Index;
-}
-
-template <typename T, typename... Types>
-using variant_conversion_deduce_type =
-    variant_alternative_t<variant_conversion_deduce_index<T, Types...>(), variant<Types...>>;
-
 template <std::size_t Type_Count>
 struct variant_index_type
 {
@@ -948,9 +933,13 @@ public:
     }
     template <
         typename T,
-        std::size_t Index = detail::variant_conversion_deduce_index<T, Types...>(),
+        typename Deduced_Type = typename decltype(
+            detail::variant_hypothetical_overload_set<Types...>::fn(std::declval<T>()))::type,
+        std::size_t Index =
+            detail::variant_values<Types...>::template index_from_type<Deduced_Type>(),
         typename = typename std::
-            enable_if<!std::is_same<typename std::decay<T>::type, variant>::value
+            enable_if<(Index < sizeof...(Types))
+                      && !std::is_same<typename std::decay<T>::type, variant>::value
                       && !detail::variant_is_in_place_index<typename std::decay<T>::type>::value
                       && !detail::variant_is_in_place_type<typename std::decay<T>::type>::value
                       && std::is_constructible<variant_alternative_t<Index, variant<Types...>>,
@@ -1033,9 +1022,13 @@ public:
     }
     template <
         typename T,
-        std::size_t Index = detail::variant_conversion_deduce_index<T, Types...>(),
+        typename Deduced_Type = typename decltype(
+            detail::variant_hypothetical_overload_set<Types...>::fn(std::declval<T>()))::type,
+        std::size_t Index =
+            detail::variant_values<Types...>::template index_from_type<Deduced_Type>(),
         typename = typename std::
-            enable_if<!std::is_same<typename std::decay<T>::type, variant>::value
+            enable_if<(Index < sizeof...(Types))
+                      && !std::is_same<typename std::decay<T>::type, variant>::value
                       && !detail::variant_is_in_place_index<typename std::decay<T>::type>::value
                       && !detail::variant_is_in_place_type<typename std::decay<T>::type>::value
                       && std::is_constructible<variant_alternative_t<Index, variant<Types...>>,

@@ -20,32 +20,50 @@
  * SOFTWARE.
  *
  */
-#include "variant.h"
-
-#if 0
-#include <cstdlib>
 #include <iostream>
-#include <string>
+#include "../json/json.h"
+#include "../json/parser.h"
+
 namespace vulkan_cpu
 {
-namespace util
+namespace generate_spirv_parser
 {
-namespace
+namespace ast = json::ast;
+
+int generate_spirv_parser_main(int argc, char **argv)
 {
-void test()
-{
-    variant<std::string> v = "abc";
+    std::string file_name;
+    if(argc >= 2)
+        file_name = argv[1];
+    if(argc != 2 || (file_name.size() > 1 && file_name[0] == '-'))
+    {
+        std::cerr << "usage: " << argv[0] << " <input.json>" << std::endl;
+        return 1;
+    }
+    try
+    {
+        const auto source = file_name == "-" ? json::source::load_stdin() :
+                                               json::source::load_file(std::move(file_name));
+        auto value = json::parse(&source);
+        ast::write(std::cout, value);
+        std::cout << std::endl;
+    }
+    catch(json::parse_error &e)
+    {
+        std::cerr << "error: " << e.what() << std::endl;
+        return 1;
+    }
+    catch(std::exception &e)
+    {
+        std::cerr << "error: " << e.what() << std::endl;
+        return 1;
+    }
+    return 0;
+}
+}
 }
 
-struct Test
+int main(int argc, char **argv)
 {
-    Test()
-    {
-        test();
-        std::exit(0);
-    }
-} tester;
+    return vulkan_cpu::generate_spirv_parser::generate_spirv_parser_main(argc, argv);
 }
-}
-}
-#endif

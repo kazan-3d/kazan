@@ -337,24 +337,23 @@ void write_number(Write_Char write_char,
 }
 }
 
-std::string number_value::to_string(std::string buffer_in, unsigned base) const
+std::string number_value::append_double_to_string(double value, std::string buffer, unsigned base)
 {
-    buffer_in.clear();
-    std::string retval = std::move(buffer_in);
     write_number(
         [&](char ch)
         {
-            retval += ch;
+            buffer += ch;
         },
         value,
         base);
-    return retval;
+    return buffer;
 }
 
-std::size_t number_value::to_string(char *output_buffer,
-                                    std::size_t output_buffer_size,
-                                    bool require_null_terminator,
-                                    unsigned base) const noexcept
+std::size_t number_value::double_to_buffer(double value,
+                                           char *output_buffer,
+                                           std::size_t output_buffer_size,
+                                           bool require_null_terminator,
+                                           unsigned base) noexcept
 {
     if(output_buffer_size == 0)
         return 0;
@@ -363,6 +362,84 @@ std::size_t number_value::to_string(char *output_buffer,
     if(require_null_terminator)
         output_buffer_size_without_terminator--;
     write_number(
+        [&](char ch)
+        {
+            if(used_buffer_size < output_buffer_size_without_terminator)
+                output_buffer[used_buffer_size++] = ch;
+        },
+        value,
+        base);
+    if(used_buffer_size < output_buffer_size)
+        output_buffer[used_buffer_size] = '\0'; // add the null terminator if there is space
+    return used_buffer_size; // report used buffer excluding the null terminator
+}
+
+std::string number_value::append_unsigned_integer_to_string(std::uint64_t value,
+                                                            std::string buffer,
+                                                            unsigned base)
+{
+    write_unsigned_integer(
+        [&](char ch)
+        {
+            buffer += ch;
+        },
+        value,
+        base);
+    return buffer;
+}
+
+std::size_t number_value::unsigned_integer_to_buffer(std::uint64_t value,
+                                                     char *output_buffer,
+                                                     std::size_t output_buffer_size,
+                                                     bool require_null_terminator,
+                                                     unsigned base) noexcept
+{
+    if(output_buffer_size == 0)
+        return 0;
+    std::size_t used_buffer_size = 0;
+    std::size_t output_buffer_size_without_terminator = output_buffer_size;
+    if(require_null_terminator)
+        output_buffer_size_without_terminator--;
+    write_unsigned_integer(
+        [&](char ch)
+        {
+            if(used_buffer_size < output_buffer_size_without_terminator)
+                output_buffer[used_buffer_size++] = ch;
+        },
+        value,
+        base);
+    if(used_buffer_size < output_buffer_size)
+        output_buffer[used_buffer_size] = '\0'; // add the null terminator if there is space
+    return used_buffer_size; // report used buffer excluding the null terminator
+}
+
+std::string number_value::append_signed_integer_to_string(std::int64_t value,
+                                                          std::string buffer,
+                                                          unsigned base)
+{
+    write_unsigned_integer(
+        [&](char ch)
+        {
+            buffer += ch;
+        },
+        value,
+        base);
+    return buffer;
+}
+
+std::size_t number_value::signed_integer_to_buffer(std::int64_t value,
+                                                   char *output_buffer,
+                                                   std::size_t output_buffer_size,
+                                                   bool require_null_terminator,
+                                                   unsigned base) noexcept
+{
+    if(output_buffer_size == 0)
+        return 0;
+    std::size_t used_buffer_size = 0;
+    std::size_t output_buffer_size_without_terminator = output_buffer_size;
+    if(require_null_terminator)
+        output_buffer_size_without_terminator--;
+    write_unsigned_integer(
         [&](char ch)
         {
             if(used_buffer_size < output_buffer_size_without_terminator)

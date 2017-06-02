@@ -31,6 +31,7 @@
 #include <memory>
 #include <utility>
 #include <limits>
+#include <type_traits>
 #include "../util/variant.h"
 
 namespace vulkan_cpu
@@ -39,16 +40,12 @@ namespace json
 {
 namespace ast
 {
-struct composite_value
-{
-    composite_value() = default;
-    virtual ~composite_value() = default;
-    virtual void write(std::ostream &os) const = 0;
-    virtual std::unique_ptr<composite_value> duplicate() const = 0;
-};
-
 struct null_value final
 {
+    constexpr null_value() noexcept = default;
+    constexpr null_value(std::nullptr_t) noexcept
+    {
+    }
     void write(std::ostream &os) const;
     null_value duplicate() const noexcept
     {
@@ -67,7 +64,8 @@ struct null_value final
 struct boolean_value final
 {
     bool value;
-    constexpr boolean_value(bool value) noexcept : value(value)
+    template <typename T, typename = typename std::enable_if<std::is_same<T, bool>::value>::type>
+    constexpr boolean_value(T value) noexcept : value(value)
     {
     }
     void write(std::ostream &os) const;
@@ -88,10 +86,11 @@ struct boolean_value final
 struct string_value final
 {
     std::string value;
-    string_value(std::string value) noexcept : value(std::move(value))
-    {
-    }
-    string_value(const char *value) : value(std::move(value))
+    template <
+        typename T,
+        typename = typename std::enable_if<!std::is_same<T, std::nullptr_t>::value
+                                           && std::is_convertible<T, std::string>::value>::type>
+    string_value(T value) noexcept : value(std::move(value))
     {
     }
     static void write(std::ostream &os, const std::string &value);
@@ -118,7 +117,10 @@ struct number_value final
     double value;
     static_assert(std::numeric_limits<double>::is_iec559 && std::numeric_limits<double>::radix == 2,
                   "double is not a ieee754 float64");
-    number_value(double value) noexcept : value(value)
+    template <typename T,
+              typename = typename std::enable_if<std::is_arithmetic<T>::value
+                                                 && !std::is_same<T, bool>::value>::type>
+    number_value(T value) noexcept : value(value)
     {
     }
     explicit operator std::string() const
@@ -128,11 +130,67 @@ struct number_value final
     static constexpr unsigned max_base = 36;
     static constexpr unsigned min_base = 2;
     static constexpr unsigned default_base = 10; // the json spec only supports base 10
-    std::string to_string(std::string buffer_in = {}, unsigned base = default_base) const;
-    std::size_t to_string(char *output_buffer,
+    std::string append_to_string(std::string buffer, unsigned base = default_base) const
+    {
+        return append_double_to_string(value, std::move(buffer), base);
+    }
+    std::string to_string(std::string buffer = {}, unsigned base = default_base) const
+    {
+        return double_to_string(value, std::move(buffer), base);
+    }
+    std::size_t to_buffer(char *output_buffer,
                           std::size_t output_buffer_size,
                           bool require_null_terminator = true,
-                          unsigned base = default_base) const noexcept;
+                          unsigned base = default_base) const noexcept
+    {
+        return double_to_buffer(
+            value, output_buffer, output_buffer_size, require_null_terminator, base);
+    }
+    static std::string append_unsigned_integer_to_string(std::uint64_t value,
+                                                         std::string buffer,
+                                                         unsigned base = default_base);
+    static std::string unsigned_integer_to_string(std::uint64_t value,
+                                                  std::string buffer = {},
+                                                  unsigned base = default_base)
+    {
+        buffer.clear();
+        return append_unsigned_integer_to_string(value, std::move(buffer), base);
+    }
+    static std::size_t unsigned_integer_to_buffer(std::uint64_t value,
+                                                  char *output_buffer,
+                                                  std::size_t output_buffer_size,
+                                                  bool require_null_terminator = true,
+                                                  unsigned base = default_base) noexcept;
+    static std::string append_signed_integer_to_string(std::int64_t value,
+                                                       std::string buffer,
+                                                       unsigned base = default_base);
+    static std::string signed_integer_to_string(std::int64_t value,
+                                                std::string buffer = {},
+                                                unsigned base = default_base)
+    {
+        buffer.clear();
+        return append_signed_integer_to_string(value, std::move(buffer), base);
+    }
+    static std::size_t signed_integer_to_buffer(std::int64_t value,
+                                                char *output_buffer,
+                                                std::size_t output_buffer_size,
+                                                bool require_null_terminator = true,
+                                                unsigned base = default_base) noexcept;
+    static std::string append_double_to_string(double value,
+                                               std::string buffer,
+                                               unsigned base = default_base);
+    static std::string double_to_string(double value,
+                                        std::string buffer = {},
+                                        unsigned base = default_base)
+    {
+        buffer.clear();
+        return append_double_to_string(value, std::move(buffer), base);
+    }
+    static std::size_t double_to_buffer(double value,
+                                        char *output_buffer,
+                                        std::size_t output_buffer_size,
+                                        bool require_null_terminator = true,
+                                        unsigned base = default_base) noexcept;
     void write(std::ostream &os, unsigned base = default_base) const;
     number_value duplicate() const noexcept
     {
@@ -148,9 +206,44 @@ struct number_value final
     }
 };
 
+struct composite_value;
+
+class composite_value_pointer
+{
+private:
+    std::shared_ptr<composite_value> value;
+
+public:
+    constexpr composite_value_pointer() noexcept = default;
+    template <typename T,
+              typename = typename std::enable_if<std::is_base_of<composite_value, T>::value>::type>
+    composite_value_pointer(std::shared_ptr<T> value) noexcept : value(std::move(value))
+    {
+    }
+    composite_value *operator->() const noexcept
+    {
+        return value.operator->();
+    }
+    composite_value &operator*() const noexcept
+    {
+        return *value;
+    }
+};
+
 typedef util::
-    variant<null_value, boolean_value, string_value, number_value, std::unique_ptr<composite_value>>
-        value;
+    variant<null_value, boolean_value, string_value, number_value, composite_value_pointer> value;
+
+struct composite_value
+{
+    composite_value() = default;
+    virtual ~composite_value() = default;
+    virtual void write(std::ostream &os) const = 0;
+    virtual composite_value_pointer duplicate() const = 0;
+    operator value() const
+    {
+        return duplicate();
+    }
+};
 
 inline value duplicate(const value &v)
 {
@@ -182,14 +275,14 @@ struct object final : public composite_value
     {
     }
     virtual void write(std::ostream &os) const override;
-    virtual std::unique_ptr<composite_value> duplicate() const override
+    virtual composite_value_pointer duplicate() const override
     {
         std::unordered_map<std::string, value> new_values;
         for(auto &entry : values)
         {
-        	new_values.emplace(std::get<0>(entry), ast::duplicate(std::get<1>(entry)));
+            new_values.emplace(std::get<0>(entry), ast::duplicate(std::get<1>(entry)));
         }
-        return std::unique_ptr<composite_value>(new object(std::move(new_values)));
+        return std::make_shared<object>(std::move(new_values));
     }
 };
 
@@ -203,13 +296,13 @@ struct array final : public composite_value
     {
     }
     virtual void write(std::ostream &os) const override;
-    virtual std::unique_ptr<composite_value> duplicate() const override
+    virtual composite_value_pointer duplicate() const override
     {
-    	std::vector<value> new_values;
-    	new_values.reserve(values.size());
-    	for(auto &value : values)
-    		new_values.emplace_back(ast::duplicate(value));
-        return std::unique_ptr<composite_value>(new array(std::move(new_values)));
+        std::vector<value> new_values;
+        new_values.reserve(values.size());
+        for(auto &value : values)
+            new_values.emplace_back(ast::duplicate(value));
+        return std::make_shared<array>(std::move(new_values));
     }
 };
 }

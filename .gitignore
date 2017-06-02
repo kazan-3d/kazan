@@ -6,3 +6,4 @@ CMakeCache.txt
 Makefile
 /build/.settings/
 /test-files/test.spv
+/build/compile_commands.json
