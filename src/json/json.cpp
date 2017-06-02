@@ -27,22 +27,29 @@
 #include <cstdint>
 #include <cassert>
 #include <tuple>
+#include <algorithm>
 #include "../util/soft_float.h"
 
 namespace vulkan_cpu
 {
 namespace json
 {
+void write_state::write_indent(std::ostream &os) const
+{
+    for(std::size_t i = indent_level; i > 0; i--)
+        os << options.indent_text;
+}
+
 namespace ast
 {
 namespace soft_float = util::soft_float;
 
-void null_value::write(std::ostream &os) const
+void null_value::write(std::ostream &os, write_state &state) const
 {
     os << "null";
 }
 
-void boolean_value::write(std::ostream &os) const
+void boolean_value::write(std::ostream &os, write_state &state) const
 {
     os << (value ? "true" : "false");
 }
@@ -59,7 +66,7 @@ constexpr char get_digit_char(unsigned digit, bool uppercase) noexcept
 }
 }
 
-void string_value::write(std::ostream &os, const std::string &value)
+void string_value::write(std::ostream &os, const std::string &value, write_state &state)
 {
     os << '\"';
     for(unsigned char ch : value)
@@ -452,7 +459,7 @@ std::size_t number_value::signed_integer_to_buffer(std::int64_t value,
     return used_buffer_size; // report used buffer excluding the null terminator
 }
 
-void number_value::write(std::ostream &os, unsigned base) const
+void number_value::write(std::ostream &os, write_state &state, unsigned base) const
 {
     write_number(
         [&](char ch)
@@ -463,32 +470,82 @@ void number_value::write(std::ostream &os, unsigned base) const
         base);
 }
 
-void object::write(std::ostream &os) const
+void object::write(std::ostream &os, write_state &state) const
 {
     os << '{';
-    auto seperator = "";
-    for(auto &entry : values)
+    if(!values.empty())
     {
-        const std::string &key = std::get<0>(entry);
-        const value &value = std::get<1>(entry);
-        os << seperator;
-        seperator = ",";
-        string_value::write(os, key);
-        os << ':';
-        ast::write(os, value);
+        write_state::push_indent push_indent(state);
+        auto seperator = "";
+        auto write_entry = [&](const std::pair<std::string, value> &entry)
+        {
+            const std::string &key = std::get<0>(entry);
+            const value &value = std::get<1>(entry);
+            os << seperator;
+            seperator = ",";
+            if(state.options.composite_value_elements_on_seperate_lines)
+            {
+                os << '\n';
+                state.write_indent(os);
+            }
+            string_value::write(os, key, state);
+            os << ':';
+            json::write(os, value, state);
+        };
+        if(state.options.sort_object_values)
+        {
+            auto compare_fn = [](decltype(values)::const_iterator a,
+                                 decltype(values)::const_iterator b) -> bool
+            {
+                return std::get<0>(*a) < std::get<0>(*b);
+            };
+            std::vector<decltype(values)::const_iterator> entry_iterators;
+            entry_iterators.reserve(values.size());
+            for(auto i = values.begin(); i != values.end(); ++i)
+                entry_iterators.push_back(i);
+            std::sort(entry_iterators.begin(), entry_iterators.end(), compare_fn);
+            for(auto &i : entry_iterators)
+                write_entry(*i);
+        }
+        else
+        {
+            for(auto &entry : values)
+                write_entry(entry);
+        }
+        push_indent.finish();
+        if(state.options.composite_value_elements_on_seperate_lines)
+        {
+            os << '\n';
+            state.write_indent(os);
+        }
     }
     os << '}';
 }
 
-void array::write(std::ostream &os) const
+void array::write(std::ostream &os, write_state &state) const
 {
     os << '[';
-    auto seperator = "";
-    for(const value &v : values)
+    if(!values.empty())
     {
-        os << seperator;
-        seperator = ",";
-        ast::write(os, v);
+        write_state::push_indent push_indent(state);
+        auto seperator = "";
+        for(const value &v : values)
+        {
+            os << seperator;
+            seperator = ",";
+            if(state.options.composite_value_elements_on_seperate_lines)
+            {
+                os << '\n';
+                state.write_indent(os);
+            }
+            json::write(os, v, state);
+        }
+        push_indent.finish();
+        if(state.options.composite_value_elements_on_seperate_lines)
+        {
+            os << '\n';
+            state.write_indent(os);
+        }
     }
     os << ']';
 }

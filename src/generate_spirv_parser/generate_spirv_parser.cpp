@@ -45,7 +45,7 @@ int generate_spirv_parser_main(int argc, char **argv)
         const auto source = file_name == "-" ? json::source::load_stdin() :
                                                json::source::load_file(std::move(file_name));
         auto value = json::parse(&source);
-        ast::write(std::cout, value);
+        json::write(std::cout, value, json::write_options::pretty());
         std::cout << std::endl;
     }
     catch(json::parse_error &e)

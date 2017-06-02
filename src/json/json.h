@@ -32,12 +32,75 @@
 #include <utility>
 #include <limits>
 #include <type_traits>
+#include <cassert>
 #include "../util/variant.h"
 
 namespace vulkan_cpu
 {
 namespace json
 {
+struct write_options
+{
+    bool composite_value_elements_on_seperate_lines = false;
+    bool sort_object_values = false;
+    std::string indent_text = "";
+    write_options()
+    {
+    }
+    write_options(bool composite_value_elements_on_seperate_lines,
+                  bool sort_object_values,
+                  std::string indent_text) noexcept
+        : composite_value_elements_on_seperate_lines(composite_value_elements_on_seperate_lines),
+          sort_object_values(sort_object_values),
+          indent_text(std::move(indent_text))
+    {
+    }
+    static write_options defaults()
+    {
+        return {};
+    }
+    static write_options pretty(std::string indent_text = "    ")
+    {
+        return write_options(true, true, std::move(indent_text));
+    }
+};
+
+struct write_state
+{
+    write_options options;
+    std::size_t indent_level = 0;
+    class push_indent final
+    {
+        push_indent(const push_indent &) = delete;
+        push_indent &operator=(const push_indent &) = delete;
+
+    private:
+        write_state &state;
+        bool finished = false;
+
+    public:
+        push_indent(write_state &state) : state(state)
+        {
+            state.indent_level++;
+        }
+        void finish()
+        {
+            assert(!finished);
+            state.indent_level--;
+            finished = true;
+        }
+        ~push_indent()
+        {
+            if(!finished)
+                state.indent_level--;
+        }
+    };
+    write_state(write_options options) : options(std::move(options))
+    {
+    }
+    void write_indent(std::ostream &os) const;
+};
+
 namespace ast
 {
 struct null_value final
@@ -46,7 +109,7 @@ struct null_value final
     constexpr null_value(std::nullptr_t) noexcept
     {
     }
-    void write(std::ostream &os) const;
+    void write(std::ostream &os, write_state &state) const;
     null_value duplicate() const noexcept
     {
         return {};
@@ -68,7 +131,7 @@ struct boolean_value final
     constexpr boolean_value(T value) noexcept : value(value)
     {
     }
-    void write(std::ostream &os) const;
+    void write(std::ostream &os, write_state &state) const;
     boolean_value duplicate() const noexcept
     {
         return *this;
@@ -93,10 +156,10 @@ struct string_value final
     string_value(T value) noexcept : value(std::move(value))
     {
     }
-    static void write(std::ostream &os, const std::string &value);
-    void write(std::ostream &os) const
+    static void write(std::ostream &os, const std::string &value, write_state &state);
+    void write(std::ostream &os, write_state &state) const
     {
-        write(os, value);
+        write(os, value, state);
     }
     string_value duplicate() const noexcept
     {
@@ -191,7 +254,7 @@ struct number_value final
                                         std::size_t output_buffer_size,
                                         bool require_null_terminator = true,
                                         unsigned base = default_base) noexcept;
-    void write(std::ostream &os, unsigned base = default_base) const;
+    void write(std::ostream &os, write_state &state, unsigned base = default_base) const;
     number_value duplicate() const noexcept
     {
         return *this;
@@ -237,7 +300,7 @@ struct composite_value
 {
     composite_value() = default;
     virtual ~composite_value() = default;
-    virtual void write(std::ostream &os) const = 0;
+    virtual void write(std::ostream &os, write_state &state) const = 0;
     virtual composite_value_pointer duplicate() const = 0;
     operator value() const
     {
@@ -255,16 +318,6 @@ inline value duplicate(const value &v)
         v);
 }
 
-inline void write(std::ostream &os, const value &v)
-{
-    util::visit(
-        [&](const auto &v) -> void
-        {
-            return v->write(os);
-        },
-        v);
-}
-
 struct object final : public composite_value
 {
     std::unordered_map<std::string, value> values;
@@ -274,7 +327,7 @@ struct object final : public composite_value
     object(std::unordered_map<std::string, value> values) noexcept : values(std::move(values))
     {
     }
-    virtual void write(std::ostream &os) const override;
+    virtual void write(std::ostream &os, write_state &state) const override;
     virtual composite_value_pointer duplicate() const override
     {
         std::unordered_map<std::string, value> new_values;
@@ -295,7 +348,7 @@ struct array final : public composite_value
     array(std::vector<value> values) noexcept : values(std::move(values))
     {
     }
-    virtual void write(std::ostream &os) const override;
+    virtual void write(std::ostream &os, write_state &state) const override;
     virtual composite_value_pointer duplicate() const override
     {
         std::vector<value> new_values;
@@ -305,6 +358,22 @@ struct array final : public composite_value
         return std::make_shared<array>(std::move(new_values));
     }
 };
+}
+
+inline void write(std::ostream &os, const ast::value &v, write_state &state)
+{
+    util::visit(
+        [&](const auto &v) -> void
+        {
+            return v->write(os, state);
+        },
+        v);
+}
+
+inline void write(std::ostream &os, const ast::value &v, write_options options = {})
+{
+    write_state state(std::move(options));
+    write(os, v, state);
 }
 }
 }
