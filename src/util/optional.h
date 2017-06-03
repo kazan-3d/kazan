@@ -401,6 +401,7 @@ public:
     using base::base;
     using base::operator=;
     using base::reset;
+    using base::emplace;
     constexpr optional() noexcept = default;
     template <typename U,
               typename = typename std::

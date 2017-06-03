@@ -768,7 +768,7 @@ struct variant_base;
         {                                                                     \
             values.destruct(index_value.get());                               \
             index_value.set(variant_npos); /* in case copy_construct throws*/ \
-            values.copy_construct(rt, rt.index_value.get());                  \
+            values.copy_construct(rt.values, rt.index_value.get());           \
             index_value = rt.index_value;                                     \
         }                                                                     \
         return *this;                                                         \
@@ -777,22 +777,22 @@ struct variant_base;
 #define VULKAN_CPU_UTIL_VARIANT_BASE_COPY_ASSIGN_OP_false \
     variant_base &operator=(const variant_base &rt) = delete;
 
-#define VULKAN_CPU_UTIL_VARIANT_BASE_MOVE_ASSIGN_OP_true                      \
-    variant_base &operator=(variant_base &&rt) noexcept(                      \
-        detail::variant_values<Types...>::is_nothrow_move_assignable)         \
-    {                                                                         \
-        if(index_value.get() == rt.index_value.get())                         \
-        {                                                                     \
-            values.move_assign(std::move(rt.values), index_value.get());      \
-        }                                                                     \
-        else                                                                  \
-        {                                                                     \
-            values.destruct(index_value.get());                               \
-            index_value.set(variant_npos); /* in case move_construct throws*/ \
-            values.move_construct(std::move(rt), rt.index_value.get());       \
-            index_value = rt.index_value;                                     \
-        }                                                                     \
-        return *this;                                                         \
+#define VULKAN_CPU_UTIL_VARIANT_BASE_MOVE_ASSIGN_OP_true                       \
+    variant_base &operator=(variant_base &&rt) noexcept(                       \
+        detail::variant_values<Types...>::is_nothrow_move_assignable)          \
+    {                                                                          \
+        if(index_value.get() == rt.index_value.get())                          \
+        {                                                                      \
+            values.move_assign(std::move(rt.values), index_value.get());       \
+        }                                                                      \
+        else                                                                   \
+        {                                                                      \
+            values.destruct(index_value.get());                                \
+            index_value.set(variant_npos); /* in case move_construct throws*/  \
+            values.move_construct(std::move(rt.values), rt.index_value.get()); \
+            index_value = rt.index_value;                                      \
+        }                                                                      \
+        return *this;                                                          \
     }
 
 #define VULKAN_CPU_UTIL_VARIANT_BASE_MOVE_ASSIGN_OP_false \
