@@ -23,13 +23,13 @@
 #include <iostream>
 #include "../json/json.h"
 #include "../json/parser.h"
+#include "parser.h"
+#include "../util/optional.h"
 
 namespace vulkan_cpu
 {
 namespace generate_spirv_parser
 {
-namespace ast = json::ast;
-
 int generate_spirv_parser_main(int argc, char **argv)
 {
     std::string file_name;
@@ -42,16 +42,22 @@ int generate_spirv_parser_main(int argc, char **argv)
     }
     try
     {
-        const auto source = file_name == "-" ? json::source::load_stdin() :
-                                               json::source::load_file(std::move(file_name));
-        auto value = json::parse(&source);
-        json::write(std::cout, value, json::write_options::pretty());
-        std::cout << std::endl;
-    }
-    catch(json::parse_error &e)
-    {
-        std::cerr << "error: " << e.what() << std::endl;
-        return 1;
+        auto source = file_name == "-" ? json::source::load_stdin() :
+                                         json::source::load_file(std::move(file_name));
+        try
+        {
+            auto ast = parser::parse(json::parse(&source));
+        }
+        catch(json::parse_error &e)
+        {
+            std::cerr << "error: " << e.what() << std::endl;
+            return 1;
+        }
+        catch(parser::parse_error &e)
+        {
+            std::cerr << "error: " << e.what() << std::endl;
+            return 1;
+        }
     }
     catch(std::exception &e)
     {

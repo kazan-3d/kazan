@@ -19,6 +19,22 @@
 # SOFTWARE.
 #
 cmake_minimum_required(VERSION 3.1 FATAL_ERROR)
-set(sources spirv.cpp) 
+
+set(spirv_parser_generated_include_dir ${CMAKE_CURRENT_BINARY_DIR}/src)
+set(spirv_parser_generated_dir ${spirv_parser_generated_include_dir}/spirv)
+set(spirv_parser_source ${spirv_parser_generated_dir}/parser.cpp)
+set(spirv_parser_header ${spirv_parser_generated_dir}/parser.h)
+set(spirv_core_grammar_json ${CMAKE_CURRENT_SOURCE_DIR}/../khronos-spirv/spirv.core.grammar.json)
+
+add_custom_command(OUTPUT ${spirv_parser_source} ${spirv_parser_header}
+                   COMMAND ${CMAKE_COMMAND} -E make_directory ${spirv_parser_generated_dir}
+                   COMMAND ${CMAKE_COMMAND} -E chdir ${spirv_parser_generated_dir} $<TARGET_FILE:generate_spirv_parser> ${spirv_core_grammar_json}
+                   MAIN_DEPENDENCY ${spirv_core_grammar_json}
+                   DEPENDS $<TARGET_FILE:generate_spirv_parser>
+                   VERBATIM
+                   COMMENT "Generating SPIR-V Parser")
+
+set(sources spirv.cpp ${spirv_parser_source}) 
 add_library(spirv STATIC ${sources})
 target_link_libraries(spirv util)
+target_include_directories(spirv PUBLIC ${spirv_parser_generated_include_dir})

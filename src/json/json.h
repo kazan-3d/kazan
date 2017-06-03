@@ -103,6 +103,16 @@ struct write_state
 
 namespace ast
 {
+enum class value_kind
+{
+    null,
+    boolean,
+    string,
+    number,
+    object,
+    array
+};
+
 struct null_value final
 {
     constexpr null_value() noexcept = default;
@@ -121,6 +131,10 @@ struct null_value final
     const null_value &operator*() const noexcept
     {
         return *this;
+    }
+    constexpr value_kind get_value_kind() const noexcept
+    {
+        return value_kind::null;
     }
 };
 
@@ -144,6 +158,10 @@ struct boolean_value final
     {
         return *this;
     }
+    constexpr value_kind get_value_kind() const noexcept
+    {
+        return value_kind::boolean;
+    }
 };
 
 struct string_value final
@@ -157,6 +175,11 @@ struct string_value final
     {
     }
     static void write(std::ostream &os, const std::string &value, write_state &state);
+    static void write(std::ostream &os, const std::string &value)
+    {
+        write_state state(write_options::defaults());
+        write(os, value, state);
+    }
     void write(std::ostream &os, write_state &state) const
     {
         write(os, value, state);
@@ -172,6 +195,10 @@ struct string_value final
     const string_value &operator*() const noexcept
     {
         return *this;
+    }
+    constexpr value_kind get_value_kind() const noexcept
+    {
+        return value_kind::string;
     }
 };
 
@@ -267,6 +294,10 @@ struct number_value final
     {
         return *this;
     }
+    constexpr value_kind get_value_kind() const noexcept
+    {
+        return value_kind::number;
+    }
 };
 
 struct composite_value;
@@ -291,6 +322,16 @@ public:
     {
         return *value;
     }
+    const std::shared_ptr<composite_value> &get() const &noexcept
+    {
+        return value;
+    }
+    std::shared_ptr<composite_value> get() && noexcept
+    {
+        std::shared_ptr<composite_value> retval = nullptr;
+        retval.swap(value);
+        return retval;
+    }
 };
 
 typedef util::
@@ -306,6 +347,7 @@ struct composite_value
     {
         return duplicate();
     }
+    virtual value_kind get_value_kind() const noexcept = 0;
 };
 
 inline value duplicate(const value &v)
@@ -337,6 +379,10 @@ struct object final : public composite_value
         }
         return std::make_shared<object>(std::move(new_values));
     }
+    value_kind get_value_kind() const noexcept override
+    {
+        return value_kind::object;
+    }
 };
 
 struct array final : public composite_value
@@ -357,7 +403,21 @@ struct array final : public composite_value
             new_values.emplace_back(ast::duplicate(value));
         return std::make_shared<array>(std::move(new_values));
     }
+    value_kind get_value_kind() const noexcept override
+    {
+        return value_kind::array;
+    }
 };
+
+inline value_kind get_value_kind(const value &v) noexcept
+{
+    return util::visit(
+        [&](const auto &v) -> value_kind
+        {
+            return v->get_value_kind();
+        },
+        v);
+}
 }
 
 inline void write(std::ostream &os, const ast::value &v, write_state &state)
@@ -365,7 +425,7 @@ inline void write(std::ostream &os, const ast::value &v, write_state &state)
     util::visit(
         [&](const auto &v) -> void
         {
-            return v->write(os, state);
+            v->write(os, state);
         },
         v);
 }
