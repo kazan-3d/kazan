@@ -177,7 +177,7 @@ T parse_hex_integer_string(const json::ast::Value &value,
                               parent_path_builder->path(),
                               std::string(name) + " has too many digits");
         if(retval > max_value / base
-           || (retval = max_value / base && static_cast<unsigned>(digit) > max_value % base))
+           || (retval == max_value / base && static_cast<unsigned>(digit) > max_value % base))
             throw Parse_error(
                 value.location, parent_path_builder->path(), std::string(name) + ": value too big");
         retval *= base;
