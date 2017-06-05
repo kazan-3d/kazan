@@ -33,43 +33,43 @@ namespace generate_spirv_parser
 {
 namespace ast
 {
-struct copyright
+struct Copyright
 {
-    json::ast::array value;
-    copyright() : value()
+    json::ast::Array value;
+    Copyright() : value()
     {
     }
-    explicit copyright(json::ast::array value) noexcept : value(std::move(value))
+    explicit Copyright(json::ast::Array value) noexcept : value(std::move(value))
     {
     }
 };
 
-struct instructions
+struct Instructions
 {
 #warning finish
 };
 
-struct operand_kinds
+struct Operand_kinds
 {
 #warning finish
 };
 
-struct top_level
+struct Top_level
 {
-    copyright copyright;
+    Copyright copyright;
     std::uint32_t magic_number;
     std::size_t major_version;
     std::size_t minor_version;
     std::size_t revision;
-    instructions instructions;
-    operand_kinds operand_kinds;
-    top_level(ast::copyright copyright,
+    Instructions instructions;
+    Operand_kinds operand_kinds;
+    Top_level(Copyright copyright,
               std::uint32_t magic_number,
               std::size_t major_version,
               std::size_t minor_version,
               std::size_t revision,
-              ast::instructions instructions,
-              ast::operand_kinds operand_kinds)
+              Instructions instructions,
+              Operand_kinds operand_kinds)
         : copyright(std::move(copyright)),
           magic_number(magic_number),
           major_version(major_version),

@@ -154,36 +154,36 @@ using variant_alternative_t = typename variant_alternative<Index, T>::type;
 
 namespace detail
 {
-struct variant_base_construct_tag
+struct Variant_base_construct_tag
 {
-    explicit variant_base_construct_tag() = default;
+    explicit Variant_base_construct_tag() = default;
 };
 
 template <typename T>
-struct variant_identity_type
+struct Variant_identity_type
 {
     typedef T type;
 };
 
 template <typename... Types>
-struct variant_hypothetical_overload_set;
+struct Variant_hypothetical_overload_set;
 
 template <typename T, typename... Types>
-struct variant_hypothetical_overload_set<T, Types...>
-    : public variant_hypothetical_overload_set<Types...>
+struct Variant_hypothetical_overload_set<T, Types...>
+    : public Variant_hypothetical_overload_set<Types...>
 {
-    using variant_hypothetical_overload_set<Types...>::fn;
-    static variant_identity_type<T> fn(T); // not implemented
+    using Variant_hypothetical_overload_set<Types...>::fn;
+    static Variant_identity_type<T> fn(T); // not implemented
 };
 
 template <>
-struct variant_hypothetical_overload_set<>
+struct Variant_hypothetical_overload_set<>
 {
     static void fn(); // not implemented
 };
 
 template <typename T>
-struct variant_is_equals_comparable
+struct Variant_is_equals_comparable
 {
 private:
     static std::false_type fn(...);
@@ -197,7 +197,7 @@ public:
 };
 
 template <typename T>
-struct variant_is_less_comparable
+struct Variant_is_less_comparable
 {
 private:
     static std::false_type fn(...);
@@ -211,7 +211,7 @@ public:
 };
 
 template <typename T>
-struct variant_is_nothrow_equals_comparable
+struct Variant_is_nothrow_equals_comparable
 {
 private:
     static std::false_type fn(...);
@@ -226,7 +226,7 @@ public:
 };
 
 template <typename T>
-struct variant_is_nothrow_less_comparable
+struct Variant_is_nothrow_less_comparable
 {
 private:
     static std::false_type fn(...);
@@ -253,7 +253,7 @@ constexpr bool variant_is_trivially_destructible() noexcept
 }
 
 template <bool Is_Trivially_Destructible, typename... Types>
-union variant_values_implementation
+union Variant_values_implementation
 {
     char value;
     static constexpr bool is_copy_constructible = true;
@@ -270,9 +270,9 @@ union variant_values_implementation
     static constexpr bool is_less_comparable = true;
     static constexpr bool is_nothrow_equals_comparable = true;
     static constexpr bool is_nothrow_less_comparable = true;
-    variant_values_implementation() = delete;
+    Variant_values_implementation() = delete;
     template <std::size_t index>
-    constexpr variant_values_implementation(in_place_index_t<index>) noexcept : value()
+    constexpr Variant_values_implementation(in_place_index_t<index>) noexcept : value()
     {
     }
     template <typename U>
@@ -280,43 +280,43 @@ union variant_values_implementation
     {
         return variant_npos;
     }
-    void copy_construct(const variant_values_implementation &rt, std::size_t index) noexcept
+    void copy_construct(const Variant_values_implementation &rt, std::size_t index) noexcept
     {
     }
-    void move_construct(variant_values_implementation &&rt, std::size_t index) noexcept
+    void move_construct(Variant_values_implementation &&rt, std::size_t index) noexcept
     {
     }
-    void copy_assign(const variant_values_implementation &rt, std::size_t index) noexcept
+    void copy_assign(const Variant_values_implementation &rt, std::size_t index) noexcept
     {
     }
-    void move_assign(variant_values_implementation &&rt, std::size_t index) noexcept
+    void move_assign(Variant_values_implementation &&rt, std::size_t index) noexcept
     {
     }
     void destruct(std::size_t index) noexcept
     {
     }
-    void swap(variant_values_implementation &rt, std::size_t index) noexcept
+    void swap(Variant_values_implementation &rt, std::size_t index) noexcept
     {
     }
-    bool is_equal(const variant_values_implementation &rt, std::size_t index) const noexcept
+    bool is_equal(const Variant_values_implementation &rt, std::size_t index) const noexcept
     {
         return true;
     }
-    bool is_less(const variant_values_implementation &rt, std::size_t index) const noexcept
+    bool is_less(const Variant_values_implementation &rt, std::size_t index) const noexcept
     {
         return false;
     }
 };
 
 template <typename... Types>
-using variant_values =
-    variant_values_implementation<variant_is_trivially_destructible<Types...>(), Types...>;
+using Variant_values =
+    Variant_values_implementation<variant_is_trivially_destructible<Types...>(), Types...>;
 
 #define VULKAN_CPU_UTIL_VARIANT_VALUES(Is_Trivially_Destructible, Destructor)                                    \
     template <typename T, typename... Types>                                                                     \
-    union variant_values_implementation<Is_Trivially_Destructible, T, Types...>                                  \
+    union Variant_values_implementation<Is_Trivially_Destructible, T, Types...>                                  \
     {                                                                                                            \
-        typedef T type_0;                                                                                        \
+        typedef T Type_0;                                                                                        \
         static_assert(!std::is_void<T>::value, "invalid variant member type");                                   \
         static_assert(!std::is_reference<T>::value, "invalid variant member type");                              \
         static_assert(!std::is_array<T>::value, "invalid variant member type");                                  \
@@ -324,68 +324,68 @@ using variant_values =
         static_assert(!std::is_volatile<T>::value, "invalid variant member type");                               \
         static_assert(std::is_object<T>::value, "invalid variant member type");                                  \
         T current_value;                                                                                         \
-        variant_values_implementation<Is_Trivially_Destructible, Types...> other_values;                         \
+        Variant_values_implementation<Is_Trivially_Destructible, Types...> other_values;                         \
         static constexpr bool is_copy_constructible =                                                            \
             std::is_copy_constructible<T>::value                                                                 \
-            && variant_values_implementation<Is_Trivially_Destructible,                                          \
+            && Variant_values_implementation<Is_Trivially_Destructible,                                          \
                                              Types...>::is_copy_constructible;                                   \
         static constexpr bool is_move_constructible =                                                            \
             std::is_move_constructible<T>::value                                                                 \
-            && variant_values_implementation<Is_Trivially_Destructible,                                          \
+            && Variant_values_implementation<Is_Trivially_Destructible,                                          \
                                              Types...>::is_move_constructible;                                   \
         static constexpr bool is_nothrow_copy_constructible =                                                    \
             std::is_nothrow_copy_constructible<T>::value                                                         \
-            && variant_values_implementation<Is_Trivially_Destructible,                                          \
+            && Variant_values_implementation<Is_Trivially_Destructible,                                          \
                                              Types...>::is_nothrow_copy_constructible;                           \
         static constexpr bool is_nothrow_move_constructible =                                                    \
             std::is_nothrow_move_constructible<T>::value                                                         \
-            && variant_values_implementation<Is_Trivially_Destructible,                                          \
+            && Variant_values_implementation<Is_Trivially_Destructible,                                          \
                                              Types...>::is_nothrow_move_constructible;                           \
         static constexpr bool is_copy_assignable =                                                               \
             std::is_copy_assignable<T>::value && std::is_copy_constructible<T>::value                            \
-            && variant_values_implementation<Is_Trivially_Destructible,                                          \
+            && Variant_values_implementation<Is_Trivially_Destructible,                                          \
                                              Types...>::is_copy_assignable;                                      \
         static constexpr bool is_move_assignable =                                                               \
             std::is_move_assignable<T>::value && std::is_move_constructible<T>::value                            \
-            && variant_values_implementation<Is_Trivially_Destructible,                                          \
+            && Variant_values_implementation<Is_Trivially_Destructible,                                          \
                                              Types...>::is_move_assignable;                                      \
         static constexpr bool is_nothrow_copy_assignable =                                                       \
             std::is_nothrow_copy_assignable<T>::value                                                            \
             && std::is_nothrow_copy_constructible<T>::value                                                      \
-            && variant_values_implementation<Is_Trivially_Destructible,                                          \
+            && Variant_values_implementation<Is_Trivially_Destructible,                                          \
                                              Types...>::is_nothrow_copy_assignable;                              \
         static constexpr bool is_nothrow_move_assignable =                                                       \
             std::is_nothrow_move_assignable<T>::value                                                            \
             && std::is_nothrow_move_constructible<T>::value                                                      \
-            && variant_values_implementation<Is_Trivially_Destructible,                                          \
+            && Variant_values_implementation<Is_Trivially_Destructible,                                          \
                                              Types...>::is_nothrow_move_assignable;                              \
         static constexpr bool is_swappable =                                                                     \
             is_swappable_v<T> && std::is_move_constructible<T>::value                                            \
-            && variant_values_implementation<Is_Trivially_Destructible, Types...>::is_swappable;                 \
+            && Variant_values_implementation<Is_Trivially_Destructible, Types...>::is_swappable;                 \
         static constexpr bool is_nothrow_swappable =                                                             \
             is_nothrow_swappable_v<T> && std::is_nothrow_move_constructible<T>::value                            \
-            && variant_values_implementation<Is_Trivially_Destructible,                                          \
+            && Variant_values_implementation<Is_Trivially_Destructible,                                          \
                                              Types...>::is_nothrow_swappable;                                    \
         static constexpr bool is_equals_comparable =                                                             \
-            variant_is_equals_comparable<T>::value                                                               \
-            && variant_values_implementation<Is_Trivially_Destructible,                                          \
+            Variant_is_equals_comparable<T>::value                                                               \
+            && Variant_values_implementation<Is_Trivially_Destructible,                                          \
                                              Types...>::is_equals_comparable;                                    \
         static constexpr bool is_less_comparable =                                                               \
-            variant_is_less_comparable<T>::value                                                                 \
-            && variant_values_implementation<Is_Trivially_Destructible,                                          \
+            Variant_is_less_comparable<T>::value                                                                 \
+            && Variant_values_implementation<Is_Trivially_Destructible,                                          \
                                              Types...>::is_less_comparable;                                      \
         static constexpr bool is_nothrow_equals_comparable =                                                     \
-            variant_is_nothrow_equals_comparable<T>::value                                                       \
-            && variant_values_implementation<Is_Trivially_Destructible,                                          \
+            Variant_is_nothrow_equals_comparable<T>::value                                                       \
+            && Variant_values_implementation<Is_Trivially_Destructible,                                          \
                                              Types...>::is_nothrow_equals_comparable;                            \
         static constexpr bool is_nothrow_less_comparable =                                                       \
-            variant_is_nothrow_less_comparable<T>::value                                                         \
-            && variant_values_implementation<Is_Trivially_Destructible,                                          \
+            Variant_is_nothrow_less_comparable<T>::value                                                         \
+            && Variant_values_implementation<Is_Trivially_Destructible,                                          \
                                              Types...>::is_nothrow_less_comparable;                              \
         template <                                                                                               \
             typename T2 = T,                                                                                     \
             typename = typename std::enable_if<std::is_default_constructible<T2>::value>::type>                  \
-        constexpr variant_values_implementation() noexcept(                                                      \
+        constexpr Variant_values_implementation() noexcept(                                                      \
             std::is_nothrow_default_constructible<T2>::value)                                                    \
             : current_value()                                                                                    \
         {                                                                                                        \
@@ -393,7 +393,7 @@ using variant_values =
         template <                                                                                               \
             typename... Args,                                                                                    \
             typename = typename std::enable_if<std::is_constructible<T, Args...>::value>::type>                  \
-        constexpr variant_values_implementation(in_place_index_t<0>, Args &&... args) noexcept(                  \
+        constexpr Variant_values_implementation(in_place_index_t<0>, Args &&... args) noexcept(                  \
             std::is_nothrow_constructible<T, Args...>::value)                                                    \
             : current_value(std::forward<Args>(args)...)                                                         \
         {                                                                                                        \
@@ -403,12 +403,12 @@ using variant_values =
                   typename = typename std::                                                                      \
                       enable_if<index != 0                                                                       \
                                 && std::                                                                         \
-                                       is_constructible<variant_values_implementation<Is_Trivially_Destructible, \
+                                       is_constructible<Variant_values_implementation<Is_Trivially_Destructible, \
                                                                                       Types...>,                 \
                                                         in_place_index_t<index - 1>,                             \
                                                         Args...>::value>::type>                                  \
-        constexpr variant_values_implementation(in_place_index_t<index>, Args &&... args) noexcept(              \
-            std::is_nothrow_constructible<variant_values_implementation<Is_Trivially_Destructible,               \
+        constexpr Variant_values_implementation(in_place_index_t<index>, Args &&... args) noexcept(              \
+            std::is_nothrow_constructible<Variant_values_implementation<Is_Trivially_Destructible,               \
                                                                         Types...>,                               \
                                           in_place_index_t<index - 1>,                                           \
                                           Args...>::value)                                                       \
@@ -421,7 +421,7 @@ using variant_values =
             typename = typename std::enable_if<std::is_constructible<T,                                          \
                                                                      std::initializer_list<U>,                   \
                                                                      Args...>::value>::type>                     \
-        constexpr variant_values_implementation(                                                                 \
+        constexpr Variant_values_implementation(                                                                 \
             in_place_index_t<0>,                                                                                 \
             std::initializer_list<U> il,                                                                         \
             Args &&... args) noexcept(std::is_nothrow_constructible<T,                                           \
@@ -434,7 +434,7 @@ using variant_values =
         static constexpr std::size_t index_from_type() noexcept                                                  \
         {                                                                                                        \
             std::size_t next =                                                                                   \
-                variant_values_implementation<Is_Trivially_Destructible,                                         \
+                Variant_values_implementation<Is_Trivially_Destructible,                                         \
                                               Types...>::template index_from_type<U>();                          \
             if(std::is_same<U, T>::value && next == variant_npos)                                                \
                 return 0;                                                                                        \
@@ -442,7 +442,7 @@ using variant_values =
                 return variant_npos;                                                                             \
             return next + 1;                                                                                     \
         }                                                                                                        \
-        void copy_construct(const variant_values_implementation &rt,                                             \
+        void copy_construct(const Variant_values_implementation &rt,                                             \
                             std::size_t index) noexcept(is_nothrow_copy_constructible)                           \
         {                                                                                                        \
             if(index == 0)                                                                                       \
@@ -451,7 +451,7 @@ using variant_values =
             else                                                                                                 \
                 other_values.copy_construct(rt.other_values, index - 1);                                         \
         }                                                                                                        \
-        void move_construct(variant_values_implementation &&rt,                                                  \
+        void move_construct(Variant_values_implementation &&rt,                                                  \
                             std::size_t index) noexcept(is_nothrow_move_constructible)                           \
         {                                                                                                        \
             if(index == 0)                                                                                       \
@@ -460,7 +460,7 @@ using variant_values =
             else                                                                                                 \
                 other_values.move_construct(std::move(rt.other_values), index - 1);                              \
         }                                                                                                        \
-        void copy_assign(const variant_values_implementation &rt,                                                \
+        void copy_assign(const Variant_values_implementation &rt,                                                \
                          std::size_t index) noexcept(is_nothrow_copy_assignable)                                 \
         {                                                                                                        \
             if(index == 0)                                                                                       \
@@ -468,7 +468,7 @@ using variant_values =
             else                                                                                                 \
                 other_values.copy_assign(rt.other_values, index - 1);                                            \
         }                                                                                                        \
-        void move_assign(variant_values_implementation &&rt,                                                     \
+        void move_assign(Variant_values_implementation &&rt,                                                     \
                          std::size_t index) noexcept(is_nothrow_move_assignable)                                 \
         {                                                                                                        \
             if(index == 0)                                                                                       \
@@ -483,7 +483,7 @@ using variant_values =
             else                                                                                                 \
                 other_values.destruct(index - 1);                                                                \
         }                                                                                                        \
-        void swap(variant_values_implementation &rt,                                                             \
+        void swap(Variant_values_implementation &rt,                                                             \
                   std::size_t index) noexcept(is_nothrow_swappable)                                              \
         {                                                                                                        \
             using std::swap;                                                                                     \
@@ -492,14 +492,14 @@ using variant_values =
             else                                                                                                 \
                 other_values.swap(rt.other_values, index - 1);                                                   \
         }                                                                                                        \
-        bool is_equal(const variant_values_implementation &rt, std::size_t index) const                          \
+        bool is_equal(const Variant_values_implementation &rt, std::size_t index) const                          \
             noexcept(is_nothrow_equals_comparable)                                                               \
         {                                                                                                        \
             if(index == 0)                                                                                       \
                 return static_cast<bool>(current_value == rt.current_value);                                     \
             return other_values.is_equal(rt.other_values, index - 1);                                            \
         }                                                                                                        \
-        bool is_less(const variant_values_implementation &rt, std::size_t index) const                           \
+        bool is_less(const Variant_values_implementation &rt, std::size_t index) const                           \
             noexcept(is_nothrow_less_comparable)                                                                 \
         {                                                                                                        \
             if(index == 0)                                                                                       \
@@ -509,54 +509,54 @@ using variant_values =
         Destructor                                                                                               \
     };
 
-VULKAN_CPU_UTIL_VARIANT_VALUES(true, ~variant_values_implementation() = default;)
-VULKAN_CPU_UTIL_VARIANT_VALUES(false, ~variant_values_implementation(){})
+VULKAN_CPU_UTIL_VARIANT_VALUES(true, ~Variant_values_implementation() = default;)
+VULKAN_CPU_UTIL_VARIANT_VALUES(false, ~Variant_values_implementation(){})
 #undef VULKAN_CPU_UTIL_VARIANT_VALUES
 
 template <std::size_t Index, typename... Types>
-struct variant_get;
+struct Variant_get;
 
 template <std::size_t Index, typename T, typename... Types>
-struct variant_get<Index, T, Types...>
+struct Variant_get<Index, T, Types...>
 {
-    static constexpr auto get(const variant_values<T, Types...> &values) noexcept
-        -> decltype(variant_get<Index - 1, Types...>::get(values.other_values))
+    static constexpr auto get(const Variant_values<T, Types...> &values) noexcept
+        -> decltype(Variant_get<Index - 1, Types...>::get(values.other_values))
     {
-        return variant_get<Index - 1, Types...>::get(values.other_values);
+        return Variant_get<Index - 1, Types...>::get(values.other_values);
     }
-    static constexpr auto get(variant_values<T, Types...> &values) noexcept
-        -> decltype(variant_get<Index - 1, Types...>::get(values.other_values))
+    static constexpr auto get(Variant_values<T, Types...> &values) noexcept
+        -> decltype(Variant_get<Index - 1, Types...>::get(values.other_values))
     {
-        return variant_get<Index - 1, Types...>::get(values.other_values);
+        return Variant_get<Index - 1, Types...>::get(values.other_values);
     }
-    static constexpr auto get(const variant_values<T, Types...> &&values) noexcept
-        -> decltype(variant_get<Index - 1, Types...>::get(std::move(values.other_values)))
+    static constexpr auto get(const Variant_values<T, Types...> &&values) noexcept
+        -> decltype(Variant_get<Index - 1, Types...>::get(std::move(values.other_values)))
     {
-        return variant_get<Index - 1, Types...>::get(std::move(values.other_values));
+        return Variant_get<Index - 1, Types...>::get(std::move(values.other_values));
     }
-    static constexpr auto get(variant_values<T, Types...> &&values) noexcept
-        -> decltype(variant_get<Index - 1, Types...>::get(std::move(values.other_values)))
+    static constexpr auto get(Variant_values<T, Types...> &&values) noexcept
+        -> decltype(Variant_get<Index - 1, Types...>::get(std::move(values.other_values)))
     {
-        return variant_get<Index - 1, Types...>::get(std::move(values.other_values));
+        return Variant_get<Index - 1, Types...>::get(std::move(values.other_values));
     }
 };
 
 template <typename T, typename... Types>
-struct variant_get<0, T, Types...>
+struct Variant_get<0, T, Types...>
 {
-    static constexpr const T &get(const variant_values<T, Types...> &values) noexcept
+    static constexpr const T &get(const Variant_values<T, Types...> &values) noexcept
     {
         return values.current_value;
     }
-    static constexpr T &get(variant_values<T, Types...> &values) noexcept
+    static constexpr T &get(Variant_values<T, Types...> &values) noexcept
     {
         return values.current_value;
     }
-    static constexpr const T &&get(const variant_values<T, Types...> &&values) noexcept
+    static constexpr const T &&get(const Variant_values<T, Types...> &&values) noexcept
     {
         return std::move(values.current_value);
     }
-    static constexpr T &&get(variant_values<T, Types...> &&values) noexcept
+    static constexpr T &&get(Variant_values<T, Types...> &&values) noexcept
     {
         return std::move(values.current_value);
     }
@@ -569,10 +569,10 @@ struct variant_get<0, T, Types...>
               typename... Types,                                                                   \
               typename... Args>                                                                    \
     constexpr Return_Type variant_dispatch_helper_dispatch_function(                               \
-        Fn &&fn, Const variant_values<Types...> Ref values, Args &&... args)                       \
+        Fn &&fn, Const Variant_values<Types...> Ref values, Args &&... args)                       \
     {                                                                                              \
-        return std::forward<Fn>(fn)(variant_get<Index, Types...>::get(                             \
-                                        std::forward<Const variant_values<Types...> Ref>(values)), \
+        return std::forward<Fn>(fn)(Variant_get<Index, Types...>::get(                             \
+                                        std::forward<Const Variant_values<Types...> Ref>(values)), \
                                     std::forward<Args>(args)...);                                  \
     }                                                                                              \
                                                                                                    \
@@ -583,37 +583,37 @@ struct variant_get<0, T, Types...>
               typename Return_Type = typename std::common_type<decltype(std::declval<Fn>()(        \
                   std::declval<Const Types Ref>(), std::declval<Args>()...))...>::type>            \
     constexpr Return_Type variant_dispatch_helper(Fn &&fn,                                         \
-                                                  Const variant_values<Types...> Ref values,       \
+                                                  Const Variant_values<Types...> Ref values,       \
                                                   std::size_t index,                               \
                                                   std::index_sequence<Indexes...>,                 \
                                                   Args &&... args)                                 \
     {                                                                                              \
-        typedef Return_Type (*Dispatch_Function)(                                                  \
-            Fn && fn, Const variant_values<Types...> Ref values, Args && ... args);                \
-        const Dispatch_Function dispatch_functions[sizeof...(Types)] = {                           \
-            static_cast<Dispatch_Function>(                                                        \
+        typedef Return_Type (*Dispatch_function)(                                                  \
+            Fn && fn, Const Variant_values<Types...> Ref values, Args && ... args);                \
+        const Dispatch_function dispatch_functions[sizeof...(Types)] = {                           \
+            static_cast<Dispatch_function>(                                                        \
                 &variant_dispatch_helper_dispatch_function<Indexes, Return_Type>)...,              \
         };                                                                                         \
         if(index < sizeof...(Types))                                                               \
             return dispatch_functions[index](                                                      \
                 std::forward<Fn>(fn),                                                              \
-                std::forward<Const variant_values<Types...> Ref>(values),                          \
+                std::forward<Const Variant_values<Types...> Ref>(values),                          \
                 std::forward<Args>(args)...);                                                      \
         throw bad_variant_access();                                                                \
     }                                                                                              \
                                                                                                    \
     template <typename Fn, typename... Args, typename... Types>                                    \
     constexpr auto variant_dispatch(                                                               \
-        Fn &&fn, Const variant_values<Types...> Ref values, std::size_t index, Args &&... args)    \
+        Fn &&fn, Const Variant_values<Types...> Ref values, std::size_t index, Args &&... args)    \
         ->decltype(                                                                                \
             variant_dispatch_helper(std::forward<Fn>(fn),                                          \
-                                    std::forward<Const variant_values<Types...> Ref>(values),      \
+                                    std::forward<Const Variant_values<Types...> Ref>(values),      \
                                     index,                                                         \
                                     std::index_sequence_for<Types...>{},                           \
                                     std::forward<Args>(args)...))                                  \
     {                                                                                              \
         return variant_dispatch_helper(std::forward<Fn>(fn),                                       \
-                                       std::forward<Const variant_values<Types...> Ref>(values),   \
+                                       std::forward<Const Variant_values<Types...> Ref>(values),   \
                                        index,                                                      \
                                        std::index_sequence_for<Types...>{},                        \
                                        std::forward<Args>(args)...);                               \
@@ -627,38 +627,38 @@ struct variant_get<0, T, Types...>
                   std::declval<Const Types Ref>(), std::declval<Args>()...))...>::type>            \
     constexpr Return_Type variant_dispatch_helper_nothrow(                                         \
         Fn &&fn,                                                                                   \
-        Const variant_values<Types...> Ref values,                                                 \
+        Const Variant_values<Types...> Ref values,                                                 \
         std::size_t index,                                                                         \
         std::index_sequence<Indexes...>,                                                           \
         Args &&... args)                                                                           \
     {                                                                                              \
-        typedef Return_Type (*Dispatch_Function)(                                                  \
-            Fn && fn, Const variant_values<Types...> Ref values, Args && ... args);                \
-        const Dispatch_Function dispatch_functions[sizeof...(Types)] = {                           \
-            static_cast<Dispatch_Function>(                                                        \
+        typedef Return_Type (*Dispatch_function)(                                                  \
+            Fn && fn, Const Variant_values<Types...> Ref values, Args && ... args);                \
+        const Dispatch_function dispatch_functions[sizeof...(Types)] = {                           \
+            static_cast<Dispatch_function>(                                                        \
                 &variant_dispatch_helper_dispatch_function<Indexes, Return_Type>)...,              \
         };                                                                                         \
         if(index < sizeof...(Types))                                                               \
             return dispatch_functions[index](                                                      \
                 std::forward<Fn>(fn),                                                              \
-                std::forward<Const variant_values<Types...> Ref>(values),                          \
+                std::forward<Const Variant_values<Types...> Ref>(values),                          \
                 std::forward<Args>(args)...);                                                      \
         return {};                                                                                 \
     }                                                                                              \
                                                                                                    \
     template <typename Fn, typename... Args, typename... Types>                                    \
     constexpr auto variant_dispatch_nothrow(                                                       \
-        Fn &&fn, Const variant_values<Types...> Ref values, std::size_t index, Args &&... args)    \
+        Fn &&fn, Const Variant_values<Types...> Ref values, std::size_t index, Args &&... args)    \
         ->decltype(variant_dispatch_helper_nothrow(                                                \
             std::forward<Fn>(fn),                                                                  \
-            std::forward<Const variant_values<Types...> Ref>(values),                              \
+            std::forward<Const Variant_values<Types...> Ref>(values),                              \
             index,                                                                                 \
             std::index_sequence_for<Types...>{},                                                   \
             std::forward<Args>(args)...))                                                          \
     {                                                                                              \
         return variant_dispatch_helper_nothrow(                                                    \
             std::forward<Fn>(fn),                                                                  \
-            std::forward<Const variant_values<Types...> Ref>(values),                              \
+            std::forward<Const Variant_values<Types...> Ref>(values),                              \
             index,                                                                                 \
             std::index_sequence_for<Types...>{},                                                   \
             std::forward<Args>(args)...);                                                          \
@@ -671,7 +671,7 @@ VULKAN_CPU_UTIL_VARIANT_DISPATCH(const, &&)
 #undef VULKAN_CPU_UTIL_VARIANT_DISPATCH
 
 template <std::size_t Type_Count>
-struct variant_index_type
+struct Variant_index_type
 {
     static constexpr std::size_t total_state_count =
         Type_Count + 1; // for valueless-by-exception state
@@ -687,22 +687,22 @@ struct variant_index_type
         total_state_count <= std::numeric_limits<unsigned long long>::max();
     typedef
         typename std::conditional<is_unsigned_long_long_good, unsigned long long, std::size_t>::type
-            unsigned_long_long_or_larger;
+            Unsigned_long_long_or_larger;
     typedef typename std::conditional<is_unsigned_long_good,
                                       unsigned long,
-                                      unsigned_long_long_or_larger>::type unsigned_long_or_larger;
-    typedef typename std::conditional<is_unsigned_good, unsigned, unsigned_long_or_larger>::type
-        unsigned_or_larger;
+                                      Unsigned_long_long_or_larger>::type Unsigned_long_or_larger;
+    typedef typename std::conditional<is_unsigned_good, unsigned, Unsigned_long_or_larger>::type
+        Unsigned_or_larger;
     typedef
-        typename std::conditional<is_unsigned_short_good, unsigned short, unsigned_or_larger>::type
-            unsigned_short_or_larger;
+        typename std::conditional<is_unsigned_short_good, unsigned short, Unsigned_or_larger>::type
+            Unsigned_short_or_larger;
     typedef typename std::conditional<is_unsigned_char_good,
                                       unsigned char,
-                                      unsigned_short_or_larger>::type type;
+                                      Unsigned_short_or_larger>::type type;
     static constexpr type npos = variant_npos;
     type index_value;
-    constexpr variant_index_type() = delete;
-    constexpr explicit variant_index_type(std::size_t index_value) noexcept
+    constexpr Variant_index_type() = delete;
+    constexpr explicit Variant_index_type(std::size_t index_value) noexcept
         : index_value(index_value)
     {
     }
@@ -722,19 +722,19 @@ template <bool Is_Trivially_Destructible,
           bool Is_Copy_Assignable,
           bool Is_Move_Assignable,
           typename... Types>
-struct variant_base;
+struct Variant_base;
 
 #define VULKAN_CPU_UTIL_VARIANT_BASE_DESTRUCTOR_false \
-    ~variant_base()                                   \
+    ~Variant_base()                                   \
     {                                                 \
         values.destruct(index_value.get());           \
     }
 
-#define VULKAN_CPU_UTIL_VARIANT_BASE_DESTRUCTOR_true ~variant_base() = default;
+#define VULKAN_CPU_UTIL_VARIANT_BASE_DESTRUCTOR_true ~Variant_base() = default;
 
 #define VULKAN_CPU_UTIL_VARIANT_BASE_COPY_CONSTRUCTOR_true                \
-    variant_base(const variant_base &rt) noexcept(                        \
-        detail::variant_values<Types...>::is_nothrow_copy_constructible)  \
+    Variant_base(const Variant_base &rt) noexcept(                        \
+        Variant_values<Types...>::is_nothrow_copy_constructible)          \
         : values(in_place_index<variant_npos>), index_value(variant_npos) \
     {                                                                     \
         values.copy_construct(rt.values, rt.index_value.get());           \
@@ -742,11 +742,11 @@ struct variant_base;
     }
 
 #define VULKAN_CPU_UTIL_VARIANT_BASE_COPY_CONSTRUCTOR_false \
-    variant_base(const variant_base &rt) = delete;
+    Variant_base(const Variant_base &rt) = delete;
 
 #define VULKAN_CPU_UTIL_VARIANT_BASE_MOVE_CONSTRUCTOR_true                 \
-    variant_base(variant_base &&rt) noexcept(                              \
-        detail::variant_values<Types...>::is_nothrow_move_constructible)   \
+    Variant_base(Variant_base &&rt) noexcept(                              \
+        Variant_values<Types...>::is_nothrow_move_constructible)           \
         : values(in_place_index<variant_npos>), index_value(variant_npos)  \
     {                                                                      \
         values.move_construct(std::move(rt.values), rt.index_value.get()); \
@@ -754,11 +754,11 @@ struct variant_base;
     }
 
 #define VULKAN_CPU_UTIL_VARIANT_BASE_MOVE_CONSTRUCTOR_false \
-    variant_base(variant_base &&rt) = delete;
+    Variant_base(Variant_base &&rt) = delete;
 
 #define VULKAN_CPU_UTIL_VARIANT_BASE_COPY_ASSIGN_OP_true                      \
-    variant_base &operator=(const variant_base &rt) noexcept(                 \
-        detail::variant_values<Types...>::is_nothrow_copy_assignable)         \
+    Variant_base &operator=(const Variant_base &rt) noexcept(                 \
+        Variant_values<Types...>::is_nothrow_copy_assignable)                 \
     {                                                                         \
         if(index_value.get() == rt.index_value.get())                         \
         {                                                                     \
@@ -775,11 +775,11 @@ struct variant_base;
     }
 
 #define VULKAN_CPU_UTIL_VARIANT_BASE_COPY_ASSIGN_OP_false \
-    variant_base &operator=(const variant_base &rt) = delete;
+    Variant_base &operator=(const Variant_base &rt) = delete;
 
 #define VULKAN_CPU_UTIL_VARIANT_BASE_MOVE_ASSIGN_OP_true                       \
-    variant_base &operator=(variant_base &&rt) noexcept(                       \
-        detail::variant_values<Types...>::is_nothrow_move_assignable)          \
+    Variant_base &operator=(Variant_base &&rt) noexcept(                       \
+        Variant_values<Types...>::is_nothrow_move_assignable)                  \
     {                                                                          \
         if(index_value.get() == rt.index_value.get())                          \
         {                                                                      \
@@ -796,7 +796,7 @@ struct variant_base;
     }
 
 #define VULKAN_CPU_UTIL_VARIANT_BASE_MOVE_ASSIGN_OP_false \
-    variant_base &operator=(variant_base &&rt) = delete;
+    Variant_base &operator=(Variant_base &&rt) = delete;
 
 #define VULKAN_CPU_UTIL_VARIANT_BASE0(Is_Trivially_Destructible,                         \
                                       Is_Copy_Constructible,                             \
@@ -804,21 +804,21 @@ struct variant_base;
                                       Is_Copy_Assignable,                                \
                                       Is_Move_Assignable)                                \
     template <typename... Types>                                                         \
-    struct variant_base<Is_Trivially_Destructible,                                       \
+    struct Variant_base<Is_Trivially_Destructible,                                       \
                         Is_Copy_Constructible,                                           \
                         Is_Move_Constructible,                                           \
                         Is_Copy_Assignable,                                              \
                         Is_Move_Assignable,                                              \
                         Types...>                                                        \
     {                                                                                    \
-        detail::variant_values<Types...> values;                                         \
-        detail::variant_index_type<sizeof...(Types)> index_value;                        \
+        Variant_values<Types...> values;                                                 \
+        Variant_index_type<sizeof...(Types)> index_value;                                \
         template <typename... Args>                                                      \
-        constexpr variant_base(                                                          \
-            variant_base_construct_tag,                                                  \
+        constexpr Variant_base(                                                          \
+            Variant_base_construct_tag,                                                  \
             std::size_t index_value,                                                     \
             Args &&... args) noexcept(noexcept(new(std::declval<void *>())               \
-                                                   detail::variant_values<Types...>(     \
+                                                   Variant_values<Types...>(             \
                                                        std::declval<Args>()...)))        \
             : values(std::forward<Args>(args)...), index_value(index_value)              \
         {                                                                                \
@@ -862,25 +862,25 @@ VULKAN_CPU_UTIL_VARIANT_BASE4(false)
 VULKAN_CPU_UTIL_VARIANT_BASE4(true)
 
 template <typename T>
-struct variant_is_in_place_index
+struct Variant_is_in_place_index
 {
     static constexpr bool value = false;
 };
 
 template <std::size_t I>
-struct variant_is_in_place_index<in_place_index_t<I>>
+struct Variant_is_in_place_index<in_place_index_t<I>>
 {
     static constexpr bool value = true;
 };
 
 template <typename T>
-struct variant_is_in_place_type
+struct Variant_is_in_place_type
 {
     static constexpr bool value = false;
 };
 
 template <typename T>
-struct variant_is_in_place_type<in_place_type_t<T>>
+struct Variant_is_in_place_type<in_place_type_t<T>>
 {
     static constexpr bool value = true;
 };
@@ -902,51 +902,51 @@ typename std::common_type<decltype(std::declval<Fn>()(std::declval<const Types &
     variant_dispatch(Fn &&fn, const variant<Types...> &&v, Args &&... args);
 
 template <typename... Types>
-using variant_base_t = variant_base<detail::variant_is_trivially_destructible<Types...>(),
-                                    detail::variant_values<Types...>::is_copy_constructible,
-                                    detail::variant_values<Types...>::is_move_constructible,
-                                    detail::variant_values<Types...>::is_copy_assignable,
-                                    detail::variant_values<Types...>::is_move_assignable,
+using Variant_base_t = Variant_base<variant_is_trivially_destructible<Types...>(),
+                                    Variant_values<Types...>::is_copy_constructible,
+                                    Variant_values<Types...>::is_move_constructible,
+                                    Variant_values<Types...>::is_copy_assignable,
+                                    Variant_values<Types...>::is_move_assignable,
                                     Types...>;
 }
 
 template <typename... Types>
-class variant : private detail::variant_base_t<Types...>
+class variant : private detail::Variant_base_t<Types...>
 {
     static_assert(sizeof...(Types) > 0, "empty variant is not permitted");
 
 private:
-    typedef typename detail::variant_values<Types...>::type_0 type_0;
-    typedef detail::variant_base_t<Types...> base;
+    typedef typename detail::Variant_values<Types...>::Type_0 Type_0;
+    typedef detail::Variant_base_t<Types...> Base;
 
 private:
-    using base::values;
-    using base::index_value;
+    using Base::values;
+    using Base::index_value;
 
 public:
     template <bool extra_condition = true,
               typename = typename std::
-                  enable_if<extra_condition && std::is_default_constructible<type_0>::value>::type>
-    constexpr variant() noexcept(std::is_nothrow_default_constructible<type_0>::value)
-        : base(detail::variant_base_construct_tag{}, 0)
+                  enable_if<extra_condition && std::is_default_constructible<Type_0>::value>::type>
+    constexpr variant() noexcept(std::is_nothrow_default_constructible<Type_0>::value)
+        : Base(detail::Variant_base_construct_tag{}, 0)
     {
     }
     template <
         typename T,
         typename Deduced_Type = typename decltype(
-            detail::variant_hypothetical_overload_set<Types...>::fn(std::declval<T>()))::type,
+            detail::Variant_hypothetical_overload_set<Types...>::fn(std::declval<T>()))::type,
         std::size_t Index =
-            detail::variant_values<Types...>::template index_from_type<Deduced_Type>(),
+            detail::Variant_values<Types...>::template index_from_type<Deduced_Type>(),
         typename = typename std::
             enable_if<(Index < sizeof...(Types))
                       && !std::is_same<typename std::decay<T>::type, variant>::value
-                      && !detail::variant_is_in_place_index<typename std::decay<T>::type>::value
-                      && !detail::variant_is_in_place_type<typename std::decay<T>::type>::value
+                      && !detail::Variant_is_in_place_index<typename std::decay<T>::type>::value
+                      && !detail::Variant_is_in_place_type<typename std::decay<T>::type>::value
                       && std::is_constructible<variant_alternative_t<Index, variant<Types...>>,
                                                T>::value>::type>
     constexpr variant(T &&value) noexcept(
         std::is_nothrow_constructible<variant_alternative_t<Index, variant<Types...>>, T>::value)
-        : base(detail::variant_base_construct_tag{},
+        : Base(detail::Variant_base_construct_tag{},
                Index,
                in_place_index<Index>,
                std::forward<T>(value))
@@ -954,12 +954,12 @@ public:
     }
     template <typename T,
               typename... Args,
-              std::size_t Index = detail::variant_values<Types...>::template index_from_type<T>(),
+              std::size_t Index = detail::Variant_values<Types...>::template index_from_type<T>(),
               typename = typename std::enable_if<(Index < sizeof...(Types))
                                                  && std::is_constructible<T, Args...>::value>::type>
     constexpr explicit variant(in_place_type_t<T>, Args &&... args) noexcept(
         std::is_nothrow_constructible<T, Args...>::value)
-        : base(detail::variant_base_construct_tag{},
+        : Base(detail::Variant_base_construct_tag{},
                Index,
                in_place_index<Index>,
                std::forward<Args>(args)...)
@@ -969,7 +969,7 @@ public:
         typename T,
         typename U,
         typename... Args,
-        std::size_t Index = detail::variant_values<Types...>::template index_from_type<T>(),
+        std::size_t Index = detail::Variant_values<Types...>::template index_from_type<T>(),
         typename = typename std::
             enable_if<(Index < sizeof...(Types))
                       && std::is_constructible<T, std::initializer_list<U>, Args...>::value>::type>
@@ -979,7 +979,7 @@ public:
         Args &&... args) noexcept(std::is_nothrow_constructible<T,
                                                                 std::initializer_list<U>,
                                                                 Args...>::value)
-        : base(detail::variant_base_construct_tag{},
+        : Base(detail::Variant_base_construct_tag{},
                Index,
                in_place_index<Index>,
                il,
@@ -994,7 +994,7 @@ public:
     constexpr explicit variant(in_place_index_t<Index>, Args &&... args) noexcept(
         std::is_nothrow_constructible<variant_alternative_t<Index, variant<Types...>>,
                                       Args...>::value)
-        : base(detail::variant_base_construct_tag{},
+        : Base(detail::Variant_base_construct_tag{},
                Index,
                in_place_index<Index>,
                std::forward<Args>(args)...)
@@ -1013,7 +1013,7 @@ public:
         noexcept(std::is_nothrow_constructible<variant_alternative_t<Index, variant<Types...>>,
                                                std::initializer_list<U>,
                                                Args...>::value)
-        : base(detail::variant_base_construct_tag{},
+        : Base(detail::Variant_base_construct_tag{},
                Index,
                in_place_index<Index>,
                il,
@@ -1023,14 +1023,14 @@ public:
     template <
         typename T,
         typename Deduced_Type = typename decltype(
-            detail::variant_hypothetical_overload_set<Types...>::fn(std::declval<T>()))::type,
+            detail::Variant_hypothetical_overload_set<Types...>::fn(std::declval<T>()))::type,
         std::size_t Index =
-            detail::variant_values<Types...>::template index_from_type<Deduced_Type>(),
+            detail::Variant_values<Types...>::template index_from_type<Deduced_Type>(),
         typename = typename std::
             enable_if<(Index < sizeof...(Types))
                       && !std::is_same<typename std::decay<T>::type, variant>::value
-                      && !detail::variant_is_in_place_index<typename std::decay<T>::type>::value
-                      && !detail::variant_is_in_place_type<typename std::decay<T>::type>::value
+                      && !detail::Variant_is_in_place_index<typename std::decay<T>::type>::value
+                      && !detail::Variant_is_in_place_type<typename std::decay<T>::type>::value
                       && std::is_constructible<variant_alternative_t<Index, variant<Types...>>,
                                                T>::value
                       && std::is_assignable<variant_alternative_t<Index, variant<Types...>>,
@@ -1041,13 +1041,13 @@ public:
     {
         if(index_value.get() == Index)
         {
-            detail::variant_get<Index, Types...>::get(values) = std::forward<T>(new_value);
+            detail::Variant_get<Index, Types...>::get(values) = std::forward<T>(new_value);
         }
         else
         {
             values.destruct(index_value.get());
             index_value.set(variant_npos); // in case construction throws
-            auto &value = detail::variant_get<Index, Types...>::get(values);
+            auto &value = detail::Variant_get<Index, Types...>::get(values);
             new(const_cast<void *>(static_cast<const volatile void *>(std::addressof(value))))
                 variant_alternative_t<Index, variant<Types...>>(std::forward<T>(new_value));
             index_value.set(Index);
@@ -1056,7 +1056,7 @@ public:
     }
     template <typename T,
               typename... Args,
-              std::size_t Index = detail::variant_values<Types...>::template index_from_type<T>(),
+              std::size_t Index = detail::Variant_values<Types...>::template index_from_type<T>(),
               typename = typename std::enable_if<(Index < sizeof...(Types))
                                                  && std::is_constructible<T, Args...>::value>::type>
     void emplace(Args &&... args)
@@ -1067,7 +1067,7 @@ public:
         typename T,
         typename U,
         typename... Args,
-        std::size_t Index = detail::variant_values<Types...>::template index_from_type<T>(),
+        std::size_t Index = detail::Variant_values<Types...>::template index_from_type<T>(),
         typename = typename std::
             enable_if<(Index < sizeof...(Types))
                       && std::is_constructible<T, std::initializer_list<U>, Args...>::value>::type>
@@ -1086,7 +1086,7 @@ public:
     {
         values.destruct(index_value.get());
         index_value.set(variant_npos); // in case construction throws
-        auto &value = detail::variant_get<Index, Types...>::get(values);
+        auto &value = detail::Variant_get<Index, Types...>::get(values);
         new(const_cast<void *>(static_cast<const volatile void *>(std::addressof(value))))
             variant_alternative_t<Index, variant<Types...>>(std::forward<Args>(args)...);
         index_value.set(Index);
@@ -1104,7 +1104,7 @@ public:
     {
         values.destruct(index_value.get());
         index_value.set(variant_npos); // in case construction throws
-        auto &value = detail::variant_get<Index, Types...>::get(values);
+        auto &value = detail::Variant_get<Index, Types...>::get(values);
         new(const_cast<void *>(static_cast<const volatile void *>(std::addressof(value))))
             variant_alternative_t<Index, variant<Types...>>(il, std::forward<Args>(args)...);
         index_value.set(Index);
@@ -1120,8 +1120,8 @@ public:
     template <bool extra_condition = true,
               typename =
                   typename std::enable_if<extra_condition
-                                          && detail::variant_values<Types...>::is_swappable>::type>
-    void swap(variant &rt) noexcept(detail::variant_values<Types...>::is_nothrow_swappable)
+                                          && detail::Variant_values<Types...>::is_swappable>::type>
+    void swap(variant &rt) noexcept(detail::Variant_values<Types...>::is_nothrow_swappable)
     {
         if(index_value.get() == rt.index_value.get())
             values.swap(rt.values, index_value.get());
@@ -1141,14 +1141,14 @@ public:
         const variant<Types2...> &v);
     template <typename... Types2>
     friend constexpr
-        typename std::enable_if<detail::variant_values<Types2...>::is_equals_comparable, bool>::type
+        typename std::enable_if<detail::Variant_values<Types2...>::is_equals_comparable, bool>::type
         operator==(const variant<Types2...> &l, const variant<Types2...> &r) noexcept(
-            detail::variant_values<Types2...>::is_nothrow_equals_comparable);
+            detail::Variant_values<Types2...>::is_nothrow_equals_comparable);
     template <typename... Types2>
     friend constexpr
-        typename std::enable_if<detail::variant_values<Types2...>::is_less_comparable, bool>::type
+        typename std::enable_if<detail::Variant_values<Types2...>::is_less_comparable, bool>::type
         operator<(const variant<Types2...> &l, const variant<Types2...> &r) noexcept(
-            detail::variant_values<Types2...>::is_nothrow_less_comparable);
+            detail::Variant_values<Types2...>::is_nothrow_less_comparable);
     template <typename Fn, typename... Types2, typename... Args>
     friend
         typename std::common_type<decltype(std::declval<Fn>()(std::declval<Types2 &>()))...>::type
@@ -1170,7 +1170,7 @@ public:
 template <typename T, typename... Types>
 constexpr bool holds_alternative(const variant<Types...> &v) noexcept
 {
-    constexpr std::size_t index = detail::variant_values<Types...>::template index_from_type<T>();
+    constexpr std::size_t index = detail::Variant_values<Types...>::template index_from_type<T>();
     static_assert(index != variant_npos, "");
     return v.index_value.get() == index;
 }
@@ -1180,7 +1180,7 @@ constexpr variant_alternative_t<Index, variant<Types...>> &get(variant<Types...>
 {
     static_assert(Index < sizeof...(Types), "");
     if(v.index_value.get() == Index)
-        return detail::variant_get<Index, Types...>::get(v.values);
+        return detail::Variant_get<Index, Types...>::get(v.values);
     throw bad_variant_access();
 }
 
@@ -1189,7 +1189,7 @@ constexpr const variant_alternative_t<Index, variant<Types...>> &get(const varia
 {
     static_assert(Index < sizeof...(Types), "");
     if(v.index_value.get() == Index)
-        return detail::variant_get<Index, Types...>::get(v.values);
+        return detail::Variant_get<Index, Types...>::get(v.values);
     throw bad_variant_access();
 }
 
@@ -1208,25 +1208,25 @@ constexpr variant_alternative_t<Index, variant<Types...>> &&get(variant<Types...
 template <typename T, typename... Types>
 constexpr const T &get(const variant<Types...> &v)
 {
-    return get<detail::variant_values<Types...>::template index_from_type<T>()>(v);
+    return get<detail::Variant_values<Types...>::template index_from_type<T>()>(v);
 }
 
 template <typename T, typename... Types>
 constexpr T &get(variant<Types...> &v)
 {
-    return get<detail::variant_values<Types...>::template index_from_type<T>()>(v);
+    return get<detail::Variant_values<Types...>::template index_from_type<T>()>(v);
 }
 
 template <typename T, typename... Types>
 constexpr const T &&get(const variant<Types...> &&v)
 {
-    return get<detail::variant_values<Types...>::template index_from_type<T>()>(std::move(v));
+    return get<detail::Variant_values<Types...>::template index_from_type<T>()>(std::move(v));
 }
 
 template <typename T, typename... Types>
 constexpr T &&get(variant<Types...> &&v)
 {
-    return get<detail::variant_values<Types...>::template index_from_type<T>()>(std::move(v));
+    return get<detail::Variant_values<Types...>::template index_from_type<T>()>(std::move(v));
 }
 
 template <std::size_t Index, typename... Types>
@@ -1251,20 +1251,20 @@ constexpr variant_alternative_t<Index, variant<Types...>> *get_if(variant<Types.
 template <typename T, typename... Types>
 constexpr const T *get_if(const variant<Types...> *v) noexcept
 {
-    return get_if<detail::variant_values<Types...>::template index_from_type<T>()>(v);
+    return get_if<detail::Variant_values<Types...>::template index_from_type<T>()>(v);
 }
 
 template <typename T, typename... Types>
 constexpr T *get_if(variant<Types...> *v) noexcept
 {
-    return get_if<detail::variant_values<Types...>::template index_from_type<T>()>(v);
+    return get_if<detail::Variant_values<Types...>::template index_from_type<T>()>(v);
 }
 
 template <typename... Types>
 constexpr
-    typename std::enable_if<detail::variant_values<Types...>::is_equals_comparable, bool>::type
+    typename std::enable_if<detail::Variant_values<Types...>::is_equals_comparable, bool>::type
     operator==(const variant<Types...> &l, const variant<Types...> &r) noexcept(
-        detail::variant_values<Types...>::is_nothrow_equals_comparable)
+        detail::Variant_values<Types...>::is_nothrow_equals_comparable)
 {
     return l.index_value.get() == r.index_value.get()
            && l.values.is_equal(r.values, l.index_value.get());
@@ -1272,17 +1272,17 @@ constexpr
 
 template <typename... Types>
 constexpr
-    typename std::enable_if<detail::variant_values<Types...>::is_equals_comparable, bool>::type
+    typename std::enable_if<detail::Variant_values<Types...>::is_equals_comparable, bool>::type
     operator!=(const variant<Types...> &l, const variant<Types...> &r) noexcept(
-        detail::variant_values<Types...>::is_nothrow_equals_comparable)
+        detail::Variant_values<Types...>::is_nothrow_equals_comparable)
 {
     return !operator==(l, r);
 }
 
 template <typename... Types>
-constexpr typename std::enable_if<detail::variant_values<Types...>::is_less_comparable, bool>::type
+constexpr typename std::enable_if<detail::Variant_values<Types...>::is_less_comparable, bool>::type
     operator<(const variant<Types...> &l, const variant<Types...> &r) noexcept(
-        detail::variant_values<Types...>::is_nothrow_less_comparable)
+        detail::Variant_values<Types...>::is_nothrow_less_comparable)
 {
     if(l.index_value.get() != r.index_value.get())
         return l.index_value.get() < r.index_value.get();
@@ -1290,25 +1290,25 @@ constexpr typename std::enable_if<detail::variant_values<Types...>::is_less_comp
 }
 
 template <typename... Types>
-constexpr typename std::enable_if<detail::variant_values<Types...>::is_less_comparable, bool>::type
+constexpr typename std::enable_if<detail::Variant_values<Types...>::is_less_comparable, bool>::type
     operator>(const variant<Types...> &l, const variant<Types...> &r) noexcept(
-        detail::variant_values<Types...>::is_nothrow_less_comparable)
+        detail::Variant_values<Types...>::is_nothrow_less_comparable)
 {
     return operator<(r, l);
 }
 
 template <typename... Types>
-constexpr typename std::enable_if<detail::variant_values<Types...>::is_less_comparable, bool>::type
+constexpr typename std::enable_if<detail::Variant_values<Types...>::is_less_comparable, bool>::type
     operator>=(const variant<Types...> &l, const variant<Types...> &r) noexcept(
-        detail::variant_values<Types...>::is_nothrow_less_comparable)
+        detail::Variant_values<Types...>::is_nothrow_less_comparable)
 {
     return !operator<(l, r);
 }
 
 template <typename... Types>
-constexpr typename std::enable_if<detail::variant_values<Types...>::is_less_comparable, bool>::type
+constexpr typename std::enable_if<detail::Variant_values<Types...>::is_less_comparable, bool>::type
     operator<=(const variant<Types...> &l, const variant<Types...> &r) noexcept(
-        detail::variant_values<Types...>::is_nothrow_less_comparable)
+        detail::Variant_values<Types...>::is_nothrow_less_comparable)
 {
     return !operator<(r, l);
 }
@@ -1439,10 +1439,10 @@ struct hash<vulkan_cpu::util::variant<Types...>>
 
 template <typename... Types,
           typename = typename std::
-              enable_if<vulkan_cpu::util::detail::variant_values<Types...>::is_swappable>::type>
+              enable_if<vulkan_cpu::util::detail::Variant_values<Types...>::is_swappable>::type>
 inline void
     swap(vulkan_cpu::util::variant<Types...> &l, vulkan_cpu::util::variant<Types...> &r) noexcept(
-        vulkan_cpu::util::detail::variant_values<Types...>::is_nothrow_swappable)
+        vulkan_cpu::util::detail::Variant_values<Types...>::is_nothrow_swappable)
 {
     l.swap(r);
 }

@@ -32,7 +32,7 @@ namespace vulkan_cpu_util_is_swappable_unrelated_namespace
 {
 using std::swap;
 template <typename T, typename U, bool Is_Void = std::is_void<T>::value || std::is_void<T>::value>
-class is_swappable_with
+class Is_swappable_with
 {
 private:
     template <typename L,
@@ -48,21 +48,21 @@ public:
 };
 
 template <typename T, typename U>
-class is_swappable_with<T, U, true>
+class Is_swappable_with<T, U, true>
 {
 public:
     static constexpr bool value = false;
 };
 
-template <typename T, typename U, bool Is_Swappable_With = is_swappable_with<T, U>::value>
-struct is_nothrow_swappable_with
+template <typename T, typename U, bool Is_Swappable_With = Is_swappable_with<T, U>::value>
+struct Is_nothrow_swappable_with
 {
     static constexpr bool value = noexcept(swap(std::declval<T>(), std::declval<U>()))
                                   && noexcept(swap(std::declval<U>(), std::declval<T>()));
 };
 
 template <typename T, typename U>
-struct is_nothrow_swappable_with<T, U, false>
+struct Is_nothrow_swappable_with<T, U, false>
 {
     static constexpr bool value = false;
 };
@@ -76,7 +76,7 @@ template <typename T, typename U>
 struct is_swappable_with
     : public std::integral_constant<bool,
                                     vulkan_cpu_util_is_swappable_unrelated_namespace::
-                                        is_swappable_with<T, U>::value>
+                                        Is_swappable_with<T, U>::value>
 {
 };
 
@@ -87,7 +87,7 @@ template <typename T, typename U>
 struct is_nothrow_swappable_with
     : public std::integral_constant<bool,
                                     vulkan_cpu_util_is_swappable_unrelated_namespace::
-                                        is_nothrow_swappable_with<T, U>::value>
+                                        Is_nothrow_swappable_with<T, U>::value>
 {
 };
 

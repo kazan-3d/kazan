@@ -42,18 +42,18 @@ int generate_spirv_parser_main(int argc, char **argv)
     }
     try
     {
-        auto source = file_name == "-" ? json::source::load_stdin() :
-                                         json::source::load_file(std::move(file_name));
+        auto source = file_name == "-" ? json::Source::load_stdin() :
+                                         json::Source::load_file(std::move(file_name));
         try
         {
             auto ast = parser::parse(json::parse(&source));
         }
-        catch(json::parse_error &e)
+        catch(json::Parse_error &e)
         {
             std::cerr << "error: " << e.what() << std::endl;
             return 1;
         }
-        catch(parser::parse_error &e)
+        catch(parser::Parse_error &e)
         {
             std::cerr << "error: " << e.what() << std::endl;
             return 1;

@@ -62,7 +62,7 @@ namespace detail
 template <typename T,
           bool Is_Trivially_Destructible = std::is_trivially_destructible<T>::value,
           bool Is_Trivially_Copyable = std::is_trivially_copyable<T>::value>
-struct optional_base
+struct Optional_base
 {
     union
     {
@@ -70,10 +70,10 @@ struct optional_base
         alignas(T) char empty_value[sizeof(T)];
     };
     bool is_full;
-    constexpr optional_base() noexcept : empty_value{}, is_full(false)
+    constexpr Optional_base() noexcept : empty_value{}, is_full(false)
     {
     }
-    constexpr optional_base(nullopt_t) noexcept : empty_value{}, is_full(false)
+    constexpr Optional_base(nullopt_t) noexcept : empty_value{}, is_full(false)
     {
     }
     void reset() noexcept
@@ -103,13 +103,13 @@ struct optional_base
         is_full = true;
         return full_value;
     }
-    optional_base(const optional_base &rt) noexcept(std::is_nothrow_copy_constructible<T>::value)
+    Optional_base(const Optional_base &rt) noexcept(std::is_nothrow_copy_constructible<T>::value)
         : empty_value{}, is_full(false)
     {
         if(rt.is_full)
             emplace(rt.full_value);
     }
-    optional_base(optional_base &&rt) noexcept(std::is_nothrow_move_constructible<T>::value)
+    Optional_base(Optional_base &&rt) noexcept(std::is_nothrow_move_constructible<T>::value)
         : empty_value{}, is_full(false)
     {
         if(rt.is_full)
@@ -117,7 +117,7 @@ struct optional_base
     }
     template <typename... Types,
               typename = typename std::enable_if<std::is_constructible<T, Types...>::value>::type>
-    constexpr explicit optional_base(in_place_t, Types &&... args) noexcept(
+    constexpr explicit Optional_base(in_place_t, Types &&... args) noexcept(
         std::is_nothrow_constructible<T, Types...>::value)
         : full_value(std::forward<Types>(args)...), is_full(true)
     {
@@ -127,18 +127,18 @@ struct optional_base
         typename... Types,
         typename = typename std::
             enable_if<std::is_constructible<T, std::initializer_list<U>, Types...>::value>::type>
-    constexpr explicit optional_base(
+    constexpr explicit Optional_base(
         in_place_t,
         std::initializer_list<U> init_list,
         Types &&... args) noexcept(std::is_nothrow_constructible<T, Types...>::value)
         : full_value(init_list, std::forward<Types>(args)...), is_full(true)
     {
     }
-    ~optional_base()
+    ~Optional_base()
     {
         reset();
     }
-    optional_base &operator=(const optional_base &rt) noexcept(
+    Optional_base &operator=(const Optional_base &rt) noexcept(
         std::is_nothrow_copy_assignable<T>::value)
     {
         if(!rt.is_full)
@@ -149,7 +149,7 @@ struct optional_base
             full_value = rt.full_value;
         return *this;
     }
-    optional_base &operator=(optional_base &&rt) noexcept(std::is_nothrow_move_assignable<T>::value)
+    Optional_base &operator=(Optional_base &&rt) noexcept(std::is_nothrow_move_assignable<T>::value)
     {
         if(!rt.is_full)
             reset();
@@ -162,7 +162,7 @@ struct optional_base
 };
 
 template <typename T>
-struct optional_base<T, true, false>
+struct Optional_base<T, true, false>
 {
     union
     {
@@ -170,10 +170,10 @@ struct optional_base<T, true, false>
         alignas(T) char empty_value[sizeof(T)];
     };
     bool is_full;
-    constexpr optional_base() noexcept : empty_value{}, is_full(false)
+    constexpr Optional_base() noexcept : empty_value{}, is_full(false)
     {
     }
-    constexpr optional_base(nullopt_t) noexcept : empty_value{}, is_full(false)
+    constexpr Optional_base(nullopt_t) noexcept : empty_value{}, is_full(false)
     {
     }
     void reset() noexcept
@@ -202,13 +202,13 @@ struct optional_base<T, true, false>
         is_full = true;
         return full_value;
     }
-    optional_base(const optional_base &rt) noexcept(std::is_nothrow_copy_constructible<T>::value)
+    Optional_base(const Optional_base &rt) noexcept(std::is_nothrow_copy_constructible<T>::value)
         : empty_value{}, is_full(false)
     {
         if(rt.is_full)
             emplace(rt.full_value);
     }
-    optional_base(optional_base &&rt) noexcept(std::is_nothrow_move_constructible<T>::value)
+    Optional_base(Optional_base &&rt) noexcept(std::is_nothrow_move_constructible<T>::value)
         : empty_value{}, is_full(false)
     {
         if(rt.is_full)
@@ -216,7 +216,7 @@ struct optional_base<T, true, false>
     }
     template <typename... Types,
               typename = typename std::enable_if<std::is_constructible<T, Types...>::value>::type>
-    constexpr explicit optional_base(in_place_t, Types &&... args) noexcept(
+    constexpr explicit Optional_base(in_place_t, Types &&... args) noexcept(
         std::is_nothrow_constructible<T, Types...>::value)
         : full_value(std::forward<Types>(args)...), is_full(true)
     {
@@ -226,15 +226,15 @@ struct optional_base<T, true, false>
         typename... Types,
         typename = typename std::
             enable_if<std::is_constructible<T, std::initializer_list<U>, Types...>::value>::type>
-    constexpr explicit optional_base(
+    constexpr explicit Optional_base(
         in_place_t,
         std::initializer_list<U> init_list,
         Types &&... args) noexcept(std::is_nothrow_constructible<T, Types...>::value)
         : full_value(init_list, std::forward<Types>(args)...), is_full(true)
     {
     }
-    ~optional_base() = default;
-    optional_base &operator=(const optional_base &rt) noexcept(
+    ~Optional_base() = default;
+    Optional_base &operator=(const Optional_base &rt) noexcept(
         std::is_nothrow_copy_assignable<T>::value)
     {
         if(!rt.is_full)
@@ -245,7 +245,7 @@ struct optional_base<T, true, false>
             full_value = rt.full_value;
         return *this;
     }
-    optional_base &operator=(optional_base &&rt) noexcept(std::is_nothrow_move_assignable<T>::value)
+    Optional_base &operator=(Optional_base &&rt) noexcept(std::is_nothrow_move_assignable<T>::value)
     {
         if(!rt.is_full)
             reset();
@@ -258,7 +258,7 @@ struct optional_base<T, true, false>
 };
 
 template <typename T>
-struct optional_base<T, true, true>
+struct Optional_base<T, true, true>
 {
     union
     {
@@ -266,10 +266,10 @@ struct optional_base<T, true, true>
         alignas(T) char empty_value[sizeof(T)];
     };
     bool is_full;
-    constexpr optional_base() noexcept : empty_value{}, is_full(false)
+    constexpr Optional_base() noexcept : empty_value{}, is_full(false)
     {
     }
-    constexpr optional_base(nullopt_t) noexcept : empty_value{}, is_full(false)
+    constexpr Optional_base(nullopt_t) noexcept : empty_value{}, is_full(false)
     {
     }
     void reset() noexcept
@@ -298,11 +298,11 @@ struct optional_base<T, true, true>
         is_full = true;
         return full_value;
     }
-    constexpr optional_base(const optional_base &rt) noexcept = default;
-    constexpr optional_base(optional_base &&rt) noexcept = default;
+    constexpr Optional_base(const Optional_base &rt) noexcept = default;
+    constexpr Optional_base(Optional_base &&rt) noexcept = default;
     template <typename... Types,
               typename = typename std::enable_if<std::is_constructible<T, Types...>::value>::type>
-    constexpr explicit optional_base(in_place_t, Types &&... args) noexcept(
+    constexpr explicit Optional_base(in_place_t, Types &&... args) noexcept(
         std::is_nothrow_constructible<T, Types...>::value)
         : full_value(std::forward<Types>(args)...), is_full(true)
     {
@@ -312,16 +312,16 @@ struct optional_base<T, true, true>
         typename... Types,
         typename = typename std::
             enable_if<std::is_constructible<T, std::initializer_list<U>, Types...>::value>::type>
-    constexpr explicit optional_base(
+    constexpr explicit Optional_base(
         in_place_t,
         std::initializer_list<U> init_list,
         Types &&... args) noexcept(std::is_nothrow_constructible<T, Types...>::value)
         : full_value(init_list, std::forward<Types>(args)...), is_full(true)
     {
     }
-    ~optional_base() = default;
-    optional_base &operator=(const optional_base &rt) noexcept = default;
-    optional_base &operator=(optional_base &&rt) noexcept = default;
+    ~Optional_base() = default;
+    Optional_base &operator=(const Optional_base &rt) noexcept = default;
+    Optional_base &operator=(Optional_base &&rt) noexcept = default;
 };
 }
 
@@ -390,25 +390,25 @@ constexpr bool optional_needs_conversion_from_optional_assign_operators() noexce
 }
 
 template <typename T>
-class optional : private detail::optional_base<T>
+class optional : private detail::Optional_base<T>
 {
 private:
-    typedef detail::optional_base<T> base;
-    using base::is_full;
-    using base::full_value;
+    typedef detail::Optional_base<T> Base;
+    using Base::is_full;
+    using Base::full_value;
 
 public:
-    using base::base;
-    using base::operator=;
-    using base::reset;
-    using base::emplace;
+    using Base::Base;
+    using Base::operator=;
+    using Base::reset;
+    using Base::emplace;
     constexpr optional() noexcept = default;
     template <typename U,
               typename = typename std::
                   enable_if<detail::optional_needs_conversion_constructors<T, U, const U &>()
                             && std::is_convertible<const U &, T>::value>::type>
     optional(const optional<U> &rt) noexcept(std::is_nothrow_constructible<T, const U &>::value)
-        : base()
+        : Base()
     {
         if(rt)
             emplace(*rt);
@@ -420,7 +420,7 @@ public:
               typename = void>
     explicit optional(const optional<U> &rt) noexcept(
         std::is_nothrow_constructible<T, const U &>::value)
-        : base()
+        : Base()
     {
         if(rt)
             emplace(*rt);
@@ -431,7 +431,7 @@ public:
             typename std::enable_if<detail::optional_needs_conversion_constructors<T, U, U &&>()
                                     && std::is_convertible<U &&, T>::value>::type>
     optional(optional<U> &&rt) noexcept(std::is_nothrow_constructible<T, U &&>::value)
-        : base()
+        : Base()
     {
         if(rt)
             emplace(std::move(*rt));
@@ -443,7 +443,7 @@ public:
                                     && !std::is_convertible<U &&, T>::value>::type,
         typename = void>
     explicit optional(optional<U> &&rt) noexcept(std::is_nothrow_constructible<T, U &&>::value)
-        : base()
+        : Base()
     {
         if(rt)
             emplace(std::move(*rt));
@@ -456,7 +456,7 @@ public:
                             && std::is_convertible<U &&, T>::value>::type,
               typename = void>
     constexpr optional(U &&value) noexcept(std::is_nothrow_constructible<T, U &&>::value)
-        : base(in_place, std::forward<U>(value))
+        : Base(in_place, std::forward<U>(value))
     {
     }
     template <typename U,
@@ -466,7 +466,7 @@ public:
                             && !std::is_same<typename std::decay<U>::type, optional>::value
                             && !std::is_convertible<U &&, T>::value>::type>
     explicit constexpr optional(U &&value) noexcept(std::is_nothrow_constructible<T, U &&>::value)
-        : base(in_place, std::forward<U>(value))
+        : Base(in_place, std::forward<U>(value))
     {
     }
     template <typename U = T,

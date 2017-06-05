@@ -60,13 +60,13 @@ constexpr decltype(auto) invoke_member_function_pointer(
 }
 
 template <typename T>
-struct invoke_is_reference_wrapper
+struct Invoke_is_reference_wrapper
 {
     static constexpr bool value = false;
 };
 
 template <typename T>
-struct invoke_is_reference_wrapper<std::reference_wrapper<T>>
+struct Invoke_is_reference_wrapper<std::reference_wrapper<T>>
 {
     static constexpr bool value = true;
 };
@@ -78,7 +78,7 @@ template <
     typename... Args,
     typename = int,
     typename = typename std::enable_if<!std::is_base_of<T, typename std::decay<Arg1>::type>::value
-                                       && invoke_is_reference_wrapper<
+                                       && Invoke_is_reference_wrapper<
                                               typename std::decay<Arg1>::type>::value>::type>
 constexpr decltype(auto) invoke_member_function_pointer(
     Fn T::*fn,
@@ -96,7 +96,7 @@ template <
     typename = int,
     typename = int,
     typename = typename std::enable_if<!std::is_base_of<T, typename std::decay<Arg1>::type>::value
-                                       && !invoke_is_reference_wrapper<
+                                       && !Invoke_is_reference_wrapper<
                                               typename std::decay<Arg1>::type>::value>::type>
 constexpr decltype(auto) invoke_member_function_pointer(
     Fn T::*fn, Arg1 &&arg1, Args &&... args) noexcept(noexcept(((*std::forward<Arg1>(arg1))
@@ -133,7 +133,7 @@ template <
     typename Arg,
     typename = int,
     typename = typename std::enable_if<!std::is_base_of<T, typename std::decay<Arg>::type>::value
-                                       && invoke_is_reference_wrapper<
+                                       && Invoke_is_reference_wrapper<
                                               typename std::decay<Arg>::type>::value>::type>
 constexpr decltype(auto) invoke_member_object_pointer(Fn T::*fn,
                                                       Arg &&arg) noexcept(noexcept(arg.get().*fn))
@@ -148,7 +148,7 @@ template <
     typename = int,
     typename = int,
     typename = typename std::enable_if<!std::is_base_of<T, typename std::decay<Arg>::type>::value
-                                       && !invoke_is_reference_wrapper<
+                                       && !Invoke_is_reference_wrapper<
                                               typename std::decay<Arg>::type>::value>::type>
 constexpr decltype(auto) invoke_member_object_pointer(Fn T::*fn, Arg &&arg) noexcept(
     noexcept((*std::forward<Arg>(arg)).*fn))
@@ -166,7 +166,7 @@ constexpr decltype(auto) invoke_helper(Fn fn, Arg &&arg) noexcept(
 }
 
 template <typename Fn, typename = void, typename... Args>
-struct invoke_result_helper
+struct Invoke_result_helper
 {
     static constexpr bool is_invokable = false;
     static constexpr bool is_nothrow_invokable = false;
@@ -183,7 +183,7 @@ struct invoke_result_helper
 };
 
 template <typename Fn, typename... Args>
-struct invoke_result_helper<Fn,
+struct Invoke_result_helper<Fn,
                             void_t<decltype(
                                 invoke_helper(std::declval<Fn>(), std::declval<Args>()...))>,
                             Args...>
@@ -218,7 +218,7 @@ struct invoke_result_helper<Fn,
 }
 
 template <typename Fn, typename... Args>
-struct invoke_result : public detail::invoke_result_helper<Fn, void, Args...>
+struct invoke_result : public detail::Invoke_result_helper<Fn, void, Args...>
 {
 };
 
@@ -234,7 +234,7 @@ constexpr invoke_result_t<Fn, Args...> invoke(Fn &&fn, Args &&... args) noexcept
 
 template <typename Fn, typename... Args>
 struct is_invocable
-    : public std::integral_constant<bool, detail::invoke_result_helper<Fn, Args...>::is_invokable>
+    : public std::integral_constant<bool, detail::Invoke_result_helper<Fn, Args...>::is_invokable>
 {
 };
 
@@ -243,8 +243,9 @@ constexpr bool is_invocable_v = is_invocable<Fn, Args...>::value;
 
 template <typename R, typename Fn, typename... Args>
 struct is_invocable_r
-    : public std::integral_constant<bool,
-                                    detail::invoke_result_helper<Fn, Args...>::template is_invokable_r<R>()>
+    : public std::
+          integral_constant<bool,
+                            detail::Invoke_result_helper<Fn, Args...>::template is_invokable_r<R>()>
 {
 };
 
@@ -254,7 +255,7 @@ constexpr bool is_invocable_r_v = is_invocable_r<R, Fn, Args...>::value;
 template <typename Fn, typename... Args>
 struct is_nothrow_invocable
     : public std::integral_constant<bool,
-                                    detail::invoke_result_helper<Fn, Args...>::is_nothrow_invokable>
+                                    detail::Invoke_result_helper<Fn, Args...>::is_nothrow_invokable>
 {
 };
 
@@ -263,9 +264,9 @@ constexpr bool is_nothrow_invocable_v = is_nothrow_invocable<Fn, Args...>::value
 
 template <typename R, typename Fn, typename... Args>
 struct is_nothrow_invocable_r
-    : public std::
-          integral_constant<bool,
-                            detail::invoke_result_helper<Fn, Args...>::template is_nothrow_invokable_r<R>()>
+    : public std::integral_constant<bool,
+                                    detail::Invoke_result_helper<Fn, Args...>::
+                                        template is_nothrow_invokable_r<R>()>
 {
 };
 

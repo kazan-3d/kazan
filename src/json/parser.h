@@ -36,7 +36,7 @@ namespace vulkan_cpu
 {
 namespace json
 {
-struct source
+struct Source
 {
     std::string file_name;
     std::shared_ptr<const char> contents; // use a shared_ptr so you can use mmap-ed memory
@@ -45,20 +45,20 @@ struct source
     std::vector<std::size_t> line_start_indexes;
     static std::vector<std::size_t> find_line_start_indexes(const char *contents,
                                                             std::size_t contents_size);
-    source(source &&) = default;
-    source(const source &) = delete;
-    source &operator=(source &&) = default;
-    source &operator=(const source &) = delete;
-    source() : file_name(), contents(), contents_size(0), line_start_indexes()
+    Source(Source &&) = default;
+    Source(const Source &) = delete;
+    Source &operator=(Source &&) = default;
+    Source &operator=(const Source &) = delete;
+    Source() : file_name(), contents(), contents_size(0), line_start_indexes()
     {
     }
-    explicit source(std::string file_name) noexcept : file_name(std::move(file_name)),
+    explicit Source(std::string file_name) noexcept : file_name(std::move(file_name)),
                                                       contents(),
                                                       contents_size(0),
                                                       line_start_indexes()
     {
     }
-    source(std::string file_name,
+    Source(std::string file_name,
            std::shared_ptr<const char> contents,
            std::size_t contents_size) noexcept
         : file_name(std::move(file_name)),
@@ -67,7 +67,7 @@ struct source
           line_start_indexes(find_line_start_indexes(this->contents.get(), contents_size))
     {
     }
-    source(std::string file_name, std::string contents_in)
+    Source(std::string file_name, std::string contents_in)
         : file_name(file_name),
           contents(),
           contents_size(contents_in.size()),
@@ -76,7 +76,7 @@ struct source
         auto str = std::make_shared<std::string>(std::move(contents_in));
         contents = std::shared_ptr<const char>(str, str->data());
     }
-    source(std::string file_name, std::vector<char> contents_in)
+    Source(std::string file_name, std::vector<char> contents_in)
         : file_name(file_name),
           contents(),
           contents_size(contents_in.size()),
@@ -85,7 +85,7 @@ struct source
         auto str = std::make_shared<std::vector<char>>(std::move(contents_in));
         contents = std::shared_ptr<const char>(str, str->data());
     }
-    source(std::string file_name, std::vector<unsigned char> contents_in)
+    Source(std::string file_name, std::vector<unsigned char> contents_in)
         : file_name(file_name),
           contents(),
           contents_size(contents_in.size()),
@@ -99,37 +99,37 @@ struct source
     {
         return contents != nullptr;
     }
-    static source load_file(std::string file_name);
-    static source load_stdin();
-    struct line_and_index
+    static Source load_file(std::string file_name);
+    static Source load_stdin();
+    struct Line_and_index
     {
         std::size_t line;
         std::size_t index;
-        constexpr line_and_index() noexcept : line(), index()
+        constexpr Line_and_index() noexcept : line(), index()
         {
         }
-        constexpr line_and_index(std::size_t line, std::size_t index) noexcept : line(line),
+        constexpr Line_and_index(std::size_t line, std::size_t index) noexcept : line(line),
                                                                                  index(index)
         {
         }
     };
-    struct line_and_column
+    struct Line_and_column
     {
         std::size_t line;
         std::size_t column;
-        constexpr line_and_column() noexcept : line(), column()
+        constexpr Line_and_column() noexcept : line(), column()
         {
         }
-        constexpr line_and_column(std::size_t line, std::size_t column) noexcept : line(line),
+        constexpr Line_and_column(std::size_t line, std::size_t column) noexcept : line(line),
                                                                                    column(column)
         {
         }
         std::string append_to_string(std::string buffer) const
         {
-            buffer = ast::number_value::append_unsigned_integer_to_string(line, std::move(buffer));
+            buffer = ast::Number_value::append_unsigned_integer_to_string(line, std::move(buffer));
             buffer += ':';
             buffer =
-                ast::number_value::append_unsigned_integer_to_string(column, std::move(buffer));
+                ast::Number_value::append_unsigned_integer_to_string(column, std::move(buffer));
             return buffer;
         }
         std::string to_string(std::string buffer = {}) const
@@ -137,47 +137,47 @@ struct source
             buffer.clear();
             return append_to_string(std::move(buffer));
         }
-        friend std::ostream &operator<<(std::ostream &os, const line_and_column &v);
+        friend std::ostream &operator<<(std::ostream &os, const Line_and_column &v);
     };
     static constexpr std::size_t default_tab_size = 8;
-    line_and_index get_line_and_start_index(std::size_t char_index) const noexcept;
-    line_and_column get_line_and_column(std::size_t char_index,
+    Line_and_index get_line_and_start_index(std::size_t char_index) const noexcept;
+    Line_and_column get_line_and_column(std::size_t char_index,
                                         std::size_t tab_size = default_tab_size) const noexcept;
 };
 
-struct location
+struct Location
 {
-    const source *source;
+    const Source *source;
     std::size_t char_index;
-    constexpr location() noexcept : source(nullptr), char_index(0)
+    constexpr Location() noexcept : source(nullptr), char_index(0)
     {
     }
-    constexpr location(const json::source *source, std::size_t char_index) noexcept
+    constexpr Location(const json::Source *source, std::size_t char_index) noexcept
         : source(source),
           char_index(char_index)
     {
     }
-    json::source::line_and_index get_line_and_start_index() const noexcept
+    json::Source::Line_and_index get_line_and_start_index() const noexcept
     {
         if(!source)
             return {};
         return source->get_line_and_start_index(char_index);
     }
-    json::source::line_and_column get_line_and_column(
-        std::size_t tab_size = json::source::default_tab_size) const noexcept
+    json::Source::Line_and_column get_line_and_column(
+        std::size_t tab_size = json::Source::default_tab_size) const noexcept
     {
         if(!source)
             return {};
         return source->get_line_and_column(char_index, tab_size);
     }
     std::string to_string(std::string buffer = {},
-                          std::size_t tab_size = json::source::default_tab_size) const
+                          std::size_t tab_size = json::Source::default_tab_size) const
     {
         buffer.clear();
         return append_to_string(std::move(buffer));
     }
     std::string append_to_string(std::string buffer,
-                                 std::size_t tab_size = json::source::default_tab_size) const
+                                 std::size_t tab_size = json::Source::default_tab_size) const
     {
         if(!source || source->file_name.empty())
             buffer += "<unknown>";
@@ -187,36 +187,36 @@ struct location
         buffer = get_line_and_column(tab_size).append_to_string(std::move(buffer));
         return buffer;
     }
-    friend std::ostream &operator<<(std::ostream &os, const location &v);
+    friend std::ostream &operator<<(std::ostream &os, const Location &v);
 };
 
-class parse_error : public std::runtime_error
+class Parse_error : public std::runtime_error
 {
 public:
-    location location;
-    parse_error(json::location location, const std::string &message)
+    Location location;
+    Parse_error(json::Location location, const std::string &message)
         : runtime_error(location.to_string() + ": " + message)
     {
     }
-    parse_error(json::location location, const char *message)
+    Parse_error(json::Location location, const char *message)
         : runtime_error(location.to_string() + ": " + message)
     {
     }
 };
 
-struct parse_options
+struct Parse_options
 {
     bool allow_infinity_and_nan;
     bool allow_explicit_plus_sign_in_mantissa;
     bool allow_single_quote_strings;
     bool allow_number_to_start_with_dot;
-    constexpr parse_options() noexcept : allow_infinity_and_nan(false),
+    constexpr Parse_options() noexcept : allow_infinity_and_nan(false),
                                          allow_explicit_plus_sign_in_mantissa(false),
                                          allow_single_quote_strings(false),
                                          allow_number_to_start_with_dot(false)
     {
     }
-    constexpr parse_options(bool allow_infinity_and_nan,
+    constexpr Parse_options(bool allow_infinity_and_nan,
                             bool allow_explicit_plus_sign_in_mantissa,
                             bool allow_single_quote_strings,
                             bool allow_number_to_start_with_dot) noexcept
@@ -226,17 +226,17 @@ struct parse_options
           allow_number_to_start_with_dot(allow_number_to_start_with_dot)
     {
     }
-    static constexpr parse_options default_options() noexcept
+    static constexpr Parse_options default_options() noexcept
     {
-        return parse_options();
+        return Parse_options();
     }
-    static constexpr parse_options relaxed_options() noexcept
+    static constexpr Parse_options relaxed_options() noexcept
     {
-        return parse_options(true, true, true, true);
+        return Parse_options(true, true, true, true);
     }
 };
 
-ast::value parse(const source *source, parse_options options = parse_options::default_options());
+ast::Value parse(const Source *source, Parse_options options = Parse_options::default_options());
 }
 }
 

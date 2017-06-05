@@ -33,22 +33,22 @@ namespace vulkan_cpu
 {
 namespace test
 {
-util::optional<std::vector<spirv::word>> load_file(const char *fileName)
+util::optional<std::vector<spirv::Word>> load_file(const char *fileName)
 {
-    using spirv::word;
+    using spirv::Word;
     constexpr int eof = std::char_traits<char>::eof();
     std::ifstream is;
     is.open(fileName, std::ios::in | std::ios::binary);
     if(!is)
         return {};
     constexpr std::size_t block_size = 0x1000;
-    std::vector<std::array<word, block_size>> blocks;
-    std::array<unsigned char, sizeof(word)> word_bytes{};
-    static_assert(sizeof(word) == 4, "");
+    std::vector<std::array<Word, block_size>> blocks;
+    std::array<unsigned char, sizeof(Word)> word_bytes{};
+    static_assert(sizeof(Word) == 4, "");
     static_assert(std::is_same<std::uint8_t, unsigned char>::value, "");
-    auto read_little_endian = [](const unsigned char *bytes) -> word
+    auto read_little_endian = [](const unsigned char *bytes) -> Word
     {
-        word retval = bytes[3];
+        Word retval = bytes[3];
         retval <<= 8;
         retval |= bytes[2];
         retval <<= 8;
@@ -57,9 +57,9 @@ util::optional<std::vector<spirv::word>> load_file(const char *fileName)
         retval |= bytes[0];
         return retval;
     };
-    auto read_big_endian = [](const unsigned char *bytes) -> word
+    auto read_big_endian = [](const unsigned char *bytes) -> Word
     {
-        word retval = bytes[0];
+        Word retval = bytes[0];
         retval <<= 8;
         retval |= bytes[1];
         retval <<= 8;
@@ -75,7 +75,7 @@ util::optional<std::vector<spirv::word>> load_file(const char *fileName)
             return {};
         byte = v;
     }
-    word (*read_word_fn)(const unsigned char *) = nullptr;
+    Word (*read_word_fn)(const unsigned char *) = nullptr;
     if(read_little_endian(word_bytes.data()) == spirv::magic_number)
         read_word_fn = read_little_endian;
     else if(read_big_endian(word_bytes.data()) == spirv::magic_number)
@@ -103,7 +103,7 @@ util::optional<std::vector<spirv::word>> load_file(const char *fileName)
             blocks.emplace_back();
         }
     }
-    std::vector<word> retval;
+    std::vector<Word> retval;
     retval.reserve(word_count);
     word_in_block_index = 0;
     for(std::size_t word_index = 0, block_index = 0; word_index < word_count; word_index++)
@@ -118,7 +118,7 @@ util::optional<std::vector<spirv::word>> load_file(const char *fileName)
     return std::move(retval);
 }
 
-void dump_words(const spirv::word *words, std::size_t word_count)
+void dump_words(const spirv::Word *words, std::size_t word_count)
 {
     constexpr std::size_t max_words_per_line = 4;
     auto old_fill = std::cout.fill('0');
@@ -141,8 +141,8 @@ void dump_words(const spirv::word *words, std::size_t word_count)
     std::string chars = "";
     auto write_line_ending = [&]()
     {
-    	while(current_words_per_line < max_words_per_line)
-    	{
+        while(current_words_per_line < max_words_per_line)
+        {
             std::cout << seperator;
             seperator = " ";
             std::cout.width(8);
@@ -150,8 +150,8 @@ void dump_words(const spirv::word *words, std::size_t word_count)
             std::cout << "";
             std::cout.fill('0');
             current_words_per_line++;
-    	}
-    	std::cout << seperator << " |" << chars << "|\n";
+        }
+        std::cout << seperator << " |" << chars << "|\n";
         seperator = "";
         wrote_line_ending = true;
         wrote_line_beginning = false;
@@ -160,12 +160,12 @@ void dump_words(const spirv::word *words, std::size_t word_count)
     };
     auto append_char = [&](unsigned ch)
     {
-    	if(ch >= 0x20U && ch < 0x7FU)
-    		chars += static_cast<char>(ch);
-    	else
-    		chars += '.';
+        if(ch >= 0x20U && ch < 0x7FU)
+            chars += static_cast<char>(ch);
+        else
+            chars += '.';
     };
-    auto write_word = [&](spirv::word w)
+    auto write_word = [&](spirv::Word w)
     {
         std::cout << seperator;
         seperator = " ";
@@ -193,7 +193,7 @@ void dump_words(const spirv::word *words, std::size_t word_count)
     std::cout.flags(old_flags);
 }
 
-void dump_words(const std::vector<spirv::word> &words)
+void dump_words(const std::vector<spirv::Word> &words)
 {
     dump_words(words.data(), words.size());
 }

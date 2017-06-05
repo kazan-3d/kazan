@@ -38,40 +38,40 @@ namespace generate_spirv_parser
 {
 namespace parser
 {
-struct path
+struct Path
 {
     typedef util::variant<std::size_t, std::string> element;
     std::vector<element> elements;
-    path() : elements()
+    Path() : elements()
     {
     }
-    path(std::vector<element> elements) : elements(std::move(elements))
+    Path(std::vector<element> elements) : elements(std::move(elements))
     {
     }
-    path(std::initializer_list<element> elements) : elements(elements)
+    Path(std::initializer_list<element> elements) : elements(elements)
     {
     }
     std::string to_string() const;
 };
 
-struct path_builder_base
+struct Path_builder_base
 {
-    path_builder_base(const path_builder_base &) = delete;
-    path_builder_base &operator=(const path_builder_base &) = delete;
-    virtual ~path_builder_base() = default;
-    const path_builder_base *const parent;
+    Path_builder_base(const Path_builder_base &) = delete;
+    Path_builder_base &operator=(const Path_builder_base &) = delete;
+    virtual ~Path_builder_base() = default;
+    const Path_builder_base *const parent;
     const std::size_t element_count;
-    explicit path_builder_base(const path_builder_base *parent) noexcept
+    explicit Path_builder_base(const Path_builder_base *parent) noexcept
         : parent(parent),
           element_count(parent ? parent->element_count + 1 : 1)
     {
     }
-    virtual path::element get_element() const = 0;
-    path path() const
+    virtual Path::element get_element() const = 0;
+    Path path() const
     {
-        std::vector<path::element> elements;
+        std::vector<Path::element> elements;
         elements.resize(element_count);
-        const path_builder_base *node = this;
+        const Path_builder_base *node = this;
         for(std::size_t i = 0, j = element_count - 1; i < element_count;
             i++, j--, node = node->parent)
         {
@@ -84,31 +84,31 @@ struct path_builder_base
 };
 
 template <typename T>
-struct path_builder final : public path_builder_base
+struct Path_builder final : public Path_builder_base
 {
     const T *value;
-    path_builder(const T *value, const path_builder_base *parent) noexcept
-        : path_builder_base(parent),
+    Path_builder(const T *value, const Path_builder_base *parent) noexcept
+        : Path_builder_base(parent),
           value(value)
     {
     }
-    virtual path::element get_element() const override
+    virtual Path::element get_element() const override
     {
         return *value;
     }
 };
 
-class parse_error : public std::runtime_error
+class Parse_error : public std::runtime_error
 {
 public:
-    path path;
-    parse_error(parser::path path, const std::string &message)
+    Path path;
+    Parse_error(parser::Path path, const std::string &message)
         : runtime_error("at " + path.to_string() + ": " + message), path(std::move(path))
     {
     }
 };
 
-ast::top_level parse(json::ast::value &&top_level_value);
+ast::Top_level parse(json::ast::Value &&top_level_value);
 }
 }
 }

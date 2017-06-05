@@ -30,8 +30,8 @@ namespace vulkan_cpu
 {
 namespace spirv
 {
-typedef std::uint32_t word;
-constexpr word magic_number = 0x07230203UL;
+typedef std::uint32_t Word;
+constexpr Word magic_number = 0x07230203UL;
 }
 }
 

@@ -34,7 +34,7 @@ namespace vulkan_cpu
 {
 namespace json
 {
-void write_state::write_indent(std::ostream &os) const
+void Write_state::write_indent(std::ostream &os) const
 {
     for(std::size_t i = indent_level; i > 0; i--)
         os << options.indent_text;
@@ -44,12 +44,12 @@ namespace ast
 {
 namespace soft_float = util::soft_float;
 
-void null_value::write(std::ostream &os, write_state &state) const
+void Null_value::write(std::ostream &os, Write_state &state) const
 {
     os << "null";
 }
 
-void boolean_value::write(std::ostream &os, write_state &state) const
+void Boolean_value::write(std::ostream &os, Write_state &state) const
 {
     os << (value ? "true" : "false");
 }
@@ -66,7 +66,7 @@ constexpr char get_digit_char(unsigned digit, bool uppercase) noexcept
 }
 }
 
-void string_value::write(std::ostream &os, const std::string &value, write_state &state)
+void String_value::write(std::ostream &os, const std::string &value, Write_state &state)
 {
     os << '\"';
     for(unsigned char ch : value)
@@ -170,7 +170,7 @@ void write_unsigned_integer(Write_Char write_char,
                             std::uint64_t value,
                             unsigned base) noexcept(noexcept(write_char('0')))
 {
-    assert(base >= number_value::min_base && base <= number_value::max_base);
+    assert(base >= Number_value::min_base && base <= Number_value::max_base);
     char buffer[max_integer_buffer_size]{};
     std::size_t buffer_used = 0;
     do
@@ -209,7 +209,7 @@ void write_number(Write_Char write_char,
     // code modified from
     // https://github.com/programmerjake/javascript-tasklets/blob/master/javascript_tasklets/value.cpp
     // based on the ECMAScript ToString algorithm for numbers
-    assert(base >= number_value::min_base && base <= number_value::max_base);
+    assert(base >= Number_value::min_base && base <= Number_value::max_base);
     const char exponent_char = base == 10 ? 'e' : base == 16 ? 'h' : base == 8 ? 'o' : 'E';
     soft_float::ExtendedFloat value(valueIn), base_f(static_cast<std::uint64_t>(base));
     auto inv_base_f = soft_float::ExtendedFloat::One() / base_f;
@@ -344,7 +344,7 @@ void write_number(Write_Char write_char,
 }
 }
 
-std::string number_value::append_double_to_string(double value, std::string buffer, unsigned base)
+std::string Number_value::append_double_to_string(double value, std::string buffer, unsigned base)
 {
     write_number(
         [&](char ch)
@@ -356,7 +356,7 @@ std::string number_value::append_double_to_string(double value, std::string buff
     return buffer;
 }
 
-std::size_t number_value::double_to_buffer(double value,
+std::size_t Number_value::double_to_buffer(double value,
                                            char *output_buffer,
                                            std::size_t output_buffer_size,
                                            bool require_null_terminator,
@@ -381,7 +381,7 @@ std::size_t number_value::double_to_buffer(double value,
     return used_buffer_size; // report used buffer excluding the null terminator
 }
 
-std::string number_value::append_unsigned_integer_to_string(std::uint64_t value,
+std::string Number_value::append_unsigned_integer_to_string(std::uint64_t value,
                                                             std::string buffer,
                                                             unsigned base)
 {
@@ -395,7 +395,7 @@ std::string number_value::append_unsigned_integer_to_string(std::uint64_t value,
     return buffer;
 }
 
-std::size_t number_value::unsigned_integer_to_buffer(std::uint64_t value,
+std::size_t Number_value::unsigned_integer_to_buffer(std::uint64_t value,
                                                      char *output_buffer,
                                                      std::size_t output_buffer_size,
                                                      bool require_null_terminator,
@@ -420,7 +420,7 @@ std::size_t number_value::unsigned_integer_to_buffer(std::uint64_t value,
     return used_buffer_size; // report used buffer excluding the null terminator
 }
 
-std::string number_value::append_signed_integer_to_string(std::int64_t value,
+std::string Number_value::append_signed_integer_to_string(std::int64_t value,
                                                           std::string buffer,
                                                           unsigned base)
 {
@@ -434,7 +434,7 @@ std::string number_value::append_signed_integer_to_string(std::int64_t value,
     return buffer;
 }
 
-std::size_t number_value::signed_integer_to_buffer(std::int64_t value,
+std::size_t Number_value::signed_integer_to_buffer(std::int64_t value,
                                                    char *output_buffer,
                                                    std::size_t output_buffer_size,
                                                    bool require_null_terminator,
@@ -459,7 +459,7 @@ std::size_t number_value::signed_integer_to_buffer(std::int64_t value,
     return used_buffer_size; // report used buffer excluding the null terminator
 }
 
-void number_value::write(std::ostream &os, write_state &state, unsigned base) const
+void Number_value::write(std::ostream &os, Write_state &state, unsigned base) const
 {
     write_number(
         [&](char ch)
@@ -470,17 +470,17 @@ void number_value::write(std::ostream &os, write_state &state, unsigned base) co
         base);
 }
 
-void object::write(std::ostream &os, write_state &state) const
+void Object::write(std::ostream &os, Write_state &state) const
 {
     os << '{';
     if(!values.empty())
     {
-        write_state::push_indent push_indent(state);
+        Write_state::Push_indent push_indent(state);
         auto seperator = "";
-        auto write_entry = [&](const std::pair<std::string, value> &entry)
+        auto write_entry = [&](const std::pair<std::string, Value> &entry)
         {
             const std::string &key = std::get<0>(entry);
-            const value &value = std::get<1>(entry);
+            const Value &value = std::get<1>(entry);
             os << seperator;
             seperator = ",";
             if(state.options.composite_value_elements_on_seperate_lines)
@@ -488,7 +488,7 @@ void object::write(std::ostream &os, write_state &state) const
                 os << '\n';
                 state.write_indent(os);
             }
-            string_value::write(os, key, state);
+            String_value::write(os, key, state);
             os << ':';
             json::write(os, value, state);
         };
@@ -522,14 +522,14 @@ void object::write(std::ostream &os, write_state &state) const
     os << '}';
 }
 
-void array::write(std::ostream &os, write_state &state) const
+void Array::write(std::ostream &os, Write_state &state) const
 {
     os << '[';
     if(!values.empty())
     {
-        write_state::push_indent push_indent(state);
+        Write_state::Push_indent push_indent(state);
         auto seperator = "";
-        for(const value &v : values)
+        for(const Value &v : values)
         {
             os << seperator;
             seperator = ",";

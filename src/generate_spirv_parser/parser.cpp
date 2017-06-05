@@ -31,7 +31,7 @@ namespace generate_spirv_parser
 {
 namespace parser
 {
-std::string path::to_string() const
+std::string Path::to_string() const
 {
     std::ostringstream ss;
     ss << "root";
@@ -44,7 +44,7 @@ std::string path::to_string() const
         }
         else
         {
-            json::ast::string_value::write(ss, util::get<std::string>(e));
+            json::ast::String_value::write(ss, util::get<std::string>(e));
         }
         ss << ']';
     }
@@ -55,66 +55,66 @@ namespace
 {
 template <typename Value, std::size_t N>
 Value get_value_or_throw_parse_error(util::optional<Value> value,
-                                     path_builder_base *path_builder,
+                                     Path_builder_base *path_builder,
                                      const char(&message)[N])
 {
     if(value)
         return std::move(*value);
-    throw parse_error(path_builder ? path_builder->path() : path{}, message);
+    throw Parse_error(path_builder ? path_builder->path() : Path{}, message);
 }
 
-ast::copyright parse_copyright(json::ast::value value, const path_builder_base *parent_path_builder)
+ast::Copyright parse_copyright(json::ast::Value value, const Path_builder_base *parent_path_builder)
 {
-    if(json::ast::get_value_kind(value) != json::ast::value_kind::array)
-        throw parse_error(parent_path_builder->path(), "copyright is not an array");
+    if(json::ast::get_value_kind(value) != json::ast::Value_kind::array)
+        throw Parse_error(parent_path_builder->path(), "copyright is not an array");
     auto &copyright_array =
-        static_cast<json::ast::array &>(*util::get<json::ast::composite_value_pointer>(value));
+        static_cast<json::ast::Array &>(*util::get<json::ast::Composite_value_pointer>(value));
     for(std::size_t index = 0; index < copyright_array.values.size(); index++)
     {
-        path_builder<std::size_t> path_builder(&index, parent_path_builder);
+        Path_builder<std::size_t> path_builder(&index, parent_path_builder);
         auto &element = copyright_array.values[index];
-        if(json::ast::get_value_kind(element) != json::ast::value_kind::string)
-            throw parse_error(parent_path_builder->path(),
+        if(json::ast::get_value_kind(element) != json::ast::Value_kind::string)
+            throw Parse_error(parent_path_builder->path(),
                               "copyright array's element is not a string");
     }
-    return ast::copyright(std::move(copyright_array));
+    return ast::Copyright(std::move(copyright_array));
 }
 
-ast::operand_kinds parse_operand_kinds(json::ast::value value,
-                                       const path_builder_base *parent_path_builder)
+ast::Operand_kinds parse_operand_kinds(json::ast::Value value,
+                                       const Path_builder_base *parent_path_builder)
 {
-    if(json::ast::get_value_kind(value) != json::ast::value_kind::array)
-        throw parse_error(parent_path_builder->path(), "operand_kinds is not an array");
+    if(json::ast::get_value_kind(value) != json::ast::Value_kind::array)
+        throw Parse_error(parent_path_builder->path(), "operand_kinds is not an array");
     auto &operand_kinds_array =
-        static_cast<json::ast::array &>(*util::get<json::ast::composite_value_pointer>(value));
+        static_cast<json::ast::Array &>(*util::get<json::ast::Composite_value_pointer>(value));
     static_cast<void>(operand_kinds_array);
 #warning finish
-    return ast::operand_kinds();
+    return ast::Operand_kinds();
 }
 
-ast::instructions parse_instructions(json::ast::value value,
-                                     const path_builder_base *parent_path_builder)
+ast::Instructions parse_instructions(json::ast::Value value,
+                                     const Path_builder_base *parent_path_builder)
 {
-    if(json::ast::get_value_kind(value) != json::ast::value_kind::array)
-        throw parse_error(parent_path_builder->path(), "instructions is not an array");
+    if(json::ast::get_value_kind(value) != json::ast::Value_kind::array)
+        throw Parse_error(parent_path_builder->path(), "instructions is not an array");
     auto &instructions_array =
-        static_cast<json::ast::array &>(*util::get<json::ast::composite_value_pointer>(value));
+        static_cast<json::ast::Array &>(*util::get<json::ast::Composite_value_pointer>(value));
     static_cast<void>(instructions_array);
 #warning finish
-    return ast::instructions();
+    return ast::Instructions();
 }
 
 template <typename T>
-T parse_integer(const json::ast::value &value,
-                const path_builder_base *parent_path_builder,
+T parse_integer(const json::ast::Value &value,
+                const Path_builder_base *parent_path_builder,
                 const char *name)
 {
-    if(json::ast::get_value_kind(value) != json::ast::value_kind::number)
-        throw parse_error(parent_path_builder->path(), std::string(name) + " is not a number");
-    auto number_value = util::get<json::ast::number_value>(value);
+    if(json::ast::get_value_kind(value) != json::ast::Value_kind::number)
+        throw Parse_error(parent_path_builder->path(), std::string(name) + " is not a number");
+    auto number_value = util::get<json::ast::Number_value>(value);
     T retval = number_value.value;
     if(retval != number_value.value) // not an exact value
-        throw parse_error(parent_path_builder->path(), std::string(name) + " is not an integer");
+        throw Parse_error(parent_path_builder->path(), std::string(name) + " is not an integer");
     return retval;
 }
 
@@ -135,19 +135,19 @@ constexpr int get_digit_value(int ch, unsigned base) noexcept
 }
 
 template <typename T>
-T parse_hex_integer_string(const json::ast::value &value,
-                           const path_builder_base *parent_path_builder,
+T parse_hex_integer_string(const json::ast::Value &value,
+                           const Path_builder_base *parent_path_builder,
                            const char *name,
                            std::size_t min_length,
                            std::size_t max_length)
 {
-    if(json::ast::get_value_kind(value) != json::ast::value_kind::string)
-        throw parse_error(parent_path_builder->path(), std::string(name) + " is not a string");
-    auto &string_value = util::get<json::ast::string_value>(value);
+    if(json::ast::get_value_kind(value) != json::ast::Value_kind::string)
+        throw Parse_error(parent_path_builder->path(), std::string(name) + " is not a string");
+    auto &string_value = util::get<json::ast::String_value>(value);
     constexpr std::size_t hex_number_prefix_length = 2; // std::strlen("0x")
     if(string_value.value.size() < hex_number_prefix_length || string_value.value[0] != '0'
        || (string_value.value[1] != 'x' && string_value.value[1] != 'X'))
-        throw parse_error(parent_path_builder->path(),
+        throw Parse_error(parent_path_builder->path(),
                           std::string(name) + " is not a valid hex number in a string");
     constexpr T max_value = std::numeric_limits<T>::max();
     constexpr unsigned base = 0x10;
@@ -159,42 +159,42 @@ T parse_hex_integer_string(const json::ast::value &value,
         char ch = string_value.value[i];
         int digit = get_digit_value(ch, base);
         if(digit < 0)
-            throw parse_error(parent_path_builder->path(),
+            throw Parse_error(parent_path_builder->path(),
                               std::string(name) + ": not a valid hex digit");
         if(digit_count > max_length)
-            throw parse_error(parent_path_builder->path(),
+            throw Parse_error(parent_path_builder->path(),
                               std::string(name) + " has too many digits");
         if(retval > max_value / base
            || (retval = max_value / base && static_cast<unsigned>(digit) > max_value % base))
-            throw parse_error(parent_path_builder->path(), std::string(name) + ": value too big");
+            throw Parse_error(parent_path_builder->path(), std::string(name) + ": value too big");
         retval *= base;
         retval += digit;
     }
     if(digit_count < min_length)
-        throw parse_error(parent_path_builder->path(),
+        throw Parse_error(parent_path_builder->path(),
                           std::string(name) + " doesn't have enough digits");
     return retval;
 }
 }
 
-ast::top_level parse(json::ast::value &&top_level_value)
+ast::Top_level parse(json::ast::Value &&top_level_value)
 {
-    if(json::ast::get_value_kind(top_level_value) != json::ast::value_kind::object)
-        throw parse_error({}, "top level value is not an object");
-    auto &top_level_object = static_cast<const json::ast::object &>(
-        *util::get<json::ast::composite_value_pointer>(top_level_value));
-    util::optional<ast::copyright> copyright;
+    if(json::ast::get_value_kind(top_level_value) != json::ast::Value_kind::object)
+        throw Parse_error({}, "top level value is not an object");
+    auto &top_level_object = static_cast<const json::ast::Object &>(
+        *util::get<json::ast::Composite_value_pointer>(top_level_value));
+    util::optional<ast::Copyright> copyright;
     util::optional<std::uint32_t> magic_number;
     util::optional<std::size_t> major_version;
     util::optional<std::size_t> minor_version;
     util::optional<std::size_t> revision;
-    util::optional<ast::instructions> instructions;
-    util::optional<ast::operand_kinds> operand_kinds;
+    util::optional<ast::Instructions> instructions;
+    util::optional<ast::Operand_kinds> operand_kinds;
     for(auto &entry : top_level_object.values)
     {
         const auto &key = std::get<0>(entry);
         auto &entry_value = std::get<1>(entry);
-        path_builder<std::string> path_builder(&key, nullptr);
+        Path_builder<std::string> path_builder(&key, nullptr);
         if(key == "copyright")
         {
             copyright = parse_copyright(std::move(entry_value), &path_builder);
@@ -226,10 +226,10 @@ ast::top_level parse(json::ast::value &&top_level_value)
         }
         else
         {
-            throw parse_error(path_builder.path(), "unknown key");
+            throw Parse_error(path_builder.path(), "unknown key");
         }
     }
-    auto retval = ast::top_level(
+    auto retval = ast::Top_level(
         get_value_or_throw_parse_error(std::move(copyright), nullptr, "missing copyright"),
         get_value_or_throw_parse_error(magic_number, nullptr, "missing magic_number"),
         get_value_or_throw_parse_error(major_version, nullptr, "missing major_version"),
@@ -237,7 +237,7 @@ ast::top_level parse(json::ast::value &&top_level_value)
         get_value_or_throw_parse_error(revision, nullptr, "missing revision"),
         get_value_or_throw_parse_error(instructions, nullptr, "missing instructions"),
         get_value_or_throw_parse_error(operand_kinds, nullptr, "missing operand_kinds"));
-    throw parse_error({}, "not finished implementing");
+    throw Parse_error({}, "not finished implementing");
 }
 }
 }

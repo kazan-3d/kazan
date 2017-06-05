@@ -68,7 +68,7 @@ void find_line_start_indexes_helper(Add_Index &&add_index,
 }
 }
 
-std::vector<std::size_t> source::find_line_start_indexes(const char *contents,
+std::vector<std::size_t> Source::find_line_start_indexes(const char *contents,
                                                          std::size_t contents_size)
 {
     std::size_t retval_size = 0;
@@ -91,7 +91,7 @@ std::vector<std::size_t> source::find_line_start_indexes(const char *contents,
     return retval;
 }
 
-source source::load_file(std::string file_name)
+Source Source::load_file(std::string file_name)
 {
     // TODO: add code to use mmap
     std::ifstream is;
@@ -109,10 +109,10 @@ source source::load_file(std::string file_name)
     std::size_t contents_size = buffer.size();
     auto buffer_ptr = std::make_shared<std::vector<char>>(std::move(buffer));
     std::shared_ptr<const char> contents(buffer_ptr, buffer_ptr->data());
-    return source(std::move(file_name), std::move(contents), contents_size);
+    return Source(std::move(file_name), std::move(contents), contents_size);
 }
 
-source source::load_stdin()
+Source Source::load_stdin()
 {
     auto &is = std::cin;
     is.clear();
@@ -139,16 +139,16 @@ source source::load_stdin()
     std::size_t contents_size = buffer.size();
     auto buffer_ptr = std::make_shared<std::vector<char>>(std::move(buffer));
     std::shared_ptr<const char> contents(buffer_ptr, buffer_ptr->data());
-    return source("stdin", std::move(contents), contents_size);
+    return Source("stdin", std::move(contents), contents_size);
 }
 
-std::ostream &operator<<(std::ostream &os, const source::line_and_column &v)
+std::ostream &operator<<(std::ostream &os, const Source::Line_and_column &v)
 {
     os << v.to_string();
     return os;
 }
 
-source::line_and_index source::get_line_and_start_index(std::size_t char_index) const noexcept
+Source::Line_and_index Source::get_line_and_start_index(std::size_t char_index) const noexcept
 {
     std::size_t line =
         1 + line_start_indexes.size()
@@ -156,7 +156,7 @@ source::line_and_index source::get_line_and_start_index(std::size_t char_index) 
                                                           line_start_indexes.rend(),
                                                           char_index,
                                                           std::greater<std::size_t>()));
-    return line_and_index(line, line <= 1 ? 0 : line_start_indexes[line - 2]);
+    return Line_and_index(line, line <= 1 ? 0 : line_start_indexes[line - 2]);
 }
 
 namespace
@@ -168,7 +168,7 @@ constexpr std::size_t get_column_after_tab(std::size_t column, std::size_t tab_s
 }
 }
 
-source::line_and_column source::get_line_and_column(std::size_t char_index,
+Source::Line_and_column Source::get_line_and_column(std::size_t char_index,
                                                     std::size_t tab_size) const noexcept
 {
     auto line_and_start_index = get_line_and_start_index(char_index);
@@ -181,10 +181,10 @@ source::line_and_column source::get_line_and_column(std::size_t char_index,
         else
             column++;
     }
-    return line_and_column(line_and_start_index.line, column);
+    return Line_and_column(line_and_start_index.line, column);
 }
 
-std::ostream &operator<<(std::ostream &os, const location &v)
+std::ostream &operator<<(std::ostream &os, const Location &v)
 {
     os << v.to_string();
     return os;
@@ -192,7 +192,7 @@ std::ostream &operator<<(std::ostream &os, const location &v)
 
 namespace
 {
-enum class token_type
+enum class Token_type
 {
     eof,
     l_bracket,
@@ -208,18 +208,18 @@ enum class token_type
     number,
 };
 
-class tokenizer final
+class Tokenizer final
 {
 private:
     std::size_t input_char_index;
     static constexpr int eof = std::char_traits<char>::eof();
 
 public:
-    const source *const source;
-    const parse_options options;
-    location token_location;
-    ast::value token_value;
-    token_type token_type;
+    const Source *const source;
+    const Parse_options options;
+    Location token_location;
+    ast::Value token_value;
+    Token_type token_type;
 
 private:
     int peekc() const noexcept
@@ -284,7 +284,7 @@ private:
             int digit_char = peekc();
             int digit_value = get_digit_value(digit_char, 0x10);
             if(digit_value < 0)
-                throw parse_error(location(source, input_char_index), "missing hex digit");
+                throw Parse_error(Location(source, input_char_index), "missing hex digit");
             getc();
             retval <<= 4;
             retval |= digit_value;
@@ -319,12 +319,12 @@ private:
     }
 
 public:
-    tokenizer(const json::source *source, parse_options options)
+    Tokenizer(const json::Source *source, Parse_options options)
         : input_char_index(0), source(source), options(options), token_location(), token_value()
     {
         next();
     }
-    ast::value get()
+    ast::Value get()
     {
         auto retval = token_value;
         next();
@@ -334,7 +334,7 @@ public:
     {
         while(is_whitespace(peekc()))
             getc();
-        token_location = location(source, input_char_index);
+        token_location = Location(source, input_char_index);
         token_value = nullptr;
         bool got_minus = false, got_plus = false;
         if(peekc() == '-')
@@ -361,19 +361,19 @@ public:
                 if(match_buffer_with_string(name, name_size, "null"))
                 {
                     token_value = nullptr;
-                    token_type = json::token_type::null_literal;
+                    token_type = json::Token_type::null_literal;
                     return;
                 }
                 if(match_buffer_with_string(name, name_size, "false"))
                 {
                     token_value = false;
-                    token_type = json::token_type::false_literal;
+                    token_type = json::Token_type::false_literal;
                     return;
                 }
                 if(match_buffer_with_string(name, name_size, "true"))
                 {
                     token_value = true;
-                    token_type = json::token_type::true_literal;
+                    token_type = json::Token_type::true_literal;
                     return;
                 }
             }
@@ -384,7 +384,7 @@ public:
                    || match_buffer_with_string(name, name_size, "NAN"))
                 {
                     token_value = std::numeric_limits<double>::quiet_NaN();
-                    token_type = json::token_type::number;
+                    token_type = json::Token_type::number;
                     return;
                 }
                 if(match_buffer_with_string(name, name_size, "Infinity")
@@ -395,11 +395,11 @@ public:
                 {
                     token_value = got_minus ? -std::numeric_limits<double>::infinity() :
                                               std::numeric_limits<double>::infinity();
-                    token_type = json::token_type::number;
+                    token_type = json::Token_type::number;
                     return;
                 }
             }
-            throw parse_error(token_location,
+            throw Parse_error(token_location,
                               (got_minus || got_plus ? "invalid number: " : "invalid identifier: ")
                                   + std::string(name, name_size));
         }
@@ -415,7 +415,7 @@ public:
                     getc();
                     got_any_digit = true;
                     if(is_digit(peekc()))
-                        throw parse_error(location(source, input_char_index),
+                        throw Parse_error(Location(source, input_char_index),
                                           "extra leading zero not allowed in numbers");
                 }
                 else
@@ -443,7 +443,7 @@ public:
                 }
             }
             if(!got_any_digit)
-                throw parse_error(location(source, input_char_index), "missing digit");
+                throw Parse_error(Location(source, input_char_index), "missing digit");
             std::int64_t exponent = 0;
             if(peekc() == 'e' || peekc() == 'E')
             {
@@ -459,7 +459,7 @@ public:
                     getc();
                 }
                 if(!is_digit(peekc()))
-                    throw parse_error(location(source, input_char_index), "missing digit");
+                    throw Parse_error(Location(source, input_char_index), "missing digit");
                 while(is_digit(peekc()))
                 {
                     exponent *= 10;
@@ -472,7 +472,7 @@ public:
             auto value =
                 mantissa
                 * pow(util::soft_float::ExtendedFloat(static_cast<std::uint64_t>(10)), exponent);
-            token_type = json::token_type::number;
+            token_type = json::Token_type::number;
             token_value = static_cast<double>(value);
             return;
         }
@@ -483,7 +483,7 @@ public:
             while(true)
             {
                 if(peekc() == eof || is_control_character(peekc()))
-                    throw parse_error(token_location, "string missing closing quote");
+                    throw Parse_error(token_location, "string missing closing quote");
                 if(peekc() == quote)
                 {
                     getc();
@@ -491,7 +491,7 @@ public:
                 }
                 if(peekc() == '\\')
                 {
-                    auto escape_location = location(source, input_char_index);
+                    auto escape_location = Location(source, input_char_index);
                     getc();
                     switch(peekc())
                     {
@@ -526,7 +526,7 @@ public:
                         std::uint32_t ch = parse_4_hex_digits();
                         if(ch >= 0xD800U && ch < 0xDC00U && peekc() == '\\')
                         {
-                            escape_location = location(source, input_char_index);
+                            escape_location = Location(source, input_char_index);
                             getc();
                             if(peekc() == 'u')
                             {
@@ -556,7 +556,7 @@ public:
                             value += getc();
                             break;
                         }
-                        throw parse_error(escape_location, "invalid escape sequence");
+                        throw Parse_error(escape_location, "invalid escape sequence");
                     }
                 }
                 else
@@ -564,68 +564,68 @@ public:
                     value += getc();
                 }
             }
-            token_type = json::token_type::string;
+            token_type = json::Token_type::string;
             token_value = std::move(value);
             return;
         }
         switch(peekc())
         {
         case eof:
-            token_type = json::token_type::eof;
+            token_type = json::Token_type::eof;
             token_value = nullptr;
             return;
         case '[':
             getc();
-            token_type = json::token_type::l_bracket;
+            token_type = json::Token_type::l_bracket;
             token_value = nullptr;
             return;
         case ']':
             getc();
-            token_type = json::token_type::r_bracket;
+            token_type = json::Token_type::r_bracket;
             token_value = nullptr;
             return;
         case '{':
             getc();
-            token_type = json::token_type::l_brace;
+            token_type = json::Token_type::l_brace;
             token_value = nullptr;
             return;
         case '}':
             getc();
-            token_type = json::token_type::r_brace;
+            token_type = json::Token_type::r_brace;
             token_value = nullptr;
             return;
         case ':':
             getc();
-            token_type = json::token_type::colon;
+            token_type = json::Token_type::colon;
             token_value = nullptr;
             return;
         case ',':
             getc();
-            token_type = json::token_type::comma;
+            token_type = json::Token_type::comma;
             token_value = nullptr;
             return;
         }
-        throw parse_error(token_location, "invalid character");
+        throw Parse_error(token_location, "invalid character");
     }
 };
 
-ast::value parse_value(tokenizer &tokenizer)
+ast::Value parse_value(Tokenizer &tokenizer)
 {
     switch(tokenizer.token_type)
     {
-    case token_type::eof:
-        throw parse_error(tokenizer.token_location, "missing value");
-    case token_type::number:
-    case token_type::string:
-    case token_type::true_literal:
-    case token_type::false_literal:
-    case token_type::null_literal:
+    case Token_type::eof:
+        throw Parse_error(tokenizer.token_location, "missing value");
+    case Token_type::number:
+    case Token_type::string:
+    case Token_type::true_literal:
+    case Token_type::false_literal:
+    case Token_type::null_literal:
         return tokenizer.get();
-    case token_type::l_bracket:
+    case Token_type::l_bracket:
     {
-        std::vector<ast::value> values;
+        std::vector<ast::Value> values;
         tokenizer.next();
-        if(tokenizer.token_type == token_type::r_bracket)
+        if(tokenizer.token_type == Token_type::r_bracket)
         {
             tokenizer.next();
         }
@@ -634,26 +634,26 @@ ast::value parse_value(tokenizer &tokenizer)
             while(true)
             {
                 values.push_back(parse_value(tokenizer));
-                if(tokenizer.token_type == token_type::comma)
+                if(tokenizer.token_type == Token_type::comma)
                 {
                     tokenizer.next();
                     continue;
                 }
-                if(tokenizer.token_type == token_type::r_bracket)
+                if(tokenizer.token_type == Token_type::r_bracket)
                 {
                     tokenizer.next();
                     break;
                 }
-                throw parse_error(tokenizer.token_location, "missing , or ]");
+                throw Parse_error(tokenizer.token_location, "missing , or ]");
             }
         }
-        return ast::array(std::move(values));
+        return ast::Array(std::move(values));
     }
-    case token_type::l_brace:
+    case Token_type::l_brace:
     {
-        std::unordered_map<std::string, ast::value> values;
+        std::unordered_map<std::string, ast::Value> values;
         tokenizer.next();
-        if(tokenizer.token_type == token_type::r_brace)
+        if(tokenizer.token_type == Token_type::r_brace)
         {
             tokenizer.next();
         }
@@ -661,41 +661,41 @@ ast::value parse_value(tokenizer &tokenizer)
         {
             while(true)
             {
-                if(tokenizer.token_type != token_type::string)
-                    throw parse_error(tokenizer.token_location, "missing string");
-                auto string_value = std::move(util::get<ast::string_value>(tokenizer.get()).value);
-                if(tokenizer.token_type != token_type::colon)
-                    throw parse_error(tokenizer.token_location, "missing ':'");
+                if(tokenizer.token_type != Token_type::string)
+                    throw Parse_error(tokenizer.token_location, "missing string");
+                auto string_value = std::move(util::get<ast::String_value>(tokenizer.get()).value);
+                if(tokenizer.token_type != Token_type::colon)
+                    throw Parse_error(tokenizer.token_location, "missing ':'");
                 tokenizer.next();
                 values.emplace(std::move(string_value), parse_value(tokenizer));
-                if(tokenizer.token_type == token_type::comma)
+                if(tokenizer.token_type == Token_type::comma)
                 {
                     tokenizer.next();
                     continue;
                 }
-                if(tokenizer.token_type == token_type::r_brace)
+                if(tokenizer.token_type == Token_type::r_brace)
                 {
                     tokenizer.next();
                     break;
                 }
-                throw parse_error(tokenizer.token_location, "missing ',' or '}'");
+                throw Parse_error(tokenizer.token_location, "missing ',' or '}'");
             }
         }
-        return ast::object(std::move(values));
+        return ast::Object(std::move(values));
     }
     default:
         break;
     }
-    throw parse_error(tokenizer.token_location, "token not allowed here");
+    throw Parse_error(tokenizer.token_location, "token not allowed here");
 }
 }
 
-ast::value parse(const source *source, parse_options options)
+ast::Value parse(const Source *source, Parse_options options)
 {
-    tokenizer tokenizer(source, options);
+    Tokenizer tokenizer(source, options);
     auto retval = parse_value(tokenizer);
-    if(tokenizer.token_type != token_type::eof)
-        throw parse_error(tokenizer.token_location, "unexpected token");
+    if(tokenizer.token_type != Token_type::eof)
+        throw Parse_error(tokenizer.token_location, "unexpected token");
     return retval;
 }
 }

@@ -31,14 +31,14 @@ namespace util
 namespace detail
 {
 template <typename... Types>
-struct void_t_helper
+struct Void_t_helper
 {
     typedef void type;
 };
 }
 
 template <typename... Types>
-using void_t = typename detail::void_t_helper<Types...>::type;
+using void_t = typename detail::Void_t_helper<Types...>::type;
 }
 }
 
