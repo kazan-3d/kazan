@@ -33,7 +33,10 @@
 #include <limits>
 #include <type_traits>
 #include <cassert>
+#include <cmath>
+#include <list>
 #include "../util/variant.h"
+#include "../util/optional.h"
 #include "location.h"
 
 namespace vulkan_cpu
@@ -137,6 +140,14 @@ struct Null_value final
     {
         return Value_kind::null;
     }
+    friend constexpr bool operator==(const Null_value &, const Null_value &) noexcept
+    {
+        return true;
+    }
+    friend constexpr bool operator!=(const Null_value &, const Null_value &) noexcept
+    {
+        return false;
+    }
 };
 
 struct Boolean_value final
@@ -162,6 +173,14 @@ struct Boolean_value final
     constexpr Value_kind get_value_kind() const noexcept
     {
         return Value_kind::boolean;
+    }
+    friend constexpr bool operator==(const Boolean_value &a, const Boolean_value &b) noexcept
+    {
+        return a.value == b.value;
+    }
+    friend constexpr bool operator!=(const Boolean_value &a, const Boolean_value &b) noexcept
+    {
+        return !operator==(a, b);
     }
 };
 
@@ -200,6 +219,14 @@ struct String_value final
     constexpr Value_kind get_value_kind() const noexcept
     {
         return Value_kind::string;
+    }
+    friend bool operator==(const String_value &a, const String_value &b) noexcept
+    {
+        return a.value == b.value;
+    }
+    friend bool operator!=(const String_value &a, const String_value &b) noexcept
+    {
+        return !operator==(a, b);
     }
 };
 
@@ -302,20 +329,28 @@ struct Number_value final
     {
         return Value_kind::number;
     }
+    friend bool operator==(const Number_value &a, const Number_value &b) noexcept
+    {
+        return a.value == b.value || (std::isnan(a.value) && std::isnan(b.value));
+    }
+    friend bool operator!=(const Number_value &a, const Number_value &b) noexcept
+    {
+        return !operator==(a, b);
+    }
 };
 
 struct Composite_value;
 
-class Composite_value_pointer
+class Composite_value_reference
 {
 private:
     std::shared_ptr<Composite_value> value;
 
 public:
-    constexpr Composite_value_pointer() noexcept = default;
+    constexpr Composite_value_reference() noexcept = default;
     template <typename T,
               typename = typename std::enable_if<std::is_base_of<Composite_value, T>::value>::type>
-    Composite_value_pointer(std::shared_ptr<T> value) noexcept : value(std::move(value))
+    Composite_value_reference(std::shared_ptr<T> value) noexcept : value(std::move(value))
     {
     }
     Composite_value *operator->() const noexcept
@@ -336,6 +371,13 @@ public:
         retval.swap(value);
         return retval;
     }
+    friend bool operator==(const Composite_value_reference &a,
+                           const Composite_value_reference &b) noexcept;
+    friend bool operator!=(const Composite_value_reference &a,
+                           const Composite_value_reference &b) noexcept
+    {
+        return !operator==(a, b);
+    }
 };
 
 struct Object;
@@ -344,7 +386,7 @@ struct Array;
 struct Value
 {
     Location location;
-    util::variant<Null_value, Boolean_value, String_value, Number_value, Composite_value_pointer>
+    util::variant<Null_value, Boolean_value, String_value, Number_value, Composite_value_reference>
         value;
     constexpr Value()
     {
@@ -365,7 +407,7 @@ struct Value
         : location(std::move(location)), value(std::move(value))
     {
     }
-    explicit Value(Location location, Composite_value_pointer value)
+    explicit Value(Location location, Composite_value_reference value)
         : location(std::move(location)), value(std::move(value))
     {
     }
@@ -409,6 +451,14 @@ struct Value
     Array &get_array();
     const Array &get_array() const;
     Value_kind get_value_kind() const noexcept;
+    friend bool operator==(const Value &a, const Value &b) noexcept
+    {
+        return a.value == b.value;
+    }
+    friend bool operator!=(const Value &a, const Value &b) noexcept
+    {
+        return !operator==(a, b);
+    }
 };
 
 struct Composite_value
@@ -416,9 +466,26 @@ struct Composite_value
     Composite_value() = default;
     virtual ~Composite_value() = default;
     virtual void write(std::ostream &os, Write_state &state) const = 0;
-    virtual Composite_value_pointer duplicate() const = 0;
+    virtual Composite_value_reference duplicate() const = 0;
     virtual Value_kind get_value_kind() const noexcept = 0;
+    virtual bool operator==(const Composite_value &rt) const noexcept = 0;
+    bool operator!=(const Composite_value &rt) const noexcept
+    {
+        return !operator==(rt);
+    }
 };
+
+/** returns true if a and b are structurally equal */
+inline bool operator==(const Composite_value_reference &a,
+                       const Composite_value_reference &b) noexcept
+{
+    if(a.value == b.value)
+        return true;
+    if(!a.value || !b.value)
+        return false;
+    return *a.value == *b.value;
+}
+
 
 inline Value Value::duplicate() const
 {
@@ -440,7 +507,7 @@ struct Object final : public Composite_value
     {
     }
     virtual void write(std::ostream &os, Write_state &state) const override;
-    virtual Composite_value_pointer duplicate() const override
+    virtual Composite_value_reference duplicate() const override
     {
         std::unordered_map<std::string, Value> new_values;
         for(auto &entry : values)
@@ -453,16 +520,26 @@ struct Object final : public Composite_value
     {
         return Value_kind::object;
     }
+    bool operator==(const Object &rt) const noexcept
+    {
+        return values == rt.values;
+    }
+    virtual bool operator==(const Composite_value &rt) const noexcept override
+    {
+        if(dynamic_cast<const Object *>(&rt))
+            return operator==(static_cast<const Object &>(rt));
+        return false;
+    }
 };
 
 inline Object &Value::get_object()
 {
-    return dynamic_cast<Object &>(*util::get<Composite_value_pointer>(value));
+    return dynamic_cast<Object &>(*util::get<Composite_value_reference>(value));
 }
 
 inline const Object &Value::get_object() const
 {
-    return dynamic_cast<const Object &>(*util::get<Composite_value_pointer>(value));
+    return dynamic_cast<const Object &>(*util::get<Composite_value_reference>(value));
 }
 
 struct Array final : public Composite_value
@@ -475,7 +552,7 @@ struct Array final : public Composite_value
     {
     }
     virtual void write(std::ostream &os, Write_state &state) const override;
-    virtual Composite_value_pointer duplicate() const override
+    virtual Composite_value_reference duplicate() const override
     {
         std::vector<Value> new_values;
         new_values.reserve(values.size());
@@ -487,16 +564,26 @@ struct Array final : public Composite_value
     {
         return Value_kind::array;
     }
+    bool operator==(const Array &rt) const noexcept
+    {
+        return values == rt.values;
+    }
+    virtual bool operator==(const Composite_value &rt) const noexcept override
+    {
+        if(dynamic_cast<const Array *>(&rt))
+            return operator==(static_cast<const Array &>(rt));
+        return false;
+    }
 };
 
 inline Array &Value::get_array()
 {
-    return dynamic_cast<Array &>(*util::get<Composite_value_pointer>(value));
+    return dynamic_cast<Array &>(*util::get<Composite_value_reference>(value));
 }
 
 inline const Array &Value::get_array() const
 {
-    return dynamic_cast<const Array &>(*util::get<Composite_value_pointer>(value));
+    return dynamic_cast<const Array &>(*util::get<Composite_value_reference>(value));
 }
 
 inline Value_kind Value::get_value_kind() const noexcept
@@ -535,6 +622,41 @@ inline void write(std::ostream &os, const ast::Value &v, Write_options options =
     Write_state state(std::move(options));
     write(os, v, state);
 }
+
+struct Difference
+{
+    std::list<util::variant<std::size_t, std::string>> element_selectors;
+    Difference() noexcept = default;
+    explicit Difference(
+        std::list<util::variant<std::size_t, std::string>> element_selectors) noexcept
+        : element_selectors(std::move(element_selectors))
+    {
+    }
+    std::string append_to_string(std::string buffer) const
+    {
+        for(auto &element_selector : element_selectors)
+        {
+            if(util::holds_alternative<std::size_t>(element_selector))
+            {
+                buffer = ast::Number_value::append_unsigned_integer_to_string(
+                             util::get<std::size_t>(element_selector), std::move(buffer) + '[')
+                         + ']';
+            }
+            else
+            {
+                buffer += "[\"";
+                buffer += util::get<std::string>(element_selector);
+                buffer += "\"]";
+            }
+        }
+        return buffer;
+    }
+    std::string to_string() const
+    {
+        return append_to_string({});
+    }
+    static util::optional<Difference> find_difference(const ast::Value &a, const ast::Value &b);
+};
 }
 }
 

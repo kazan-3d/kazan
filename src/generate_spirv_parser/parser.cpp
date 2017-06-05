@@ -24,6 +24,8 @@
 #include "../util/optional.h"
 #include <sstream>
 #include <limits>
+#include <iostream>
+#include <cstdlib>
 
 namespace vulkan_cpu
 {
@@ -226,7 +228,8 @@ Enum parse_enum_string(const json::ast::Value &value,
 
 std::string parse_identifier_string(json::ast::Value value,
                                     const Path_builder_base *parent_path_builder,
-                                    const char *name)
+                                    const char *name,
+                                    bool can_start_with_digit = false)
 {
     if(value.get_value_kind() != json::ast::Value_kind::string)
         throw Parse_error(
@@ -236,7 +239,7 @@ std::string parse_identifier_string(json::ast::Value value,
         throw Parse_error(value.location,
                           parent_path_builder->path(),
                           std::string(name) + " must not be an empty string");
-    if(!is_identifier_start(string_value.value[0]))
+    if(!can_start_with_digit && !is_identifier_start(string_value.value[0]))
         throw Parse_error(
             value.location,
             parent_path_builder->path(),
@@ -272,21 +275,174 @@ ast::Copyright parse_copyright(json::ast::Value value, const Path_builder_base *
     return ast::Copyright(std::move(lines));
 }
 
+ast::Capabilities parse_capabilities(json::ast::Value value,
+                                     const Path_builder_base *parent_path_builder)
+{
+    if(value.get_value_kind() != json::ast::Value_kind::array)
+        throw Parse_error(
+            value.location, parent_path_builder->path(), "capabilities is not an array");
+    auto &capabilities_array = value.get_array();
+    std::vector<std::string> capabilities;
+    capabilities.reserve(capabilities_array.values.size());
+    for(std::size_t index = 0; index < capabilities_array.values.size(); index++)
+    {
+        Path_builder<std::size_t> path_builder(&index, parent_path_builder);
+        auto &element = capabilities_array.values[index];
+        capabilities.push_back(
+            parse_identifier_string(std::move(element), &path_builder, "capabilities"));
+    }
+    return ast::Capabilities(std::move(capabilities));
+}
+
+ast::Extensions parse_extensions(json::ast::Value value,
+                                 const Path_builder_base *parent_path_builder)
+{
+    if(value.get_value_kind() != json::ast::Value_kind::array)
+        throw Parse_error(
+            value.location, parent_path_builder->path(), "extensions is not an array");
+    auto &extensions_array = value.get_array();
+    std::vector<std::string> extensions;
+    extensions.reserve(extensions_array.values.size());
+    for(std::size_t index = 0; index < extensions_array.values.size(); index++)
+    {
+        Path_builder<std::size_t> path_builder(&index, parent_path_builder);
+        auto &element = extensions_array.values[index];
+        extensions.push_back(
+            parse_identifier_string(std::move(element), &path_builder, "extensions"));
+    }
+    return ast::Extensions(std::move(extensions));
+}
+
+ast::Operand_kinds::Operand_kind::Enumerants::Enumerant::Parameters::Parameter
+    parse_operand_kinds_operand_kind_enumerants_enumerant_parameters_parameter(
+        json::ast::Value value, const Path_builder_base *parent_path_builder)
+{
+    if(value.get_value_kind() != json::ast::Value_kind::object)
+        throw Parse_error(
+            value.location, parent_path_builder->path(), "parameter is not an object");
+    auto &parameter_object = value.get_object();
+    constexpr auto kind_name = "kind";
+    std::string kind = get_object_member_or_throw_parse_error(
+        value.location,
+        parameter_object,
+        parent_path_builder,
+        kind_name,
+        [&](json::ast::Value &entry_value, const Path_builder_base *path_builder)
+        {
+            return parse_identifier_string(std::move(entry_value), path_builder, kind_name);
+        });
+    std::string name = "";
+    for(auto &entry : parameter_object.values)
+    {
+        const auto &key = std::get<0>(entry);
+        auto &entry_value = std::get<1>(entry);
+        Path_builder<std::string> path_builder(&key, parent_path_builder);
+        if(key == "name")
+        {
+            if(entry_value.get_value_kind() != json::ast::Value_kind::string)
+                throw Parse_error(
+                    entry_value.location, path_builder.path(), "name is not a string");
+            name = std::move(entry_value.get_string().value);
+        }
+        else if(key != kind_name)
+        {
+            throw Parse_error(entry_value.location, path_builder.path(), "unknown key");
+        }
+    }
+    return ast::Operand_kinds::Operand_kind::Enumerants::Enumerant::Parameters::Parameter(
+        std::move(kind), std::move(name));
+}
+
+ast::Operand_kinds::Operand_kind::Enumerants::Enumerant::Parameters
+    parse_operand_kinds_operand_kind_enumerants_enumerant_parameters(
+        json::ast::Value value, const Path_builder_base *parent_path_builder)
+{
+    if(value.get_value_kind() != json::ast::Value_kind::array)
+        throw Parse_error(
+            value.location, parent_path_builder->path(), "parameters is not an array");
+    auto &parameters_array = value.get_array();
+    std::vector<ast::Operand_kinds::Operand_kind::Enumerants::Enumerant::Parameters::Parameter>
+        parameters;
+    parameters.reserve(parameters_array.values.size());
+    for(std::size_t index = 0; index < parameters_array.values.size(); index++)
+    {
+        Path_builder<std::size_t> path_builder(&index, parent_path_builder);
+        auto &element = parameters_array.values[index];
+        parameters.push_back(
+            parse_operand_kinds_operand_kind_enumerants_enumerant_parameters_parameter(
+                std::move(element), &path_builder));
+    }
+    return ast::Operand_kinds::Operand_kind::Enumerants::Enumerant::Parameters(
+        std::move(parameters));
+}
+
 ast::Operand_kinds::Operand_kind::Enumerants::Enumerant
     parse_operand_kinds_operand_kind_enumerants_enumerant(
-        json::ast::Value value, const Path_builder_base *parent_path_builder)
+        json::ast::Value value, const Path_builder_base *parent_path_builder, bool is_bit_enumerant)
 {
     if(value.get_value_kind() != json::ast::Value_kind::object)
         throw Parse_error(
             value.location, parent_path_builder->path(), "enumerant is not an object");
     auto &enumerant_object = value.get_object();
-    static_cast<void>(enumerant_object);
-#warning finish
-    return ast::Operand_kinds::Operand_kind::Enumerants::Enumerant();
+    constexpr auto enumerant_name = "enumerant";
+    std::string enumerant = get_object_member_or_throw_parse_error(
+        value.location,
+        enumerant_object,
+        parent_path_builder,
+        enumerant_name,
+        [&](json::ast::Value &entry_value, const Path_builder_base *path_builder)
+        {
+            return parse_identifier_string(
+                std::move(entry_value), path_builder, enumerant_name, true);
+        });
+    constexpr auto value_name = "value";
+    std::uint32_t enumerant_value = get_object_member_or_throw_parse_error(
+        value.location,
+        enumerant_object,
+        parent_path_builder,
+        value_name,
+        [&](json::ast::Value &entry_value, const Path_builder_base *path_builder) -> std::uint32_t
+        {
+            if(is_bit_enumerant)
+                return parse_hex_integer_string<std::uint32_t>(
+                    entry_value, path_builder, value_name, 1, 8);
+            return parse_integer<std::uint32_t>(entry_value, path_builder, value_name);
+        });
+    ast::Capabilities capabilities;
+    ast::Operand_kinds::Operand_kind::Enumerants::Enumerant::Parameters parameters;
+    ast::Extensions extensions;
+    for(auto &entry : enumerant_object.values)
+    {
+        const auto &key = std::get<0>(entry);
+        auto &entry_value = std::get<1>(entry);
+        Path_builder<std::string> path_builder(&key, parent_path_builder);
+        if(key == "capabilities")
+        {
+            capabilities = parse_capabilities(std::move(entry_value), &path_builder);
+        }
+        else if(key == "parameters")
+        {
+            parameters = parse_operand_kinds_operand_kind_enumerants_enumerant_parameters(
+                std::move(entry_value), &path_builder);
+        }
+        else if(key == "extensions")
+        {
+            extensions = parse_extensions(std::move(entry_value), &path_builder);
+        }
+        else if(key != enumerant_name && key != value_name)
+        {
+            throw Parse_error(entry_value.location, path_builder.path(), "unknown key");
+        }
+    }
+    return ast::Operand_kinds::Operand_kind::Enumerants::Enumerant(std::move(enumerant),
+                                                                   enumerant_value,
+                                                                   std::move(capabilities),
+                                                                   std::move(parameters),
+                                                                   std::move(extensions));
 }
 
 ast::Operand_kinds::Operand_kind::Enumerants parse_operand_kinds_operand_kind_enumerants(
-    json::ast::Value value, const Path_builder_base *parent_path_builder)
+    json::ast::Value value, const Path_builder_base *parent_path_builder, bool is_bit_enumerant)
 {
     if(value.get_value_kind() != json::ast::Value_kind::array)
         throw Parse_error(
@@ -298,7 +454,7 @@ ast::Operand_kinds::Operand_kind::Enumerants parse_operand_kinds_operand_kind_en
     {
         Path_builder<std::size_t> path_builder(&index, parent_path_builder);
         enumerants.push_back(parse_operand_kinds_operand_kind_enumerants_enumerant(
-            std::move(enumerants_array.values[index]), &path_builder));
+            std::move(enumerants_array.values[index]), &path_builder, is_bit_enumerant));
     }
     return ast::Operand_kinds::Operand_kind::Enumerants(std::move(enumerants));
 }
@@ -354,15 +510,17 @@ ast::Operand_kinds::Operand_kind parse_operand_kinds_operand_kind(
             case ast::Operand_kinds::Operand_kind::Category::bit_enum:
             case ast::Operand_kinds::Operand_kind::Category::value_enum:
                 operand_kind_value = parse_operand_kinds_operand_kind_enumerants(
-                    std::move(entry_value), &path_builder);
+                    std::move(entry_value),
+                    &path_builder,
+                    category == ast::Operand_kinds::Operand_kind::Category::bit_enum);
                 break;
             case ast::Operand_kinds::Operand_kind::Category::id:
             case ast::Operand_kinds::Operand_kind::Category::literal:
                 if(entry_value.get_value_kind() != json::ast::Value_kind::string)
                     throw Parse_error(
                         entry_value.location, path_builder.path(), "doc is not a string");
-                operand_kind_value = ast::Operand_kinds::Operand_kind::Doc{
-                    std::move(entry_value.get_string().value)};
+                operand_kind_value = ast::Operand_kinds::Operand_kind::Doc(
+                    std::move(entry_value.get_string().value));
                 break;
             case ast::Operand_kinds::Operand_kind::Category::composite:
             {
@@ -382,7 +540,7 @@ ast::Operand_kinds::Operand_kind parse_operand_kinds_operand_kind(
                                           "bases element is not a string");
                     bases.push_back(std::move(entry.get_string().value));
                 }
-                operand_kind_value = ast::Operand_kinds::Operand_kind::Bases{std::move(bases)};
+                operand_kind_value = ast::Operand_kinds::Operand_kind::Bases(std::move(bases));
                 break;
             }
             }
@@ -422,6 +580,131 @@ ast::Operand_kinds parse_operand_kinds(json::ast::Value value,
     return ast::Operand_kinds(std::move(operand_kinds));
 }
 
+ast::Instructions::Instruction::Operands::Operand parse_instructions_instruction_operands_operand(
+    json::ast::Value value, const Path_builder_base *parent_path_builder)
+{
+    if(value.get_value_kind() != json::ast::Value_kind::object)
+        throw Parse_error(value.location, parent_path_builder->path(), "operand is not an object");
+    auto &operand_object = value.get_object();
+    constexpr auto kind_name = "kind";
+    std::string kind = get_object_member_or_throw_parse_error(
+        value.location,
+        operand_object,
+        parent_path_builder,
+        kind_name,
+        [&](json::ast::Value &entry_value, const Path_builder_base *path_builder)
+        {
+            return parse_identifier_string(std::move(entry_value), path_builder, kind_name);
+        });
+    std::string name;
+    auto quantifier = ast::Instructions::Instruction::Operands::Operand::Quantifier::none;
+    for(auto &entry : operand_object.values)
+    {
+        const auto &key = std::get<0>(entry);
+        auto &entry_value = std::get<1>(entry);
+        Path_builder<std::string> path_builder(&key, parent_path_builder);
+        if(key == "name")
+        {
+            if(entry_value.get_value_kind() != json::ast::Value_kind::string)
+                throw Parse_error(
+                    entry_value.location, path_builder.path(), "name is not a string");
+            name = std::move(entry_value.get_string().value);
+        }
+        else if(key == "quantifier")
+        {
+            quantifier = parse_enum_string(
+                std::move(entry_value),
+                &path_builder,
+                "quantifier",
+                make_enum_value_descriptors<ast::Instructions::Instruction::Operands::Operand::
+                                                Quantifier,
+                                            ast::Instructions::Instruction::Operands::Operand::
+                                                get_quantifier_string,
+                                            ast::Instructions::Instruction::Operands::Operand::
+                                                Quantifier::none,
+                                            ast::Instructions::Instruction::Operands::Operand::
+                                                Quantifier::optional,
+                                            ast::Instructions::Instruction::Operands::Operand::
+                                                Quantifier::variable>);
+        }
+        else if(key != kind_name)
+        {
+            throw Parse_error(entry_value.location, path_builder.path(), "unknown key");
+        }
+    }
+    return ast::Instructions::Instruction::Operands::Operand(
+        std::move(kind), std::move(name), quantifier);
+}
+
+ast::Instructions::Instruction::Operands parse_instructions_instruction_operands(
+    json::ast::Value value, const Path_builder_base *parent_path_builder)
+{
+    if(value.get_value_kind() != json::ast::Value_kind::array)
+        throw Parse_error(value.location, parent_path_builder->path(), "operands is not an array");
+    auto &operands_array = value.get_array();
+    std::vector<ast::Instructions::Instruction::Operands::Operand> operands;
+    operands.reserve(operands_array.values.size());
+    for(std::size_t index = 0; index < operands_array.values.size(); index++)
+    {
+        Path_builder<std::size_t> path_builder(&index, parent_path_builder);
+        operands.push_back(parse_instructions_instruction_operands_operand(
+            std::move(operands_array.values[index]), &path_builder));
+    }
+    return ast::Instructions::Instruction::Operands(std::move(operands));
+}
+
+ast::Instructions::Instruction parse_instructions_instruction(
+    json::ast::Value value, const Path_builder_base *parent_path_builder)
+{
+    if(value.get_value_kind() != json::ast::Value_kind::object)
+        throw Parse_error(
+            value.location, parent_path_builder->path(), "instruction is not an object");
+    auto &instruction_object = value.get_object();
+    constexpr auto opname_name = "opname";
+    std::string opname = get_object_member_or_throw_parse_error(
+        value.location,
+        instruction_object,
+        parent_path_builder,
+        opname_name,
+        [&](json::ast::Value &entry_value, const Path_builder_base *path_builder)
+        {
+            return parse_identifier_string(std::move(entry_value), path_builder, opname_name);
+        });
+    constexpr auto opcode_name = "opcode";
+    auto opcode = get_object_member_or_throw_parse_error(
+        value.location,
+        instruction_object,
+        parent_path_builder,
+        opcode_name,
+        [&](json::ast::Value &entry_value, const Path_builder_base *path_builder)
+        {
+            return parse_integer<std::uint32_t>(std::move(entry_value), path_builder, opcode_name);
+        });
+    ast::Instructions::Instruction::Operands operands;
+    ast::Capabilities capabilities;
+    for(auto &entry : instruction_object.values)
+    {
+        const auto &key = std::get<0>(entry);
+        auto &entry_value = std::get<1>(entry);
+        Path_builder<std::string> path_builder(&key, parent_path_builder);
+        if(key == "operands")
+        {
+            operands =
+                parse_instructions_instruction_operands(std::move(entry_value), &path_builder);
+        }
+        else if(key == "capabilities")
+        {
+            capabilities = parse_capabilities(std::move(entry_value), &path_builder);
+        }
+        else if(key != opname_name && key != opcode_name)
+        {
+            throw Parse_error(entry_value.location, path_builder.path(), "unknown key");
+        }
+    }
+    return ast::Instructions::Instruction(
+        std::move(opname), opcode, std::move(operands), std::move(capabilities));
+}
+
 ast::Instructions parse_instructions(json::ast::Value value,
                                      const Path_builder_base *parent_path_builder)
 {
@@ -429,9 +712,15 @@ ast::Instructions parse_instructions(json::ast::Value value,
         throw Parse_error(
             value.location, parent_path_builder->path(), "instructions is not an array");
     auto &instructions_array = value.get_array();
-    static_cast<void>(instructions_array);
-#warning finish
-    return ast::Instructions();
+    std::vector<ast::Instructions::Instruction> instructions;
+    instructions.reserve(instructions_array.values.size());
+    for(std::size_t index = 0; index < instructions_array.values.size(); index++)
+    {
+        Path_builder<std::size_t> path_builder(&index, parent_path_builder);
+        instructions.push_back(parse_instructions_instruction(
+            std::move(instructions_array.values[index]), &path_builder));
+    }
+    return ast::Instructions(std::move(instructions));
 }
 }
 
@@ -502,6 +791,36 @@ ast::Top_level parse(json::ast::Value &&top_level_value)
         get_value_or_throw_parse_error(
             std::move(operand_kinds), top_level_value.location, nullptr, "missing operand_kinds"));
 }
+
+#if 0
+namespace
+{
+void test_fn()
+{
+    try
+    {
+        std::size_t path_index = 0;
+        Path_builder<std::size_t> path_builder(&path_index, nullptr);
+        std::cout << parse_hex_integer_string<std::uint32_t>(
+                         json::ast::Value({}, "0x1234"), &path_builder, "test", 1, 8)
+                  << std::endl;
+    }
+    catch(std::exception &e)
+    {
+        std::cout << e.what() << std::endl;
+    }
+}
+
+struct Test
+{
+    Test()
+    {
+        test_fn();
+        std::exit(0);
+    }
+} test;
+}
+#endif
 }
 }
 }

@@ -47,9 +47,21 @@ int generate_spirv_parser_main(int argc, char **argv)
                                          json::Source::load_file(std::move(file_name));
         try
         {
-            auto ast = parser::parse(json::parse(&source));
+            auto json_in = json::parse(&source);
+            auto ast = parser::parse(json_in.duplicate());
             std::ofstream os("out.json");
-            json::write(os, ast.to_json(), json::Write_options::pretty());
+            auto json_out = ast.to_json();
+            json::write(os, json_out, json::Write_options::pretty());
+            os.close();
+            auto difference = json::Difference::find_difference(json_in, json_out);
+            if(difference)
+            {
+                std::cerr << "differs at " << difference->append_to_string("root") << std::endl;
+            }
+            else
+            {
+                std::cerr << "no difference" << std::endl;
+            }
 #warning finish
             std::cerr << "generate_spirv_parser is not finished being implemented" << std::endl;
             return 1;

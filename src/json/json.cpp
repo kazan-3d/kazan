@@ -21,8 +21,8 @@
  *
  */
 #include "json.h"
-#include <istream>
-#include <ostream>
+#include <iostream>
+#include <cstdlib>
 #include <cmath>
 #include <cstdint>
 #include <cassert>
@@ -560,5 +560,117 @@ void Array::write(std::ostream &os, Write_state &state) const
     os << ']';
 }
 }
+
+util::optional<Difference> Difference::find_difference(const ast::Value &a, const ast::Value &b)
+{
+    util::optional<Difference> retval;
+    auto value_kind = a.get_value_kind();
+    if(value_kind != b.get_value_kind())
+    {
+        retval.emplace();
+    }
+    else
+    {
+        switch(value_kind)
+        {
+        case ast::Value_kind::null:
+            // always equals
+            break;
+        case ast::Value_kind::boolean:
+            if(a.get_boolean() != b.get_boolean())
+                retval.emplace();
+            break;
+        case ast::Value_kind::string:
+            if(a.get_string() != b.get_string())
+                retval.emplace();
+            break;
+        case ast::Value_kind::number:
+            if(a.get_number() != b.get_number())
+                retval.emplace();
+            break;
+        case ast::Value_kind::object:
+        {
+            auto &object_a = a.get_object();
+            auto &object_b = b.get_object();
+            for(auto &object_a_entry : object_a.values)
+            {
+                auto &key = std::get<0>(object_a_entry);
+                auto object_b_iter = object_b.values.find(key);
+                if(object_b_iter == object_b.values.end())
+                {
+                    retval.emplace(std::list<util::variant<std::size_t, std::string>>{key});
+                    break;
+                }
+                auto &object_b_entry = *object_b_iter;
+                auto &object_a_value = std::get<1>(object_a_entry);
+                auto &object_b_value = std::get<1>(object_b_entry);
+                retval = find_difference(object_a_value, object_b_value);
+                if(retval)
+                {
+                    retval->element_selectors.emplace_front(key);
+                    break;
+                }
+            }
+            if(retval)
+                break;
+            for(auto &object_b_entry : object_b.values)
+            {
+                auto &key = std::get<0>(object_b_entry);
+                auto object_a_iter = object_a.values.find(key);
+                if(object_a_iter == object_a.values.end())
+                {
+                    retval.emplace(std::list<util::variant<std::size_t, std::string>>{key});
+                    break;
+                }
+                // already checked object_a_value vs. object_b_value
+            }
+            break;
+        }
+        case ast::Value_kind::array:
+        {
+            auto &array_a = a.get_array();
+            auto &array_b = b.get_array();
+            for(std::size_t i = 0; i < array_a.values.size() && i < array_b.values.size(); i++)
+            {
+                auto &array_a_entry = array_a.values[i];
+                auto &array_b_entry = array_b.values[i];
+                retval = find_difference(array_a_entry, array_b_entry);
+                if(retval)
+                {
+                    retval->element_selectors.emplace_front(i);
+                    break;
+                }
+            }
+            if(retval)
+                break;
+            if(array_a.values.size() < array_b.values.size())
+                retval->element_selectors.emplace_front(array_a.values.size());
+            else if(array_a.values.size() > array_b.values.size())
+                retval->element_selectors.emplace_front(array_b.values.size());
+            break;
+        }
+        }
+    }
+    return retval;
+}
+
+#if 0
+namespace
+{
+void test_fn()
+{
+    std::cout << ast::Number_value::unsigned_integer_to_string(0x1234U, {}, 0x10, 4) << std::endl;
+}
+
+struct Test
+{
+    Test()
+    {
+        test_fn();
+        std::exit(0);
+    }
+} test;
+}
+#endif
 }
 }

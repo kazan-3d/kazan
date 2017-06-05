@@ -30,9 +30,10 @@ namespace ast
 {
 namespace
 {
-std::string to_hex_string(std::uint32_t v)
+std::string to_hex_string(std::uint32_t v, std::size_t min_digit_count)
 {
-    return json::ast::Number_value::append_unsigned_integer_to_string(v, "0x", 0x10, 8);
+    return json::ast::Number_value::append_unsigned_integer_to_string(
+        v, "0x", 0x10, min_digit_count);
 }
 
 constexpr json::Location make_empty_location() noexcept
@@ -52,26 +53,111 @@ json::ast::Value Copyright::to_json() const
     return json::ast::Value(make_empty_location(), std::move(retval));
 }
 
+json::ast::Value Instructions::Instruction::Operands::Operand::to_json() const
+{
+    json::ast::Object retval;
+    retval.values["kind"] = json::ast::Value(make_empty_location(), kind);
+    if(!name.empty())
+        retval.values["name"] = json::ast::Value(make_empty_location(), name);
+    if(quantifier != Quantifier::none)
+        retval.values["quantifier"] =
+            json::ast::Value(make_empty_location(), get_quantifier_string(quantifier));
+    return json::ast::Value(make_empty_location(), std::move(retval));
+}
+
+json::ast::Value Instructions::Instruction::Operands::to_json() const
+{
+    json::ast::Array retval;
+    retval.values.reserve(operands.size());
+    for(auto &operand : operands)
+        retval.values.push_back(operand.to_json());
+    return json::ast::Value(make_empty_location(), std::move(retval));
+}
+
+json::ast::Value Instructions::Instruction::to_json() const
+{
+    json::ast::Object retval;
+    retval.values["opname"] = json::ast::Value(make_empty_location(), opname);
+    retval.values["opcode"] = json::ast::Value(make_empty_location(), opcode);
+    if(!operands.empty())
+        retval.values["operands"] = operands.to_json();
+    if(!capabilities.empty())
+        retval.values["capabilities"] = capabilities.to_json();
+    return json::ast::Value(make_empty_location(), std::move(retval));
+}
+
 json::ast::Value Instructions::to_json() const
 {
     json::ast::Array retval;
-#warning finish
+    retval.values.reserve(instructions.size());
+    for(auto &instruction : instructions)
+        retval.values.push_back(instruction.to_json());
     return json::ast::Value(make_empty_location(), std::move(retval));
 }
 
-json::ast::Value Operand_kinds::Operand_kind::Enumerants::Enumerant::to_json() const
+json::ast::Value Capabilities::to_json() const
+{
+    json::ast::Array retval;
+    retval.values.reserve(capabilities.size());
+    for(auto &capability : capabilities)
+        retval.values.push_back(json::ast::Value(make_empty_location(), capability));
+    return json::ast::Value(make_empty_location(), std::move(retval));
+}
+
+json::ast::Value Extensions::to_json() const
+{
+    json::ast::Array retval;
+    retval.values.reserve(extensions.size());
+    for(auto &extension : extensions)
+        retval.values.push_back(json::ast::Value(make_empty_location(), extension));
+    return json::ast::Value(make_empty_location(), std::move(retval));
+}
+
+json::ast::Value
+    Operand_kinds::Operand_kind::Enumerants::Enumerant::Parameters::Parameter::to_json() const
 {
     json::ast::Object retval;
-#warning finish
+    retval.values["kind"] = json::ast::Value(make_empty_location(), kind);
+    if(!name.empty())
+        retval.values["name"] = json::ast::Value(make_empty_location(), name);
     return json::ast::Value(make_empty_location(), std::move(retval));
 }
 
-json::ast::Value Operand_kinds::Operand_kind::Enumerants::to_json() const
+json::ast::Value Operand_kinds::Operand_kind::Enumerants::Enumerant::Parameters::to_json() const
+{
+    json::ast::Array retval;
+    retval.values.reserve(parameters.size());
+    for(auto &parameter : parameters)
+        retval.values.push_back(parameter.to_json());
+    return json::ast::Value(make_empty_location(), std::move(retval));
+}
+
+json::ast::Value Operand_kinds::Operand_kind::Enumerants::Enumerant::to_json(
+    bool is_bit_enumerant) const
+{
+    json::ast::Object retval;
+    retval.values["enumerant"] = json::ast::Value(make_empty_location(), enumerant);
+    json::ast::Value value_out;
+    if(is_bit_enumerant)
+        value_out = json::ast::Value(make_empty_location(), to_hex_string(value, 4));
+    else
+        value_out = json::ast::Value(make_empty_location(), value);
+    retval.values["value"] = value_out;
+    if(!capabilities.empty())
+        retval.values["capabilities"] = capabilities.to_json();
+    if(!parameters.empty())
+        retval.values["parameters"] = parameters.to_json();
+    if(!extensions.empty())
+        retval.values["extensions"] = extensions.to_json();
+    return json::ast::Value(make_empty_location(), std::move(retval));
+}
+
+json::ast::Value Operand_kinds::Operand_kind::Enumerants::to_json(bool is_bit_enumerant) const
 {
     json::ast::Array retval;
     retval.values.reserve(enumerants.size());
     for(auto &enumerant : enumerants)
-        retval.values.push_back(enumerant.to_json());
+        retval.values.push_back(enumerant.to_json(is_bit_enumerant));
     return json::ast::Value(make_empty_location(), std::move(retval));
 }
 
@@ -98,7 +184,7 @@ json::ast::Value Operand_kinds::Operand_kind::to_json() const
     retval.values[get_value_json_key_name_from_category(category)] = util::visit(
         [&](auto &v) -> json::ast::Value
         {
-            return v.to_json();
+            return v.to_json(category);
         },
         value);
     return json::ast::Value(make_empty_location(), std::move(retval));
@@ -118,13 +204,10 @@ json::ast::Value Top_level::to_json() const
     json::ast::Object retval;
     retval.values["copyright"] = copyright.to_json();
     retval.values["magic_number"] =
-        json::ast::Value(make_empty_location(), to_hex_string(magic_number));
-    retval.values["major_version"] = json::ast::Value(
-        make_empty_location(), json::ast::Number_value::unsigned_integer_to_string(major_version));
-    retval.values["minor_version"] = json::ast::Value(
-        make_empty_location(), json::ast::Number_value::unsigned_integer_to_string(minor_version));
-    retval.values["revision"] = json::ast::Value(
-        make_empty_location(), json::ast::Number_value::unsigned_integer_to_string(revision));
+        json::ast::Value(make_empty_location(), to_hex_string(magic_number, 8));
+    retval.values["major_version"] = json::ast::Value(make_empty_location(), major_version);
+    retval.values["minor_version"] = json::ast::Value(make_empty_location(), minor_version);
+    retval.values["revision"] = json::ast::Value(make_empty_location(), revision);
     retval.values["instructions"] = instructions.to_json();
     retval.values["operand_kinds"] = operand_kinds.to_json();
     return json::ast::Value(make_empty_location(), std::move(retval));

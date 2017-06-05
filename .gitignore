@@ -1,9 +1,8 @@
 /.metadata/
-/build/src/
-/build/CMakeFiles/
+/build/
 cmake_install.cmake
 CMakeCache.txt
 Makefile
 /.settings/
 /test-files/test.spv
-/build/compile_commands.json
+out.json
