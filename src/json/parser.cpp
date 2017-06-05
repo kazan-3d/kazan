@@ -34,164 +34,6 @@ namespace json
 {
 namespace
 {
-constexpr bool is_new_line(char ch) noexcept
-{
-    return ch == '\r' || ch == '\n';
-}
-
-constexpr bool is_new_line_pair(char ch1, char ch2) noexcept
-{
-    return ch1 == '\r' && ch2 == '\n';
-}
-
-template <typename Add_Index>
-void find_line_start_indexes_helper(Add_Index &&add_index,
-                                    const char *contents,
-                                    std::size_t contents_size)
-{
-    for(std::size_t i = 0; i < contents_size; i++)
-    {
-        char ch = contents[i];
-        if(i + 1 < contents_size)
-        {
-            char ch2 = contents[i + 1];
-            if(is_new_line_pair(ch, ch2))
-            {
-                add_index(i + 2);
-                i++;
-                continue;
-            }
-        }
-        if(is_new_line(ch))
-            add_index(i + 1);
-    }
-}
-}
-
-std::vector<std::size_t> Source::find_line_start_indexes(const char *contents,
-                                                         std::size_t contents_size)
-{
-    std::size_t retval_size = 0;
-    find_line_start_indexes_helper(
-        [&](std::size_t)
-        {
-            retval_size++;
-        },
-        contents,
-        contents_size);
-    std::vector<std::size_t> retval;
-    retval.reserve(retval_size);
-    find_line_start_indexes_helper(
-        [&](std::size_t index)
-        {
-            retval.push_back(index);
-        },
-        contents,
-        contents_size);
-    return retval;
-}
-
-Source Source::load_file(std::string file_name)
-{
-    // TODO: add code to use mmap
-    std::ifstream is;
-    is.exceptions(std::ios::badbit | std::ios::failbit);
-    is.open(file_name);
-    std::vector<char> buffer;
-    while(is.peek() != std::char_traits<char>::eof())
-    {
-        if(buffer.size() == buffer.capacity())
-            buffer.reserve(buffer.size() * 2);
-        buffer.push_back(is.get());
-    }
-    is.close();
-    buffer.shrink_to_fit();
-    std::size_t contents_size = buffer.size();
-    auto buffer_ptr = std::make_shared<std::vector<char>>(std::move(buffer));
-    std::shared_ptr<const char> contents(buffer_ptr, buffer_ptr->data());
-    return Source(std::move(file_name), std::move(contents), contents_size);
-}
-
-Source Source::load_stdin()
-{
-    auto &is = std::cin;
-    is.clear();
-    auto previous_exceptions = is.exceptions();
-    std::vector<char> buffer;
-    try
-    {
-        is.exceptions(std::ios::badbit | std::ios::failbit);
-        while(is.peek() != std::char_traits<char>::eof())
-        {
-            if(buffer.size() == buffer.capacity())
-                buffer.reserve(buffer.size() * 2);
-            buffer.push_back(is.get());
-        }
-    }
-    catch(...)
-    {
-        is.clear();
-        is.exceptions(previous_exceptions);
-    }
-    is.clear();
-    is.exceptions(previous_exceptions);
-    buffer.shrink_to_fit();
-    std::size_t contents_size = buffer.size();
-    auto buffer_ptr = std::make_shared<std::vector<char>>(std::move(buffer));
-    std::shared_ptr<const char> contents(buffer_ptr, buffer_ptr->data());
-    return Source("stdin", std::move(contents), contents_size);
-}
-
-std::ostream &operator<<(std::ostream &os, const Source::Line_and_column &v)
-{
-    os << v.to_string();
-    return os;
-}
-
-Source::Line_and_index Source::get_line_and_start_index(std::size_t char_index) const noexcept
-{
-    std::size_t line =
-        1 + line_start_indexes.size()
-        + (line_start_indexes.rbegin() - std::lower_bound(line_start_indexes.rbegin(),
-                                                          line_start_indexes.rend(),
-                                                          char_index,
-                                                          std::greater<std::size_t>()));
-    return Line_and_index(line, line <= 1 ? 0 : line_start_indexes[line - 2]);
-}
-
-namespace
-{
-constexpr std::size_t get_column_after_tab(std::size_t column, std::size_t tab_size) noexcept
-{
-    return tab_size == 0 || column == 0 ? column + 1 :
-                                          column + (tab_size - (column - 1) % tab_size);
-}
-}
-
-Source::Line_and_column Source::get_line_and_column(std::size_t char_index,
-                                                    std::size_t tab_size) const noexcept
-{
-    auto line_and_start_index = get_line_and_start_index(char_index);
-    std::size_t column = 1;
-    for(std::size_t i = line_and_start_index.index; i < char_index; i++)
-    {
-        int ch = contents.get()[i];
-        if(ch == '\t')
-            column = get_column_after_tab(column, tab_size);
-        else
-            column++;
-    }
-    return Line_and_column(line_and_start_index.line, column);
-}
-
-std::ostream &operator<<(std::ostream &os, const Location &v)
-{
-    os << v.to_string();
-    return os;
-}
-
-namespace
-{
 enum class Token_type
 {
     eof,
@@ -335,7 +177,7 @@ public:
         while(is_whitespace(peekc()))
             getc();
         token_location = Location(source, input_char_index);
-        token_value = nullptr;
+        token_value = ast::Value(token_location, nullptr);
         bool got_minus = false, got_plus = false;
         if(peekc() == '-')
         {
@@ -360,19 +202,19 @@ public:
             {
                 if(match_buffer_with_string(name, name_size, "null"))
                 {
-                    token_value = nullptr;
+                    token_value = ast::Value(token_location, nullptr);
                     token_type = json::Token_type::null_literal;
                     return;
                 }
                 if(match_buffer_with_string(name, name_size, "false"))
                 {
-                    token_value = false;
+                    token_value = ast::Value(token_location, false);
                     token_type = json::Token_type::false_literal;
                     return;
                 }
                 if(match_buffer_with_string(name, name_size, "true"))
                 {
-                    token_value = true;
+                    token_value = ast::Value(token_location, true);
                     token_type = json::Token_type::true_literal;
                     return;
                 }
@@ -383,7 +225,8 @@ public:
                    || match_buffer_with_string(name, name_size, "nan")
                    || match_buffer_with_string(name, name_size, "NAN"))
                 {
-                    token_value = std::numeric_limits<double>::quiet_NaN();
+                    token_value =
+                        ast::Value(token_location, std::numeric_limits<double>::quiet_NaN());
                     token_type = json::Token_type::number;
                     return;
                 }
@@ -393,8 +236,9 @@ public:
                    || match_buffer_with_string(name, name_size, "inf")
                    || match_buffer_with_string(name, name_size, "INF"))
                 {
-                    token_value = got_minus ? -std::numeric_limits<double>::infinity() :
-                                              std::numeric_limits<double>::infinity();
+                    token_value = ast::Value(token_location,
+                                             got_minus ? -std::numeric_limits<double>::infinity() :
+                                                         std::numeric_limits<double>::infinity());
                     token_type = json::Token_type::number;
                     return;
                 }
@@ -473,7 +317,7 @@ public:
                 mantissa
                 * pow(util::soft_float::ExtendedFloat(static_cast<std::uint64_t>(10)), exponent);
             token_type = json::Token_type::number;
-            token_value = static_cast<double>(value);
+            token_value = ast::Value(token_location, static_cast<double>(value));
             return;
         }
         if(peekc() == '\"' || (options.allow_single_quote_strings && peekc() == '\''))
@@ -565,44 +409,44 @@ public:
                 }
             }
             token_type = json::Token_type::string;
-            token_value = std::move(value);
+            token_value = ast::Value(token_location, std::move(value));
             return;
         }
         switch(peekc())
         {
         case eof:
             token_type = json::Token_type::eof;
-            token_value = nullptr;
+            token_value = ast::Value(token_location, nullptr);
             return;
         case '[':
             getc();
             token_type = json::Token_type::l_bracket;
-            token_value = nullptr;
+            token_value = ast::Value(token_location, nullptr);
             return;
         case ']':
             getc();
             token_type = json::Token_type::r_bracket;
-            token_value = nullptr;
+            token_value = ast::Value(token_location, nullptr);
             return;
         case '{':
             getc();
             token_type = json::Token_type::l_brace;
-            token_value = nullptr;
+            token_value = ast::Value(token_location, nullptr);
             return;
         case '}':
             getc();
             token_type = json::Token_type::r_brace;
-            token_value = nullptr;
+            token_value = ast::Value(token_location, nullptr);
             return;
         case ':':
             getc();
             token_type = json::Token_type::colon;
-            token_value = nullptr;
+            token_value = ast::Value(token_location, nullptr);
             return;
         case ',':
             getc();
             token_type = json::Token_type::comma;
-            token_value = nullptr;
+            token_value = ast::Value(token_location, nullptr);
             return;
         }
         throw Parse_error(token_location, "invalid character");
@@ -624,6 +468,7 @@ ast::Value parse_value(Tokenizer &tokenizer)
     case Token_type::l_bracket:
     {
         std::vector<ast::Value> values;
+        auto array_location = tokenizer.token_location;
         tokenizer.next();
         if(tokenizer.token_type == Token_type::r_bracket)
         {
@@ -647,11 +492,12 @@ ast::Value parse_value(Tokenizer &tokenizer)
                 throw Parse_error(tokenizer.token_location, "missing , or ]");
             }
         }
-        return ast::Array(std::move(values));
+        return ast::Value(array_location, ast::Array(std::move(values)));
     }
     case Token_type::l_brace:
     {
         std::unordered_map<std::string, ast::Value> values;
+        auto object_location = tokenizer.token_location;
         tokenizer.next();
         if(tokenizer.token_type == Token_type::r_brace)
         {
@@ -663,7 +509,7 @@ ast::Value parse_value(Tokenizer &tokenizer)
             {
                 if(tokenizer.token_type != Token_type::string)
                     throw Parse_error(tokenizer.token_location, "missing string");
-                auto string_value = std::move(util::get<ast::String_value>(tokenizer.get()).value);
+                auto string_value = std::move(tokenizer.get().get_string().value);
                 if(tokenizer.token_type != Token_type::colon)
                     throw Parse_error(tokenizer.token_location, "missing ':'");
                 tokenizer.next();
@@ -681,7 +527,7 @@ ast::Value parse_value(Tokenizer &tokenizer)
                 throw Parse_error(tokenizer.token_location, "missing ',' or '}'");
             }
         }
-        return ast::Object(std::move(values));
+        return ast::Value(object_location, ast::Object(std::move(values)));
     }
     default:
         break;

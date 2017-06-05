@@ -168,17 +168,23 @@ constexpr std::size_t max_integer_buffer_size = 64; // max number of digits is b
 template <typename Write_Char>
 void write_unsigned_integer(Write_Char write_char,
                             std::uint64_t value,
-                            unsigned base) noexcept(noexcept(write_char('0')))
+                            unsigned base,
+                            std::size_t min_length = 1) noexcept(noexcept(write_char('0')))
 {
     assert(base >= Number_value::min_base && base <= Number_value::max_base);
+    while(min_length > max_integer_buffer_size)
+    {
+        write_char('0');
+        min_length--;
+    }
     char buffer[max_integer_buffer_size]{};
     std::size_t buffer_used = 0;
-    do
+    for(std::size_t i = 0; i < min_length || value != 0; i++)
     {
         assert(buffer_used < max_integer_buffer_size);
         buffer[buffer_used++] = get_digit_char(value % base, false);
         value /= base;
-    } while(value != 0);
+    }
     for(std::size_t i = 0, j = buffer_used - 1; i < buffer_used; i++, j--)
         write_char(buffer[j]);
 }
@@ -383,7 +389,8 @@ std::size_t Number_value::double_to_buffer(double value,
 
 std::string Number_value::append_unsigned_integer_to_string(std::uint64_t value,
                                                             std::string buffer,
-                                                            unsigned base)
+                                                            unsigned base,
+                                                            std::size_t min_length)
 {
     write_unsigned_integer(
         [&](char ch)
@@ -391,7 +398,8 @@ std::string Number_value::append_unsigned_integer_to_string(std::uint64_t value,
             buffer += ch;
         },
         value,
-        base);
+        base,
+        min_length);
     return buffer;
 }
 
@@ -399,7 +407,8 @@ std::size_t Number_value::unsigned_integer_to_buffer(std::uint64_t value,
                                                      char *output_buffer,
                                                      std::size_t output_buffer_size,
                                                      bool require_null_terminator,
-                                                     unsigned base) noexcept
+                                                     unsigned base,
+                                                     std::size_t min_length) noexcept
 {
     if(output_buffer_size == 0)
         return 0;
@@ -414,7 +423,8 @@ std::size_t Number_value::unsigned_integer_to_buffer(std::uint64_t value,
                 output_buffer[used_buffer_size++] = ch;
         },
         value,
-        base);
+        base,
+        min_length);
     if(used_buffer_size < output_buffer_size)
         output_buffer[used_buffer_size] = '\0'; // add the null terminator if there is space
     return used_buffer_size; // report used buffer excluding the null terminator

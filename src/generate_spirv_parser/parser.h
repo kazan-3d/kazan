@@ -31,6 +31,7 @@
 #include <vector>
 #include "../util/variant.h"
 #include "../json/json.h"
+#include "../json/parser.h"
 
 namespace vulkan_cpu
 {
@@ -98,12 +99,13 @@ struct Path_builder final : public Path_builder_base
     }
 };
 
-class Parse_error : public std::runtime_error
+class Parse_error : public json::Parse_error
 {
 public:
     Path path;
-    Parse_error(parser::Path path, const std::string &message)
-        : runtime_error("at " + path.to_string() + ": " + message), path(std::move(path))
+    Parse_error(json::Location location, parser::Path path, const std::string &message)
+        : json::Parse_error(location, "at " + path.to_string() + ": " + message),
+          path(std::move(path))
     {
     }
 };

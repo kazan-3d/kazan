@@ -20,6 +20,8 @@
 #
 cmake_minimum_required(VERSION 3.1 FATAL_ERROR)
 set(sources json.cpp
-            parser.cpp)
+            location.cpp
+            parser.cpp
+            source.cpp)
 add_library(json STATIC ${sources})
 target_link_libraries(json util)

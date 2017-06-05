@@ -34,6 +34,7 @@
 #include <type_traits>
 #include <cassert>
 #include "../util/variant.h"
+#include "location.h"
 
 namespace vulkan_cpu
 {
@@ -238,19 +239,22 @@ struct Number_value final
     }
     static std::string append_unsigned_integer_to_string(std::uint64_t value,
                                                          std::string buffer,
-                                                         unsigned base = default_base);
+                                                         unsigned base = default_base,
+                                                         std::size_t min_length = 1);
     static std::string unsigned_integer_to_string(std::uint64_t value,
                                                   std::string buffer = {},
-                                                  unsigned base = default_base)
+                                                  unsigned base = default_base,
+                                                  std::size_t min_length = 1)
     {
         buffer.clear();
-        return append_unsigned_integer_to_string(value, std::move(buffer), base);
+        return append_unsigned_integer_to_string(value, std::move(buffer), base, min_length);
     }
     static std::size_t unsigned_integer_to_buffer(std::uint64_t value,
                                                   char *output_buffer,
                                                   std::size_t output_buffer_size,
                                                   bool require_null_terminator = true,
-                                                  unsigned base = default_base) noexcept;
+                                                  unsigned base = default_base,
+                                                  std::size_t min_length = 1) noexcept;
     static std::string append_signed_integer_to_string(std::int64_t value,
                                                        std::string buffer,
                                                        unsigned base = default_base);
@@ -334,8 +338,78 @@ public:
     }
 };
 
-typedef util::
-    variant<Null_value, Boolean_value, String_value, Number_value, Composite_value_pointer> Value;
+struct Object;
+struct Array;
+
+struct Value
+{
+    Location location;
+    util::variant<Null_value, Boolean_value, String_value, Number_value, Composite_value_pointer>
+        value;
+    constexpr Value()
+    {
+    }
+    constexpr explicit Value(Location location, Null_value value)
+        : location(std::move(location)), value(std::move(value))
+    {
+    }
+    constexpr explicit Value(Location location, Boolean_value value)
+        : location(std::move(location)), value(std::move(value))
+    {
+    }
+    explicit Value(Location location, String_value value)
+        : location(std::move(location)), value(std::move(value))
+    {
+    }
+    explicit Value(Location location, Number_value value)
+        : location(std::move(location)), value(std::move(value))
+    {
+    }
+    explicit Value(Location location, Composite_value_pointer value)
+        : location(std::move(location)), value(std::move(value))
+    {
+    }
+    explicit Value(Location location, Array &&value);
+    explicit Value(Location location, Object &&value);
+    Value duplicate() const;
+    Null_value &get_null()
+    {
+        return util::get<Null_value>(value);
+    }
+    const Null_value &get_null() const
+    {
+        return util::get<Null_value>(value);
+    }
+    Boolean_value &get_boolean()
+    {
+        return util::get<Boolean_value>(value);
+    }
+    const Boolean_value &get_boolean() const
+    {
+        return util::get<Boolean_value>(value);
+    }
+    String_value &get_string()
+    {
+        return util::get<String_value>(value);
+    }
+    const String_value &get_string() const
+    {
+        return util::get<String_value>(value);
+    }
+    Number_value &get_number()
+    {
+        return util::get<Number_value>(value);
+    }
+    const Number_value &get_number() const
+    {
+        return util::get<Number_value>(value);
+    }
+    Object &get_object();
+    const Object &get_object() const;
+    Array &get_array();
+    const Array &get_array() const;
+    Value_kind get_value_kind() const noexcept;
+};
 
 struct Composite_value
 {
@@ -343,21 +417,17 @@ struct Composite_value
     virtual ~Composite_value() = default;
     virtual void write(std::ostream &os, Write_state &state) const = 0;
     virtual Composite_value_pointer duplicate() const = 0;
-    operator Value() const
-    {
-        return duplicate();
-    }
     virtual Value_kind get_value_kind() const noexcept = 0;
 };
 
-inline Value duplicate(const Value &v)
+inline Value Value::duplicate() const
 {
     return util::visit(
-        [](const auto &v) -> Value
+        [this](const auto &v) -> Value
         {
-            return v->duplicate();
+            return Value(location, v->duplicate());
         },
-        v);
+        value);
 }
 
 struct Object final : public Composite_value
@@ -375,7 +445,7 @@ struct Object final : public Composite_value
         std::unordered_map<std::string, Value> new_values;
         for(auto &entry : values)
         {
-            new_values.emplace(std::get<0>(entry), ast::duplicate(std::get<1>(entry)));
+            new_values.emplace(std::get<0>(entry), std::get<1>(entry).duplicate());
         }
         return std::make_shared<Object>(std::move(new_values));
     }
@@ -384,6 +454,16 @@ struct Object final : public Composite_value
         return Value_kind::object;
     }
 };
+
+inline Object &Value::get_object()
+{
+    return dynamic_cast<Object &>(*util::get<Composite_value_pointer>(value));
+}
+
+inline const Object &Value::get_object() const
+{
+    return dynamic_cast<const Object &>(*util::get<Composite_value_pointer>(value));
+}
 
 struct Array final : public Composite_value
 {
@@ -400,7 +480,7 @@ struct Array final : public Composite_value
         std::vector<Value> new_values;
         new_values.reserve(values.size());
         for(auto &value : values)
-            new_values.emplace_back(ast::duplicate(value));
+            new_values.emplace_back(value.duplicate());
         return std::make_shared<Array>(std::move(new_values));
     }
     Value_kind get_value_kind() const noexcept override
@@ -409,14 +489,34 @@ struct Array final : public Composite_value
     }
 };
 
-inline Value_kind get_value_kind(const Value &v) noexcept
+inline Array &Value::get_array()
+{
+    return dynamic_cast<Array &>(*util::get<Composite_value_pointer>(value));
+}
+
+inline const Array &Value::get_array() const
+{
+    return dynamic_cast<const Array &>(*util::get<Composite_value_pointer>(value));
+}
+
+inline Value_kind Value::get_value_kind() const noexcept
 {
     return util::visit(
-        [&](const auto &v) -> Value_kind
+        [](const auto &v) -> Value_kind
         {
             return v->get_value_kind();
         },
-        v);
+        value);
+}
+
+inline Value::Value(Location location, Array &&value)
+    : location(std::move(location)), value(std::make_shared<Array>(std::move(value)))
+{
+}
+
+inline Value::Value(Location location, Object &&value)
+    : location(std::move(location)), value(std::make_shared<Object>(std::move(value)))
+{
 }
 }
 
@@ -427,7 +527,7 @@ inline void write(std::ostream &os, const ast::Value &v, Write_state &state)
         {
             v->write(os, state);
         },
-        v);
+        v.value);
 }
 
 inline void write(std::ostream &os, const ast::Value &v, Write_options options = {})

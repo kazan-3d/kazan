@@ -25,6 +25,7 @@
 #include "../json/parser.h"
 #include "parser.h"
 #include "../util/optional.h"
+#include <fstream>
 
 namespace vulkan_cpu
 {
@@ -47,15 +48,20 @@ int generate_spirv_parser_main(int argc, char **argv)
         try
         {
             auto ast = parser::parse(json::parse(&source));
-        }
-        catch(json::Parse_error &e)
-        {
-            std::cerr << "error: " << e.what() << std::endl;
+            std::ofstream os("out.json");
+            json::write(os, ast.to_json(), json::Write_options::pretty());
+#warning finish
+            std::cerr << "generate_spirv_parser is not finished being implemented" << std::endl;
             return 1;
         }
         catch(parser::Parse_error &e)
         {
-            std::cerr << "error: " << e.what() << std::endl;
+            std::cerr << e.what() << std::endl;
+            return 1;
+        }
+        catch(json::Parse_error &e)
+        {
+            std::cerr << e.what() << std::endl;
             return 1;
         }
     }

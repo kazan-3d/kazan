@@ -26,6 +26,8 @@
 
 #include "../json/json.h"
 #include <cstdint>
+#include <vector>
+#include <string>
 
 namespace vulkan_cpu
 {
@@ -35,23 +37,136 @@ namespace ast
 {
 struct Copyright
 {
-    json::ast::Array value;
-    Copyright() : value()
+    std::vector<std::string> lines;
+    Copyright() : lines()
     {
     }
-    explicit Copyright(json::ast::Array value) noexcept : value(std::move(value))
+    explicit Copyright(std::vector<std::string> lines) noexcept : lines(std::move(lines))
     {
     }
+    json::ast::Value to_json() const;
 };
 
 struct Instructions
 {
 #warning finish
+    json::ast::Value to_json() const;
 };
 
 struct Operand_kinds
 {
+    struct Operand_kind
+    {
+        enum class Category
+        {
+            bit_enum,
+            value_enum,
+            id,
+            literal,
+            composite,
+        };
+        Category category;
+        static constexpr const char *get_json_name_from_category(Category category) noexcept
+        {
+            switch(category)
+            {
+            case Category::bit_enum:
+                return "BitEnum";
+            case Category::value_enum:
+                return "ValueEnum";
+            case Category::id:
+                return "Id";
+            case Category::literal:
+                return "Literal";
+            case Category::composite:
+                return "Composite";
+            }
+            return "";
+        }
+        std::string kind;
+        struct Enumerants
+        {
+            static constexpr const char *get_json_key_name() noexcept
+            {
+                return "enumerants";
+            }
+            struct Enumerant
+            {
 #warning finish
+                json::ast::Value to_json() const;
+            };
+            std::vector<Enumerant> enumerants;
+            explicit Enumerants(std::vector<Enumerant> enumerants) noexcept : enumerants(enumerants)
+            {
+            }
+            json::ast::Value to_json() const;
+        };
+        struct Doc
+        {
+            static constexpr const char *get_json_key_name() noexcept
+            {
+                return "doc";
+            }
+            std::string value;
+            json::ast::Value to_json() const;
+        };
+        struct Bases
+        {
+            static constexpr const char *get_json_key_name() noexcept
+            {
+                return "bases";
+            }
+            std::vector<std::string> values;
+            json::ast::Value to_json() const;
+        };
+        typedef util::variant<Enumerants, Doc, Bases> Value;
+        Value value;
+        static bool does_category_match_value(Category category, const Value &value) noexcept
+        {
+            switch(category)
+            {
+            case Category::bit_enum:
+            case Category::value_enum:
+                return util::holds_alternative<Enumerants>(value);
+            case Category::id:
+            case Category::literal:
+                return util::holds_alternative<Doc>(value);
+            case Category::composite:
+                return util::holds_alternative<Bases>(value);
+            }
+            return false;
+        }
+        static constexpr const char *get_value_json_key_name_from_category(
+            Category category) noexcept
+        {
+            switch(category)
+            {
+            case Category::bit_enum:
+            case Category::value_enum:
+                return Enumerants::get_json_key_name();
+            case Category::id:
+            case Category::literal:
+                return Doc::get_json_key_name();
+            case Category::composite:
+                return Bases::get_json_key_name();
+            }
+            return "";
+        }
+#warning finish
+        Operand_kind(Category category, std::string kind, Value value) noexcept
+            : category(category),
+              kind(kind),
+              value(std::move(value))
+        {
+        }
+        json::ast::Value to_json() const;
+    };
+    std::vector<Operand_kind> operand_kinds;
+    explicit Operand_kinds(std::vector<Operand_kind> operand_kinds) noexcept
+        : operand_kinds(std::move(operand_kinds))
+    {
+    }
+    json::ast::Value to_json() const;
 };
 
 struct Top_level
@@ -79,6 +194,7 @@ struct Top_level
           operand_kinds(std::move(operand_kinds))
     {
     }
+    json::ast::Value to_json() const;
 };
 }
 }
