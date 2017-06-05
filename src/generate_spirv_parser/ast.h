@@ -44,21 +44,39 @@ struct copyright
     }
 };
 
+struct instructions
+{
+#warning finish
+};
+
+struct operand_kinds
+{
+#warning finish
+};
+
 struct top_level
 {
     copyright copyright;
     std::uint32_t magic_number;
     std::size_t major_version;
     std::size_t minor_version;
-#warning finish adding members
+    std::size_t revision;
+    instructions instructions;
+    operand_kinds operand_kinds;
     top_level(ast::copyright copyright,
               std::uint32_t magic_number,
               std::size_t major_version,
-              std::size_t minor_version)
+              std::size_t minor_version,
+              std::size_t revision,
+              ast::instructions instructions,
+              ast::operand_kinds operand_kinds)
         : copyright(std::move(copyright)),
           magic_number(magic_number),
           major_version(major_version),
-          minor_version(minor_version)
+          minor_version(minor_version),
+          revision(revision),
+          instructions(std::move(instructions)),
+          operand_kinds(std::move(operand_kinds))
     {
     }
 };

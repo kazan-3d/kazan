@@ -80,6 +80,30 @@ ast::copyright parse_copyright(json::ast::value value, const path_builder_base *
     return ast::copyright(std::move(copyright_array));
 }
 
+ast::operand_kinds parse_operand_kinds(json::ast::value value,
+                                       const path_builder_base *parent_path_builder)
+{
+    if(json::ast::get_value_kind(value) != json::ast::value_kind::array)
+        throw parse_error(parent_path_builder->path(), "operand_kinds is not an array");
+    auto &operand_kinds_array =
+        static_cast<json::ast::array &>(*util::get<json::ast::composite_value_pointer>(value));
+    static_cast<void>(operand_kinds_array);
+#warning finish
+    return ast::operand_kinds();
+}
+
+ast::instructions parse_instructions(json::ast::value value,
+                                     const path_builder_base *parent_path_builder)
+{
+    if(json::ast::get_value_kind(value) != json::ast::value_kind::array)
+        throw parse_error(parent_path_builder->path(), "instructions is not an array");
+    auto &instructions_array =
+        static_cast<json::ast::array &>(*util::get<json::ast::composite_value_pointer>(value));
+    static_cast<void>(instructions_array);
+#warning finish
+    return ast::instructions();
+}
+
 template <typename T>
 T parse_integer(const json::ast::value &value,
                 const path_builder_base *parent_path_builder,
@@ -163,7 +187,9 @@ ast::top_level parse(json::ast::value &&top_level_value)
     util::optional<std::uint32_t> magic_number;
     util::optional<std::size_t> major_version;
     util::optional<std::size_t> minor_version;
-#warning finish adding ast::top_level members
+    util::optional<std::size_t> revision;
+    util::optional<ast::instructions> instructions;
+    util::optional<ast::operand_kinds> operand_kinds;
     for(auto &entry : top_level_object.values)
     {
         const auto &key = std::get<0>(entry);
@@ -186,16 +212,32 @@ ast::top_level parse(json::ast::value &&top_level_value)
         {
             minor_version = parse_integer<std::size_t>(entry_value, &path_builder, "minor_version");
         }
+        else if(key == "revision")
+        {
+            revision = parse_integer<std::size_t>(entry_value, &path_builder, "revision");
+        }
+        else if(key == "instructions")
+        {
+            instructions = parse_instructions(std::move(entry_value), &path_builder);
+        }
+        else if(key == "operand_kinds")
+        {
+            operand_kinds = parse_operand_kinds(std::move(entry_value), &path_builder);
+        }
         else
         {
             throw parse_error(path_builder.path(), "unknown key");
         }
     }
-    return ast::top_level(
+    auto retval = ast::top_level(
         get_value_or_throw_parse_error(std::move(copyright), nullptr, "missing copyright"),
         get_value_or_throw_parse_error(magic_number, nullptr, "missing magic_number"),
         get_value_or_throw_parse_error(major_version, nullptr, "missing major_version"),
-        get_value_or_throw_parse_error(minor_version, nullptr, "missing minor_version"));
+        get_value_or_throw_parse_error(minor_version, nullptr, "missing minor_version"),
+        get_value_or_throw_parse_error(revision, nullptr, "missing revision"),
+        get_value_or_throw_parse_error(instructions, nullptr, "missing instructions"),
+        get_value_or_throw_parse_error(operand_kinds, nullptr, "missing operand_kinds"));
+    throw parse_error({}, "not finished implementing");
 }
 }
 }
