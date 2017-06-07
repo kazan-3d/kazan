@@ -25,7 +25,7 @@
 #include "../json/parser.h"
 #include "parser.h"
 #include "../util/optional.h"
-#include <fstream>
+#include "generate.h"
 
 namespace vulkan_cpu
 {
@@ -34,11 +34,15 @@ namespace generate_spirv_parser
 int generate_spirv_parser_main(int argc, char **argv)
 {
     std::string file_name;
+    std::string output_directory;
     if(argc >= 2)
         file_name = argv[1];
-    if(argc != 2 || (file_name.size() > 1 && file_name[0] == '-'))
+    if(argc >= 3)
+        output_directory = argv[2];
+    if(argc != 3 || (file_name.size() > 1 && file_name[0] == '-')
+       || (output_directory.size() > 1 && output_directory[0] == '-'))
     {
-        std::cerr << "usage: " << argv[0] << " <input.json>" << std::endl;
+        std::cerr << "usage: " << argv[0] << " <input.json> <output-directory>" << std::endl;
         return 1;
     }
     try
@@ -49,18 +53,11 @@ int generate_spirv_parser_main(int argc, char **argv)
         {
             auto json_in = json::parse(&source);
             auto ast = parser::parse(json_in.duplicate());
-            std::ofstream os("out.json");
-            auto json_out = ast.to_json();
-            json::write(os, json_out, json::Write_options::pretty());
-            os.close();
-            auto difference = json::Difference::find_difference(json_in, json_out);
-            if(difference)
+            for(auto &generator : {
+                    generate::Generators::make_spirv_header_generator(),
+                })
             {
-                std::cerr << "differs at " << difference->append_to_string("root") << std::endl;
-            }
-            else
-            {
-                std::cerr << "no difference" << std::endl;
+                generator->run(generate::Generator::Generator_args(output_directory), ast);
             }
 #warning finish
             std::cerr << "generate_spirv_parser is not finished being implemented" << std::endl;
