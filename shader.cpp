@@ -1,8 +1,61 @@
+#ifndef RECURSIVE_INVOCATION
+#define UNIQUEIFY3(v, c) v ## _ ## c
+#define UNIQUEIFY2(v, c) UNIQUEIFY3(v, c)
+#define UNIQUEIFY(v) UNIQUEIFY2(v, __COUNTER__)
+// following is code to include the body of this file pow(2, 7) times
+#define RECURSIVE_INVOCATION 1
+#include "shader.cpp"
+#undef RECURSIVE_INVOCATION
+#define RECURSIVE_INVOCATION 1
+#include "shader.cpp"
+#elif RECURSIVE_INVOCATION == 1
+#undef RECURSIVE_INVOCATION
+#define RECURSIVE_INVOCATION 2
+#include "shader.cpp"
+#undef RECURSIVE_INVOCATION
+#define RECURSIVE_INVOCATION 2
+#include "shader.cpp"
+#elif RECURSIVE_INVOCATION == 2
+#undef RECURSIVE_INVOCATION
+#define RECURSIVE_INVOCATION 3
+#include "shader.cpp"
+#undef RECURSIVE_INVOCATION
+#define RECURSIVE_INVOCATION 3
+#include "shader.cpp"
+#elif RECURSIVE_INVOCATION == 3
+#undef RECURSIVE_INVOCATION
+#define RECURSIVE_INVOCATION 4
+#include "shader.cpp"
+#undef RECURSIVE_INVOCATION
+#define RECURSIVE_INVOCATION 4
+#include "shader.cpp"
+#elif RECURSIVE_INVOCATION == 4
+#undef RECURSIVE_INVOCATION
+#define RECURSIVE_INVOCATION 5
+#include "shader.cpp"
+#undef RECURSIVE_INVOCATION
+#define RECURSIVE_INVOCATION 5
+#include "shader.cpp"
+#elif RECURSIVE_INVOCATION == 5
+#undef RECURSIVE_INVOCATION
+#define RECURSIVE_INVOCATION 6
+#include "shader.cpp"
+#undef RECURSIVE_INVOCATION
+#define RECURSIVE_INVOCATION 6
+#include "shader.cpp"
+#elif RECURSIVE_INVOCATION == 6
+#undef RECURSIVE_INVOCATION
+#define RECURSIVE_INVOCATION 7
+#include "shader.cpp"
+#undef RECURSIVE_INVOCATION
+#define RECURSIVE_INVOCATION 7
+#include "shader.cpp"
+#elif RECURSIVE_INVOCATION == 7
 #include <cstdint>
 #include <cmath>
 #include <limits>
 
-namespace shader
+namespace UNIQUEIFY(shader)
 {
 constexpr float max(float a, float b) noexcept
 {
@@ -540,7 +593,7 @@ static void loop(int i,
     SHb += DirToSh(RSM_to_RH_dir, color.b());
 }
 
-extern "C" void shader_main(void) noexcept
+void shader_main(void) noexcept
 {
     vec3 normalizedRHCenter = 2.f * vec3(gl_FragCoord.xy(), slice) / resolution - 1.f;
     vec3 RHcenter = (RHMatrix * vec4(normalizedRHCenter * extents, 1.f)).xyz();
@@ -555,8 +608,8 @@ extern "C" void shader_main(void) noexcept
     vec4  SHg = vec4(0.f);
     vec4  SHb = vec4(0.f);
 
-    int x = int(gl_FragCoord.x), y = int(gl_FragCoord.y);
-    float phi = 30.f * (x ^ y) + 10.f * x * y;
+    //int x = int(gl_FragCoord.x), y = int(gl_FragCoord.y);
+    //float phi = 30.f * (x ^ y) + 10.f * x * y;
 
     loop(0, RHcenter, RHCellSize, RHuv, RHdepth, SHr, SHg, SHb);
     loop(1, RHcenter, RHCellSize, RHuv, RHdepth, SHr, SHg, SHb);
@@ -584,3 +637,4 @@ extern "C" void shader_main(void) noexcept
     SHBlue = SHb;
 }
 }
+#endif
