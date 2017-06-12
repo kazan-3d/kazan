@@ -34,7 +34,7 @@ if(${do_generate_spirv_parser})
 
     add_custom_command(OUTPUT ${spirv_parser_sources} ${spirv_parser_headers}
                        COMMAND ${CMAKE_COMMAND} -E make_directory ${spirv_parser_generated_dir}
-                       COMMAND ${CMAKE_COMMAND} -E chdir ${spirv_parser_generated_dir} $<TARGET_FILE:generate_spirv_parser> ${spirv_core_grammar_json} ${spirv_parser_generated_dir}
+                       COMMAND ${CMAKE_COMMAND} -E chdir ${spirv_parser_generated_include_dir} $<TARGET_FILE:generate_spirv_parser> ${spirv_core_grammar_json} spirv
                        MAIN_DEPENDENCY ${spirv_core_grammar_json}
                        DEPENDS $<TARGET_FILE:generate_spirv_parser>
                        VERBATIM

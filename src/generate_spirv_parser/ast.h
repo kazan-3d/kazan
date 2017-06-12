@@ -45,6 +45,11 @@ struct Copyright
     {
     }
     json::ast::Value to_json() const;
+    template <typename Fn>
+    void visit(Fn fn) const
+    {
+        fn(*this);
+    }
 };
 
 struct Capabilities
@@ -62,6 +67,11 @@ struct Capabilities
         return capabilities.empty();
     }
     json::ast::Value to_json() const;
+    template <typename Fn>
+    void visit(Fn fn) const
+    {
+        fn(*this);
+    }
 };
 
 struct Extensions
@@ -79,6 +89,11 @@ struct Extensions
         return extensions.empty();
     }
     json::ast::Value to_json() const;
+    template <typename Fn>
+    void visit(Fn fn) const
+    {
+        fn(*this);
+    }
 };
 
 struct Instructions
@@ -118,6 +133,11 @@ struct Instructions
                 {
                 }
                 json::ast::Value to_json() const;
+                template <typename Fn>
+                void visit(Fn fn) const
+                {
+                    fn(*this);
+                }
             };
             std::vector<Operand> operands;
             Operands() : operands()
@@ -132,6 +152,13 @@ struct Instructions
                 return operands.empty();
             }
             json::ast::Value to_json() const;
+            template <typename Fn>
+            void visit(Fn fn) const
+            {
+                fn(*this);
+                for(auto &operand : operands)
+                    operand.visit(fn);
+            }
         };
         std::string opname;
         std::uint32_t opcode;
@@ -147,6 +174,13 @@ struct Instructions
         {
         }
         json::ast::Value to_json() const;
+        template <typename Fn>
+        void visit(Fn fn) const
+        {
+            fn(*this);
+            operands.visit(fn);
+            capabilities.visit(fn);
+        }
     };
     std::vector<Instruction> instructions;
     explicit Instructions(std::vector<Instruction> instructions) noexcept
@@ -154,6 +188,13 @@ struct Instructions
     {
     }
     json::ast::Value to_json() const;
+    template <typename Fn>
+    void visit(Fn fn) const
+    {
+        fn(*this);
+        for(auto &instruction : instructions)
+            instruction.visit(fn);
+    }
 };
 
 struct Operand_kinds
@@ -210,6 +251,11 @@ struct Operand_kinds
                         {
                         }
                         json::ast::Value to_json() const;
+                        template <typename Fn>
+                        void visit(Fn fn) const
+                        {
+                            fn(*this);
+                        }
                     };
                     std::vector<Parameter> parameters;
                     Parameters() : parameters()
@@ -223,6 +269,13 @@ struct Operand_kinds
                     bool empty() const noexcept
                     {
                         return parameters.empty();
+                    }
+                    template <typename Fn>
+                    void visit(Fn fn) const
+                    {
+                        fn(*this);
+                        for(auto &parameter : parameters)
+                            parameter.visit(fn);
                     }
                 };
                 Parameters parameters;
@@ -239,6 +292,14 @@ struct Operand_kinds
                 {
                 }
                 json::ast::Value to_json(bool is_bit_enumerant) const;
+                template <typename Fn>
+                void visit(Fn fn) const
+                {
+                    fn(*this);
+                    capabilities.visit(fn);
+                    parameters.visit(fn);
+                    extensions.visit(fn);
+                }
             };
             std::vector<Enumerant> enumerants;
             explicit Enumerants(std::vector<Enumerant> enumerants) noexcept : enumerants(enumerants)
@@ -248,6 +309,13 @@ struct Operand_kinds
             json::ast::Value to_json(Category category) const
             {
                 return to_json(category == Category::bit_enum);
+            }
+            template <typename Fn>
+            void visit(Fn fn) const
+            {
+                fn(*this);
+                for(auto &enumerant : enumerants)
+                    enumerant.visit(fn);
             }
         };
         struct Doc
@@ -266,6 +334,11 @@ struct Operand_kinds
             {
                 return to_json();
             }
+            template <typename Fn>
+            void visit(Fn fn) const
+            {
+                fn(*this);
+            }
         };
         struct Bases
         {
@@ -282,6 +355,11 @@ struct Operand_kinds
             json::ast::Value to_json(Category category) const
             {
                 return to_json();
+            }
+            template <typename Fn>
+            void visit(Fn fn) const
+            {
+                fn(*this);
             }
         };
         typedef util::variant<Enumerants, Doc, Bases> Value;
@@ -324,6 +402,17 @@ struct Operand_kinds
         {
         }
         json::ast::Value to_json() const;
+        template <typename Fn>
+        void visit(Fn fn) const
+        {
+            fn(*this);
+            util::visit(
+                [&](auto &&value)
+                {
+                    value.visit(fn);
+                },
+                value);
+        }
     };
     std::vector<Operand_kind> operand_kinds;
     explicit Operand_kinds(std::vector<Operand_kind> operand_kinds) noexcept
@@ -331,6 +420,13 @@ struct Operand_kinds
     {
     }
     json::ast::Value to_json() const;
+    template <typename Fn>
+    void visit(Fn fn) const
+    {
+        fn(*this);
+        for(auto &operand_kind : operand_kinds)
+            operand_kind.visit(fn);
+    }
 };
 
 struct Top_level
@@ -359,6 +455,14 @@ struct Top_level
     {
     }
     json::ast::Value to_json() const;
+    template <typename Fn>
+    void visit(Fn fn) const
+    {
+        fn(*this);
+        copyright.visit(fn);
+        instructions.visit(fn);
+        operand_kinds.visit(fn);
+    }
 };
 }
 }

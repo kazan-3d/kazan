@@ -30,6 +30,8 @@
 #include <string>
 #include <cassert>
 #include <type_traits>
+#include <cstdint>
+#include <unordered_set>
 
 namespace vulkan_cpu
 {
@@ -54,11 +56,13 @@ public:
     };
 
 protected:
+    class Push_indent;
     struct Generator_state
     {
         Generator_args &generator_args;
         std::size_t indent_level;
         std::string full_output_file_name;
+        std::string guard_macro_name;
         std::ofstream os;
         explicit Generator_state(const Generator *generator, Generator_args &generator_args);
         void open_output_file();
@@ -68,6 +72,7 @@ protected:
             os << std::forward<T>(v);
             return *this;
         }
+        Push_indent pushed_indent() noexcept;
     };
     class Push_indent final
     {
@@ -108,11 +113,68 @@ protected:
         }
     };
     static constexpr Indent_t indent{};
+    enum class Integer_literal_base
+    {
+        dec = 0,
+        hex,
+        oct
+    };
+    struct Unsigned_integer_literal
+    {
+        std::uint64_t value;
+        Integer_literal_base base;
+        std::size_t minimum_digit_count;
+        constexpr Unsigned_integer_literal(std::uint64_t value,
+                                           Integer_literal_base base,
+                                           std::size_t minimum_digit_count = 1) noexcept
+            : value(value),
+              base(base),
+              minimum_digit_count(minimum_digit_count)
+        {
+        }
+        friend Generator_state &operator<<(Generator_state &state, Unsigned_integer_literal v)
+        {
+            write_unsigned_integer_literal(state, v.value, v.base, v.minimum_digit_count);
+            return state;
+        }
+    };
+    static constexpr Unsigned_integer_literal unsigned_dec_integer_literal(
+        std::uint64_t value) noexcept
+    {
+        return Unsigned_integer_literal(value, Integer_literal_base::dec);
+    }
+    static constexpr Unsigned_integer_literal unsigned_hex_integer_literal(
+        std::uint64_t value, std::size_t minimum_digit_count = 1) noexcept
+    {
+        return Unsigned_integer_literal(value, Integer_literal_base::hex, minimum_digit_count);
+    }
+    static constexpr Unsigned_integer_literal unsigned_oct_integer_literal(
+        std::uint64_t value, std::size_t minimum_digit_count = 1) noexcept
+    {
+        return Unsigned_integer_literal(value, Integer_literal_base::oct, minimum_digit_count);
+    }
+    struct Signed_integer_literal
+    {
+        std::int64_t value;
+        constexpr explicit Signed_integer_literal(std::int64_t value) noexcept : value(value)
+        {
+        }
+        friend Generator_state &operator<<(Generator_state &state, Signed_integer_literal v)
+        {
+            write_signed_integer_literal(state, v.value);
+            return state;
+        }
+    };
+    static constexpr Signed_integer_literal signed_integer_literal(std::int64_t value) noexcept
+    {
+        return Signed_integer_literal(value);
+    }
 
 protected:
     const char *const output_base_file_name;
 
 protected:
+    static std::string get_guard_macro_name_from_file_name(std::string file_name);
     static void write_indent(Generator_state &state);
     static void write_automatically_generated_file_warning(Generator_state &state);
     static void write_copyright_comment(Generator_state &state, const ast::Copyright &copyright);
@@ -121,6 +183,101 @@ protected:
         write_automatically_generated_file_warning(state);
         write_copyright_comment(state, copyright);
     }
+    static void write_file_guard_start(Generator_state &state);
+    static void write_file_guard_end(Generator_state &state);
+    static void write_namespace_start(Generator_state &state, const char *namespace_name);
+    static void write_namespace_start(Generator_state &state, const std::string &namespace_name);
+
+private:
+    static void write_namespace_end(Generator_state &state);
+
+protected:
+    static void write_namespace_end(Generator_state &state, const char *namespace_name)
+    {
+        write_namespace_end(state);
+    }
+    static void write_namespace_end(Generator_state &state, const std::string &namespace_name)
+    {
+        write_namespace_end(state);
+    }
+    static void write_namespaces_start(Generator_state &state,
+                                       const char *const *namespace_names,
+                                       std::size_t namespace_name_count)
+    {
+        for(std::size_t i = 0; i < namespace_name_count; i++)
+            write_namespace_start(state, namespace_names[i]);
+    }
+    static void write_namespaces_start(Generator_state &state,
+                                       const std::string *namespace_names,
+                                       std::size_t namespace_name_count)
+    {
+        for(std::size_t i = 0; i < namespace_name_count; i++)
+            write_namespace_start(state, namespace_names[i]);
+    }
+    static void write_namespaces_end(Generator_state &state,
+                                     const char *const *namespace_names,
+                                     std::size_t namespace_name_count)
+    {
+        for(std::size_t i = 0; i < namespace_name_count; i++)
+            write_namespace_end(state, namespace_names[namespace_name_count - i - 1]);
+        state << '\n';
+    }
+    static void write_namespaces_end(Generator_state &state,
+                                     const std::string *namespace_names,
+                                     std::size_t namespace_name_count)
+    {
+        for(std::size_t i = 0; i < namespace_name_count; i++)
+            write_namespace_end(state, namespace_names[namespace_name_count - i - 1]);
+        state << '\n';
+    }
+    template <typename T, std::size_t N>
+    static void write_namespaces_start(Generator_state &state, const T(&namespace_names)[N])
+    {
+        write_namespaces_start(state, namespace_names, N);
+    }
+    template <typename T, std::size_t N>
+    static void write_namespaces_end(Generator_state &state, const T(&namespace_names)[N])
+    {
+        write_namespaces_end(state, namespace_names, N);
+    }
+    static void write_namespaces_start(Generator_state &state,
+                                       std::initializer_list<std::string> namespace_names)
+    {
+        write_namespaces_start(state, namespace_names.begin(), namespace_names.size());
+    }
+    static void write_namespaces_start(Generator_state &state,
+                                       std::initializer_list<const char *> namespace_names)
+    {
+        write_namespaces_start(state, namespace_names.begin(), namespace_names.size());
+    }
+    static void write_namespaces_end(Generator_state &state,
+                                     std::initializer_list<std::string> namespace_names)
+    {
+        write_namespaces_end(state, namespace_names.begin(), namespace_names.size());
+    }
+    static void write_namespaces_end(Generator_state &state,
+                                     std::initializer_list<const char *> namespace_names)
+    {
+        write_namespaces_end(state, namespace_names.begin(), namespace_names.size());
+    }
+    static void write_unsigned_integer_literal(Generator_state &state,
+                                               std::uint64_t value,
+                                               Integer_literal_base base,
+                                               std::size_t minimum_digit_count);
+    static void write_signed_integer_literal(Generator_state &state, std::int64_t value);
+
+private:
+    struct Get_extensions_visitor;
+
+protected:
+    static std::unordered_set<std::string> get_extensions(const ast::Top_level &top_level);
+
+protected:
+    static constexpr const char *vulkan_cpu_namespace_name = "vulkan_cpu";
+    static constexpr const char *spirv_namespace_name = "spirv";
+    static constexpr const char *spirv_namespace_names[] = {
+        vulkan_cpu_namespace_name, spirv_namespace_name,
+    };
 
 public:
     explicit Generator(const char *output_base_file_name) noexcept
@@ -136,6 +293,11 @@ public:
 public:
     virtual ~Generator() = default;
 };
+
+inline Generator::Push_indent Generator::Generator_state::pushed_indent() noexcept
+{
+    return Push_indent(*this);
+}
 
 struct Spirv_header_generator;
 
