@@ -21,7 +21,7 @@
  *
  */
 #include "parser.h"
-#include "../util/optional.h"
+#include "util/optional.h"
 #include <sstream>
 #include <limits>
 #include <iostream>

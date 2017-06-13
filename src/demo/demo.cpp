@@ -26,8 +26,8 @@
 #include <array>
 #include <type_traits>
 #include <string>
-#include "../spirv/spirv.h"
-#include "../util/optional.h"
+#include "spirv/spirv.h"
+#include "util/optional.h"
 
 namespace vulkan_cpu
 {

@@ -32,7 +32,7 @@
 #include "json.h"
 #include "source.h"
 #include "location.h"
-#include "../util/optional.h"
+#include "util/optional.h"
 
 namespace vulkan_cpu
 {

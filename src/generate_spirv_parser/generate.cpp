@@ -253,7 +253,8 @@ struct Spirv_header_generator final : public Generator
         state.open_output_file();
         write_file_comments(state, top_level.copyright);
         write_file_guard_start(state);
-        state << "#include <cstdint>\n";
+        state << "#include <cstdint>\n"
+                 "#include \"util/bitset.h\"\n";
         state << "\n";
         write_namespaces_start(state, spirv_namespace_names);
         state << "typedef std::uint32_t Word;\n";
@@ -272,7 +273,7 @@ struct Spirv_header_generator final : public Generator
             extensions_list.push_back(extension);
         std::sort(extensions_list.begin(), extensions_list.end());
         state << "\n"
-                 "enum class Extension\n"
+                 "enum class Extension : std::size_t\n"
                  "{\n";
         {
             auto push_indent = state.pushed_indent();
@@ -280,6 +281,10 @@ struct Spirv_header_generator final : public Generator
                 state << indent << extension << ",\n";
         }
         state << "};\n"
+                 "\n"
+                 "constexpr std::size_t Extension_count = "
+              << unsigned_dec_integer_literal(extensions_list.size())
+              << ";\n"
                  "\n"
                  "constexpr const char *get_extension_name(Extension extension) noexcept\n"
                  "{\n";
@@ -308,10 +313,8 @@ struct Spirv_header_generator final : public Generator
             });
         for(auto *operand_kind : operand_kinds)
         {
-            switch(operand_kind->category)
-            {
-            case ast::Operand_kinds::Operand_kind::Category::value_enum:
-            case ast::Operand_kinds::Operand_kind::Category::bit_enum:
+            if(util::holds_alternative<ast::Operand_kinds::Operand_kind::Enumerants>(
+                   operand_kind->value))
             {
                 auto &enumerants =
                     util::get<ast::Operand_kinds::Operand_kind::Enumerants>(operand_kind->value);
@@ -332,9 +335,6 @@ struct Spirv_header_generator final : public Generator
                 }
                 push_indent.finish();
                 state << "};\n";
-                break;
-            }
-#warning finish
             }
         }
 

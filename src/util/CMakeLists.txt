@@ -20,6 +20,7 @@
 #
 cmake_minimum_required(VERSION 3.1 FATAL_ERROR)
 set(sources bit_intrinsics.cpp
+            bitset.cpp
             copy_cv_ref.cpp
             in_place.cpp
             invoke.cpp

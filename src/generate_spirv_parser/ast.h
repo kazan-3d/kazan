@@ -24,7 +24,7 @@
 #ifndef GENERATE_SPIRV_PARSER_AST_H_
 #define GENERATE_SPIRV_PARSER_AST_H_
 
-#include "../json/json.h"
+#include "json/json.h"
 #include <cstdint>
 #include <vector>
 #include <string>

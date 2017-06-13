@@ -21,10 +21,10 @@
  *
  */
 #include <iostream>
-#include "../json/json.h"
-#include "../json/parser.h"
+#include "json/json.h"
+#include "json/parser.h"
 #include "parser.h"
-#include "../util/optional.h"
+#include "util/optional.h"
 #include "generate.h"
 
 namespace vulkan_cpu

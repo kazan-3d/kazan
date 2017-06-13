@@ -29,9 +29,9 @@
 #include <cassert>
 #include <string>
 #include <vector>
-#include "../util/variant.h"
-#include "../json/json.h"
-#include "../json/parser.h"
+#include "util/variant.h"
+#include "json/json.h"
+#include "json/parser.h"
 
 namespace vulkan_cpu
 {

@@ -35,8 +35,8 @@
 #include <cassert>
 #include <cmath>
 #include <list>
-#include "../util/variant.h"
-#include "../util/optional.h"
+#include "util/variant.h"
+#include "util/optional.h"
 #include "location.h"
 
 namespace vulkan_cpu
