@@ -26,6 +26,7 @@
 
 #include <type_traits>
 #include <utility>
+#include <iterator>
 #include "constexpr_array.h"
 #include "bitset.h"
 
@@ -193,17 +194,247 @@ static constexpr Enum_values<Enum, sizeof...(Values)> Default_enum_traits<Enum, 
     ::vulkan_cpu::util::detail::Default_enum_traits<__VA_ARGS__> enum_traits_resolve_function(Enum);
 }
 
+/** behaves like a std::set<T> */
 template <typename T>
 class Enum_set
 {
 private:
-    util::bitset<Enum_traits<T>::value_count> bits;
+    typedef util::bitset<Enum_traits<T>::value_count> Bits;
 
 public:
-    constexpr enum_set() noexcept : bits(0)
+    typedef T key_type;
+    typedef T value_type;
+    typedef std::size_t size_type;
+    typedef std::ptrdiff_t difference_type;
+    typedef T &reference;
+    typedef const T &const_reference;
+    typedef T *pointer;
+    typedef const T *const_pointer;
+    class iterator
+    {
+        template <typename>
+        friend class Enum_set;
+
+    public:
+        typedef std::ptrdiff_t difference_type;
+        typedef T value_type;
+        typedef const T *pointer;
+        typedef const T &reference;
+        std::bidirectional_iterator_tag iterator_category;
+
+    private:
+        const Enum_set *enum_set;
+        std::size_t index;
+
+    public:
+        constexpr iterator() noexcept : enum_set(nullptr), index(0)
+        {
+        }
+
+    private:
+        constexpr iterator(const Enum_set *enum_set, std::size_t index) noexcept
+            : enum_set(enum_set),
+              index(index)
+        {
+        }
+        static constexpr iterator first_at_or_after(const Enum_set *enum_set,
+                                                    std::size_t index) noexcept
+        {
+            return iterator(enum_set, enum_set->bits.find_first(true, index));
+        }
+        static constexpr iterator first_at_or_before(const Enum_set *enum_set,
+                                                     std::size_t index) noexcept
+        {
+            return iterator(enum_set, enum_set->bits.find_last(true, index));
+        }
+
+    public:
+        constexpr bool operator==(const iterator &rt) const noexcept
+        {
+            return index == rt.index && enum_set == rt.enum_set;
+        }
+        constexpr bool operator!=(const iterator &rt) const noexcept
+        {
+            return !operator==(rt);
+        }
+        constexpr iterator &operator++() noexcept
+        {
+            *this = first_at_or_after(enum_set, index + 1);
+            return *this;
+        }
+        constexpr iterator &operator--() noexcept
+        {
+            *this = first_at_or_before(enum_set, index - 1);
+            return *this;
+        }
+        constexpr iterator operator++(int) noexcept
+        {
+            auto retval = *this;
+            operator++();
+            return retval;
+        }
+        constexpr iterator operator--(int) noexcept
+        {
+            auto retval = *this;
+            operator--();
+            return retval;
+        }
+        constexpr const T &operator*() const noexcept
+        {
+            return Enum_traits<T>::values[index];
+        }
+        constexpr const T *operator->() const noexcept
+        {
+            return &operator*();
+        }
+    };
+    typedef iterator const_iterator;
+    typedef std::reverse_iterator<iterator> reverse_iterator;
+    typedef reverse_iterator reverse_const_iterator;
+
+private:
+    Bits bits;
+
+public:
+    constexpr Enum_set() noexcept : bits(0)
     {
     }
-#warning finish
+    template <typename Iter>
+    constexpr Enum_set(Iter first, Iter last)
+        : Enum_set()
+    {
+        insert(std::move(first), std::move(last));
+    }
+    constexpr Enum_set(std::initializer_list<T> il) noexcept : Enum_set(il.begin(), il.end())
+    {
+    }
+    constexpr Enum_set &operator=(std::initializer_list<T> il) noexcept
+    {
+        *this = Enum_set(il);
+        return *this;
+    }
+    constexpr iterator begin() const noexcept
+    {
+        return iterator::first_at_or_after(this, 0);
+    }
+    constexpr iterator end() const noexcept
+    {
+        return iterator(this, Bits::npos);
+    }
+    constexpr iterator cbegin() const noexcept
+    {
+        return begin();
+    }
+    constexpr iterator cend() const noexcept
+    {
+        return end();
+    }
+    constexpr bool empty() const noexcept
+    {
+        return bits.none();
+    }
+    constexpr std::size_t size() const noexcept
+    {
+        return bits.count();
+    }
+    constexpr std::size_t max_size() const noexcept
+    {
+        return bits.size();
+    }
+    constexpr void clear() noexcept
+    {
+        bits = Bits();
+    }
+    constexpr std::pair<iterator, bool> insert(T value) noexcept
+    {
+        std::size_t index = Enum_traits<T>::find_value(value);
+        bool inserted = !bits[index];
+        bits[index] = true;
+        return {iterator(this, index), inserted};
+    }
+    constexpr iterator insert(iterator hint, T value) noexcept
+    {
+        std::size_t index = Enum_traits<T>::find_value(value);
+        bits[index] = true;
+        return iterator(this, index);
+    }
+    template <typename Iter>
+    constexpr void insert(Iter first, Iter last)
+    {
+        for(; first != last; ++first)
+            insert(*first);
+    }
+    constexpr void insert(std::initializer_list<T> il) noexcept
+    {
+        insert(il.begin(), il.end());
+    }
+    template <typename... Args>
+    std::pair<iterator, bool> emplace(Args &&... args)
+    {
+        return insert(T(std::forward<Args>(args)...));
+    }
+    template <typename... Args>
+    iterator emplace_hint(iterator hint, Args &&... args)
+    {
+        return insert(hint, T(std::forward<Args>(args)...));
+    }
+    constexpr std::size_t erase(T value) noexcept
+    {
+        std::size_t index = Enum_traits<T>::find_value(value);
+        std::size_t retval = 0;
+        if(index < bits.size())
+        {
+            retval = bits[index] ? 1 : 0;
+            bits[index] = false;
+        }
+        return retval;
+    }
+    constexpr iterator erase(iterator pos) noexcept
+    {
+        auto retval = pos;
+        ++retval;
+        bits[pos.index] = false;
+        return retval;
+    }
+    constexpr iterator erase(iterator first, iterator last) noexcept
+    {
+        while(first != last)
+            first = erase(first);
+        return first;
+    }
+    /** invalidates all iterators, all references still valid because they are bound to static
+     * objects */
+    constexpr void swap(Enum_set &other) noexcept
+    {
+        using std::swap;
+        swap(bits, other.bits);
+    }
+    constexpr std::size_t count(T value) const noexcept
+    {
+        std::size_t index = Enum_traits<T>::find_value(value);
+        if(index < bits.size() && bits[index])
+            return 1;
+        return 0;
+    }
+    constexpr iterator find(T value) const noexcept
+    {
+        std::size_t index = Enum_traits<T>::find_value(value);
+        if(index < bits.size() && bits[index])
+            return iterator(this, index);
+        return 0;
+    }
+    std::pair<iterator, iterator> equal_range(T value) const noexcept
+    {
+        std::size_t index = Enum_traits<T>::find_value(value);
+        if(index < bits.size() && bits[index])
+        {
+            auto first = iterator(this, index);
+            auto last = first;
+            ++last;
+            return {first, last};
+        }
+        return {end(), end()};
+    }
 };
 }
 }
