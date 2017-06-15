@@ -190,8 +190,11 @@ struct Default_enum_traits
 
 template <typename Enum, Enum... Values>
 static constexpr Enum_values<Enum, sizeof...(Values)> Default_enum_traits<Enum, Values...>::values;
+/** generate code for Enum_traits instantiation; use like
+ * <code>vulkan_cpu_util_generate_enum_traits(Enum, Enum::Value1, Enum::Value2, Enum::Value3,
+ * <...>);</code> */
 #define vulkan_cpu_util_generate_enum_traits(...) \
-    ::vulkan_cpu::util::detail::Default_enum_traits<__VA_ARGS__> enum_traits_resolve_function(Enum);
+    ::vulkan_cpu::util::detail::Default_enum_traits<__VA_ARGS__> enum_traits_resolve_function(Enum)
 }
 
 /** behaves like a std::set<T> */

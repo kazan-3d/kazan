@@ -52,6 +52,8 @@ constexpr Generator::Indent_t Generator::indent;
 constexpr const char *Generator::vulkan_cpu_namespace_name;
 constexpr const char *Generator::spirv_namespace_name;
 constexpr const char *Generator::spirv_namespace_names[];
+constexpr const char *Generator::extension_enum_name;
+constexpr const char *Generator::capability_enum_name;
 
 std::string Generator::get_guard_macro_name_from_file_name(std::string file_name)
 {
@@ -86,6 +88,35 @@ std::string Generator::get_guard_macro_name_from_file_name(std::string file_name
         retval.insert(1, "u");
     }
     return retval;
+}
+
+namespace
+{
+constexpr bool is_identifier_start(char ch) noexcept
+{
+    if(ch >= 'A' && ch <= 'Z')
+        return true;
+    if(ch >= 'a' && ch <= 'z')
+        return true;
+    return ch == '_';
+}
+}
+
+std::string Generator::get_enumerant_name(const char *enumeration_name,
+                                          std::size_t enumeration_name_size,
+                                          std::string enumerant_name)
+{
+    bool need_prefix;
+    if(enumerant_name.compare(0, enumeration_name_size, enumeration_name, enumeration_name_size)
+       == 0)
+        need_prefix = true; // ensure that we don't end up with name collisions
+    else if(enumerant_name.empty())
+        need_prefix = true; // return something other than the empty string
+    else
+        need_prefix = !is_identifier_start(enumerant_name[0]);
+    if(need_prefix)
+        return std::move(enumerant_name.insert(0, enumeration_name, enumeration_name_size));
+    return enumerant_name;
 }
 
 void Generator::write_indent(Generator_state &state)
@@ -221,6 +252,33 @@ std::unordered_set<std::string> Generator::get_extensions(const ast::Top_level &
     return retval;
 }
 
+void Generator::write_capabilities_set(Generator_state &state,
+                                       const ast::Capabilities &capabilities)
+{
+    state << "util::Enum_set<" << capability_enum_name << ">{";
+    auto separator = "";
+    for(auto &capability : capabilities.capabilities)
+    {
+        state << separator << capability_enum_name
+              << "::" << get_enumerant_name(capability_enum_name, capability);
+        separator = ", ";
+    }
+    state << "}";
+}
+
+void Generator::write_extensions_set(Generator_state &state, const ast::Extensions &extensions)
+{
+    state << "util::Enum_set<" << extension_enum_name << ">{";
+    auto separator = "";
+    for(auto &extension : extensions.extensions)
+    {
+        state << separator << extension_enum_name
+              << "::" << get_enumerant_name(extension_enum_name, extension);
+        separator = ", ";
+    }
+    state << "}";
+}
+
 struct Spirv_header_generator final : public Generator
 {
     Spirv_header_generator() : Generator("spirv.h")
@@ -233,7 +291,7 @@ struct Spirv_header_generator final : public Generator
     };
     static Enum_priority get_enum_priority(const std::string &enum_name) noexcept
     {
-        if(enum_name == "Capability")
+        if(enum_name == capability_enum_name)
             return Enum_priority::capability;
         return Enum_priority::default_priority;
     }
@@ -254,7 +312,7 @@ struct Spirv_header_generator final : public Generator
         write_file_comments(state, top_level.copyright);
         write_file_guard_start(state);
         state << "#include <cstdint>\n"
-                 "#include \"util/bitset.h\"\n";
+                 "#include \"util/enum.h\"\n";
         state << "\n";
         write_namespaces_start(state, spirv_namespace_names);
         state << "typedef std::uint32_t Word;\n";
@@ -273,27 +331,36 @@ struct Spirv_header_generator final : public Generator
             extensions_list.push_back(extension);
         std::sort(extensions_list.begin(), extensions_list.end());
         state << "\n"
-                 "enum class Extension : std::size_t\n"
-                 "{\n";
+                 "enum class "
+              << extension_enum_name << " : std::size_t\n"
+                                        "{\n";
         {
             auto push_indent = state.pushed_indent();
             for(auto &extension : extensions_list)
-                state << indent << extension << ",\n";
+                state << indent << get_enumerant_name(extension_enum_name, extension) << ",\n";
         }
         state << "};\n"
                  "\n"
-                 "constexpr std::size_t Extension_count = "
-              << unsigned_dec_integer_literal(extensions_list.size())
-              << ";\n"
-                 "\n"
-                 "constexpr const char *get_extension_name(Extension extension) noexcept\n"
-                 "{\n";
+                 "vulkan_cpu_util_generate_enum_traits("
+              << extension_enum_name;
         {
             auto push_indent = state.pushed_indent();
-            state << indent << "switch(extension)\n" << indent << "{\n";
+            for(auto &extension : extensions_list)
+                state << ",\n" << indent << extension_enum_name
+                      << "::" << get_enumerant_name(extension_enum_name, extension);
+            state << ");\n";
+        }
+        state << "\n"
+                 "constexpr const char *get_enumerant_name("
+              << extension_enum_name << " v) noexcept\n"
+                                        "{\n";
+        {
+            auto push_indent = state.pushed_indent();
+            state << indent << "switch(v)\n" << indent << "{\n";
             for(auto &extension : extensions_list)
             {
-                state << indent << "case Extension::" << extension << ":\n";
+                state << indent << "case " << extension_enum_name
+                      << "::" << get_enumerant_name(extension_enum_name, extension) << ":\n";
                 auto push_indent2 = state.pushed_indent();
                 state << indent << "return \"" << extension << "\";\n";
             }
@@ -316,25 +383,98 @@ struct Spirv_header_generator final : public Generator
             if(util::holds_alternative<ast::Operand_kinds::Operand_kind::Enumerants>(
                    operand_kind->value))
             {
+                bool is_bit_enum =
+                    operand_kind->category == ast::Operand_kinds::Operand_kind::Category::bit_enum;
                 auto &enumerants =
                     util::get<ast::Operand_kinds::Operand_kind::Enumerants>(operand_kind->value);
                 state << "\n"
                          "enum class "
                       << operand_kind->kind << " : Word\n"
                                                "{\n";
-                auto push_indent = state.pushed_indent();
-                for(auto &enumerant : enumerants.enumerants)
                 {
-                    state << indent << enumerant.enumerant << " = ";
-                    if(operand_kind->category
-                       == ast::Operand_kinds::Operand_kind::Category::bit_enum)
-                        state << unsigned_hex_integer_literal(enumerant.value);
-                    else
-                        state << unsigned_dec_integer_literal(enumerant.value);
-                    state << ",\n";
+                    auto push_indent = state.pushed_indent();
+                    for(auto &enumerant : enumerants.enumerants)
+                    {
+                        state << indent
+                              << get_enumerant_name(operand_kind->kind, enumerant.enumerant)
+                              << " = ";
+                        if(is_bit_enum)
+                            state << unsigned_hex_integer_literal(enumerant.value);
+                        else
+                            state << unsigned_dec_integer_literal(enumerant.value);
+                        state << ",\n";
+                    }
                 }
-                push_indent.finish();
                 state << "};\n";
+                if(!is_bit_enum)
+                {
+                    state << "\n"
+                             "vulkan_cpu_util_generate_enum_traits("
+                          << operand_kind->kind;
+                    {
+                        auto push_indent = state.pushed_indent();
+                        for(auto &enumerant : enumerants.enumerants)
+                            state << ",\n" << indent << operand_kind->kind << "::"
+                                  << get_enumerant_name(operand_kind->kind, enumerant.enumerant);
+                        state << ");\n";
+                    }
+                }
+                state << "\n"
+                         "constexpr const char *get_enumerant_name("
+                      << operand_kind->kind << " v) noexcept\n"
+                                               "{\n";
+                {
+                    auto push_indent = state.pushed_indent();
+                    state << indent << "switch(v)\n" << indent << "{\n";
+                    for(auto &enumerant : enumerants.enumerants)
+                    {
+                        state << indent << "case " << operand_kind->kind
+                              << "::" << get_enumerant_name(operand_kind->kind, enumerant.enumerant)
+                              << ":\n";
+                        auto push_indent2 = state.pushed_indent();
+                        state << indent << "return \"" << enumerant.enumerant << "\";\n";
+                    }
+                    state << indent << "}\n" << indent << "return \"\";\n";
+                }
+                state << "}\n"
+                         "\n"
+                         "constexpr util::Enum_set<"
+                      << capability_enum_name << "> get_directly_required_capability_set("
+                      << operand_kind->kind << " v) noexcept\n"
+                                               "{\n";
+                {
+                    auto push_indent = state.pushed_indent();
+                    state << indent << "switch(v)\n" << indent << "{\n";
+                    for(auto &enumerant : enumerants.enumerants)
+                    {
+                        state << indent << "case " << operand_kind->kind
+                              << "::" << get_enumerant_name(operand_kind->kind, enumerant.enumerant)
+                              << ":\n";
+                        auto push_indent2 = state.pushed_indent();
+                        state << indent << "return " << enumerant.capabilities << ";\n";
+                    }
+                    state << indent << "}\n" << indent << "return {};\n";
+                }
+                state << "}\n"
+                         "\n"
+                         "constexpr util::Enum_set<"
+                      << extension_enum_name << "> get_directly_required_extension_set("
+                      << operand_kind->kind << " v) noexcept\n"
+                                               "{\n";
+                {
+                    auto push_indent = state.pushed_indent();
+                    state << indent << "switch(v)\n" << indent << "{\n";
+                    for(auto &enumerant : enumerants.enumerants)
+                    {
+                        state << indent << "case " << operand_kind->kind
+                              << "::" << get_enumerant_name(operand_kind->kind, enumerant.enumerant)
+                              << ":\n";
+                        auto push_indent2 = state.pushed_indent();
+                        state << indent << "return " << enumerant.extensions << ";\n";
+                    }
+                    state << indent << "}\n" << indent << "return {};\n";
+                }
+                state << "}\n";
             }
         }
 

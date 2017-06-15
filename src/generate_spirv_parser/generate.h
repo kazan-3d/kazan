@@ -72,6 +72,16 @@ protected:
             os << std::forward<T>(v);
             return *this;
         }
+        Generator_state &operator<<(const ast::Capabilities &v)
+        {
+            write_capabilities_set(*this, v);
+            return *this;
+        }
+        Generator_state &operator<<(const ast::Extensions &v)
+        {
+            write_extensions_set(*this, v);
+            return *this;
+        }
         Push_indent pushed_indent() noexcept;
     };
     class Push_indent final
@@ -175,6 +185,21 @@ protected:
 
 protected:
     static std::string get_guard_macro_name_from_file_name(std::string file_name);
+    static std::string get_enumerant_name(const std::string &enumeration_name,
+                                          std::string enumerant_name)
+    {
+        return get_enumerant_name(
+            enumeration_name.data(), enumeration_name.size(), std::move(enumerant_name));
+    }
+    static std::string get_enumerant_name(const char *enumeration_name, std::string enumerant_name)
+    {
+        return get_enumerant_name(enumeration_name,
+                                  std::char_traits<char>::length(enumeration_name),
+                                  std::move(enumerant_name));
+    }
+    static std::string get_enumerant_name(const char *enumeration_name,
+                                          std::size_t enumeration_name_size,
+                                          std::string enumerant_name);
     static void write_indent(Generator_state &state);
     static void write_automatically_generated_file_warning(Generator_state &state);
     static void write_copyright_comment(Generator_state &state, const ast::Copyright &copyright);
@@ -271,6 +296,9 @@ private:
 
 protected:
     static std::unordered_set<std::string> get_extensions(const ast::Top_level &top_level);
+    static void write_capabilities_set(Generator_state &state,
+                                       const ast::Capabilities &capabilities);
+    static void write_extensions_set(Generator_state &state, const ast::Extensions &extensions);
 
 protected:
     static constexpr const char *vulkan_cpu_namespace_name = "vulkan_cpu";
@@ -278,6 +306,8 @@ protected:
     static constexpr const char *spirv_namespace_names[] = {
         vulkan_cpu_namespace_name, spirv_namespace_name,
     };
+    static constexpr const char *capability_enum_name = "Capability";
+    static constexpr const char *extension_enum_name = "Extension";
 
 public:
     explicit Generator(const char *output_base_file_name) noexcept
