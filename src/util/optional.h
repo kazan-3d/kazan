@@ -402,6 +402,10 @@ public:
     using Base::reset;
     using Base::emplace;
     constexpr optional() noexcept = default;
+    constexpr optional(const optional &) noexcept(std::is_nothrow_copy_constructible<T>::value) =
+        default;
+    constexpr optional(optional &&) noexcept(std::is_nothrow_move_constructible<T>::value) =
+        default;
     template <typename U,
               typename = typename std::
                   enable_if<detail::optional_needs_conversion_constructors<T, U, const U &>()
@@ -468,8 +472,10 @@ public:
         : Base(in_place, std::forward<U>(value))
     {
     }
-    optional &operator=(const optional &) = default;
-    optional &operator=(optional &&) = default;
+    constexpr optional &operator=(const optional &) noexcept(
+        std::is_nothrow_copy_assignable<T>::value) = default;
+    constexpr optional &operator=(optional &&) noexcept(std::is_nothrow_move_assignable<T>::value) =
+        default;
     template <typename U = T,
               typename = typename std::
                   enable_if<!std::is_same<typename std::decay<U>::type, optional>::value
