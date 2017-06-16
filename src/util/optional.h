@@ -399,7 +399,6 @@ private:
 
 public:
     using Base::Base;
-    using Base::operator=;
     using Base::reset;
     using Base::emplace;
     constexpr optional() noexcept = default;
@@ -469,6 +468,8 @@ public:
         : Base(in_place, std::forward<U>(value))
     {
     }
+    optional &operator=(const optional &) = default;
+    optional &operator=(optional &&) = default;
     template <typename U = T,
               typename = typename std::
                   enable_if<!std::is_same<typename std::decay<U>::type, optional>::value
