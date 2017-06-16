@@ -28,6 +28,7 @@ set(sources bit_intrinsics.cpp
             is_swappable.cpp
             optional.cpp
             soft_float.cpp
+            string_view.cpp
             variant.cpp
             void_t.cpp)
 add_library(util STATIC ${sources})
