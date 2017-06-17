@@ -53,9 +53,7 @@ int generate_spirv_parser_main(int argc, char **argv)
         {
             auto json_in = json::parse(&source);
             auto ast = parser::parse(json_in.duplicate());
-            for(auto &generator : {
-                    generate::Generators::make_spirv_header_generator(),
-                })
+            for(auto &generator : generate::Generators::make_all_generators())
             {
                 generator->run(generate::Generator::Generator_args(output_directory), ast);
             }

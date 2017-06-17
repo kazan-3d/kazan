@@ -32,6 +32,7 @@
 #include <type_traits>
 #include <cstdint>
 #include <unordered_set>
+#include <vector>
 
 namespace vulkan_cpu
 {
@@ -41,6 +42,9 @@ namespace generate
 {
 class Generator
 {
+private:
+    struct Tester;
+
 public:
     struct Generator_args
     {
@@ -186,20 +190,27 @@ protected:
 protected:
     static std::string get_guard_macro_name_from_file_name(std::string file_name);
     static std::string get_enumerant_name(const std::string &enumeration_name,
-                                          std::string enumerant_name)
+                                          std::string enumerant_name,
+                                          bool input_name_should_have_prefix)
     {
-        return get_enumerant_name(
-            enumeration_name.data(), enumeration_name.size(), std::move(enumerant_name));
+        return get_enumerant_name(enumeration_name.data(),
+                                  enumeration_name.size(),
+                                  std::move(enumerant_name),
+                                  input_name_should_have_prefix);
     }
-    static std::string get_enumerant_name(const char *enumeration_name, std::string enumerant_name)
+    static std::string get_enumerant_name(const char *enumeration_name,
+                                          std::string enumerant_name,
+                                          bool input_name_should_have_prefix)
     {
         return get_enumerant_name(enumeration_name,
                                   std::char_traits<char>::length(enumeration_name),
-                                  std::move(enumerant_name));
+                                  std::move(enumerant_name),
+                                  input_name_should_have_prefix);
     }
     static std::string get_enumerant_name(const char *enumeration_name,
                                           std::size_t enumeration_name_size,
-                                          std::string enumerant_name);
+                                          std::string enumerant_name,
+                                          bool input_name_should_have_prefix);
     static void write_indent(Generator_state &state);
     static void write_automatically_generated_file_warning(Generator_state &state);
     static void write_copyright_comment(Generator_state &state, const ast::Copyright &copyright);
@@ -299,6 +310,14 @@ protected:
     static void write_capabilities_set(Generator_state &state,
                                        const ast::Capabilities &capabilities);
     static void write_extensions_set(Generator_state &state, const ast::Extensions &extensions);
+    static std::string get_member_name_from_words(const std::string &words);
+    static std::string get_member_name_from_operand(
+        const ast::Instructions::Instruction::Operands::Operand &operand);
+    static void write_struct_nonstatic_members_and_constructors(Generator_state &state,
+                                                                const std::string &struct_name,
+                                                                const std::string *member_types,
+                                                                const std::string *member_names,
+                                                                std::size_t member_count);
 
 protected:
     static constexpr const char *vulkan_cpu_namespace_name = "vulkan_cpu";
@@ -308,6 +327,7 @@ protected:
     };
     static constexpr const char *capability_enum_name = "Capability";
     static constexpr const char *extension_enum_name = "Extension";
+    static constexpr const char *op_enum_name = "Op";
 
 public:
     explicit Generator(const char *output_base_file_name) noexcept
@@ -334,6 +354,7 @@ struct Spirv_header_generator;
 struct Generators
 {
     static std::unique_ptr<Generator> make_spirv_header_generator();
+    static std::vector<std::unique_ptr<Generator>> make_all_generators();
 };
 }
 }

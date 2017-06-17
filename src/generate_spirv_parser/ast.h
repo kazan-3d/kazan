@@ -164,13 +164,16 @@ struct Instructions
         std::uint32_t opcode;
         Operands operands;
         Capabilities capabilities;
+        Extensions extensions;
         Instruction(std::string opname,
                     std::uint32_t opcode,
                     Operands operands,
-                    Capabilities capabilities) noexcept : opname(std::move(opname)),
-                                                          opcode(opcode),
-                                                          operands(std::move(operands)),
-                                                          capabilities(std::move(capabilities))
+                    Capabilities capabilities,
+                    Extensions extensions) noexcept : opname(std::move(opname)),
+                                                      opcode(opcode),
+                                                      operands(std::move(operands)),
+                                                      capabilities(std::move(capabilities)),
+                                                      extensions(std::move(extensions))
         {
         }
         json::ast::Value to_json() const;
@@ -180,6 +183,7 @@ struct Instructions
             fn(*this);
             operands.visit(fn);
             capabilities.visit(fn);
+            extensions.visit(fn);
         }
     };
     std::vector<Instruction> instructions;
@@ -203,11 +207,13 @@ struct Operand_kinds
     {
         enum class Category
         {
-            bit_enum,
+            bit_enum, // enum categories must be first
             value_enum,
+
             id,
             literal,
-            composite,
+
+            composite, // composite must be last
         };
         Category category;
         static constexpr const char *get_json_name_from_category(Category category) noexcept

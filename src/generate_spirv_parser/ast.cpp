@@ -83,6 +83,8 @@ json::ast::Value Instructions::Instruction::to_json() const
         retval.values["operands"] = operands.to_json();
     if(!capabilities.empty())
         retval.values["capabilities"] = capabilities.to_json();
+    if(!extensions.empty())
+        retval.values["extensions"] = extensions.to_json();
     return json::ast::Value(make_empty_location(), std::move(retval));
 }
 

@@ -682,6 +682,7 @@ ast::Instructions::Instruction parse_instructions_instruction(
         });
     ast::Instructions::Instruction::Operands operands;
     ast::Capabilities capabilities;
+    ast::Extensions extensions;
     for(auto &entry : instruction_object.values)
     {
         const auto &key = std::get<0>(entry);
@@ -696,13 +697,20 @@ ast::Instructions::Instruction parse_instructions_instruction(
         {
             capabilities = parse_capabilities(std::move(entry_value), &path_builder);
         }
+        else if(key == "extensions")
+        {
+            extensions = parse_extensions(std::move(entry_value), &path_builder);
+        }
         else if(key != opname_name && key != opcode_name)
         {
             throw Parse_error(entry_value.location, path_builder.path(), "unknown key");
         }
     }
-    return ast::Instructions::Instruction(
-        std::move(opname), opcode, std::move(operands), std::move(capabilities));
+    return ast::Instructions::Instruction(std::move(opname),
+                                          opcode,
+                                          std::move(operands),
+                                          std::move(capabilities),
+                                          std::move(extensions));
 }
 
 ast::Instructions parse_instructions(json::ast::Value value,
