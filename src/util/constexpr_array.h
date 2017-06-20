@@ -34,10 +34,56 @@ namespace vulkan_cpu
 {
 namespace util
 {
+namespace detail
+{
+template <typename T, std::size_t N>
+struct Constexpr_array_helper
+{
+    typedef T values_type[N];
+    static constexpr T *get_values_pointer(values_type &values) noexcept
+    {
+        return values;
+    }
+    static constexpr const T *get_values_pointer(const values_type &values) noexcept
+    {
+        return values;
+    }
+};
+
+template <typename T>
+struct Constexpr_array_helper<T, 0>
+{
+    struct values_type
+    {
+    };
+    static constexpr T *get_values_pointer(values_type &values) noexcept
+    {
+        return nullptr;
+    }
+    static constexpr const T *get_values_pointer(const values_type &values) noexcept
+    {
+        return nullptr;
+    }
+};
+}
+
 template <typename T, std::size_t N>
 struct Constexpr_array
 {
-    T values[N];
+private:
+    typedef detail::Constexpr_array_helper<T, N> Helper;
+    typedef typename Helper::values_type values_type;
+    constexpr T *get_values_pointer() noexcept
+    {
+        return Helper::get_values_pointer(values);
+    }
+    constexpr const T *get_values_pointer() const noexcept
+    {
+        return Helper::get_values_pointer(values);
+    }
+
+public:
+    values_type values;
     typedef T value_type;
     typedef std::size_t size_type;
     typedef std::ptrdiff_t difference_type;
@@ -53,69 +99,69 @@ struct Constexpr_array
     {
         if(index >= N)
             throw std::out_of_range("Constexpr_array::at");
-        return values[index];
+        return get_values_pointer()[index];
     }
     constexpr const T &at(std::size_t index) const
     {
         if(index >= N)
             throw std::out_of_range("Constexpr_array::at");
-        return values[index];
+        return get_values_pointer()[index];
     }
     constexpr T &operator[](std::size_t index) noexcept
     {
-        return values[index];
+        return get_values_pointer()[index];
     }
     constexpr const T &operator[](std::size_t index) const noexcept
     {
-        return values[index];
+        return get_values_pointer()[index];
     }
     constexpr T &front() noexcept
     {
-        return values[0];
+        return get_values_pointer()[0];
     }
     constexpr const T &front() const noexcept
     {
-        return values[0];
+        return get_values_pointer()[0];
     }
     constexpr T &back() noexcept
     {
-        return values[N - 1];
+        return get_values_pointer()[N - 1];
     }
     constexpr const T &back() const noexcept
     {
-        return values[N - 1];
+        return get_values_pointer()[N - 1];
     }
     constexpr T *data() noexcept
     {
-        return values;
+        return get_values_pointer();
     }
     constexpr const T *data() const noexcept
     {
-        return values;
+        return get_values_pointer();
     }
     constexpr iterator begin() noexcept
     {
-        return values;
+        return get_values_pointer();
     }
     constexpr const_iterator begin() const noexcept
     {
-        return values;
+        return get_values_pointer();
     }
     constexpr const_iterator cbegin() const noexcept
     {
-        return values;
+        return get_values_pointer();
     }
     constexpr iterator end() noexcept
     {
-        return values + N;
+        return get_values_pointer() + N;
     }
     constexpr const_iterator end() const noexcept
     {
-        return values + N;
+        return get_values_pointer() + N;
     }
     constexpr const_iterator cend() const noexcept
     {
-        return values + N;
+        return get_values_pointer() + N;
     }
     constexpr reverse_iterator rbegin() noexcept
     {
@@ -155,14 +201,14 @@ struct Constexpr_array
     }
     constexpr void fill(const T &value) noexcept(std::is_nothrow_copy_assignable<T>::value)
     {
-        for(auto &i : values)
+        for(auto &i : *this)
             i = value;
     }
     constexpr void swap(Constexpr_array &other) noexcept(is_nothrow_swappable_v<T>)
     {
         using std::swap;
         for(std::size_t index = 0; index < size(); index++)
-            swap(values[index], other.values[index]);
+            swap(get_values_pointer()[index], other.get_values_pointer()[index]);
     }
 };
 

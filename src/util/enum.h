@@ -61,26 +61,37 @@ private:
 
 public:
     static constexpr bool is_compact = is_compact_helper();
+    struct Value_and_index
+    {
+        T value;
+        std::size_t index;
+        constexpr Value_and_index() noexcept : value(), index()
+        {
+        }
+        constexpr Value_and_index(T value, std::size_t index) noexcept : value(value), index(index)
+        {
+        }
+    };
 
 private:
     template <std::size_t N>
-    static constexpr Constexpr_array<std::pair<T, std::size_t>, N> sort_value_index_map(
-        const std::pair<T, std::size_t> *value_index_map) noexcept
+    static constexpr Constexpr_array<Value_and_index, N> sort_value_index_map(
+        const Value_and_index *value_index_map) noexcept
     {
         // uses merge sort algorithm
         if(N == 0)
             return {};
-        Constexpr_array<std::pair<T, std::size_t>, N> retval{};
+        Constexpr_array<Value_and_index, N> retval{};
         if(N == 1)
         {
             retval[0] = value_index_map[0];
-            return;
+            return retval;
         }
 
         // split
-        constexpr std::size_t split_index = N2 / 2;
+        constexpr std::size_t split_index = N / 2;
         constexpr std::size_t part1_size = split_index;
-        constexpr std::size_t part2_size = N2 - part1_size;
+        constexpr std::size_t part2_size = N - part1_size;
         auto part1 = sort_value_index_map<part1_size>(value_index_map);
         auto part2 = sort_value_index_map<part2_size>(value_index_map + split_index);
 
@@ -91,8 +102,8 @@ private:
         while(part1_index < part1_size && part2_index < part2_size)
         {
             // we want to copy from part1 if values are equal
-            if(static_cast<underlying_type>(std::get<0>(part2[part2_index]))
-               < static_cast<underlying_type>(std::get<0>(part1[part1_index])))
+            if(static_cast<underlying_type>(part2[part2_index].value)
+               < static_cast<underlying_type>(part1[part1_index].value))
                 retval[retval_index++] = part2[part2_index++];
             else
                 retval[retval_index++] = part1[part1_index++];
@@ -103,19 +114,19 @@ private:
             retval[retval_index++] = part2[part2_index++];
         return retval;
     }
-    static constexpr Constexpr_array<std::pair<T, std::size_t>, value_count>
+    static constexpr Constexpr_array<Value_and_index, value_count>
         make_sorted_value_index_map() noexcept
     {
-        Constexpr_array<std::pair<T, std::size_t>, N> retval{};
+        Constexpr_array<Value_and_index, value_count> retval{};
         for(std::size_t i = 0; i < value_count; i++)
             retval[i] = {values[i], i};
-        retval = sort_value_index_map<N>(retval.data());
+        retval = sort_value_index_map<value_count>(retval.data());
         return retval;
     }
 
 public:
-    static constexpr Constexpr_array<std::pair<T, std::size_t>, value_count>
-        sorted_value_index_map = make_sorted_value_index_map();
+    static constexpr Constexpr_array<Value_and_index, value_count> sorted_value_index_map =
+        make_sorted_value_index_map();
     static constexpr std::size_t npos = -1;
     /** find first occurrence of value in values and return index if found, otherwise return npos */
     static constexpr std::size_t find_value(T value) noexcept
@@ -127,7 +138,7 @@ public:
             retval = static_cast<std::size_t>(static_cast<underlying_type>(value))
                      - static_cast<std::size_t>(static_cast<underlying_type>(values.front()));
         }
-        else if(value_count < 8)
+        else if(value_count < binary_search_transition)
         {
             retval = -1;
             for(std::size_t i = 0; i < value_count; i++)
@@ -174,7 +185,7 @@ template <typename T>
 constexpr bool Enum_traits<T>::is_compact;
 
 template <typename T>
-constexpr Constexpr_array<std::pair<T, std::size_t>, Enum_traits<T>::value_count>
+constexpr Constexpr_array<typename Enum_traits<T>::Value_and_index, Enum_traits<T>::value_count>
     Enum_traits<T>::sorted_value_index_map;
 
 template <typename T>
@@ -189,12 +200,13 @@ struct Default_enum_traits
 };
 
 template <typename Enum, Enum... Values>
-static constexpr Enum_values<Enum, sizeof...(Values)> Default_enum_traits<Enum, Values...>::values;
+constexpr Constexpr_array<Enum, sizeof...(Values)> Default_enum_traits<Enum, Values...>::values;
 /** generate code for Enum_traits instantiation; use like
  * <code>vulkan_cpu_util_generate_enum_traits(Enum, Enum::Value1, Enum::Value2, Enum::Value3,
  * <...>);</code> */
-#define vulkan_cpu_util_generate_enum_traits(...) \
-    ::vulkan_cpu::util::detail::Default_enum_traits<__VA_ARGS__> enum_traits_resolve_function(Enum)
+#define vulkan_cpu_util_generate_enum_traits(Enum, ...)                \
+    ::vulkan_cpu::util::detail::Default_enum_traits<Enum, __VA_ARGS__> \
+        enum_traits_resolve_function(Enum)
 }
 
 /** behaves like a std::set<T> */

@@ -86,7 +86,7 @@ protected:
             write_extensions_set(*this, v);
             return *this;
         }
-        Push_indent pushed_indent() noexcept;
+        Push_indent pushed_indent(std::ptrdiff_t amount = 1) noexcept;
     };
     class Push_indent final
     {
@@ -95,38 +95,75 @@ protected:
 
     private:
         Generator_state *state;
+        std::ptrdiff_t amount;
 
     public:
-        explicit Push_indent(Generator_state &state) noexcept : state(&state)
+        explicit Push_indent(Generator_state &state, std::ptrdiff_t amount = 1) noexcept
+            : state(&state),
+              amount(amount)
         {
-            state.indent_level++;
+            state.indent_level += amount;
         }
-        Push_indent(Push_indent &&rt) noexcept : state(rt.state)
+        Push_indent(Push_indent &&rt) noexcept : state(rt.state), amount(rt.amount)
         {
             rt.state = nullptr;
         }
         void finish() noexcept
         {
             assert(state);
-            state->indent_level--;
+            state->indent_level -= amount;
             state = nullptr;
         }
         ~Push_indent()
         {
             if(state)
-                state->indent_level--;
+                state->indent_level -= amount;
+        }
+    };
+    // translates initial '`' (backtick) characters to indentations
+    struct Indent_interpreted_text
+    {
+        const char *text;
+        std::ptrdiff_t indent_offset;
+        bool start_indented;
+        constexpr explicit Indent_interpreted_text(const char *text,
+                                                   std::ptrdiff_t indent_offset,
+                                                   bool start_indented) noexcept
+            : text(text),
+              indent_offset(indent_offset),
+              start_indented(start_indented)
+        {
+        }
+        friend Generator_state &operator<<(Generator_state &state, Indent_interpreted_text v)
+        {
+            write_indent_interpreted_text(state, v.text, v.indent_offset, v.start_indented);
+            return state;
         }
     };
     struct Indent_t
     {
+        std::ptrdiff_t offset;
         explicit Indent_t() = default;
-        friend Generator_state &operator<<(Generator_state &state, Indent_t)
+        constexpr Indent_t operator()(std::ptrdiff_t additional_offset) const noexcept
         {
-            write_indent(state);
+            return Indent_t{offset + additional_offset};
+        }
+        constexpr Indent_interpreted_text operator()(const char *text) const noexcept
+        {
+            return Indent_interpreted_text(text, offset, false);
+        }
+        constexpr Indent_interpreted_text operator()(bool start_indented, const char *text) const
+            noexcept
+        {
+            return Indent_interpreted_text(text, offset, start_indented);
+        }
+        friend Generator_state &operator<<(Generator_state &state, Indent_t indent)
+        {
+            write_indent(state, indent.offset);
             return state;
         }
     };
-    static constexpr Indent_t indent{};
+    static constexpr auto indent = Indent_t{0};
     enum class Integer_literal_base
     {
         dec = 0,
@@ -211,7 +248,15 @@ protected:
                                           std::size_t enumeration_name_size,
                                           std::string enumerant_name,
                                           bool input_name_should_have_prefix);
-    static void write_indent(Generator_state &state);
+    static void write_indent_absolute(Generator_state &state, std::size_t amount);
+    static void write_indent(Generator_state &state, std::ptrdiff_t offset)
+    {
+        write_indent_absolute(state, state.indent_level + offset);
+    }
+    static void write_indent_interpreted_text(Generator_state &state,
+                                              const char *text,
+                                              std::ptrdiff_t offset,
+                                              bool start_indented);
     static void write_automatically_generated_file_warning(Generator_state &state);
     static void write_copyright_comment(Generator_state &state, const ast::Copyright &copyright);
     static void write_file_comments(Generator_state &state, const ast::Copyright &copyright)
@@ -318,6 +363,9 @@ protected:
                                                                 const std::string *member_types,
                                                                 const std::string *member_names,
                                                                 std::size_t member_count);
+    static std::vector<ast::Operand_kinds::Operand_kind::Enumerants::Enumerant>
+        get_unique_enumerants(
+            std::vector<ast::Operand_kinds::Operand_kind::Enumerants::Enumerant> enumerants);
 
 protected:
     static constexpr const char *vulkan_cpu_namespace_name = "vulkan_cpu";
@@ -344,16 +392,23 @@ public:
     virtual ~Generator() = default;
 };
 
-inline Generator::Push_indent Generator::Generator_state::pushed_indent() noexcept
+inline Generator::Push_indent Generator::Generator_state::pushed_indent(
+    std::ptrdiff_t amount) noexcept
 {
-    return Push_indent(*this);
+    return Push_indent(*this, amount);
 }
 
 struct Spirv_header_generator;
+struct Spirv_source_generator;
+struct Parser_header_generator;
+struct Parser_source_generator;
 
 struct Generators
 {
     static std::unique_ptr<Generator> make_spirv_header_generator();
+    static std::unique_ptr<Generator> make_spirv_source_generator();
+    static std::unique_ptr<Generator> make_parser_header_generator();
+    static std::unique_ptr<Generator> make_parser_source_generator();
     static std::vector<std::unique_ptr<Generator>> make_all_generators();
 };
 }

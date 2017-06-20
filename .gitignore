@@ -7,3 +7,5 @@ Makefile
 /test-files/test.spv
 out.json
 compile_commands.json
+/.kdev4/
+*.kdev4

@@ -22,11 +22,13 @@
  */
 #include <fstream>
 #include <iostream>
+#include <sstream>
 #include <vector>
 #include <array>
 #include <type_traits>
 #include <string>
 #include "spirv/spirv.h"
+#include "spirv/parser.h"
 #include "util/optional.h"
 
 namespace vulkan_cpu
@@ -202,7 +204,22 @@ int test_main(int argc, char **argv)
 {
     auto file = load_file("test-files/test.spv");
     if(file)
+    {
         dump_words(*file);
+        std::ostringstream os;
+        spirv::Parse_dump semantics(os);
+        auto parse_error = spirv::Parser<>::parse(file->data(), file->size(), semantics);
+        if(parse_error)
+        {
+            std::cerr << "error: " << std::hex << std::uppercase << std::showbase
+                      << parse_error->word_index << ": " << parse_error->message << std::endl;
+            return 1;
+        }
+        else
+        {
+            std::cout << os.str() << std::flush;
+        }
+    }
     return 0;
 }
 }
