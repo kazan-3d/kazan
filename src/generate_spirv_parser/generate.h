@@ -25,6 +25,7 @@
 #define GENERATE_SPIRV_PARSER_GENERATE_H_
 
 #include "ast.h"
+#include "util/string_view.h"
 #include <fstream>
 #include <memory>
 #include <string>
@@ -32,7 +33,9 @@
 #include <type_traits>
 #include <cstdint>
 #include <unordered_set>
+#include <unordered_map>
 #include <vector>
+#include <stdexcept>
 
 namespace vulkan_cpu
 {
@@ -40,6 +43,11 @@ namespace generate_spirv_parser
 {
 namespace generate
 {
+struct Generate_error : public std::runtime_error
+{
+    using runtime_error::runtime_error;
+};
+
 class Generator
 {
 private:
@@ -68,7 +76,13 @@ protected:
         std::string full_output_file_name;
         std::string guard_macro_name;
         std::ofstream os;
-        explicit Generator_state(const Generator *generator, Generator_args &generator_args);
+        const ast::Top_level &top_level;
+        std::unordered_map<std::string, const ast::Operand_kinds::Operand_kind *> operand_kind_map;
+        std::unordered_map<const ast::Operand_kinds::Operand_kind *, bool>
+            operand_has_any_parameters_map;
+        explicit Generator_state(const Generator *generator,
+                                 Generator_args &generator_args,
+                                 const ast::Top_level &top_level);
         void open_output_file();
         template <typename T, typename = decltype(os << std::declval<T>())>
         Generator_state &operator<<(T &&v)
@@ -226,21 +240,12 @@ protected:
 
 protected:
     static std::string get_guard_macro_name_from_file_name(std::string file_name);
-    static std::string get_enumerant_name(const std::string &enumeration_name,
+    static std::string get_enumerant_name(util::string_view enumeration_name,
                                           std::string enumerant_name,
                                           bool input_name_should_have_prefix)
     {
         return get_enumerant_name(enumeration_name.data(),
                                   enumeration_name.size(),
-                                  std::move(enumerant_name),
-                                  input_name_should_have_prefix);
-    }
-    static std::string get_enumerant_name(const char *enumeration_name,
-                                          std::string enumerant_name,
-                                          bool input_name_should_have_prefix)
-    {
-        return get_enumerant_name(enumeration_name,
-                                  std::char_traits<char>::length(enumeration_name),
                                   std::move(enumerant_name),
                                   input_name_should_have_prefix);
     }
@@ -358,6 +363,33 @@ protected:
     static std::string get_member_name_from_words(const std::string &words);
     static std::string get_member_name_from_operand(
         const ast::Instructions::Instruction::Operands::Operand &operand);
+    static const ast::Operand_kinds::Operand_kind &get_operand_kind_from_string(
+        Generator_state &state, const std::string &operand_kind_str)
+    {
+        auto *retval = state.operand_kind_map[operand_kind_str];
+        if(!retval)
+            throw Generate_error("operand kind not found: " + operand_kind_str);
+        return *retval;
+    }
+    static bool get_operand_has_any_parameters(Generator_state &state,
+                                               const ast::Operand_kinds::Operand_kind &operand_kind)
+    {
+        return state.operand_has_any_parameters_map[&operand_kind];
+    }
+    static std::string get_enumerant_parameters_struct_name(util::string_view enumeration_name, std::string enumerant_name, bool input_name_should_have_prefix)
+    {
+        auto retval = "_" + get_enumerant_name(enumeration_name, enumerant_name, input_name_should_have_prefix) + "_parameters";
+        retval.insert(retval.begin(), enumeration_name.begin(), enumeration_name.end());
+        return retval;
+    }
+    static std::string get_enum_with_parameters_struct_name(
+        Generator_state &state, const ast::Operand_kinds::Operand_kind &operand_kind);
+    static std::string get_enum_with_parameters_struct_name(Generator_state &state,
+                                                            const std::string &operand_kind_str)
+    {
+        return get_enum_with_parameters_struct_name(
+            state, get_operand_kind_from_string(state, operand_kind_str));
+    }
     static void write_struct_nonstatic_members_and_constructors(Generator_state &state,
                                                                 const std::string &struct_name,
                                                                 const std::string *member_types,

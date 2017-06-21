@@ -140,7 +140,7 @@ public:
         }
         else if(value_count < binary_search_transition)
         {
-            retval = -1;
+            retval = npos;
             for(std::size_t i = 0; i < value_count; i++)
             {
                 if(values[i] == value)

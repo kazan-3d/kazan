@@ -206,18 +206,18 @@ int test_main(int argc, char **argv)
     if(file)
     {
         dump_words(*file);
-        std::ostringstream os;
-        spirv::Parse_dump semantics(os);
+        spirv::Parse_dump semantics(std::cout);
         auto parse_error = spirv::Parser<>::parse(file->data(), file->size(), semantics);
         if(parse_error)
         {
-            std::cerr << "error: " << std::hex << std::uppercase << std::showbase
-                      << parse_error->word_index << ": " << parse_error->message << std::endl;
+            std::cerr << std::hex << std::uppercase;
+            std::cerr << "error: ";
+            if(parse_error->instruction_word_index != 0)
+                std::cerr << "in instruction starting at 0x" << parse_error->instruction_word_index
+                          << ": ";
+            std::cerr << "at 0x" << parse_error->word_index << ": " << parse_error->message
+                      << std::endl;
             return 1;
-        }
-        else
-        {
-            std::cout << os.str() << std::flush;
         }
     }
     return 0;

@@ -38,5 +38,5 @@ add_custom_command(OUTPUT ${spirv_parser_sources} ${spirv_parser_headers}
                    COMMENT "Generating SPIR-V Parser")
 set(sources ${sources} ${spirv_parser_sources})
 add_library(spirv STATIC ${sources})
-target_link_libraries(spirv util)
+target_link_libraries(spirv util json)
 target_include_directories(spirv PUBLIC ${spirv_parser_generated_include_dir})
