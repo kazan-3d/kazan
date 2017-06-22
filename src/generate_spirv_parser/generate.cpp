@@ -638,6 +638,12 @@ std::string Generator::get_member_name_from_parameter(
     return get_name_from_words(parameter.kind);
 }
 
+std::string Generator::get_member_name_from_enumerant(
+    const ast::Operand_kinds::Operand_kind::Enumerants::Enumerant &enumerant)
+{
+    return get_name_from_words(enumerant.enumerant + " parameters");
+}
+
 std::string Generator::get_operand_with_parameters_name(
     Generator_state &state, const ast::Operand_kinds::Operand_kind &operand_kind)
 {
@@ -1121,32 +1127,67 @@ constexpr Word magic_number = )")
                         push_indent.finish();
                         state << "};\n";
                     }
-                    auto struct_name = get_operand_with_parameters_name(state, *operand_kind);
-                    state << indent(R"(
+                    if(is_bit_enum)
+                    {
+                        auto struct_name = get_operand_with_parameters_name(state, *operand_kind);
+                        state << indent(R"(
+struct )") << struct_name << indent(true, R"(
+{
+)");
+                        std::vector<std::string> member_types;
+                        std::vector<std::string> member_names;
+                        member_types.push_back(get_enum_name(*operand_kind));
+                        member_names.push_back("value");
+                        for(auto &enumerant : unique_enumerants)
+                        {
+                            if(enumerant.parameters.empty())
+                                continue;
+                            member_types.push_back(
+                                "util::optional<"
+                                + get_enumerant_parameters_struct_name(
+                                      operand_kind->kind, enumerant.enumerant, false)
+                                + ">");
+                            member_names.push_back(get_member_name_from_enumerant(enumerant));
+                        }
+                        auto push_indent = state.pushed_indent();
+                        write_struct_nonstatic_members_and_constructors(state,
+                                                                        struct_name,
+                                                                        member_types.data(),
+                                                                        member_names.data(),
+                                                                        member_types.size());
+                        push_indent.finish();
+                        state << "};\n";
+                    }
+                    else
+                    {
+                        auto struct_name = get_operand_with_parameters_name(state, *operand_kind);
+                        state << indent(R"(
 struct )") << struct_name << indent(true, R"(
 {
 `typedef util::variant<util::monostate)");
-                    for(auto &enumerant : unique_enumerants)
-                    {
-                        if(enumerant.parameters.empty())
-                            continue;
-                        state << ",\n" << indent(2) << get_enumerant_parameters_struct_name(
-                                             operand_kind->kind, enumerant.enumerant, false);
-                    }
-                    state << indent(true, R"(> Parameters;
+                        for(auto &enumerant : unique_enumerants)
+                        {
+                            if(enumerant.parameters.empty())
+                                continue;
+                            state << ",\n" << indent(2)
+                                  << get_enumerant_parameters_struct_name(
+                                         operand_kind->kind, enumerant.enumerant, false);
+                        }
+                        state << indent(true, R"(> Parameters;
 )");
-                    auto push_indent = state.pushed_indent();
-                    constexpr std::size_t member_count = 2;
-                    std::string member_types[member_count] = {
-                        get_enum_name(*operand_kind), "Parameters",
-                    };
-                    std::string member_names[member_count] = {
-                        "value", "parameters",
-                    };
-                    write_struct_nonstatic_members_and_constructors(
-                        state, struct_name, member_types, member_names, member_count);
-                    push_indent.finish();
-                    state << "};\n";
+                        auto push_indent = state.pushed_indent();
+                        constexpr std::size_t member_count = 2;
+                        std::string member_types[member_count] = {
+                            get_enum_name(*operand_kind), "Parameters",
+                        };
+                        std::string member_names[member_count] = {
+                            "value", "parameters",
+                        };
+                        write_struct_nonstatic_members_and_constructors(
+                            state, struct_name, member_types, member_names, member_count);
+                        push_indent.finish();
+                        state << "};\n";
+                    }
                 }
                 break;
             }
@@ -1156,7 +1197,6 @@ struct )") << struct_name << indent(true, R"(
                 break;
             }
         }
-#warning finish converting
         std::vector<const ast::Instructions::Instruction *> instructions;
         instructions.reserve(top_level.instructions.instructions.size());
         for(auto &instruction : top_level.instructions.instructions)
@@ -1290,17 +1330,19 @@ struct )") << struct_name << indent(true, R"(
                     {
                     case ast::Instructions::Instruction::Operands::Operand::Quantifier::none:
                     {
-                        member_type = operand.kind;
+                        member_type = get_operand_with_parameters_name(state, operand);
                         break;
                     }
                     case ast::Instructions::Instruction::Operands::Operand::Quantifier::optional:
                     {
-                        member_type = "util::optional<" + operand.kind + ">";
+                        member_type = "util::optional<"
+                                      + get_operand_with_parameters_name(state, operand) + ">";
                         break;
                     }
                     case ast::Instructions::Instruction::Operands::Operand::Quantifier::variable:
                     {
-                        member_type = "std::vector<" + operand.kind + ">";
+                        member_type =
+                            "std::vector<" + get_operand_with_parameters_name(state, operand) + ">";
                         break;
                     }
                     }
@@ -1345,9 +1387,36 @@ struct Parser_header_generator final : public Generator
     {
         return "dump_operand_" + std::move(kind);
     }
+    static std::string get_dump_operand_function_name(
+        const ast::Operand_kinds::Operand_kind &operand_kind)
+    {
+        return get_dump_operand_function_name(operand_kind.kind);
+    }
+    static std::string get_dump_operand_function_name(
+        const ast::Operand_kinds::Operand_kind::Enumerants::Enumerant::Parameters::Parameter
+            &parameter)
+    {
+        return get_dump_operand_function_name(parameter.kind);
+    }
     static std::string get_parse_operand_function_name(std::string kind)
     {
         return "parse_operand_" + std::move(kind);
+    }
+    static std::string get_parse_operand_function_name(
+        const ast::Operand_kinds::Operand_kind &operand_kind)
+    {
+        return get_parse_operand_function_name(operand_kind.kind);
+    }
+    static std::string get_parse_operand_function_name(
+        const ast::Instructions::Instruction::Operands::Operand &operand)
+    {
+        return get_parse_operand_function_name(operand.kind);
+    }
+    static std::string get_parse_operand_function_name(
+        const ast::Operand_kinds::Operand_kind::Enumerants::Enumerant::Parameters::Parameter
+            &parameter)
+    {
+        return get_parse_operand_function_name(parameter.kind);
     }
     static std::string get_parse_instruction_function_name(std::string opname)
     {
@@ -1426,13 +1495,13 @@ virtual void handle_id_bound(Word id_bound) override;
             }
             for(auto &operand_kind : top_level.operand_kinds.operand_kinds)
             {
-                auto dump_function_name = get_dump_operand_function_name(operand_kind.kind);
-                state << indent("void ") << dump_function_name << "(const " << operand_kind.kind
-                      << " &v);\n";
+                auto dump_function_name = get_dump_operand_function_name(operand_kind);
+                state << indent("void ") << dump_function_name << "(const "
+                      << get_operand_with_parameters_name(state, operand_kind) << " &value);\n";
                 state << indent("void ") << dump_function_name << "(const util::optional<"
-                      << operand_kind.kind << "> &v);\n";
+                      << get_operand_with_parameters_name(state, operand_kind) << "> &value);\n";
                 state << indent("void ") << dump_function_name << "(const std::vector<"
-                      << operand_kind.kind << "> &v);\n";
+                      << get_operand_with_parameters_name(state, operand_kind) << "> &values);\n";
             }
 #warning finish
         }
@@ -1445,14 +1514,14 @@ virtual void handle_id_bound(Word id_bound) override;
             auto push_indent = state.pushed_indent();
             for(auto &operand_kind : top_level.operand_kinds.operand_kinds)
             {
-                auto parse_function_name = get_parse_operand_function_name(operand_kind.kind);
+                auto parse_function_name = get_parse_operand_function_name(operand_kind);
                 state
                     << indent(R"(static std::unique_ptr<Parse_error> )") << parse_function_name
                     << indent(
                            true,
                            R"((const Word *words, std::size_t word_count, Semantics &semantics, std::size_t error_instruction_index, std::size_t &word_index, )")
-                    << operand_kind.kind << indent(true,
-                                                   R"( &value)
+                    << get_operand_with_parameters_name(state, operand_kind) << indent(true,
+                                                                                       R"( &value)
 {
 `if(word_index >= word_count)
 ``return semantics.handle_error(error_instruction_index + word_index, error_instruction_index, "instruction missing operand");
@@ -1462,21 +1531,141 @@ virtual void handle_id_bound(Word id_bound) override;
                 {
                 case ast::Operand_kinds::Operand_kind::Category::bit_enum:
                 {
-                    state << indent(R"(value = static_cast<)") << operand_kind.kind
-                          << indent(true, R"(>(words[word_index++]);
+                    auto enum_name = get_enum_name(operand_kind);
+                    if(get_operand_has_any_parameters(state, operand_kind))
+                    {
+                        state << indent(R"(value.value = static_cast<)") << enum_name
+                              << indent(true, R"(>(words[word_index++]);
 )");
+                        auto &enumerants = util::get<ast::Operand_kinds::Operand_kind::Enumerants>(
+                            operand_kind.value);
+                        for(auto &enumerant : enumerants.enumerants)
+                        {
+                            if(enumerant.parameters.empty())
+                                continue;
+                            auto enumerant_member_name = get_member_name_from_enumerant(enumerant);
+                            auto enumerant_name =
+                                get_enumerant_name(operand_kind.kind, enumerant.enumerant, false);
+                            state
+                                << indent(
+                                       R"(if((static_cast<Word>(value.value) & static_cast<Word>()")
+                                << enum_name << "::" << enumerant_name
+                                << indent(true, R"()) == static_cast<Word>()") << enum_name
+                                << "::" << enumerant_name << indent(true, R"())
+{
+`value.)") << enumerant_member_name
+                                << indent(true, R"(.emplace();
+)");
+                            bool first = true;
+                            for(auto &parameter : enumerant.parameters.parameters)
+                            {
+                                auto parameter_member_name =
+                                    get_member_name_from_parameter(parameter);
+                                auto parameter_parse_function =
+                                    get_parse_operand_function_name(parameter);
+                                state << indent(1);
+                                if(first)
+                                {
+                                    state << indent(true, "auto ");
+                                    first = false;
+                                }
+                                state << indent(true, "parse_error = ") << parameter_parse_function
+                                      << "(words, word_count, semantics, error_instruction_index, "
+                                         "word_index, value."
+                                      << enumerant_member_name << "->" << parameter_member_name
+                                      << indent(true, R"();
+`if(parse_error)
+``return parse_error;
+)");
+                            }
+                            state << indent(R"(}
+)");
+                        }
+                    }
+                    else
+                    {
+                        state << indent(R"(value = static_cast<)") << enum_name
+                              << indent(true, R"(>(words[word_index++]);
+)");
+                    }
                     break;
                 }
                 case ast::Operand_kinds::Operand_kind::Category::value_enum:
                 {
-                    state << indent(R"(value = static_cast<)") << operand_kind.kind
-                          << indent(true, R"(>(words[word_index]);
-if(util::Enum_traits<)") << operand_kind.kind
-                          << indent(true, R"(>::find_value(value) == util::Enum_traits<)")
-                          << operand_kind.kind << indent(true, R"(>::npos)
+                    auto enum_name = get_enum_name(operand_kind);
+                    if(get_operand_has_any_parameters(state, operand_kind))
+                    {
+                        state << indent(R"(value.value = static_cast<)") << enum_name
+                              << indent(true, R"(>(words[word_index++]);
+switch(value.value)
+{
+)");
+                        auto &enumerants = util::get<ast::Operand_kinds::Operand_kind::Enumerants>(
+                            operand_kind.value);
+                        for(auto &enumerant : enumerants.enumerants)
+                        {
+                            auto enumerant_name =
+                                get_enumerant_name(operand_kind.kind, enumerant.enumerant, false);
+                            state << indent("case ") << enum_name << "::" << enumerant_name
+                                  << indent(true, R"(:
+)");
+                            if(enumerant.parameters.empty())
+                            {
+                                state << indent(R"(`break;
+)");
+                                continue;
+                            }
+                            auto enumerant_parameters_struct_name =
+                                get_enumerant_parameters_struct_name(
+                                    operand_kind.kind, enumerant.enumerant, false);
+                            state << indent(R"({
+`value.parameters.emplace<)") << enumerant_parameters_struct_name
+                                  << indent(true, R"(>();
+`auto &parameters = util::get<)") << enumerant_parameters_struct_name
+                                  << indent(true, R"(>(value.parameters);
+)");
+                            bool first = true;
+                            for(auto &parameter : enumerant.parameters.parameters)
+                            {
+                                auto parameter_member_name =
+                                    get_member_name_from_parameter(parameter);
+                                auto parameter_parse_function =
+                                    get_parse_operand_function_name(parameter);
+                                state << indent(1);
+                                if(first)
+                                {
+                                    state << indent(true, "auto ");
+                                    first = false;
+                                }
+                                state << indent(true, "parse_error = ") << parameter_parse_function
+                                      << "(words, word_count, semantics, error_instruction_index, "
+                                         "word_index, parameters."
+                                      << parameter_member_name << indent(true, R"();
+`if(parse_error)
+``return parse_error;
+)");
+                            }
+                            state << indent(R"(`break;
+}
+)");
+                        }
+                        state << indent(R"(default:
+`word_index--;
+`return semantics.handle_error(error_instruction_index + word_index, error_instruction_index, "invalid enum value");
+}
+)");
+                    }
+                    else
+                    {
+                        state << indent(R"(value = static_cast<)") << enum_name
+                              << indent(true, R"(>(words[word_index]);
+if(util::Enum_traits<)") << enum_name
+                              << indent(true, R"(>::find_value(value) == util::Enum_traits<)")
+                              << enum_name << indent(true, R"(>::npos)
 `return semantics.handle_error(error_instruction_index + word_index, error_instruction_index, "invalid enum value");
 word_index++;
 )");
+                    }
                     break;
                 }
                 case ast::Operand_kinds::Operand_kind::Category::composite:
@@ -1591,8 +1780,7 @@ while(word_index < word_count)
                     state << indent("std::unique_ptr<Parse_error> parse_error;\n");
                 for(auto &operand : instruction.operands.operands)
                 {
-                    auto parse_operand_function_name =
-                        get_parse_operand_function_name(operand.kind);
+                    auto parse_operand_function_name = get_parse_operand_function_name(operand);
                     auto member_name = get_member_name_from_operand(operand);
                     switch(operand.quantifier)
                     {
@@ -1675,7 +1863,6 @@ if(parse_error)
             state << indent(R"(`}
 `return semantics.handle_error(error_instruction_index, error_instruction_index, json::ast::Number_value::append_unsigned_integer_to_string(static_cast<Word>(op), "unknown instruction: 0x", 0x10));
 }
-
 static std::unique_ptr<Parse_error> parse(const Word *words, std::size_t word_count, Semantics &semantics)
 {
 `std::size_t word_index = 0;
@@ -1776,11 +1963,12 @@ void Parse_dump::handle_id_bound(Word id_bound)
         for(auto &operand_kind : top_level.operand_kinds.operand_kinds)
         {
             auto dump_function_name =
-                Parser_header_generator::get_dump_operand_function_name(operand_kind.kind);
+                Parser_header_generator::get_dump_operand_function_name(operand_kind);
             {
                 state << indent(R"(
 void Parse_dump::)") << dump_function_name
-                      << "(const " << operand_kind.kind << R"( &v)
+                      << "(const " << get_operand_with_parameters_name(state, operand_kind)
+                      << R"( &value)
 {
 )";
                 auto push_indent = state.pushed_indent();
@@ -1788,34 +1976,85 @@ void Parse_dump::)") << dump_function_name
                 {
                 case ast::Operand_kinds::Operand_kind::Category::bit_enum:
                 {
-                    state << indent(R"(Word bits = static_cast<Word>(v);
-util::Enum_set<)") << operand_kind.kind
-                          << indent(true, R"(> enum_set{};
-for(auto value : util::Enum_traits<)")
-                          << operand_kind.kind << indent(true, R"(>::values)
-{
-`if(static_cast<Word>(value) == 0)
-`{
-``if(v == value)
-```enum_set.insert(value);
-``continue;
-`}
-`if((bits & static_cast<Word>(value)) == static_cast<Word>(value))
-`{
-``bits &= ~static_cast<Word>(value);
-``enum_set.insert(value);
-`}
-}
+                    bool operand_has_any_parameters =
+                        get_operand_has_any_parameters(state, operand_kind);
+                    state << indent(R"(Word bits = static_cast<Word>(value)")
+                          << (operand_has_any_parameters ? ".value" : "") << indent(true, R"();
 bool first = true;
-for(auto value : enum_set)
+)");
+                    auto enum_name = get_enum_name(operand_kind);
+                    auto &enumerants =
+                        util::get<ast::Operand_kinds::Operand_kind::Enumerants>(operand_kind.value);
+                    const ast::Operand_kinds::Operand_kind::Enumerants::Enumerant *zero_enumerant =
+                        nullptr;
+                    for(auto &enumerant : enumerants.enumerants)
+                    {
+                        if(enumerant.value == 0)
+                        {
+                            zero_enumerant = &enumerant;
+                            continue;
+                        }
+                        auto enumerant_name =
+                            get_enumerant_name(operand_kind.kind, enumerant.enumerant, false);
+                        auto scoped_enumerant_name = enum_name + "::" + enumerant_name;
+                        state << indent(R"(if((bits & static_cast<Word>()") << scoped_enumerant_name
+                              << indent(true, R"()) == static_cast<Word>()")
+                              << scoped_enumerant_name << indent(true, R"())
 {
+`bits &= ~static_cast<Word>()")
+                              << scoped_enumerant_name << indent(true, R"();
 `if(first)
 ``first = false;
 `else
 ``os << " | ";
-`os << get_enumerant_name(value);
-}
-if(bits)
+`os << get_enumerant_name()") << scoped_enumerant_name
+                              << indent(true, R"();
+)");
+                        if(!enumerant.parameters.empty())
+                        {
+                            auto enumerant_member_name = get_member_name_from_enumerant(enumerant);
+                            state << indent(R"(`os << "(";
+`if(value.)") << enumerant_member_name
+                                  << indent(true, R"()
+`{
+``auto &parameters = *value.)") << enumerant_member_name
+                                  << indent(true, R"(;
+)");
+                            bool first = true;
+                            for(auto &parameter : enumerant.parameters.parameters)
+                            {
+                                if(first)
+                                    first = false;
+                                else
+                                    state << indent(R"(``os << ", ";
+)");
+                                state << indent(2)
+                                      << Parser_header_generator::get_dump_operand_function_name(
+                                             parameter)
+                                      << "(parameters." << get_member_name_from_parameter(parameter)
+                                      << ");\n";
+                            }
+                            state << indent(R"a(`}
+`os << ")";
+)a");
+                        }
+                        state << indent(R"(}
+)");
+                    }
+                    std::string zero_enumerant_name_code;
+                    if(zero_enumerant)
+                    {
+                        zero_enumerant_name_code =
+                            "get_enumerant_name(" + enum_name + "::"
+                            + get_enumerant_name(
+                                  operand_kind.kind, zero_enumerant->enumerant, false)
+                            + ")";
+                    }
+                    else
+                    {
+                        zero_enumerant_name_code = "\"0\"";
+                    }
+                    state << indent(R"(if(bits != 0)
 {
 `if(!first)
 ``os << " | ";
@@ -1823,20 +2062,94 @@ if(bits)
 }
 else if(first)
 {
-`os << "0";
+`os << )") << zero_enumerant_name_code
+                          << indent(true, R"(;
 }
 )");
                     break;
                 }
                 case ast::Operand_kinds::Operand_kind::Category::value_enum:
                 {
-                    state << indent(R"(if(util::Enum_traits<)") << operand_kind.kind
-                          << indent(true, R"(>::find_value(v) == util::Enum_traits<)")
-                          << operand_kind.kind << indent(true, R"(>::npos)
-`os << json::ast::Number_value::unsigned_integer_to_string(static_cast<Word>(v));
-else
-`os << get_enumerant_name(v);
+                    auto enum_name = get_enum_name(operand_kind);
+                    if(get_operand_has_any_parameters(state, operand_kind))
+                    {
+                        state << indent(R"(switch(value.value)
+{
 )");
+                        auto &enumerants = util::get<ast::Operand_kinds::Operand_kind::Enumerants>(
+                            operand_kind.value);
+                        bool any_parameterless_enumerants = false;
+                        for(auto &enumerant : enumerants.enumerants)
+                        {
+                            if(!enumerant.parameters.empty())
+                                continue;
+                            any_parameterless_enumerants = true;
+                            state << indent("case ") << enum_name
+                                  << "::" << get_enumerant_name(
+                                                 operand_kind.kind, enumerant.enumerant, false)
+                                  << ":\n";
+                        }
+                        if(any_parameterless_enumerants)
+                        {
+                            state << indent(R"(`os << get_enumerant_name(value.value);
+`break;
+)");
+                        }
+                        for(auto &enumerant : enumerants.enumerants)
+                        {
+                            if(enumerant.parameters.empty())
+                                continue;
+                            auto enumerant_name =
+                                get_enumerant_name(operand_kind.kind, enumerant.enumerant, false);
+                            auto scoped_enumerant_name = enum_name + "::" + enumerant_name;
+                            auto enumerant_parameters_struct_name =
+                                get_enumerant_parameters_struct_name(
+                                    operand_kind.kind, enumerant.enumerant, false);
+                            state << indent("case ") << scoped_enumerant_name << indent(true, R"(:
+{
+`os << get_enumerant_name()") << scoped_enumerant_name
+                                  << indent(true, R"() << "(";
+`auto *parameters = util::get_if<)")
+                                  << enumerant_parameters_struct_name
+                                  << indent(true, R"(>(&value.parameters);
+`if(parameters)
+`{
+)");
+                            bool first = true;
+                            for(auto &parameter : enumerant.parameters.parameters)
+                            {
+                                if(first)
+                                    first = false;
+                                else
+                                    state << indent(R"(``os << ", ";
+)");
+                                state << indent(2)
+                                      << Parser_header_generator::get_dump_operand_function_name(
+                                             parameter)
+                                      << "(parameters->" << get_member_name_from_parameter(parameter)
+                                      << ");\n";
+                            }
+                            state << indent(R"a(`}
+`os << ")";
+`break;
+}
+)a");
+                        }
+                        state << indent(R"(default:
+`os << json::ast::Number_value::unsigned_integer_to_string(static_cast<Word>(value.value));
+}
+)");
+                    }
+                    else
+                    {
+                        state << indent(R"(if(util::Enum_traits<)") << enum_name
+                              << indent(true, R"(>::find_value(value) == util::Enum_traits<)")
+                              << enum_name << indent(true, R"(>::npos)
+`os << json::ast::Number_value::unsigned_integer_to_string(static_cast<Word>(value));
+else
+`os << get_enumerant_name(value);
+)");
+                    }
                     break;
                 }
                 case ast::Operand_kinds::Operand_kind::Category::composite:
@@ -1852,7 +2165,7 @@ else
                         }
                         state << indent << Parser_header_generator::get_dump_operand_function_name(
                                                bases.values[i])
-                              << "(v."
+                              << "(value."
                               << json::ast::Number_value::append_unsigned_integer_to_string(i + 1,
                                                                                             "part_")
                               << ");\n";
@@ -1863,7 +2176,7 @@ else
                 case ast::Operand_kinds::Operand_kind::Category::id:
                 {
                     state << indent(
-                        R"(os << json::ast::Number_value::append_unsigned_integer_to_string(v, "#");
+                        R"(os << json::ast::Number_value::append_unsigned_integer_to_string(value, "#");
 )");
                     break;
                 }
@@ -1872,42 +2185,42 @@ else
                     if(operand_kind.kind == "LiteralInteger")
                     {
                         state << indent(
-                            R"(os << json::ast::Number_value::append_unsigned_integer_to_string(v, "0x");
+                            R"(os << json::ast::Number_value::append_unsigned_integer_to_string(value, "0x");
 )");
                     }
                     else if(operand_kind.kind == "LiteralExtInstInteger")
                     {
                         state << indent(
-                            R"(os << json::ast::Number_value::append_unsigned_integer_to_string(v, "0x");
+                            R"(os << json::ast::Number_value::append_unsigned_integer_to_string(value, "0x");
 )");
                     }
                     else if(operand_kind.kind == "LiteralString")
                     {
                         state << indent(
-                            R"(json::ast::String_value::write(os, v);
+                            R"(json::ast::String_value::write(os, value);
 )");
                     }
                     else if(operand_kind.kind == "LiteralSpecConstantOpInteger")
                     {
                         state << indent(R"(if(util::Enum_traits<)") << op_enum_name
-                              << indent(true, R"(>::find_value(v) == util::Enum_traits<)")
+                              << indent(true, R"(>::find_value(value) == util::Enum_traits<)")
                               << op_enum_name << indent(true, R"(>::npos)
-`os << json::ast::Number_value::unsigned_integer_to_string(static_cast<Word>(v));
+`os << json::ast::Number_value::unsigned_integer_to_string(static_cast<Word>(value));
 else
-`os << get_enumerant_name(v);
+`os << get_enumerant_name(value);
 )");
                     }
                     else
                     {
                         state << indent(
-                            R"(static_assert(std::is_same<decltype(v), const std::vector<Word> &>::value, "missing dump code for operand kind");
+                            R"(static_assert(std::is_same<decltype(value), const std::vector<Word> &>::value, "missing dump code for operand kind");
 auto separator = "";
 os << "{";
-for(Word value : v)
+for(Word word : value)
 {
 `os << separator;
 `separator = ", ";
-`os << json::ast::Number_value::append_unsigned_integer_to_string(value, "0x", 0x10, 8);
+`os << json::ast::Number_value::append_unsigned_integer_to_string(word, "0x", 0x10, 8);
 }
 os << "}";
 )");
@@ -1920,23 +2233,25 @@ os << "}";
             }
             state << indent(R"(
 void Parse_dump::)")
-                  << dump_function_name << "(const util::optional<" << operand_kind.kind
-                  << indent(true, R"(> &v)
+                  << dump_function_name << "(const util::optional<"
+                  << get_operand_with_parameters_name(state, operand_kind)
+                  << indent(true, R"(> &value)
 {
-`if(v)
+`if(value)
 )") << indent(2) << dump_function_name
-                  << indent(true, R"((*v);
+                  << indent(true, R"((*value);
 `else
 ``os << "nullopt";
 }
 
 void Parse_dump::)")
-                  << dump_function_name << "(const std::vector<" << operand_kind.kind
-                  << indent(true, R"(> &v)
+                  << dump_function_name << "(const std::vector<"
+                  << get_operand_with_parameters_name(state, operand_kind)
+                  << indent(true, R"(> &values)
 {
 `auto separator = "";
 `os << "{";
-`for(auto &value : v)
+`for(auto &value : values)
 `{
 ``os << separator;
 ``separator = ", ";
