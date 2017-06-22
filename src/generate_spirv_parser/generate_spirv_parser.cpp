@@ -60,8 +60,6 @@ int generate_spirv_parser_main(int argc, char **argv)
             {
                 generator->run(generate::Generator::Generator_args(output_directory), ast);
             }
-#warning finish
-            std::cerr << "generate_spirv_parser is not finished being implemented" << std::endl;
             return 0;
         }
         catch(parser::Parse_error &e)

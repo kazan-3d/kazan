@@ -495,7 +495,12 @@ ast::Operand_kinds::Operand_kind parse_operand_kinds_operand_kind(
         kind_name,
         [&](json::ast::Value &entry_value, const Path_builder_base *path_builder)
         {
-            return parse_identifier_string(std::move(entry_value), path_builder, kind_name);
+            auto retval = parse_identifier_string(std::move(entry_value), path_builder, kind_name);
+            if(category == ast::Operand_kinds::Operand_kind::Category::literal
+               && !ast::Operand_kinds::Operand_kind::get_literal_kind_from_json_name(retval))
+                throw Parse_error(
+                    entry_value.location, path_builder->path(), "unknown literal kind");
+            return retval;
         });
     util::optional<ast::Operand_kinds::Operand_kind::Value> operand_kind_value;
     for(auto &entry : operand_kind_object.values)

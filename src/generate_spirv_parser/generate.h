@@ -364,7 +364,11 @@ protected:
     static std::string get_member_name_from_operand(
         const ast::Instructions::Instruction::Operands::Operand &operand);
     static std::string get_member_name_from_parameter(
-        const ast::Operand_kinds::Operand_kind::Enumerants::Enumerant::Parameters::Parameter &parameter);
+        const ast::Operand_kinds::Operand_kind::Enumerants::Enumerant::Parameters::Parameter
+            &parameter);
+    static std::string get_member_name_from_enumerant(
+        const ast::Operand_kinds::Operand_kind::Enumerants::Enumerant
+            &enumerant);
     static const ast::Operand_kinds::Operand_kind &get_operand_kind_from_string(
         Generator_state &state, const std::string &operand_kind_str)
     {
@@ -395,6 +399,12 @@ protected:
     {
         return get_operand_with_parameters_name(
             state, get_operand_kind_from_string(state, operand_kind_str));
+    }
+    static std::string get_operand_with_parameters_name(
+        Generator_state &state, const ast::Instructions::Instruction::Operands::Operand &operand)
+    {
+        return get_operand_with_parameters_name(state,
+                                                get_operand_kind_from_string(state, operand.kind));
     }
     static std::string get_enum_name(std::string operand_kind_str)
     {

@@ -151,11 +151,6 @@ constexpr bool is_digit(char ch) noexcept
         return true;
     return false;
 }
-
-constexpr bool is_identifier_continue(char ch) noexcept
-{
-    return is_identifier_start(ch) || is_digit(ch);
-}
 }
 
 std::string Generator::get_enumerant_name(const char *enumeration_name,
@@ -1046,17 +1041,32 @@ constexpr Word magic_number = )")
             case ast::Operand_kinds::Operand_kind::Category::literal:
             {
                 auto &doc = util::get<ast::Operand_kinds::Operand_kind::Doc>(operand_kind->value);
+                auto literal_kind =
+                    ast::Operand_kinds::Operand_kind::get_literal_kind_from_json_name(
+                        operand_kind->kind);
+                if(!literal_kind)
+                    throw Generate_error("bad literal kind");
                 auto base_type = "std::vector<Word>";
-                if(operand_kind->kind == "LiteralInteger")
-                    base_type = "std::uint32_t"; // TODO: fix after determining if LiteralInteger
-                // can be multiple words
-                else if(operand_kind->kind == "LiteralString")
+                switch(*literal_kind)
+                {
+                case ast::Operand_kinds::Operand_kind::Literal_kind::literal_integer:
+                    // TODO: fix after determining if LiteralInteger can be multiple words
+                    base_type = "std::uint32_t";
+                    break;
+                case ast::Operand_kinds::Operand_kind::Literal_kind::literal_string:
                     base_type = "std::string";
-                else if(operand_kind->kind == "LiteralExtInstInteger")
+                    break;
+                case ast::Operand_kinds::Operand_kind::Literal_kind::
+                    literal_context_dependent_number:
+                    break;
+                case ast::Operand_kinds::Operand_kind::Literal_kind::literal_ext_inst_integer:
                     base_type = "Word";
-                else if(operand_kind->kind == "LiteralSpecConstantOpInteger")
+                    break;
+                case ast::Operand_kinds::Operand_kind::Literal_kind::
+                    literal_spec_constant_op_integer:
                     base_type = "Op";
-#warning finish
+                    break;
+                }
                 state << "\n"
                          "/** ";
                 bool was_last_star = false;
@@ -1357,8 +1367,6 @@ struct )") << struct_name << indent(true, R"(
             }
             state << "};\n";
         }
-
-#warning finish
         write_namespaces_end(state, spirv_namespace_names);
         write_file_guard_end(state);
     }
@@ -1468,7 +1476,6 @@ virtual void handle_id_bound(Word id_bound) = 0;
                 state << indent("virtual void handle_instruction(") << struct_name
                       << " instruction) = 0;\n";
             }
-#warning finish
         }
         state << indent(R"(};
 
@@ -1503,7 +1510,6 @@ virtual void handle_id_bound(Word id_bound) override;
                 state << indent("void ") << dump_function_name << "(const std::vector<"
                       << get_operand_with_parameters_name(state, operand_kind) << "> &values);\n";
             }
-#warning finish
         }
         state << "};\n"
                  "\n"
@@ -1698,19 +1704,19 @@ if(parse_error)
                 }
                 case ast::Operand_kinds::Operand_kind::Category::literal:
                 {
-                    if(operand_kind.kind == "LiteralInteger")
+                    auto literal_kind =
+                        ast::Operand_kinds::Operand_kind::get_literal_kind_from_json_name(
+                            operand_kind.kind);
+                    if(!literal_kind)
+                        throw Generate_error("bad literal kind");
+                    switch(*literal_kind)
                     {
+                    case ast::Operand_kinds::Operand_kind::Literal_kind::literal_integer:
                         // TODO: fix after determining if LiteralInteger can be multiple words
                         state << indent(R"(value = words[word_index++];
 )");
-                    }
-                    else if(operand_kind.kind == "LiteralExtInstInteger")
-                    {
-                        state << indent(R"(value = words[word_index++];
-)");
-                    }
-                    else if(operand_kind.kind == "LiteralString")
-                    {
+                        break;
+                    case ast::Operand_kinds::Operand_kind::Literal_kind::literal_string:
                         state << indent(
                             R"(value.clear();
 bool done = false;
@@ -1736,16 +1742,9 @@ while(!done)
 `}
 }
 )");
-                    }
-                    else if(operand_kind.kind == "LiteralSpecConstantOpInteger")
-                    {
-#warning finish
-                        state << indent(R"(value = static_cast<)") << op_enum_name
-                              << indent(true, R"(>(words[word_index++]);
-)");
-                    }
-                    else
-                    {
+                        break;
+                    case ast::Operand_kinds::Operand_kind::Literal_kind::
+                        literal_context_dependent_number:
                         state << indent(
                             R"(static_assert(std::is_same<decltype(value), std::vector<Word> &>::value, "missing parse code for operand kind");
 value.clear();
@@ -1753,6 +1752,17 @@ value.reserve(word_count - word_index);
 while(word_index < word_count)
 `value.push_back(words[word_index++]);
 )");
+                        break;
+                    case ast::Operand_kinds::Operand_kind::Literal_kind::literal_ext_inst_integer:
+                        state << indent(R"(value = words[word_index++];
+)");
+                        break;
+                    case ast::Operand_kinds::Operand_kind::Literal_kind::
+                        literal_spec_constant_op_integer:
+                        state << indent(R"(value = static_cast<)") << op_enum_name
+                              << indent(true, R"(>(words[word_index++]);
+)");
+                        break;
                     }
                     break;
                 }
@@ -1908,10 +1918,8 @@ static std::unique_ptr<Parse_error> parse(const Word *words, std::size_t word_co
 `return nullptr;
 }
 )");
-#warning finish
         }
         state << "};\n";
-#warning finish
         write_namespaces_end(state, spirv_namespace_names);
         write_file_guard_end(state);
     }
@@ -2126,8 +2134,8 @@ else if(first)
                                 state << indent(2)
                                       << Parser_header_generator::get_dump_operand_function_name(
                                              parameter)
-                                      << "(parameters->" << get_member_name_from_parameter(parameter)
-                                      << ");\n";
+                                      << "(parameters->"
+                                      << get_member_name_from_parameter(parameter) << ");\n";
                             }
                             state << indent(R"a(`}
 `os << ")";
@@ -2182,36 +2190,25 @@ else
                 }
                 case ast::Operand_kinds::Operand_kind::Category::literal:
                 {
-                    if(operand_kind.kind == "LiteralInteger")
+                    auto literal_kind =
+                        ast::Operand_kinds::Operand_kind::get_literal_kind_from_json_name(
+                            operand_kind.kind);
+                    if(!literal_kind)
+                        throw Generate_error("bad literal kind");
+                    switch(*literal_kind)
                     {
+                    case ast::Operand_kinds::Operand_kind::Literal_kind::literal_integer:
                         state << indent(
                             R"(os << json::ast::Number_value::append_unsigned_integer_to_string(value, "0x");
 )");
-                    }
-                    else if(operand_kind.kind == "LiteralExtInstInteger")
-                    {
-                        state << indent(
-                            R"(os << json::ast::Number_value::append_unsigned_integer_to_string(value, "0x");
-)");
-                    }
-                    else if(operand_kind.kind == "LiteralString")
-                    {
+                        break;
+                    case ast::Operand_kinds::Operand_kind::Literal_kind::literal_string:
                         state << indent(
                             R"(json::ast::String_value::write(os, value);
 )");
-                    }
-                    else if(operand_kind.kind == "LiteralSpecConstantOpInteger")
-                    {
-                        state << indent(R"(if(util::Enum_traits<)") << op_enum_name
-                              << indent(true, R"(>::find_value(value) == util::Enum_traits<)")
-                              << op_enum_name << indent(true, R"(>::npos)
-`os << json::ast::Number_value::unsigned_integer_to_string(static_cast<Word>(value));
-else
-`os << get_enumerant_name(value);
-)");
-                    }
-                    else
-                    {
+                        break;
+                    case ast::Operand_kinds::Operand_kind::Literal_kind::
+                        literal_context_dependent_number:
                         state << indent(
                             R"(static_assert(std::is_same<decltype(value), const std::vector<Word> &>::value, "missing dump code for operand kind");
 auto separator = "";
@@ -2224,6 +2221,22 @@ for(Word word : value)
 }
 os << "}";
 )");
+                        break;
+                    case ast::Operand_kinds::Operand_kind::Literal_kind::literal_ext_inst_integer:
+                        state << indent(
+                            R"(os << json::ast::Number_value::append_unsigned_integer_to_string(value, "0x");
+)");
+                        break;
+                    case ast::Operand_kinds::Operand_kind::Literal_kind::
+                        literal_spec_constant_op_integer:
+                        state << indent(R"(if(util::Enum_traits<)") << op_enum_name
+                              << indent(true, R"(>::find_value(value) == util::Enum_traits<)")
+                              << op_enum_name << indent(true, R"(>::npos)
+`os << json::ast::Number_value::unsigned_integer_to_string(static_cast<Word>(value));
+else
+`os << get_enumerant_name(value);
+)");
+                        break;
                     }
                     break;
                 }

@@ -244,7 +244,7 @@ template <typename... Types>
 constexpr bool variant_is_trivially_destructible() noexcept
 {
     bool values[] = {
-        std::is_trivially_destructible<Types>::value...,
+        true, std::is_trivially_destructible<Types>::value...,
     };
     for(bool v : values)
         if(!v)
@@ -312,201 +312,182 @@ template <typename... Types>
 using Variant_values =
     Variant_values_implementation<variant_is_trivially_destructible<Types...>(), Types...>;
 
-#define VULKAN_CPU_UTIL_VARIANT_VALUES(Is_Trivially_Destructible, Destructor)                                    \
-    template <typename T, typename... Types>                                                                     \
-    union Variant_values_implementation<Is_Trivially_Destructible, T, Types...>                                  \
-    {                                                                                                            \
-        typedef T Type_0;                                                                                        \
-        static_assert(!std::is_void<T>::value, "invalid variant member type");                                   \
-        static_assert(!std::is_reference<T>::value, "invalid variant member type");                              \
-        static_assert(!std::is_array<T>::value, "invalid variant member type");                                  \
-        static_assert(!std::is_const<T>::value, "invalid variant member type");                                  \
-        static_assert(!std::is_volatile<T>::value, "invalid variant member type");                               \
-        static_assert(std::is_object<T>::value, "invalid variant member type");                                  \
-        T current_value;                                                                                         \
-        Variant_values_implementation<Is_Trivially_Destructible, Types...> other_values;                         \
-        static constexpr bool is_copy_constructible =                                                            \
-            std::is_copy_constructible<T>::value                                                                 \
-            && Variant_values_implementation<Is_Trivially_Destructible,                                          \
-                                             Types...>::is_copy_constructible;                                   \
-        static constexpr bool is_move_constructible =                                                            \
-            std::is_move_constructible<T>::value                                                                 \
-            && Variant_values_implementation<Is_Trivially_Destructible,                                          \
-                                             Types...>::is_move_constructible;                                   \
-        static constexpr bool is_nothrow_copy_constructible =                                                    \
-            std::is_nothrow_copy_constructible<T>::value                                                         \
-            && Variant_values_implementation<Is_Trivially_Destructible,                                          \
-                                             Types...>::is_nothrow_copy_constructible;                           \
-        static constexpr bool is_nothrow_move_constructible =                                                    \
-            std::is_nothrow_move_constructible<T>::value                                                         \
-            && Variant_values_implementation<Is_Trivially_Destructible,                                          \
-                                             Types...>::is_nothrow_move_constructible;                           \
-        static constexpr bool is_copy_assignable =                                                               \
-            std::is_copy_assignable<T>::value && std::is_copy_constructible<T>::value                            \
-            && Variant_values_implementation<Is_Trivially_Destructible,                                          \
-                                             Types...>::is_copy_assignable;                                      \
-        static constexpr bool is_move_assignable =                                                               \
-            std::is_move_assignable<T>::value && std::is_move_constructible<T>::value                            \
-            && Variant_values_implementation<Is_Trivially_Destructible,                                          \
-                                             Types...>::is_move_assignable;                                      \
-        static constexpr bool is_nothrow_copy_assignable =                                                       \
-            std::is_nothrow_copy_assignable<T>::value                                                            \
-            && std::is_nothrow_copy_constructible<T>::value                                                      \
-            && Variant_values_implementation<Is_Trivially_Destructible,                                          \
-                                             Types...>::is_nothrow_copy_assignable;                              \
-        static constexpr bool is_nothrow_move_assignable =                                                       \
-            std::is_nothrow_move_assignable<T>::value                                                            \
-            && std::is_nothrow_move_constructible<T>::value                                                      \
-            && Variant_values_implementation<Is_Trivially_Destructible,                                          \
-                                             Types...>::is_nothrow_move_assignable;                              \
-        static constexpr bool is_swappable =                                                                     \
-            is_swappable_v<T> && std::is_move_constructible<T>::value                                            \
-            && Variant_values_implementation<Is_Trivially_Destructible, Types...>::is_swappable;                 \
-        static constexpr bool is_nothrow_swappable =                                                             \
-            is_nothrow_swappable_v<T> && std::is_nothrow_move_constructible<T>::value                            \
-            && Variant_values_implementation<Is_Trivially_Destructible,                                          \
-                                             Types...>::is_nothrow_swappable;                                    \
-        static constexpr bool is_equals_comparable =                                                             \
-            Variant_is_equals_comparable<T>::value                                                               \
-            && Variant_values_implementation<Is_Trivially_Destructible,                                          \
-                                             Types...>::is_equals_comparable;                                    \
-        static constexpr bool is_less_comparable =                                                               \
-            Variant_is_less_comparable<T>::value                                                                 \
-            && Variant_values_implementation<Is_Trivially_Destructible,                                          \
-                                             Types...>::is_less_comparable;                                      \
-        static constexpr bool is_nothrow_equals_comparable =                                                     \
-            Variant_is_nothrow_equals_comparable<T>::value                                                       \
-            && Variant_values_implementation<Is_Trivially_Destructible,                                          \
-                                             Types...>::is_nothrow_equals_comparable;                            \
-        static constexpr bool is_nothrow_less_comparable =                                                       \
-            Variant_is_nothrow_less_comparable<T>::value                                                         \
-            && Variant_values_implementation<Is_Trivially_Destructible,                                          \
-                                             Types...>::is_nothrow_less_comparable;                              \
-        template <                                                                                               \
-            typename T2 = T,                                                                                     \
-            typename = typename std::enable_if<std::is_default_constructible<T2>::value>::type>                  \
-        constexpr Variant_values_implementation() noexcept(                                                      \
-            std::is_nothrow_default_constructible<T2>::value)                                                    \
-            : current_value()                                                                                    \
-        {                                                                                                        \
-        }                                                                                                        \
-        template <                                                                                               \
-            typename... Args,                                                                                    \
-            typename = typename std::enable_if<std::is_constructible<T, Args...>::value>::type>                  \
-        constexpr Variant_values_implementation(in_place_index_t<0>, Args &&... args) noexcept(                  \
-            std::is_nothrow_constructible<T, Args...>::value)                                                    \
-            : current_value(std::forward<Args>(args)...)                                                         \
-        {                                                                                                        \
-        }                                                                                                        \
-        template <std::size_t index,                                                                             \
-                  typename... Args,                                                                              \
-                  typename = typename std::                                                                      \
-                      enable_if<index != 0                                                                       \
-                                && std::                                                                         \
-                                       is_constructible<Variant_values_implementation<Is_Trivially_Destructible, \
-                                                                                      Types...>,                 \
-                                                        in_place_index_t<index - 1>,                             \
-                                                        Args...>::value>::type>                                  \
-        constexpr Variant_values_implementation(in_place_index_t<index>, Args &&... args) noexcept(              \
-            std::is_nothrow_constructible<Variant_values_implementation<Is_Trivially_Destructible,               \
-                                                                        Types...>,                               \
-                                          in_place_index_t<index - 1>,                                           \
-                                          Args...>::value)                                                       \
-            : other_values(in_place_index<index - 1>, std::forward<Args>(args)...)                               \
-        {                                                                                                        \
-        }                                                                                                        \
-        template <                                                                                               \
-            typename U,                                                                                          \
-            typename... Args,                                                                                    \
-            typename = typename std::enable_if<std::is_constructible<T,                                          \
-                                                                     std::initializer_list<U>,                   \
-                                                                     Args...>::value>::type>                     \
-        constexpr Variant_values_implementation(                                                                 \
-            in_place_index_t<0>,                                                                                 \
-            std::initializer_list<U> il,                                                                         \
-            Args &&... args) noexcept(std::is_nothrow_constructible<T,                                           \
-                                                                    std::initializer_list<U>,                    \
-                                                                    Args...>::value)                             \
-            : current_value(il, std::forward<Args>(args)...)                                                     \
-        {                                                                                                        \
-        }                                                                                                        \
-        template <typename U>                                                                                    \
-        static constexpr std::size_t index_from_type() noexcept                                                  \
-        {                                                                                                        \
-            std::size_t next =                                                                                   \
-                Variant_values_implementation<Is_Trivially_Destructible,                                         \
-                                              Types...>::template index_from_type<U>();                          \
-            if(std::is_same<U, T>::value && next == variant_npos)                                                \
-                return 0;                                                                                        \
-            if(next == variant_npos)                                                                             \
-                return variant_npos;                                                                             \
-            return next + 1;                                                                                     \
-        }                                                                                                        \
-        void copy_construct(const Variant_values_implementation &rt,                                             \
-                            std::size_t index) noexcept(is_nothrow_copy_constructible)                           \
-        {                                                                                                        \
-            if(index == 0)                                                                                       \
-                new(const_cast<void *>(static_cast<const volatile void *>(                                       \
-                    std::addressof(current_value)))) T(rt.current_value);                                        \
-            else                                                                                                 \
-                other_values.copy_construct(rt.other_values, index - 1);                                         \
-        }                                                                                                        \
-        void move_construct(Variant_values_implementation &&rt,                                                  \
-                            std::size_t index) noexcept(is_nothrow_move_constructible)                           \
-        {                                                                                                        \
-            if(index == 0)                                                                                       \
-                new(const_cast<void *>(static_cast<const volatile void *>(                                       \
-                    std::addressof(current_value)))) T(std::move(rt.current_value));                             \
-            else                                                                                                 \
-                other_values.move_construct(std::move(rt.other_values), index - 1);                              \
-        }                                                                                                        \
-        void copy_assign(const Variant_values_implementation &rt,                                                \
-                         std::size_t index) noexcept(is_nothrow_copy_assignable)                                 \
-        {                                                                                                        \
-            if(index == 0)                                                                                       \
-                current_value = rt.current_value;                                                                \
-            else                                                                                                 \
-                other_values.copy_assign(rt.other_values, index - 1);                                            \
-        }                                                                                                        \
-        void move_assign(Variant_values_implementation &&rt,                                                     \
-                         std::size_t index) noexcept(is_nothrow_move_assignable)                                 \
-        {                                                                                                        \
-            if(index == 0)                                                                                       \
-                current_value = std::move(rt.current_value);                                                     \
-            else                                                                                                 \
-                other_values.move_assign(std::move(rt.other_values), index - 1);                                 \
-        }                                                                                                        \
-        void destruct(std::size_t index) noexcept                                                                \
-        {                                                                                                        \
-            if(index == 0)                                                                                       \
-                current_value.~T();                                                                              \
-            else                                                                                                 \
-                other_values.destruct(index - 1);                                                                \
-        }                                                                                                        \
-        void swap(Variant_values_implementation &rt,                                                             \
-                  std::size_t index) noexcept(is_nothrow_swappable)                                              \
-        {                                                                                                        \
-            using std::swap;                                                                                     \
-            if(index == 0)                                                                                       \
-                swap(current_value, rt.current_value);                                                           \
-            else                                                                                                 \
-                other_values.swap(rt.other_values, index - 1);                                                   \
-        }                                                                                                        \
-        bool is_equal(const Variant_values_implementation &rt, std::size_t index) const                          \
-            noexcept(is_nothrow_equals_comparable)                                                               \
-        {                                                                                                        \
-            if(index == 0)                                                                                       \
-                return static_cast<bool>(current_value == rt.current_value);                                     \
-            return other_values.is_equal(rt.other_values, index - 1);                                            \
-        }                                                                                                        \
-        bool is_less(const Variant_values_implementation &rt, std::size_t index) const                           \
-            noexcept(is_nothrow_less_comparable)                                                                 \
-        {                                                                                                        \
-            if(index == 0)                                                                                       \
-                return static_cast<bool>(current_value < rt.current_value);                                      \
-            return other_values.is_equal(rt.other_values, index - 1);                                            \
-        }                                                                                                        \
-        Destructor                                                                                               \
+#define VULKAN_CPU_UTIL_VARIANT_VALUES(Is_Trivially_Destructible, Destructor)                     \
+    template <typename T, typename... Types>                                                      \
+    union Variant_values_implementation<Is_Trivially_Destructible, T, Types...>                   \
+    {                                                                                             \
+        typedef T Type_0;                                                                         \
+        static_assert(!std::is_void<T>::value, "invalid variant member type");                    \
+        static_assert(!std::is_reference<T>::value, "invalid variant member type");               \
+        static_assert(!std::is_array<T>::value, "invalid variant member type");                   \
+        static_assert(!std::is_const<T>::value, "invalid variant member type");                   \
+        static_assert(!std::is_volatile<T>::value, "invalid variant member type");                \
+        static_assert(std::is_object<T>::value, "invalid variant member type");                   \
+        T current_value;                                                                          \
+        Variant_values<Types...> other_values;                                                    \
+        static constexpr bool is_copy_constructible =                                             \
+            std::is_copy_constructible<T>::value                                                  \
+            && Variant_values<Types...>::is_copy_constructible;                                   \
+        static constexpr bool is_move_constructible =                                             \
+            std::is_move_constructible<T>::value                                                  \
+            && Variant_values<Types...>::is_move_constructible;                                   \
+        static constexpr bool is_nothrow_copy_constructible =                                     \
+            std::is_nothrow_copy_constructible<T>::value                                          \
+            && Variant_values<Types...>::is_nothrow_copy_constructible;                           \
+        static constexpr bool is_nothrow_move_constructible =                                     \
+            std::is_nothrow_move_constructible<T>::value                                          \
+            && Variant_values<Types...>::is_nothrow_move_constructible;                           \
+        static constexpr bool is_copy_assignable =                                                \
+            std::is_copy_assignable<T>::value && std::is_copy_constructible<T>::value             \
+            && Variant_values<Types...>::is_copy_assignable;                                      \
+        static constexpr bool is_move_assignable =                                                \
+            std::is_move_assignable<T>::value && std::is_move_constructible<T>::value             \
+            && Variant_values<Types...>::is_move_assignable;                                      \
+        static constexpr bool is_nothrow_copy_assignable =                                        \
+            std::is_nothrow_copy_assignable<T>::value                                             \
+            && std::is_nothrow_copy_constructible<T>::value                                       \
+            && Variant_values<Types...>::is_nothrow_copy_assignable;                              \
+        static constexpr bool is_nothrow_move_assignable =                                        \
+            std::is_nothrow_move_assignable<T>::value                                             \
+            && std::is_nothrow_move_constructible<T>::value                                       \
+            && Variant_values<Types...>::is_nothrow_move_assignable;                              \
+        static constexpr bool is_swappable =                                                      \
+            is_swappable_v<T> && std::is_move_constructible<T>::value                             \
+            && Variant_values<Types...>::is_swappable;                                            \
+        static constexpr bool is_nothrow_swappable =                                              \
+            is_nothrow_swappable_v<T> && std::is_nothrow_move_constructible<T>::value             \
+            && Variant_values<Types...>::is_nothrow_swappable;                                    \
+        static constexpr bool is_equals_comparable =                                              \
+            Variant_is_equals_comparable<T>::value                                                \
+            && Variant_values<Types...>::is_equals_comparable;                                    \
+        static constexpr bool is_less_comparable =                                                \
+            Variant_is_less_comparable<T>::value && Variant_values<Types...>::is_less_comparable; \
+        static constexpr bool is_nothrow_equals_comparable =                                      \
+            Variant_is_nothrow_equals_comparable<T>::value                                        \
+            && Variant_values<Types...>::is_nothrow_equals_comparable;                            \
+        static constexpr bool is_nothrow_less_comparable =                                        \
+            Variant_is_nothrow_less_comparable<T>::value                                          \
+            && Variant_values<Types...>::is_nothrow_less_comparable;                              \
+        template <                                                                                \
+            typename T2 = T,                                                                      \
+            typename = typename std::enable_if<std::is_default_constructible<T2>::value>::type>   \
+        constexpr Variant_values_implementation() noexcept(                                       \
+            std::is_nothrow_default_constructible<T2>::value)                                     \
+            : current_value()                                                                     \
+        {                                                                                         \
+        }                                                                                         \
+        template <                                                                                \
+            typename... Args,                                                                     \
+            typename = typename std::enable_if<std::is_constructible<T, Args...>::value>::type>   \
+        constexpr Variant_values_implementation(in_place_index_t<0>, Args &&... args) noexcept(   \
+            std::is_nothrow_constructible<T, Args...>::value)                                     \
+            : current_value(std::forward<Args>(args)...)                                          \
+        {                                                                                         \
+        }                                                                                         \
+        template <std::size_t index,                                                              \
+                  typename... Args,                                                               \
+                  typename = typename std::                                                       \
+                      enable_if<index != 0 && std::is_constructible<Variant_values<Types...>,     \
+                                                                    in_place_index_t<index - 1>,  \
+                                                                    Args...>::value>::type>       \
+        constexpr Variant_values_implementation(                                                  \
+            in_place_index_t<index>,                                                              \
+            Args &&... args) noexcept(std::is_nothrow_constructible<Variant_values<Types...>,     \
+                                                                    in_place_index_t<index - 1>,  \
+                                                                    Args...>::value)              \
+            : other_values(in_place_index<index - 1>, std::forward<Args>(args)...)                \
+        {                                                                                         \
+        }                                                                                         \
+        template <                                                                                \
+            typename U,                                                                           \
+            typename... Args,                                                                     \
+            typename = typename std::enable_if<std::is_constructible<T,                           \
+                                                                     std::initializer_list<U>,    \
+                                                                     Args...>::value>::type>      \
+        constexpr Variant_values_implementation(                                                  \
+            in_place_index_t<0>,                                                                  \
+            std::initializer_list<U> il,                                                          \
+            Args &&... args) noexcept(std::is_nothrow_constructible<T,                            \
+                                                                    std::initializer_list<U>,     \
+                                                                    Args...>::value)              \
+            : current_value(il, std::forward<Args>(args)...)                                      \
+        {                                                                                         \
+        }                                                                                         \
+        template <typename U>                                                                     \
+        static constexpr std::size_t index_from_type() noexcept                                   \
+        {                                                                                         \
+            std::size_t next = Variant_values<Types...>::template index_from_type<U>();           \
+            if(std::is_same<U, T>::value && next == variant_npos)                                 \
+                return 0;                                                                         \
+            if(next == variant_npos)                                                              \
+                return variant_npos;                                                              \
+            return next + 1;                                                                      \
+        }                                                                                         \
+        void copy_construct(const Variant_values_implementation &rt,                              \
+                            std::size_t index) noexcept(is_nothrow_copy_constructible)            \
+        {                                                                                         \
+            if(index == 0)                                                                        \
+                new(const_cast<void *>(static_cast<const volatile void *>(                        \
+                    std::addressof(current_value)))) T(rt.current_value);                         \
+            else                                                                                  \
+                other_values.copy_construct(rt.other_values, index - 1);                          \
+        }                                                                                         \
+        void move_construct(Variant_values_implementation &&rt,                                   \
+                            std::size_t index) noexcept(is_nothrow_move_constructible)            \
+        {                                                                                         \
+            if(index == 0)                                                                        \
+                new(const_cast<void *>(static_cast<const volatile void *>(                        \
+                    std::addressof(current_value)))) T(std::move(rt.current_value));              \
+            else                                                                                  \
+                other_values.move_construct(std::move(rt.other_values), index - 1);               \
+        }                                                                                         \
+        void copy_assign(const Variant_values_implementation &rt,                                 \
+                         std::size_t index) noexcept(is_nothrow_copy_assignable)                  \
+        {                                                                                         \
+            if(index == 0)                                                                        \
+                current_value = rt.current_value;                                                 \
+            else                                                                                  \
+                other_values.copy_assign(rt.other_values, index - 1);                             \
+        }                                                                                         \
+        void move_assign(Variant_values_implementation &&rt,                                      \
+                         std::size_t index) noexcept(is_nothrow_move_assignable)                  \
+        {                                                                                         \
+            if(index == 0)                                                                        \
+                current_value = std::move(rt.current_value);                                      \
+            else                                                                                  \
+                other_values.move_assign(std::move(rt.other_values), index - 1);                  \
+        }                                                                                         \
+        void destruct(std::size_t index) noexcept                                                 \
+        {                                                                                         \
+            if(index == 0)                                                                        \
+                current_value.~T();                                                               \
+            else                                                                                  \
+                other_values.destruct(index - 1);                                                 \
+        }                                                                                         \
+        void swap(Variant_values_implementation &rt,                                              \
+                  std::size_t index) noexcept(is_nothrow_swappable)                               \
+        {                                                                                         \
+            using std::swap;                                                                      \
+            if(index == 0)                                                                        \
+                swap(current_value, rt.current_value);                                            \
+            else                                                                                  \
+                other_values.swap(rt.other_values, index - 1);                                    \
+        }                                                                                         \
+        bool is_equal(const Variant_values_implementation &rt, std::size_t index) const           \
+            noexcept(is_nothrow_equals_comparable)                                                \
+        {                                                                                         \
+            if(index == 0)                                                                        \
+                return static_cast<bool>(current_value == rt.current_value);                      \
+            return other_values.is_equal(rt.other_values, index - 1);                             \
+        }                                                                                         \
+        bool is_less(const Variant_values_implementation &rt, std::size_t index) const            \
+            noexcept(is_nothrow_less_comparable)                                                  \
+        {                                                                                         \
+            if(index == 0)                                                                        \
+                return static_cast<bool>(current_value < rt.current_value);                       \
+            return other_values.is_equal(rt.other_values, index - 1);                             \
+        }                                                                                         \
+        Destructor                                                                                \
     };
 
 VULKAN_CPU_UTIL_VARIANT_VALUES(true, ~Variant_values_implementation() = default;)
@@ -515,6 +496,27 @@ VULKAN_CPU_UTIL_VARIANT_VALUES(false, ~Variant_values_implementation(){})
 
 template <std::size_t Index, typename... Types>
 struct Variant_get;
+
+template <typename T, typename... Types>
+struct Variant_get<0, T, Types...>
+{
+    static constexpr const T &get(const Variant_values<T, Types...> &values) noexcept
+    {
+        return values.current_value;
+    }
+    static constexpr T &get(Variant_values<T, Types...> &values) noexcept
+    {
+        return values.current_value;
+    }
+    static constexpr const T &&get(const Variant_values<T, Types...> &&values) noexcept
+    {
+        return std::move(values.current_value);
+    }
+    static constexpr T &&get(Variant_values<T, Types...> &&values) noexcept
+    {
+        return std::move(values.current_value);
+    }
+};
 
 template <std::size_t Index, typename T, typename... Types>
 struct Variant_get<Index, T, Types...>
@@ -538,27 +540,6 @@ struct Variant_get<Index, T, Types...>
         -> decltype(Variant_get<Index - 1, Types...>::get(std::move(values.other_values)))
     {
         return Variant_get<Index - 1, Types...>::get(std::move(values.other_values));
-    }
-};
-
-template <typename T, typename... Types>
-struct Variant_get<0, T, Types...>
-{
-    static constexpr const T &get(const Variant_values<T, Types...> &values) noexcept
-    {
-        return values.current_value;
-    }
-    static constexpr T &get(Variant_values<T, Types...> &values) noexcept
-    {
-        return values.current_value;
-    }
-    static constexpr const T &&get(const Variant_values<T, Types...> &&values) noexcept
-    {
-        return std::move(values.current_value);
-    }
-    static constexpr T &&get(Variant_values<T, Types...> &&values) noexcept
-    {
-        return std::move(values.current_value);
     }
 };
 

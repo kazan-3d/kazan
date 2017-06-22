@@ -25,6 +25,8 @@
 #define GENERATE_SPIRV_PARSER_AST_H_
 
 #include "json/json.h"
+#include "util/optional.h"
+#include "util/string_view.h"
 #include <cstdint>
 #include <vector>
 #include <string>
@@ -232,6 +234,46 @@ struct Operand_kinds
             return "";
         }
         std::string kind;
+        enum class Literal_kind
+        {
+            literal_integer,
+            literal_string,
+            literal_context_dependent_number,
+            literal_ext_inst_integer,
+            literal_spec_constant_op_integer,
+        };
+        static constexpr const char *get_json_name_from_literal_kind(Literal_kind kind) noexcept
+        {
+            switch(kind)
+            {
+            case Literal_kind::literal_integer:
+                return "LiteralInteger";
+            case Literal_kind::literal_string:
+                return "LiteralString";
+            case Literal_kind::literal_context_dependent_number:
+                return "LiteralContextDependentNumber";
+            case Literal_kind::literal_ext_inst_integer:
+                return "LiteralExtInstInteger";
+            case Literal_kind::literal_spec_constant_op_integer:
+                return "LiteralSpecConstantOpInteger";
+            }
+            return "";
+        }
+        static util::optional<Literal_kind> get_literal_kind_from_json_name(
+            util::string_view name) noexcept
+        {
+            if(name == "LiteralInteger")
+                return Literal_kind::literal_integer;
+            if(name == "LiteralString")
+                return Literal_kind::literal_string;
+            if(name == "LiteralContextDependentNumber")
+                return Literal_kind::literal_context_dependent_number;
+            if(name == "LiteralExtInstInteger")
+                return Literal_kind::literal_ext_inst_integer;
+            if(name == "LiteralSpecConstantOpInteger")
+                return Literal_kind::literal_spec_constant_op_integer;
+            return {};
+        }
         struct Enumerants
         {
             static constexpr const char *get_json_key_name() noexcept
