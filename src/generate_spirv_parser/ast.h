@@ -207,13 +207,11 @@ struct Operand_kinds
     {
         enum class Category
         {
-            bit_enum, // enum categories must be first
+            bit_enum,
             value_enum,
-
             id,
             literal,
-
-            composite, // composite must be last
+            composite,
         };
         Category category;
         static constexpr const char *get_json_name_from_category(Category category) noexcept

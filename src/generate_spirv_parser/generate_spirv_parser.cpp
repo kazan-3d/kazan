@@ -26,6 +26,7 @@
 #include "parser.h"
 #include "util/optional.h"
 #include "generate.h"
+#include "patch.h"
 
 namespace vulkan_cpu
 {
@@ -53,6 +54,8 @@ int generate_spirv_parser_main(int argc, char **argv)
         {
             auto json_in = json::parse(&source);
             auto ast = parser::parse(json_in.duplicate());
+            for(auto *patch : Ast_patches::get_patches())
+                patch->run(ast, &std::cout);
             for(auto &generator : generate::Generators::make_all_generators())
             {
                 generator->run(generate::Generator::Generator_args(output_directory), ast);

@@ -29,8 +29,6 @@
 #include <iostream>
 #include <unordered_set>
 
-#error finish converting to use get_enum_with_parameters_struct_name
-
 namespace vulkan_cpu
 {
 namespace generate_spirv_parser
@@ -395,7 +393,7 @@ void Generator::write_extensions_set(Generator_state &state, const ast::Extensio
     state << "}";
 }
 
-std::string Generator::get_member_name_from_words(const std::string &words)
+std::string Generator::get_name_from_words(const std::string &words)
 {
     enum class Char_class
     {
@@ -592,7 +590,7 @@ std::string Generator::get_member_name_from_words(const std::string &words)
 }
 
 #if 0
-#warning testing Generator::get_member_name_from_words
+#warning testing Generator::get_name_from_words
 struct Generator::Tester
 {
     struct Test_runner
@@ -610,7 +608,7 @@ struct Generator::Tester
                     "abc  def", "AbcDef", "ABCDef", "'abc, def'",
                 })
         {
-            std::cout << "\"" << input << "\" -> " << get_member_name_from_words(input)
+            std::cout << "\"" << input << "\" -> " << get_name_from_words(input)
                       << std::endl;
         }
     }
@@ -623,16 +621,24 @@ std::string Generator::get_member_name_from_operand(
     const ast::Instructions::Instruction::Operands::Operand &operand)
 {
     if(!operand.name.empty())
-        return get_member_name_from_words(operand.name);
+        return get_name_from_words(operand.name);
     util::string_view id_str = "Id";
     if(util::string_view(operand.kind).compare(0, id_str.size(), id_str) == 0
        && id_str.size() < operand.kind.size()
        && is_uppercase_letter(operand.kind[id_str.size()]))
-        return get_member_name_from_words(operand.kind.substr(id_str.size()));
-    return get_member_name_from_words(operand.kind);
+        return get_name_from_words(operand.kind.substr(id_str.size()));
+    return get_name_from_words(operand.kind);
 }
 
-std::string Generator::get_enum_with_parameters_struct_name(
+std::string Generator::get_member_name_from_parameter(
+    const ast::Operand_kinds::Operand_kind::Enumerants::Enumerant::Parameters::Parameter &parameter)
+{
+    if(!parameter.name.empty())
+        return get_name_from_words(parameter.name);
+    return get_name_from_words(parameter.kind);
+}
+
+std::string Generator::get_operand_with_parameters_name(
     Generator_state &state, const ast::Operand_kinds::Operand_kind &operand_kind)
 {
     if(get_operand_has_any_parameters(state, operand_kind))
@@ -746,18 +752,31 @@ struct Spirv_header_generator final : public Generator
             return false;
         return l < r;
     }
+    /** lower priority means that the operand kind is declared first */
+    static int get_operand_category_priority(
+        ast::Operand_kinds::Operand_kind::Category category) noexcept
+    {
+        switch(category)
+        {
+        case ast::Operand_kinds::Operand_kind::Category::bit_enum:
+        case ast::Operand_kinds::Operand_kind::Category::value_enum:
+            return 1;
+        case ast::Operand_kinds::Operand_kind::Category::id:
+            return 0;
+        case ast::Operand_kinds::Operand_kind::Category::literal:
+            return 0;
+        case ast::Operand_kinds::Operand_kind::Category::composite:
+            return 2;
+        }
+        return 0;
+    }
     static bool compare_operand_kinds(const ast::Operand_kinds::Operand_kind &l,
                                       const ast::Operand_kinds::Operand_kind &r)
     {
-        // treat both enum categories as equivalent
-        auto l_category = l.category == ast::Operand_kinds::Operand_kind::Category::bit_enum ?
-                              ast::Operand_kinds::Operand_kind::Category::value_enum :
-                              l.category;
-        auto r_category = r.category == ast::Operand_kinds::Operand_kind::Category::bit_enum ?
-                              ast::Operand_kinds::Operand_kind::Category::value_enum :
-                              r.category;
-        if(l_category != r_category)
-            return l_category < r_category;
+        auto l_priority = get_operand_category_priority(l.category);
+        auto r_priority = get_operand_category_priority(r.category);
+        if(l_priority != r_priority)
+            return l_priority < r_priority;
         return compare_enum_names(l.kind, r.kind);
     }
     virtual void run(Generator_args &generator_args, const ast::Top_level &top_level) const override
@@ -769,7 +788,9 @@ struct Spirv_header_generator final : public Generator
         state << indent(R"(#include <cstdint>
 #include "util/enum.h"
 #include "util/optional.h"
+#include "util/variant.h"
 #include <vector>
+
 )");
         write_namespaces_start(state, spirv_namespace_names);
         state << indent(R"(typedef std::uint32_t Word;
@@ -869,8 +890,8 @@ constexpr Word magic_number = )")
                 auto unique_enumerants = get_unique_enumerants(enumerants.enumerants);
                 state << "\n"
                          "enum class "
-                      << operand_kind->kind << " : Word\n"
-                                               "{\n";
+                      << get_enum_name(*operand_kind) << " : Word\n"
+                                                         "{\n";
                 {
                     auto push_indent = state.pushed_indent();
                     for(auto &enumerant : enumerants.enumerants)
@@ -888,18 +909,18 @@ constexpr Word magic_number = )")
                 state << "};\n"
                          "\n"
                          "vulkan_cpu_util_generate_enum_traits("
-                      << operand_kind->kind;
+                      << get_enum_name(*operand_kind);
                 {
                     auto push_indent = state.pushed_indent();
                     for(auto &enumerant : unique_enumerants)
-                        state << ",\n" << indent << operand_kind->kind << "::"
+                        state << ",\n" << indent << get_enum_name(*operand_kind) << "::"
                               << get_enumerant_name(operand_kind->kind, enumerant.enumerant, false);
                     state << ");\n";
                 }
                 state << "\n"
                          "constexpr const char *get_enumerant_name("
-                      << operand_kind->kind << " v) noexcept\n"
-                                               "{\n";
+                      << get_enum_name(*operand_kind) << " v) noexcept\n"
+                                                         "{\n";
                 {
                     auto push_indent = state.pushed_indent();
                     state << indent(
@@ -907,7 +928,7 @@ constexpr Word magic_number = )")
                         "{\n");
                     for(auto &enumerant : unique_enumerants)
                     {
-                        state << indent("case ") << operand_kind->kind << "::"
+                        state << indent("case ") << get_enum_name(*operand_kind) << "::"
                               << get_enumerant_name(operand_kind->kind, enumerant.enumerant, false)
                               << indent(true,
                                         ":\n"
@@ -918,12 +939,12 @@ constexpr Word magic_number = )")
                         "}\n"
                         "return \"\";\n");
                 }
-                state << "}\n"
-                         "\n"
+                state << "}\n";
+                state << "\n"
                          "constexpr util::Enum_set<"
                       << capability_enum_name << "> get_directly_required_capability_set("
-                      << operand_kind->kind << " v) noexcept\n"
-                                               "{\n";
+                      << get_enum_name(*operand_kind) << " v) noexcept\n"
+                                                         "{\n";
                 {
                     auto push_indent = state.pushed_indent();
                     state << indent(
@@ -931,11 +952,11 @@ constexpr Word magic_number = )")
                         "{\n");
                     for(auto &enumerant : unique_enumerants)
                     {
-                        state << indent("case ") << operand_kind->kind << "::"
+                        state << indent("case ") << get_enum_name(*operand_kind) << "::"
                               << get_enumerant_name(operand_kind->kind, enumerant.enumerant, false)
                               << indent(true,
                                         ":\n"
-                                        "return ")
+                                        "`return ")
                               << enumerant.capabilities << ";\n";
                     }
                     state << indent(
@@ -946,8 +967,8 @@ constexpr Word magic_number = )")
                          "\n"
                          "constexpr util::Enum_set<"
                       << extension_enum_name << "> get_directly_required_extension_set("
-                      << operand_kind->kind << " v) noexcept\n"
-                                               "{\n";
+                      << get_enum_name(*operand_kind) << " v) noexcept\n"
+                                                         "{\n";
                 {
                     auto push_indent = state.pushed_indent();
                     state << indent(
@@ -955,11 +976,11 @@ constexpr Word magic_number = )")
                         "{\n");
                     for(auto &enumerant : unique_enumerants)
                     {
-                        state << indent("case ") << operand_kind->kind << "::"
+                        state << indent("case ") << get_enum_name(*operand_kind) << "::"
                               << get_enumerant_name(operand_kind->kind, enumerant.enumerant, false)
                               << indent(true,
                                         ":\n"
-                                        "return ")
+                                        "`return ")
                               << enumerant.extensions << ";\n";
                     }
                     state << indent(
@@ -978,14 +999,20 @@ constexpr Word magic_number = )")
                       << operand_kind->kind << "\n"
                                                "{\n";
                 auto push_indent = state.pushed_indent();
+                std::vector<std::string> member_types;
                 std::vector<std::string> member_names;
+                member_types.reserve(bases.values.size());
                 member_names.reserve(bases.values.size());
                 for(std::size_t i = 0; i < bases.values.size(); i++)
+                {
+                    member_types.push_back(
+                        get_operand_with_parameters_name(state, bases.values[i]));
                     member_names.push_back(
                         json::ast::Number_value::append_unsigned_integer_to_string(i + 1, "part_"));
+                }
                 write_struct_nonstatic_members_and_constructors(state,
                                                                 operand_kind->kind,
-                                                                bases.values.data(),
+                                                                member_types.data(),
                                                                 member_names.data(),
                                                                 bases.values.size());
                 push_indent.finish();
@@ -1041,6 +1068,95 @@ constexpr Word magic_number = )")
             }
             }
         }
+        for(auto *operand_kind : operand_kinds)
+        {
+            switch(operand_kind->category)
+            {
+            case ast::Operand_kinds::Operand_kind::Category::bit_enum:
+            case ast::Operand_kinds::Operand_kind::Category::value_enum:
+            {
+                bool is_bit_enum =
+                    operand_kind->category == ast::Operand_kinds::Operand_kind::Category::bit_enum;
+                auto &enumerants =
+                    util::get<ast::Operand_kinds::Operand_kind::Enumerants>(operand_kind->value);
+                auto unique_enumerants = get_unique_enumerants(enumerants.enumerants);
+                if(get_operand_has_any_parameters(state, *operand_kind))
+                {
+                    for(auto &enumerant : unique_enumerants)
+                    {
+                        if(enumerant.parameters.empty())
+                            continue;
+                        auto struct_name = get_enumerant_parameters_struct_name(
+                            operand_kind->kind, enumerant.enumerant, false);
+                        state << "\n"
+                                 "struct "
+                              << struct_name << indent(true, R"(
+{
+`static constexpr )") << get_enum_name(*operand_kind)
+                              << indent(true, R"( get_enumerant() noexcept
+`{
+``return )") << get_enum_name(*operand_kind)
+                              << "::"
+                              << get_enumerant_name(operand_kind->kind, enumerant.enumerant, false)
+                              << indent(true, R"(;
+`}
+)");
+                        std::vector<std::string> member_types;
+                        std::vector<std::string> member_names;
+                        member_types.reserve(enumerant.parameters.parameters.size());
+                        member_names.reserve(enumerant.parameters.parameters.size());
+                        for(auto &parameter : enumerant.parameters.parameters)
+                        {
+                            member_types.push_back(
+                                get_operand_with_parameters_name(state, parameter.kind));
+                            member_names.push_back(get_member_name_from_parameter(parameter));
+                        }
+                        auto push_indent = state.pushed_indent();
+                        write_struct_nonstatic_members_and_constructors(
+                            state,
+                            struct_name,
+                            member_types.data(),
+                            member_names.data(),
+                            enumerant.parameters.parameters.size());
+                        push_indent.finish();
+                        state << "};\n";
+                    }
+                    auto struct_name = get_operand_with_parameters_name(state, *operand_kind);
+                    state << indent(R"(
+struct )") << struct_name << indent(true, R"(
+{
+`typedef util::variant<util::monostate)");
+                    for(auto &enumerant : unique_enumerants)
+                    {
+                        if(enumerant.parameters.empty())
+                            continue;
+                        state << ",\n" << indent(2) << get_enumerant_parameters_struct_name(
+                                             operand_kind->kind, enumerant.enumerant, false);
+                    }
+                    state << indent(true, R"(> Parameters;
+)");
+                    auto push_indent = state.pushed_indent();
+                    constexpr std::size_t member_count = 2;
+                    std::string member_types[member_count] = {
+                        get_enum_name(*operand_kind), "Parameters",
+                    };
+                    std::string member_names[member_count] = {
+                        "value", "parameters",
+                    };
+                    write_struct_nonstatic_members_and_constructors(
+                        state, struct_name, member_types, member_names, member_count);
+                    push_indent.finish();
+                    state << "};\n";
+                }
+                break;
+            }
+            case ast::Operand_kinds::Operand_kind::Category::composite:
+            case ast::Operand_kinds::Operand_kind::Category::id:
+            case ast::Operand_kinds::Operand_kind::Category::literal:
+                break;
+            }
+        }
+#warning finish converting
         std::vector<const ast::Instructions::Instruction *> instructions;
         instructions.reserve(top_level.instructions.instructions.size());
         for(auto &instruction : top_level.instructions.instructions)

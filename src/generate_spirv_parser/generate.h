@@ -360,9 +360,11 @@ protected:
     static void write_capabilities_set(Generator_state &state,
                                        const ast::Capabilities &capabilities);
     static void write_extensions_set(Generator_state &state, const ast::Extensions &extensions);
-    static std::string get_member_name_from_words(const std::string &words);
+    static std::string get_name_from_words(const std::string &words);
     static std::string get_member_name_from_operand(
         const ast::Instructions::Instruction::Operands::Operand &operand);
+    static std::string get_member_name_from_parameter(
+        const ast::Operand_kinds::Operand_kind::Enumerants::Enumerant::Parameters::Parameter &parameter);
     static const ast::Operand_kinds::Operand_kind &get_operand_kind_from_string(
         Generator_state &state, const std::string &operand_kind_str)
     {
@@ -376,19 +378,31 @@ protected:
     {
         return state.operand_has_any_parameters_map[&operand_kind];
     }
-    static std::string get_enumerant_parameters_struct_name(util::string_view enumeration_name, std::string enumerant_name, bool input_name_should_have_prefix)
+    static std::string get_enumerant_parameters_struct_name(util::string_view enumeration_name,
+                                                            std::string enumerant_name,
+                                                            bool input_name_should_have_prefix)
     {
-        auto retval = "_" + get_enumerant_name(enumeration_name, enumerant_name, input_name_should_have_prefix) + "_parameters";
+        auto retval = "_" + get_enumerant_name(
+                                enumeration_name, enumerant_name, input_name_should_have_prefix)
+                      + "_parameters";
         retval.insert(retval.begin(), enumeration_name.begin(), enumeration_name.end());
         return retval;
     }
-    static std::string get_enum_with_parameters_struct_name(
+    static std::string get_operand_with_parameters_name(
         Generator_state &state, const ast::Operand_kinds::Operand_kind &operand_kind);
-    static std::string get_enum_with_parameters_struct_name(Generator_state &state,
-                                                            const std::string &operand_kind_str)
+    static std::string get_operand_with_parameters_name(Generator_state &state,
+                                                        const std::string &operand_kind_str)
     {
-        return get_enum_with_parameters_struct_name(
+        return get_operand_with_parameters_name(
             state, get_operand_kind_from_string(state, operand_kind_str));
+    }
+    static std::string get_enum_name(std::string operand_kind_str)
+    {
+        return operand_kind_str;
+    }
+    static std::string get_enum_name(const ast::Operand_kinds::Operand_kind &operand_kind)
+    {
+        return get_enum_name(operand_kind.kind);
     }
     static void write_struct_nonstatic_members_and_constructors(Generator_state &state,
                                                                 const std::string &struct_name,
