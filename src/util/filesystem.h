@@ -38,8 +38,6 @@
 #include "text.h"
 #include <cstdint>
 
-#error finish
-
 namespace vulkan_cpu
 {
 namespace util
@@ -685,7 +683,6 @@ private:
                           typename string_view_type::iterator(),
                           Path_kind())))
     {
-        constexpr Char_type dot = '.';
         constexpr Char_type colon = ':';
         typedef typename std::char_traits<Char_type>::int_type Int_type;
         constexpr Int_type eof = std::char_traits<Char_type>::eof();
@@ -781,42 +778,54 @@ private:
         parse(value,
               [&](typename string_view_type::iterator part_string_begin,
                   typename string_view_type::iterator part_string_end,
-                  Path_kind part_kind) noexcept
+                  Path_kind part_kind)
               {
                   if(part_index >= parts.size())
                       parts.emplace_back();
-                  parts[part_index].value.assign(part_string_begin, part_string_end);
+                  // copy manually because libstdc++ allocates a new string in basic_string.assign
+                  parts[part_index].value.clear();
+                  parts[part_index].value.reserve(part_string_end - part_string_begin);
+                  for(auto i = part_string_begin; i != part_string_end; ++i)
+                      parts[part_index].value.push_back(*i);
                   parts[part_index].kind = part_kind;
                   part_index++;
               },
               fmt);
     }
-    static void convert_source(string_type &output_value, const string_type &source)
+    std::size_t get_filename_start_index() noexcept
     {
-        output_value = source;
+        std::size_t retval = value.size();
+        auto value_view = string_view_type(value);
+        parse(value,
+              [&](typename string_view_type::iterator part_string_begin,
+                  [[gnu::unused]] typename string_view_type::iterator part_string_end,
+                  Path_kind part_kind) noexcept
+              {
+                  if(part_kind == Path_kind::file_name)
+                      retval = part_string_begin - value_view.begin();
+              });
+        return retval;
     }
-    template <typename Char_type2, typename Traits, typename Allocator>
-    static void convert_source(string_type &output_value,
-                               const std::basic_string<Char_type2, Traits, Allocator> &source)
+    std::size_t get_extension_start_index() noexcept
     {
-        convert_source(output_value, source.begin(), source.end());
+        constexpr Char_type dot = '.';
+        std::size_t index = get_filename_start_index();
+        if(index >= value.size())
+            return value.size();
+        if(value[index] == dot)
+            index++;
+        std::size_t retval = value.size();
+        while(index < value.size())
+        {
+            if(value[index] == dot)
+                retval = index;
+            index++;
+        }
+        return retval;
     }
-    template <typename Char_type2, typename Traits>
-    static void convert_source(string_type &output_value,
-                               const basic_string_view<Char_type2, Traits> &source)
-    {
-        convert_source(output_value, source.begin(), source.end());
-    }
-    template <typename Char_type2>
-    static void convert_source(string_type &output_value, const Char_type2 *source)
-    {
-        convert_source(output_value, basic_string_view<Char_type2>(source));
-    }
-    template <
 
-        public : basic_path() noexcept : parts(),
-        value(),
-        kind(Path_kind::multiple_parts)
+public:
+    basic_path() noexcept : parts(), value(), kind(Path_kind::multiple_parts)
     {
     }
     basic_path(const basic_path &) = default;
@@ -828,18 +837,119 @@ private:
     }
     template <typename Source>
     basic_path(const Source &source, format fmt = auto_format)
-        : basic_path()
+        : basic_path(Path_convert_source<Char_type, Source>::to_string(source), fmt)
     {
-        convert_source(value, source);
-        parse(fmt);
     }
     template <typename Input_iterator>
     basic_path(Input_iterator first, Input_iterator last, format fmt = auto_format)
-        : basic_path()
+        : basic_path(Path_convert_range<Char_type, Input_iterator>::to_string(first, last), fmt)
     {
-        convert_source(value, first, last);
-        parse(fmt);
     }
+    basic_path &operator=(const basic_path &rt) = default;
+    basic_path &operator=(basic_path &&rt) noexcept = default;
+    basic_path &operator=(string_type &&new_value)
+    {
+        value = std::move(new_value);
+        parse();
+        return *this;
+    }
+    template <typename Source>
+    basic_path &operator=(const Source &source)
+    {
+        assign(source);
+        return *this;
+    }
+    basic_path &assign(string_type &&new_value)
+    {
+        return operator=(new_value);
+    }
+    template <typename Source>
+    basic_path &assign(const Source &source)
+    {
+        assign(Path_convert_source<Char_type, Source>::to_string(source));
+        return *this;
+    }
+    template <typename Input_iterator>
+    basic_path &assign(Input_iterator first, Input_iterator last)
+    {
+        assign(Path_convert_range<Char_type, Input_iterator>::to_string(first, last));
+        return *this;
+    }
+    const Char_type *c_str() const noexcept
+    {
+        return value.c_str();
+    }
+    const string_type &native() const noexcept
+    {
+        return value;
+    }
+    operator string_type() const
+    {
+        return value;
+    }
+    void clear() noexcept
+    {
+        value.clear();
+        parse();
+    }
+    basic_path &make_preferred()
+    {
+        for(auto &ch : value)
+        {
+            if(is_separator(ch))
+                ch = preferred_separator;
+        }
+        for(auto &part : parts)
+        {
+            part.make_preferred();
+        }
+        return *this;
+    }
+    basic_path &remove_filename()
+    {
+        std::size_t filename_start_index = get_filename_start_index();
+        if(filename_start_index < value.size())
+        {
+            value.resize(filename_start_index);
+            parse();
+        }
+        return *this;
+    }
+    basic_path &replace_filename(const basic_path &replacement)
+    {
+        remove_filename();
+        operator/=(replacement);
+        return *this;
+    }
+    basic_path &replace_extension(const basic_path &replacement = basic_path())
+    {
+        constexpr Char_type dot = '.';
+        std::size_t extension_start_index = get_extension_start_index();
+        if(extension_start_index < value.size())
+            value.resize(extension_start_index);
+        else if(replacement.value.empty())
+            return *this;
+        if(!replacement.value.empty() && replacement.value.front() != dot)
+        {
+            value.reserve(value.size() + 1 + replacement.value.size());
+            value += dot;
+            value += replacement.value;
+        }
+        else
+        {
+            value += replacement.value;
+        }
+        parse();
+        return *this;
+    }
+    void swap(basic_path &other) noexcept
+    {
+        using std::swap;
+        swap(value, other.value);
+        parts.swap(other.parts);
+        swap(kind, other.kind);
+    }
+#error finish
 };
 
 template <Path_traits_kind Traits_kind, typename Char_type, Char_type Preferred_separator>
