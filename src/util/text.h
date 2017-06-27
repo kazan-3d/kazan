@@ -55,7 +55,7 @@ typename std::char_traits<char32_t>::int_type decode_utf8(
                                         && noexcept(iter == sentinel ? 0 : 0))
 {
     if(iter == sentinel)
-        return error_value;
+        return std::char_traits<char32_t>::eof();
     auto byte0 = static_cast<std::uint8_t>(static_cast<char>(*iter));
     ++iter;
     if(byte0 < 0x80)
@@ -119,7 +119,7 @@ struct Encoded_character final
     static_assert(max_Chars != 0, "");
     Char_type chars[max_Chars];
     std::size_t used;
-    Char_type &front()
+    constexpr Char_type &front()
     {
         return chars[0];
     }
@@ -127,7 +127,7 @@ struct Encoded_character final
     {
         return chars[0];
     }
-    Char_type &back()
+    constexpr Char_type &back()
     {
         return chars[0];
     }
@@ -153,11 +153,11 @@ struct Encoded_character final
     {
         return begin() + used;
     }
-    iterator begin()
+    constexpr iterator begin()
     {
         return &chars[0];
     }
-    iterator end()
+    constexpr iterator end()
     {
         return begin() + used;
     }
@@ -171,9 +171,10 @@ struct Encoded_character final
     }
     constexpr const Char_type &operator[](std::size_t index) const
     {
-        return (assert(index < used), chars[index]);
+        assert(index < used);
+        return chars[index];
     }
-    Char_type &operator[](std::size_t index)
+    constexpr Char_type &operator[](std::size_t index)
     {
         assert(index < used);
         return chars[index];
@@ -261,7 +262,7 @@ typename std::char_traits<char32_t>::int_type decode_utf16(
                                         && noexcept(iter == sentinel ? 0 : 0))
 {
     if(iter == sentinel)
-        return error_value;
+        return std::char_traits<char32_t>::eof();
     auto unit0 = static_cast<std::uint16_t>(static_cast<char16_t>(*iter));
     ++iter;
     if(unit0 >= 0xD800U && unit0 < 0xDC00U)
@@ -296,7 +297,7 @@ typename std::char_traits<char32_t>::int_type decode_utf32(
                                         && noexcept(iter == sentinel ? 0 : 0))
 {
     if(iter == sentinel)
-        return error_value;
+        return std::char_traits<char32_t>::eof();
     auto retval = static_cast<std::uint32_t>(static_cast<char32_t>(*iter));
     ++iter;
     if(retval > 0x10FFFFUL)
@@ -408,9 +409,9 @@ template <typename Char_type>
 struct Decode_encode_functions
 {
     template <typename Input_iterator, typename Sentinel>
-    typename std::char_traits<char32_t>::int_type decode(
+    static typename std::char_traits<char32_t>::int_type decode(
         Input_iterator &iter, Sentinel sentinel, const Convert_options &convert_options) = delete;
-    Encoded_character<Char_type, 1> encode(
+    static Encoded_character<Char_type, 1> encode(
         char32_t ch, const Convert_options &convert_options) noexcept = delete;
 };
 
@@ -418,7 +419,7 @@ template <>
 struct Decode_encode_functions<char>
 {
     template <typename Input_iterator, typename Sentinel>
-    typename std::char_traits<char32_t>::int_type decode(
+    static typename std::char_traits<char32_t>::int_type decode(
         Input_iterator &iter,
         Sentinel sentinel,
         const Convert_options
@@ -431,7 +432,8 @@ struct Decode_encode_functions<char>
                            convert_options.allow_2_byte_null,
                            convert_options.error_value);
     }
-    Encoded_character<char, 4> encode(char32_t ch, const Convert_options &convert_options) noexcept
+    static Encoded_character<char, 4> encode(char32_t ch,
+                                             const Convert_options &convert_options) noexcept
     {
         return encode_utf8(ch, convert_options.use_2_byte_null);
     }
@@ -441,7 +443,7 @@ template <>
 struct Decode_encode_functions<char16_t>
 {
     template <typename Input_iterator, typename Sentinel>
-    typename std::char_traits<char32_t>::int_type decode(
+    static typename std::char_traits<char32_t>::int_type decode(
         Input_iterator &iter,
         Sentinel sentinel,
         const Convert_options
@@ -453,8 +455,8 @@ struct Decode_encode_functions<char16_t>
                             convert_options.allow_unpaired_surrogate_code_points,
                             convert_options.error_value);
     }
-    Encoded_character<char16_t, 2> encode(char32_t ch,
-                                          const Convert_options &convert_options) noexcept
+    static Encoded_character<char16_t, 2> encode(char32_t ch,
+                                                 const Convert_options &convert_options) noexcept
     {
         return encode_utf16(ch);
     }
@@ -464,7 +466,7 @@ template <>
 struct Decode_encode_functions<char32_t>
 {
     template <typename Input_iterator, typename Sentinel>
-    typename std::char_traits<char32_t>::int_type decode(
+    static typename std::char_traits<char32_t>::int_type decode(
         Input_iterator &iter,
         Sentinel sentinel,
         const Convert_options
@@ -476,8 +478,8 @@ struct Decode_encode_functions<char32_t>
                             convert_options.allow_unpaired_surrogate_code_points,
                             convert_options.error_value);
     }
-    Encoded_character<char32_t, 1> encode(char32_t ch,
-                                          const Convert_options &convert_options) noexcept
+    static Encoded_character<char32_t, 1> encode(char32_t ch,
+                                                 const Convert_options &convert_options) noexcept
     {
         return encode_utf32(ch);
     }
@@ -487,7 +489,7 @@ template <>
 struct Decode_encode_functions<wchar_t>
 {
     template <typename Input_iterator, typename Sentinel>
-    typename std::char_traits<char32_t>::int_type decode(
+    static typename std::char_traits<char32_t>::int_type decode(
         Input_iterator &iter,
         Sentinel sentinel,
         const Convert_options
@@ -499,8 +501,8 @@ struct Decode_encode_functions<wchar_t>
                            convert_options.allow_unpaired_surrogate_code_points,
                            convert_options.error_value);
     }
-    Encoded_character<wchar_t, 2> encode(char32_t ch,
-                                         const Convert_options &convert_options) noexcept
+    static Encoded_character<wchar_t, 2> encode(char32_t ch,
+                                                const Convert_options &convert_options) noexcept
     {
         return encode_wide(ch);
     }
@@ -564,7 +566,6 @@ Target string_cast(basic_string_view<Source_Char_type, Source_Traits> source)
 {
     return detail::String_cast_helper<Target, basic_string_view<Source_Char_type, Source_Traits>>::
         run(source, Convert_options());
-}
 }
 }
 }
