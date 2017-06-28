@@ -40,6 +40,10 @@
 #include <iomanip>
 #include <istream>
 #include <ostream>
+#include <system_error>
+#include <cstdint>
+#include <chrono>
+#include <ratio>
 
 namespace vulkan_cpu
 {
@@ -57,9 +61,23 @@ enum class Path_traits_kind
 
 #ifdef _WIN32
 constexpr Path_traits_kind default_path_traits_kind = Path_traits_kind::windows;
-#else
+typedef std::ratio<1, 10'000'000ULL> Filesystem_clock_period;
+#elif defined(__linux__)
 constexpr Path_traits_kind default_path_traits_kind = Path_traits_kind::posix;
+typedef std::nano Filesystem_clock_period;
+#else
+#error filesystem is not implemented for your operating system
 #endif
+
+struct Filesystem_clock
+{
+    typedef std::int64_t rep;
+    typedef Filesystem_clock_period period;
+    typedef std::chrono::duration<rep, period> duration;
+    typedef std::chrono::time_point<Filesystem_clock> time_point;
+    static constexpr bool is_steady = false;
+    static time_point now() noexcept;
+};
 
 template <Path_traits_kind Kind>
 struct Path_traits
@@ -847,8 +865,11 @@ private:
                || v == static_cast<Char_type2>(preferred_separator);
     }
     template <bool Ignore_root_parts = false, typename Fn>
-    static bool parse(string_view_type value, Fn callback, format fmt = auto_format) noexcept(
-        noexcept(callback(Path_index_range(), Path_part_kind())))
+    static bool parse(
+        string_view_type value,
+        Fn callback,
+        [[gnu::unused]] format fmt = auto_format) noexcept(noexcept(callback(Path_index_range(),
+                                                                             Path_part_kind())))
     {
         constexpr Char_type colon = ':';
         typedef typename std::char_traits<Char_type>::int_type Int_type;
@@ -2041,7 +2062,6 @@ public:
             return *this;
         return retval;
     }
-#warning finish
 };
 
 template <detail::Path_traits_kind Traits_kind,
@@ -2121,6 +2141,1085 @@ path u8path(Input_iterator first, Input_iterator last)
 {
     return path(first, last);
 }
+
+enum class file_type
+{
+    none,
+    not_found,
+    regular,
+    directory,
+    symlink,
+    block,
+    character,
+    fifo,
+    socket,
+    unknown
+};
+
+enum class perms : std::uint16_t
+{
+    none = 0,
+    owner_read = 0400,
+    owner_write = 0200,
+    owner_exec = 0100,
+    owner_all = 0700,
+    group_read = 040,
+    group_write = 020,
+    group_exec = 010,
+    group_all = 070,
+    others_read = 04,
+    others_write = 02,
+    others_exec = 01,
+    others_all = 07,
+    all = 0777,
+    set_uid = 04000,
+    set_gid = 02000,
+    sticky_bit = 01000,
+    mask = 07777,
+    unknown = 0xFFFFU
+};
+
+constexpr perms operator&(perms a, perms b) noexcept
+{
+    return static_cast<perms>(static_cast<std::uint16_t>(a) & static_cast<std::uint16_t>(b));
+}
+
+constexpr perms operator|(perms a, perms b) noexcept
+{
+    return static_cast<perms>(static_cast<std::uint16_t>(a) | static_cast<std::uint16_t>(b));
+}
+
+constexpr perms operator^(perms a, perms b) noexcept
+{
+    return static_cast<perms>(static_cast<std::uint16_t>(a) ^ static_cast<std::uint16_t>(b));
+}
+
+constexpr perms operator~(perms v) noexcept
+{
+    return static_cast<perms>(~static_cast<std::uint16_t>(v));
+}
+
+constexpr perms &operator&=(perms &a, perms b) noexcept
+{
+    return a = a & b;
+}
+
+constexpr perms &operator|=(perms &a, perms b) noexcept
+{
+    return a = a | b;
+}
+
+constexpr perms &operator^=(perms &a, perms b) noexcept
+{
+    return a = a ^ b;
+}
+
+enum class perm_options : std::uint8_t
+{
+    replace = 0x0,
+    add = 0x1,
+    remove = 0x2,
+
+    nofollow = 0x4
+};
+
+constexpr perm_options operator&(perm_options a, perm_options b) noexcept
+{
+    return static_cast<perm_options>(static_cast<std::uint8_t>(a) & static_cast<std::uint8_t>(b));
+}
+
+constexpr perm_options operator|(perm_options a, perm_options b) noexcept
+{
+    return static_cast<perm_options>(static_cast<std::uint8_t>(a) | static_cast<std::uint8_t>(b));
+}
+
+constexpr perm_options operator^(perm_options a, perm_options b) noexcept
+{
+    return static_cast<perm_options>(static_cast<std::uint8_t>(a) ^ static_cast<std::uint8_t>(b));
+}
+
+constexpr perm_options operator~(perm_options v) noexcept
+{
+    return static_cast<perm_options>(~static_cast<std::uint8_t>(v));
+}
+
+constexpr perm_options &operator&=(perm_options &a, perm_options b) noexcept
+{
+    return a = a & b;
+}
+
+constexpr perm_options &operator|=(perm_options &a, perm_options b) noexcept
+{
+    return a = a | b;
+}
+
+constexpr perm_options &operator^=(perm_options &a, perm_options b) noexcept
+{
+    return a = a ^ b;
+}
+
+enum class copy_options : std::uint8_t
+{
+    none = 0x0,
+    skip_existing = 0x1,
+    overwrite_existing = 0x2,
+    update_existing = 0x3,
+
+    // none = 0x0,
+    recursive = 0x4,
+
+    // none = 0x0,
+    copy_symlinks = 0x8,
+    skip_symlinks = 0x10,
+
+    // none = 0x0,
+    directories_only = 0x20,
+    create_symlinks = 0x40,
+    create_hard_links = 0x60
+};
+
+constexpr copy_options operator&(copy_options a, copy_options b) noexcept
+{
+    return static_cast<copy_options>(static_cast<std::uint8_t>(a) & static_cast<std::uint8_t>(b));
+}
+
+constexpr copy_options operator|(copy_options a, copy_options b) noexcept
+{
+    return static_cast<copy_options>(static_cast<std::uint8_t>(a) | static_cast<std::uint8_t>(b));
+}
+
+constexpr copy_options operator^(copy_options a, copy_options b) noexcept
+{
+    return static_cast<copy_options>(static_cast<std::uint8_t>(a) ^ static_cast<std::uint8_t>(b));
+}
+
+constexpr copy_options operator~(copy_options v) noexcept
+{
+    return static_cast<copy_options>(~static_cast<std::uint8_t>(v));
+}
+
+constexpr copy_options &operator&=(copy_options &a, copy_options b) noexcept
+{
+    return a = a & b;
+}
+
+constexpr copy_options &operator|=(copy_options &a, copy_options b) noexcept
+{
+    return a = a | b;
+}
+
+constexpr copy_options &operator^=(copy_options &a, copy_options b) noexcept
+{
+    return a = a ^ b;
+}
+
+enum class directory_options : std::uint8_t
+{
+    none = 0x0,
+    follow_directory_symlink = 0x1,
+    skip_permission_denied = 0x2
+};
+
+constexpr directory_options operator&(directory_options a, directory_options b) noexcept
+{
+    return static_cast<directory_options>(static_cast<std::uint8_t>(a)
+                                          & static_cast<std::uint8_t>(b));
+}
+
+constexpr directory_options operator|(directory_options a, directory_options b) noexcept
+{
+    return static_cast<directory_options>(static_cast<std::uint8_t>(a)
+                                          | static_cast<std::uint8_t>(b));
+}
+
+constexpr directory_options operator^(directory_options a, directory_options b) noexcept
+{
+    return static_cast<directory_options>(static_cast<std::uint8_t>(a)
+                                          ^ static_cast<std::uint8_t>(b));
+}
+
+constexpr directory_options operator~(directory_options v) noexcept
+{
+    return static_cast<directory_options>(~static_cast<std::uint8_t>(v));
+}
+
+constexpr directory_options &operator&=(directory_options &a, directory_options b) noexcept
+{
+    return a = a & b;
+}
+
+constexpr directory_options &operator|=(directory_options &a, directory_options b) noexcept
+{
+    return a = a | b;
+}
+
+constexpr directory_options &operator^=(directory_options &a, directory_options b) noexcept
+{
+    return a = a ^ b;
+}
+
+using file_time_type = std::chrono::time_point<detail::Filesystem_clock>;
+
+class file_status
+{
+private:
+    file_type type_value;
+    perms permissions_value;
+
+public:
+    constexpr file_status() noexcept : file_status(file_type::none)
+    {
+    }
+    constexpr explicit file_status(file_type type_value,
+                                   perms permissions_value = perms::unknown) noexcept
+        : type_value(type_value),
+          permissions_value(permissions_value)
+    {
+    }
+    constexpr file_type type() const noexcept
+    {
+        return type_value;
+    }
+    constexpr void type(file_type new_value) noexcept
+    {
+        type_value = new_value;
+    }
+    constexpr perms permissions() const noexcept
+    {
+        return permissions_value;
+    }
+    constexpr void permissions(perms new_value) noexcept
+    {
+        permissions_value = new_value;
+    }
+};
+
+constexpr bool status_known(file_status s) noexcept
+{
+    return s.type() != file_type::none;
+}
+
+constexpr bool exists(file_status s) noexcept
+{
+    return status_known(s) && s.type() != file_type::not_found;
+}
+
+constexpr bool is_block_file(file_status s) noexcept
+{
+    return s.type() == file_type::block;
+}
+
+constexpr bool is_character_file(file_status s) noexcept
+{
+    return s.type() == file_type::character;
+}
+
+constexpr bool is_directory(file_status s) noexcept
+{
+    return s.type() == file_type::directory;
+}
+
+constexpr bool is_fifo(file_status s) noexcept
+{
+    return s.type() == file_type::fifo;
+}
+
+constexpr bool is_regular_file(file_status s) noexcept
+{
+    return s.type() == file_type::regular;
+}
+
+constexpr bool is_socket(file_status s) noexcept
+{
+    return s.type() == file_type::socket;
+}
+
+constexpr bool is_symlink(file_status s) noexcept
+{
+    return s.type() == file_type::symlink;
+}
+
+constexpr bool is_other(file_status s) noexcept
+{
+    return exists(s) && !is_regular_file(s) && !is_directory(s) && !is_symlink(s);
+}
+
+struct space_info
+{
+    std::uintmax_t capacity;
+    std::uintmax_t free;
+    std::uintmax_t available;
+};
+
+class filesystem_error : public std::system_error
+{
+private:
+    path p1;
+    path p2;
+    std::string what_value;
+
+private:
+    std::string make_what()
+    {
+        std::string retval = "filesystem_error: ";
+        retval += system_error::what();
+        if(!p1.empty())
+            retval = std::move(retval) + " \"" + p1.string() + "\"";
+        if(!p2.empty())
+            retval = std::move(retval) + " \"" + p2.string() + "\"";
+        return retval;
+    }
+
+public:
+    filesystem_error(const std::string &what_arg, std::error_code ec)
+        : system_error(ec, what_arg), p1(), p2(), what_value(make_what())
+    {
+    }
+    filesystem_error(const std::string &what_arg, const path &p1, std::error_code ec)
+        : system_error(ec, what_arg), p1(p1), p2(), what_value(make_what())
+    {
+    }
+    filesystem_error(const std::string &what_arg,
+                     const path &p1,
+                     const path &p2,
+                     std::error_code ec)
+        : system_error(ec, what_arg), p1(p1), p2(p2), what_value(make_what())
+    {
+    }
+    const path &path1() const noexcept
+    {
+        return p1;
+    }
+    const path &path2() const noexcept
+    {
+        return p2;
+    }
+    virtual const char *what() const noexcept override
+    {
+        return what_value.c_str();
+    }
+};
+
+namespace detail
+{
+inline void set_or_throw_error(std::error_code *ec,
+                               string_view error_message,
+                               std::error_code error)
+{
+    if(ec)
+        *ec = error;
+    else
+        throw filesystem_error(std::string(error_message), error);
+}
+
+inline void set_or_throw_error(std::error_code *ec,
+                               string_view error_message,
+                               const path &p1,
+                               std::error_code error)
+{
+    if(ec)
+        *ec = error;
+    else
+        throw filesystem_error(std::string(error_message), p1, error);
+}
+
+inline void set_or_throw_error(std::error_code *ec,
+                               string_view error_message,
+                               const path &p1,
+                               const path &p2,
+                               std::error_code error)
+{
+    if(ec)
+        *ec = error;
+    else
+        throw filesystem_error(std::string(error_message), p1, p2, error);
+}
+
+struct Stat_results;
+
+std::uintmax_t file_size(const path &p, std::error_code *ec);
+std::uintmax_t hard_link_count(const path &p, std::error_code *ec);
+file_time_type last_write_time(const path &p, std::error_code *ec);
+file_status status(const path &p, bool follow_symlink, std::error_code *ec);
+}
+
+inline std::uintmax_t file_size(const path &p)
+{
+    return detail::file_size(p, nullptr);
+}
+
+inline std::uintmax_t file_size(const path &p, std::error_code &ec) noexcept
+{
+    return detail::file_size(p, &ec);
+}
+
+inline std::uintmax_t hard_link_count(const path &p)
+{
+    return detail::hard_link_count(p, nullptr);
+}
+
+inline std::uintmax_t hard_link_count(const path &p, std::error_code &ec) noexcept
+{
+    return detail::hard_link_count(p, &ec);
+}
+
+inline file_time_type last_write_time(const path &p)
+{
+    return detail::last_write_time(p, nullptr);
+}
+
+inline file_time_type last_write_time(const path &p, std::error_code &ec) noexcept
+{
+    return detail::last_write_time(p, &ec);
+}
+
+inline file_status status(const path &p)
+{
+    return detail::status(p, true, nullptr);
+}
+
+inline file_status status(const path &p, std::error_code &ec) noexcept
+{
+    return detail::status(p, true, &ec);
+}
+
+inline file_status symlink_status(const path &p)
+{
+    return detail::status(p, false, nullptr);
+}
+
+inline file_status symlink_status(const path &p, std::error_code &ec) noexcept
+{
+    return detail::status(p, false, &ec);
+}
+
+inline bool exists(const path &p)
+{
+    return exists(status(p));
+}
+
+inline bool exists(const path &p, std::error_code &ec) noexcept
+{
+    return exists(status(p, ec));
+}
+
+inline bool is_block_file(const path &p)
+{
+    return is_block_file(status(p));
+}
+
+inline bool is_block_file(const path &p, std::error_code &ec) noexcept
+{
+    return is_block_file(status(p, ec));
+}
+
+inline bool is_character_file(const path &p)
+{
+    return is_character_file(status(p));
+}
+
+inline bool is_character_file(const path &p, std::error_code &ec) noexcept
+{
+    return is_character_file(status(p, ec));
+}
+
+inline bool is_directory(const path &p)
+{
+    return is_directory(status(p));
+}
+
+inline bool is_directory(const path &p, std::error_code &ec) noexcept
+{
+    return is_directory(status(p, ec));
+}
+
+inline bool is_fifo(const path &p)
+{
+    return is_fifo(status(p));
+}
+
+inline bool is_fifo(const path &p, std::error_code &ec) noexcept
+{
+    return is_fifo(status(p, ec));
+}
+
+inline bool is_other(const path &p)
+{
+    return is_other(status(p));
+}
+
+inline bool is_other(const path &p, std::error_code &ec) noexcept
+{
+    return is_other(status(p, ec));
+}
+
+inline bool is_regular_file(const path &p)
+{
+    return is_regular_file(status(p));
+}
+
+inline bool is_regular_file(const path &p, std::error_code &ec) noexcept
+{
+    return is_regular_file(status(p, ec));
+}
+
+inline bool is_socket(const path &p)
+{
+    return is_socket(status(p));
+}
+
+inline bool is_socket(const path &p, std::error_code &ec) noexcept
+{
+    return is_socket(status(p, ec));
+}
+
+inline bool is_symlink(const path &p)
+{
+    return is_symlink(status(p));
+}
+
+inline bool is_symlink(const path &p, std::error_code &ec) noexcept
+{
+    return is_symlink(status(p, ec));
+}
+
+class directory_iterator;
+
+class directory_entry
+{
+    friend class directory_iterator;
+
+private:
+    filesystem::path path_value;
+    file_status status_value{};
+    file_status symlink_status_value{};
+    std::uintmax_t file_size_value{};
+    std::uintmax_t hard_link_count_value{};
+    file_time_type::rep last_write_time_value{};
+    struct Flags
+    {
+        bool has_status_type_value : 1;
+        bool has_symlink_status_type_value : 1;
+        bool has_status_full_value : 1;
+        bool has_symlink_status_full_value : 1;
+        bool has_file_size_value : 1;
+        bool has_hard_link_count_value : 1;
+        bool has_last_write_time_value : 1;
+        char : 0;
+        constexpr Flags() noexcept : has_status_type_value(false),
+                                     has_symlink_status_type_value(false),
+                                     has_status_full_value(false),
+                                     has_symlink_status_full_value(false),
+                                     has_file_size_value(false),
+                                     has_hard_link_count_value(false),
+                                     has_last_write_time_value(false)
+        {
+        }
+    };
+    Flags flags{};
+
+private:
+    void refresh(std::error_code *ec);
+    file_status status(bool follow_symlink, bool only_need_type, std::error_code *ec) const
+    {
+        if(ec)
+            ec->clear();
+        bool has_symlink_status_value = (only_need_type && flags.has_symlink_status_type_value)
+                                        || flags.has_symlink_status_full_value;
+        bool has_status_value =
+            (only_need_type && flags.has_status_type_value) || flags.has_status_full_value;
+        if(has_symlink_status_value
+           && (!follow_symlink || !filesystem::is_symlink(symlink_status_value)))
+            return symlink_status_value;
+        if(has_status_value && follow_symlink)
+            return status_value;
+        return detail::status(path_value, follow_symlink, ec);
+    }
+
+public:
+    directory_entry() noexcept = default;
+    explicit directory_entry(const filesystem::path &path_value) : path_value(path_value)
+    {
+        refresh();
+    }
+    directory_entry(const filesystem::path &path_value, std::error_code &ec)
+        : path_value(path_value)
+    {
+        refresh(ec);
+    }
+    directory_entry(const directory_entry &) = default;
+    directory_entry(directory_entry &&) noexcept = default;
+    directory_entry &operator=(const directory_entry &) = default;
+    directory_entry &operator=(directory_entry &&) noexcept = default;
+    void assign(const filesystem::path &p)
+    {
+        path_value = p;
+        refresh();
+    }
+    void assign(const filesystem::path &p, std::error_code &ec)
+    {
+        path_value = p;
+        refresh(ec);
+    }
+    void replace_filename(const filesystem::path &p)
+    {
+        path_value.replace_filename(p);
+        refresh();
+    }
+    void replace_filename(const filesystem::path &p, std::error_code &ec)
+    {
+        path_value.replace_filename(p);
+        refresh(ec);
+    }
+    void refresh()
+    {
+        refresh(nullptr);
+    }
+    void refresh(std::error_code &ec) noexcept
+    {
+        return refresh(&ec);
+    }
+    const filesystem::path &path() const noexcept
+    {
+        return path_value;
+    }
+    operator const filesystem::path &() const noexcept
+    {
+        return path_value;
+    }
+    bool exists() const
+    {
+        return filesystem::exists(status(true, true, nullptr));
+    }
+    bool exists(std::error_code &ec) const noexcept
+    {
+        return filesystem::exists(status(true, true, &ec));
+    }
+    bool is_block_file() const
+    {
+        return filesystem::is_block_file(status(true, true, nullptr));
+    }
+    bool is_block_file(std::error_code &ec) const noexcept
+    {
+        return filesystem::is_block_file(status(true, true, &ec));
+    }
+    bool is_character_file() const
+    {
+        return filesystem::is_character_file(status(true, true, nullptr));
+    }
+    bool is_character_file(std::error_code &ec) const noexcept
+    {
+        return filesystem::is_character_file(status(true, true, &ec));
+    }
+    bool is_directory() const
+    {
+        return filesystem::is_directory(status(true, true, nullptr));
+    }
+    bool is_directory(std::error_code &ec) const noexcept
+    {
+        return filesystem::is_directory(status(true, true, &ec));
+    }
+    bool is_fifo() const
+    {
+        return filesystem::is_fifo(status(true, true, nullptr));
+    }
+    bool is_fifo(std::error_code &ec) const noexcept
+    {
+        return filesystem::is_fifo(status(true, true, &ec));
+    }
+    bool is_other() const
+    {
+        return filesystem::is_other(status(true, true, nullptr));
+    }
+    bool is_other(std::error_code &ec) const noexcept
+    {
+        return filesystem::is_other(status(true, true, &ec));
+    }
+    bool is_regular_file() const
+    {
+        return filesystem::is_regular_file(status(true, true, nullptr));
+    }
+    bool is_regular_file(std::error_code &ec) const noexcept
+    {
+        return filesystem::is_regular_file(status(true, true, &ec));
+    }
+    bool is_socket() const
+    {
+        return filesystem::is_socket(status(true, true, nullptr));
+    }
+    bool is_socket(std::error_code &ec) const noexcept
+    {
+        return filesystem::is_socket(status(true, true, &ec));
+    }
+    bool is_symlink() const
+    {
+        return filesystem::is_symlink(status(false, true, nullptr));
+    }
+    bool is_symlink(std::error_code &ec) const noexcept
+    {
+        return filesystem::is_symlink(status(false, true, &ec));
+    }
+    std::uintmax_t file_size() const
+    {
+        if(flags.has_file_size_value)
+            return file_size_value;
+        return filesystem::file_size(path_value);
+    }
+    std::uintmax_t file_size(std::error_code &ec) const noexcept
+    {
+        ec.clear();
+        if(flags.has_file_size_value)
+            return file_size_value;
+        return filesystem::file_size(path_value, ec);
+    }
+    std::uintmax_t hard_link_count() const
+    {
+        if(flags.has_hard_link_count_value)
+            return hard_link_count_value;
+        return filesystem::hard_link_count(path_value);
+    }
+    std::uintmax_t hard_link_count(std::error_code &ec) const noexcept
+    {
+        ec.clear();
+        if(flags.has_hard_link_count_value)
+            return hard_link_count_value;
+        return filesystem::hard_link_count(path_value, ec);
+    }
+    file_time_type last_write_time() const
+    {
+        if(flags.has_last_write_time_value)
+            return file_time_type(file_time_type::duration(last_write_time_value));
+        return filesystem::last_write_time(path_value);
+    }
+    file_time_type last_write_time(std::error_code &ec) const noexcept
+    {
+        ec.clear();
+        if(flags.has_last_write_time_value)
+            return file_time_type(file_time_type::duration(last_write_time_value));
+        return filesystem::last_write_time(path_value, ec);
+    }
+    file_status status() const
+    {
+        return status(true, false, nullptr);
+    }
+    file_status status(std::error_code &ec) const noexcept
+    {
+        return status(true, false, &ec);
+    }
+    file_status symlink_status() const
+    {
+        return status(false, false, nullptr);
+    }
+    file_status symlink_status(std::error_code &ec) const noexcept
+    {
+        return status(false, false, &ec);
+    }
+    bool operator==(const directory_entry &rt) const noexcept
+    {
+        return path_value == rt.path_value;
+    }
+    bool operator!=(const directory_entry &rt) const noexcept
+    {
+        return path_value != rt.path_value;
+    }
+    bool operator>=(const directory_entry &rt) const noexcept
+    {
+        return path_value >= rt.path_value;
+    }
+    bool operator<=(const directory_entry &rt) const noexcept
+    {
+        return path_value <= rt.path_value;
+    }
+    bool operator>(const directory_entry &rt) const noexcept
+    {
+        return path_value > rt.path_value;
+    }
+    bool operator<(const directory_entry &rt) const noexcept
+    {
+        return path_value < rt.path_value;
+    }
+};
+
+class directory_iterator
+{
+public:
+    typedef directory_entry value_type;
+    typedef std::ptrdiff_t difference_type;
+    typedef const directory_entry *pointer;
+    typedef const directory_entry &reference;
+    typedef std::input_iterator_tag iterator_category;
+
+private:
+    struct Implementation;
+
+private:
+    std::shared_ptr<Implementation> implementation;
+    directory_entry current_entry;
+
+private:
+    static std::shared_ptr<Implementation> create(directory_entry &current_entry,
+                                                  const path &p,
+                                                  directory_options options,
+                                                  std::error_code *ec);
+    static void increment(std::shared_ptr<Implementation> &implementation,
+                          directory_entry &current_entry,
+                          std::error_code *ec);
+
+private:
+    directory_iterator(const path &p, directory_options options, std::error_code *ec)
+        : implementation(nullptr), current_entry()
+    {
+        implementation = create(current_entry, p, options, ec);
+    }
+
+public:
+    directory_iterator() noexcept : implementation(nullptr), current_entry()
+    {
+    }
+    directory_iterator(const directory_iterator &rt) = default;
+    directory_iterator(directory_iterator &&rt) noexcept = default;
+    explicit directory_iterator(const path &p)
+        : directory_iterator(p, directory_options::none, nullptr)
+    {
+    }
+    directory_iterator(const path &p, directory_options options)
+        : directory_iterator(p, options, nullptr)
+    {
+    }
+    directory_iterator(const path &p, std::error_code &ec) noexcept
+        : directory_iterator(p, directory_options::none, &ec)
+    {
+    }
+    directory_iterator(const path &p, directory_options options, std::error_code &ec) noexcept
+        : directory_iterator(p, options, &ec)
+    {
+    }
+    directory_iterator &operator=(const directory_iterator &rt)
+    {
+        return operator=(directory_iterator(rt));
+    }
+    directory_iterator &operator=(directory_iterator &&rt) noexcept
+    {
+        directory_iterator temp(std::move(rt));
+        using std::swap;
+        swap(temp.implementation, implementation);
+        swap(temp.current_entry, current_entry);
+        return *this;
+    }
+    directory_iterator &operator++()
+    {
+        increment(implementation, current_entry, nullptr);
+        return *this;
+    }
+    directory_iterator &increment(std::error_code &ec) noexcept
+    {
+        increment(implementation, current_entry, &ec);
+        return *this;
+    }
+    friend bool operator==(const directory_iterator &a, const directory_iterator &b) noexcept
+    {
+        return a.implementation == b.implementation;
+    }
+    friend bool operator!=(const directory_iterator &a, const directory_iterator &b) noexcept
+    {
+        return a.implementation != b.implementation;
+    }
+    const directory_entry &operator*() const noexcept
+    {
+        return current_entry;
+    }
+    const directory_entry *operator->() const noexcept
+    {
+        return &current_entry;
+    }
+};
+
+inline directory_iterator begin(directory_iterator iter) noexcept
+{
+    return iter;
+}
+
+inline directory_iterator end(const directory_iterator &) noexcept
+{
+    return directory_iterator();
+}
+
+#warning finish implementing util::filesystem
+
+// TODO: implement recursive_directory_iterator
+class[[deprecated(
+    "recursive_directory_iterator is not implemented yet")]] recursive_directory_iterator;
+
+// TODO: implement absolute
+[[deprecated("absolute is not implemented yet")]] path absolute(const path &p);
+[[deprecated("absolute is not implemented yet")]] path absolute(const path &p,
+                                                                std::error_code &ec) noexcept;
+
+// TODO: implement canonical
+[[deprecated("canonical is not implemented yet")]] path canonical(const path &p);
+[[deprecated("canonical is not implemented yet")]] path canonical(const path &p, const path &base);
+[[deprecated("canonical is not implemented yet")]] path canonical(const path &p,
+                                                                  std::error_code &ec) noexcept;
+[[deprecated("canonical is not implemented yet")]] path canonical(const path &p,
+                                                                  const path &base,
+                                                                  std::error_code &ec) noexcept;
+
+// TODO: implement weakly_canonical
+[[deprecated("weakly_canonical is not implemented yet")]] path weakly_canonical(const path &p);
+[[deprecated("weakly_canonical is not implemented yet")]] path weakly_canonical(
+    const path &p, std::error_code &ec) noexcept;
+
+// TODO: implement relative
+[[deprecated("relative is not implemented yet")]] path relative(const path &p);
+[[deprecated("relative is not implemented yet")]] path relative(const path &p, const path &base);
+[[deprecated("relative is not implemented yet")]] path relative(const path &p,
+                                                                std::error_code &ec) noexcept;
+[[deprecated("relative is not implemented yet")]] path relative(const path &p,
+                                                                const path &base,
+                                                                std::error_code &ec) noexcept;
+
+// TODO: implement proximate
+[[deprecated("proximate is not implemented yet")]] path proximate(const path &p);
+[[deprecated("proximate is not implemented yet")]] path proximate(const path &p, const path &base);
+[[deprecated("proximate is not implemented yet")]] path proximate(const path &p,
+                                                                  std::error_code &ec) noexcept;
+[[deprecated("proximate is not implemented yet")]] path proximate(const path &p,
+                                                                  const path &base,
+                                                                  std::error_code &ec) noexcept;
+
+// TODO: implement copy
+[[deprecated("copy is not implemented yet")]] void copy(const path &from, const path &to);
+[[deprecated("copy is not implemented yet")]] void copy(const path &from,
+                                                        const path &to,
+                                                        std::error_code &ec) noexcept;
+[[deprecated("copy is not implemented yet")]] void copy(const path &from,
+                                                        const path &to,
+                                                        copy_options options);
+[[deprecated("copy is not implemented yet")]] void copy(const path &from,
+                                                        const path &to,
+                                                        copy_options options,
+                                                        std::error_code &ec) noexcept;
+
+// TODO: implement copy_file
+[[deprecated("copy_file is not implemented yet")]] void copy_file(const path &from, const path &to);
+[[deprecated("copy_file is not implemented yet")]] void copy_file(const path &from,
+                                                                  const path &to,
+                                                                  std::error_code &ec) noexcept;
+[[deprecated("copy_file is not implemented yet")]] void copy_file(const path &from,
+                                                                  const path &to,
+                                                                  copy_options options);
+[[deprecated("copy_file is not implemented yet")]] void copy_file(const path &from,
+                                                                  const path &to,
+                                                                  copy_options options,
+                                                                  std::error_code &ec) noexcept;
+
+// TODO: implement copy_symlink
+[[deprecated("copy_symlink is not implemented yet")]] void copy_symlink(const path &from,
+                                                                        const path &to);
+[[deprecated("copy_symlink is not implemented yet")]] void copy_symlink(
+    const path &from, const path &to, std::error_code &ec) noexcept;
+
+// TODO: implement create_directory
+[[deprecated("create_directory is not implemented yet")]] void create_directory(const path &p);
+[[deprecated("create_directory is not implemented yet")]] void create_directory(
+    const path &p, std::error_code &ec) noexcept;
+[[deprecated("create_directory is not implemented yet")]] void create_directory(
+    const path &p, const path &existing_p);
+[[deprecated("create_directory is not implemented yet")]] void create_directory(
+    const path &p, const path &existing_p, std::error_code &ec) noexcept;
+
+// TODO: implement create_directories
+[[deprecated("create_directories is not implemented yet")]] void create_directories(const path &p);
+[[deprecated("create_directories is not implemented yet")]] void create_directories(
+    const path &p, std::error_code &ec) noexcept;
+
+// TODO: implement create_hard_link
+[[deprecated("create_hard_link is not implemented yet")]] void create_hard_link(const path &target,
+                                                                                const path &link);
+[[deprecated("create_hard_link is not implemented yet")]] void create_hard_link(
+    const path &target, const path &link, std::error_code &ec) noexcept;
+
+// TODO: implement create_symlink
+[[deprecated("create_symlink is not implemented yet")]] void create_symlink(const path &target,
+                                                                            const path &link);
+[[deprecated("create_symlink is not implemented yet")]] void create_symlink(
+    const path &target, const path &link, std::error_code &ec) noexcept;
+
+// TODO: implement create_directory_symlink
+[[deprecated("create_directory_symlink is not implemented yet")]] void create_directory_symlink(
+    const path &target, const path &link);
+[[deprecated("create_directory_symlink is not implemented yet")]] void create_directory_symlink(
+    const path &target, const path &link, std::error_code &ec) noexcept;
+
+// TODO: implement current_path
+[[deprecated("current_path is not implemented yet")]] path current_path();
+[[deprecated("current_path is not implemented yet")]] path current_path(
+    std::error_code &ec) noexcept;
+[[deprecated("current_path is not implemented yet")]] void current_path(const path &p);
+[[deprecated("current_path is not implemented yet")]] void current_path(
+    const path &p, std::error_code &ec) noexcept;
+
+// TODO: implement equivalent
+[[deprecated("equivalent is not implemented yet")]] bool equivalent(const path &p1, const path &p2);
+[[deprecated("equivalent is not implemented yet")]] bool equivalent(const path &p1,
+                                                                    const path &p2,
+                                                                    std::error_code &ec) noexcept;
+
+// TODO: implement permissions
+[[deprecated("permissions is not implemented yet")]] void permissions(const path &p, perms prms);
+[[deprecated("permissions is not implemented yet")]] void permissions(const path &p,
+                                                                      perms prms,
+                                                                      perm_options options);
+[[deprecated("permissions is not implemented yet")]] void permissions(const path &p,
+                                                                      perms prms,
+                                                                      std::error_code &ec) noexcept;
+[[deprecated("permissions is not implemented yet")]] void permissions(const path &p,
+                                                                      perms prms,
+                                                                      perm_options options,
+                                                                      std::error_code &ec) noexcept;
+
+// TODO: implement read_symlink
+[[deprecated("read_symlink is not implemented yet")]] path read_symlink(const path &p);
+[[deprecated("read_symlink is not implemented yet")]] path read_symlink(
+    const path &p, std::error_code &ec) noexcept;
+
+// TODO: implement remove
+[[deprecated("remove is not implemented yet")]] bool remove(const path &p);
+[[deprecated("remove is not implemented yet")]] bool remove(const path &p,
+                                                            std::error_code &ec) noexcept;
+
+// TODO: implement remove_all
+[[deprecated("remove_all is not implemented yet")]] std::uintmax_t remove_all(const path &p);
+[[deprecated("remove_all is not implemented yet")]] std::uintmax_t remove_all(
+    const path &p, std::error_code &ec) noexcept;
+
+// TODO: implement rename
+[[deprecated("rename is not implemented yet")]] void rename(const path &old_p, const path &new_p);
+[[deprecated("rename is not implemented yet")]] void rename(const path &old_p,
+                                                            const path &new_p,
+                                                            std::error_code &ec) noexcept;
+
+// TODO: implement resize_file
+[[deprecated("resize_file is not implemented yet")]] void resize_file(const path &p,
+                                                                      std::uintmax_t new_size);
+[[deprecated("resize_file is not implemented yet")]] void resize_file(const path &p,
+                                                                      std::uintmax_t new_size,
+                                                                      std::error_code &ec) noexcept;
+
+// TODO: implement space
+[[deprecated("space is not implemented yet")]] space_info space(const path &p);
+[[deprecated("space is not implemented yet")]] space_info space(const path &p,
+                                                                std::error_code &ec) noexcept;
+
+// TODO: implement temp_directory_path
+[[deprecated("temp_directory_path is not implemented yet")]] path temp_directory_path();
+[[deprecated("temp_directory_path is not implemented yet")]] path temp_directory_path(
+    std::error_code &ec) noexcept;
+
+// TODO: implement is_empty
+[[deprecated("is_empty is not implemented yet")]] bool is_empty(const path &p);
+[[deprecated("is_empty is not implemented yet")]] bool is_empty(const path &p,
+                                                                std::error_code &ec) noexcept;
 }
 }
 }

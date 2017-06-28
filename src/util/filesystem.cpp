@@ -20,9 +20,30 @@
  * SOFTWARE.
  *
  */
+#ifdef __linux__
+#ifndef _LARGEFILE_SOURCE
+#define _LARGEFILE_SOURCE
+#endif
+#ifndef _LARGEFILE64_SOURCE
+#define _LARGEFILE64_SOURCE
+#endif
+#endif
 #include "filesystem.h"
 #include <cstdlib>
 #include <iostream>
+#ifdef _WIN32
+#define NOMINMAX
+#include <windows.h>
+#elif defined(__linux__)
+#include <time.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <unistd.h>
+#include <dirent.h>
+#include <cerrno>
+#else
+#error filesystem is not implemented for your operating system
+#endif
 
 namespace vulkan_cpu
 {
@@ -32,7 +53,293 @@ namespace filesystem
 {
 namespace detail
 {
-#if 0
+constexpr bool Filesystem_clock::is_steady;
+
+#ifdef __linux__
+namespace
+{
+Filesystem_clock::time_point timespec_to_time_point(const timespec &ts) noexcept
+{
+    return Filesystem_clock::time_point(
+        Filesystem_clock::duration(static_cast<std::int64_t>(ts.tv_sec) * 1'000'000'000L
+                                   + static_cast<std::int64_t>(ts.tv_nsec)));
+}
+}
+#elif defined(_WIN32)
+namespace
+{
+Filesystem_clock::time_point filetime_to_time_point(const FILETIME &ft) noexcept
+{
+    ULARGE_INTEGER li{};
+    li.u.LowPart = ft.dwLowDateTime;
+    li.u.HighPart = ft.dwHighDateTime;
+    return Filesystem_clock::time_point(Filesystem_clock::duration(li.QuadPart));
+}
+}
+#endif
+
+Filesystem_clock::time_point Filesystem_clock::now() noexcept
+{
+#ifdef _WIN32
+    FILETIME ft{};
+    ::GetSystemTimeAsFileTime(&ft);
+    return filetime_to_time_point(ft);
+#elif defined(__linux__)
+    timespec ts{};
+    ::clock_gettime(CLOCK_REALTIME, &ts);
+    return timespec_to_time_point(ts);
+#else
+#error Filesystem_clock::now is not implemented for your operating system
+#endif
+}
+
+struct Stat_results
+{
+    file_type type;
+#ifdef _WIN32
+#error Stat_results is not implemented on windows
+#elif defined(__linux__)
+    struct ::stat64 stat_results;
+    constexpr Stat_results() noexcept : type(file_type::none), stat_results{}
+    {
+    }
+    Stat_results(const path &p, bool follow_symlink, bool ignore_unknown_type, std::error_code *ec)
+        : type(file_type::none), stat_results{}
+    {
+        if(ec)
+            ec->clear();
+        assert(!"finish");
+#warning finish
+    }
+#else
+#error Stat_results is not implemented for your operating system
+#endif
+};
+
+std::uintmax_t file_size(const path &p, std::error_code *ec)
+{
+#ifdef _WIN32
+#error file_size is not implemented on windows
+#elif defined(__linux__)
+    Stat_results stat_results(p, true, true, ec);
+    if(ec && *ec)
+        return -1;
+    return stat_results.stat_results.st_size;
+#else
+#error file_size is not implemented for your operating system
+#endif
+}
+
+std::uintmax_t hard_link_count(const path &p, std::error_code *ec)
+{
+#ifdef _WIN32
+#error hard_link_count is not implemented on windows
+#elif defined(__linux__)
+    Stat_results stat_results(p, true, true, ec);
+    if(ec && *ec)
+        return -1;
+    return stat_results.stat_results.st_nlink;
+#else
+#error hard_link_count is not implemented for your operating system
+#endif
+}
+
+file_time_type last_write_time(const path &p, std::error_code *ec)
+{
+#ifdef _WIN32
+#error hard_link_count is not implemented on windows
+#elif defined(__linux__)
+    Stat_results stat_results(p, true, true, ec);
+    if(ec && *ec)
+        return file_time_type::min();
+    return timespec_to_time_point(stat_results.stat_results.st_mtim);
+#else
+#error hard_link_count is not implemented for your operating system
+#endif
+}
+
+file_status status(const path &p, bool follow_symlink, std::error_code *ec)
+{
+#warning finish
+    assert(!"finish");
+}
+}
+
+void directory_entry::refresh(std::error_code *ec)
+{
+#warning finish
+    assert(!"finish");
+}
+
+#ifdef _WIN32
+#error directory_iterator is not implemented on windows
+#elif defined(__linux__)
+struct directory_iterator::Implementation
+{
+    ::DIR *dir = nullptr;
+    const directory_options options;
+    Implementation(const Implementation &) = delete;
+    Implementation &operator=(const Implementation &) = delete;
+    Implementation(directory_entry &current_entry,
+                   const path &p,
+                   directory_options options_in,
+                   std::error_code *ec,
+                   bool &failed)
+        : options(options_in)
+    {
+        failed = false;
+        if(ec)
+            ec->clear();
+        auto old_errno = errno;
+        dir = ::opendir(p.c_str());
+        auto error = errno;
+        errno = old_errno;
+        if(!dir)
+        {
+            if(error != EACCES
+               || (options & directory_options::skip_permission_denied) == directory_options::none)
+                detail::set_or_throw_error(
+                    ec, "opendir failed", std::error_code(error, std::generic_category()));
+            failed = true;
+            return;
+        }
+        try
+        {
+            current_entry.path_value = p / path(); // add trailing slash
+            if(!read(current_entry, ec))
+                failed = true;
+        }
+        catch(...)
+        {
+            close();
+            throw;
+        }
+    }
+    bool read(directory_entry &current_entry, std::error_code *ec)
+    {
+        if(ec)
+            ec->clear();
+        ::dirent64 *entry;
+        while(true)
+        {
+            auto old_errno = errno;
+            errno = 0;
+            // using readdir64 instead of readdir64_r: see
+            // https://www.gnu.org/software/libc/manual/html_node/Reading_002fClosing-Directory.html
+            entry = ::readdir64(dir);
+            auto error = errno;
+            errno = old_errno;
+            if(!entry)
+            {
+                if(error != 0)
+                    detail::set_or_throw_error(
+                        ec, "readdir failed", std::error_code(error, std::generic_category()));
+                return false;
+            }
+            if(entry->d_name == string_view(".") || entry->d_name == string_view(".."))
+                continue;
+            break;
+        }
+        current_entry.flags = {};
+        current_entry.path_value.replace_filename(entry->d_name);
+        current_entry.flags.has_symlink_status_type_value = true;
+        switch(entry->d_type)
+        {
+        case DT_FIFO:
+            current_entry.symlink_status_value.type(file_type::fifo);
+            break;
+        case DT_CHR:
+            current_entry.symlink_status_value.type(file_type::character);
+            break;
+        case DT_DIR:
+            current_entry.symlink_status_value.type(file_type::directory);
+            break;
+        case DT_BLK:
+            current_entry.symlink_status_value.type(file_type::block);
+            break;
+        case DT_LNK:
+            current_entry.symlink_status_value.type(file_type::symlink);
+            break;
+        case DT_REG:
+            current_entry.symlink_status_value.type(file_type::regular);
+            break;
+        case DT_SOCK:
+            current_entry.symlink_status_value.type(file_type::socket);
+            break;
+        case DT_UNKNOWN:
+        default:
+            current_entry.flags.has_symlink_status_type_value = false;
+            break;
+        }
+        return true;
+    }
+    void close() noexcept
+    {
+        if(!dir)
+            return;
+        auto old_errno = errno;
+        ::closedir(dir);
+        dir = nullptr;
+        // ignore any errors
+        errno = old_errno;
+    }
+    ~Implementation()
+    {
+        close();
+    }
+};
+#else
+#error directory_iterator is not implemented for your operating system
+#endif
+
+std::shared_ptr<directory_iterator::Implementation> directory_iterator::create(
+    directory_entry &current_entry, const path &p, directory_options options, std::error_code *ec)
+{
+    try
+    {
+        bool failed;
+        auto retval = std::make_shared<Implementation>(current_entry, p, options, ec, failed);
+        if(failed)
+            return nullptr;
+        return retval;
+    }
+    catch(std::bad_alloc &)
+    {
+        if(!ec)
+            throw;
+        *ec = std::make_error_code(std::errc::not_enough_memory);
+        return nullptr;
+    }
+}
+
+void directory_iterator::increment(std::shared_ptr<Implementation> &implementation,
+                                   directory_entry &current_entry,
+                                   std::error_code *ec)
+{
+    try
+    {
+        if(!implementation->read(current_entry, ec))
+            implementation = nullptr;
+    }
+    catch(...)
+    {
+        implementation = nullptr;
+        throw;
+    }
+}
+}
+}
+}
+
+#if 0 // change to 1 to test filesystem::path
+namespace vulkan_cpu
+{
+namespace util
+{
+namespace filesystem
+{
+namespace detail
+{
 #warning testing util::filesystem::path
 struct Path_tester
 {
@@ -163,8 +470,8 @@ namespace
 {
 Path_tester path_tester;
 }
+}
+}
+}
+}
 #endif
-}
-}
-}
-}
