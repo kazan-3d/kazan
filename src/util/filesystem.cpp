@@ -32,7 +32,7 @@ namespace filesystem
 {
 namespace detail
 {
-#if 1
+#if 0
 #warning testing util::filesystem::path
 struct Path_tester
 {
@@ -108,6 +108,9 @@ struct Path_tester
                 "a/a.a",
                 "a/.a.",
                 "a/.a.a",
+                "a/b/c/d/../.././e/../../f",
+                "C:../.",
+                "/../.././",
             })
         {
             Path p(test_path_string);
@@ -117,18 +120,28 @@ struct Path_tester
             std::cout << "make_preferred -> " << Path(p).make_preferred() << std::endl;
             std::cout << "remove_filename -> " << Path(p).remove_filename() << std::endl;
             std::cout << "lexically_normal -> " << p.lexically_normal() << std::endl;
-            std::cout << "operator/=:";
+            std::cout << "root_name -> " << p.root_name() << std::endl;
+            std::cout << "root_directory -> " << p.root_directory() << std::endl;
+            std::cout << "root_path -> " << p.root_path() << std::endl;
+            std::cout << "relative_path -> " << p.relative_path() << std::endl;
+            std::cout << "parent_path -> " << p.parent_path() << std::endl;
+            std::cout << "filename -> " << p.filename() << std::endl;
+            std::cout << "stem -> " << p.stem() << std::endl;
+            std::cout << "extension -> " << p.extension() << std::endl;
+            std::cout << "operator/:";
             for(auto *appended_path : {
-                    "",
-                    "/abc",
-                    "C:abc",
-                    "//a/abc",
-                    "C:/abc",
-                    "abc",
+                    "", "/abc", "C:abc", "//a/abc", "C:/abc", "abc",
                 })
             {
-                std::cout << " \"" << appended_path << "\"->"
-                          << Path(p).operator/=(appended_path);
+                std::cout << " \"" << appended_path << "\"->" << p / appended_path;
+            }
+            std::cout << std::endl;
+            std::cout << "lexically_proximate:";
+            for(auto *base_path : {
+                    "", "/abc", "C:abc", "//a/abc", "C:/abc", "abc",
+                })
+            {
+                std::cout << " \"" << base_path << "\"->" << p.lexically_proximate(base_path);
             }
             std::cout << std::endl;
         }

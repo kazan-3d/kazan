@@ -322,10 +322,15 @@ struct Path_convert_range
 };
 
 template <typename Path_char_type, typename Iterator>
-struct Path_convert_range<Path_char_type,
-                          Iterator,
-                          typename std::
-                              enable_if<Path_is_convertable_iterator_type<Iterator>::value>::type>
+struct
+    Path_convert_range<Path_char_type,
+                       Iterator,
+                       typename std::
+                           enable_if<!std::
+                                         is_same<Path_char_type,
+                                                 typename Path_is_convertable_iterator_type<Iterator>::
+                                                     Char_type>::value
+                                     && Path_is_convertable_iterator_type<Iterator>::value>::type>
 {
     static constexpr bool is_convertible = true;
     template <typename Traits = std::char_traits<Path_char_type>,
@@ -377,13 +382,14 @@ template <typename Path_char_type, typename Source_char_type, typename Traits, t
 struct Path_convert_source<Path_char_type,
                            std::basic_string<Source_char_type, Traits, Allocator>,
                            typename std::
-                               enable_if<Path_convert_range<Path_char_type,
-                                                            typename std::
-                                                                basic_string<Source_char_type,
-                                                                             Traits,
-                                                                             Allocator>::
-                                                                    const_iterator>::
-                                             is_convertible>::type>
+                               enable_if<!std::is_same<Path_char_type, Source_char_type>::value
+                                         && Path_convert_range<Path_char_type,
+                                                               typename std::
+                                                                   basic_string<Source_char_type,
+                                                                                Traits,
+                                                                                Allocator>::
+                                                                       const_iterator>::
+                                                is_convertible>::type>
 {
     typedef Path_convert_range<Path_char_type,
                                typename std::basic_string<Source_char_type, Traits, Allocator>::
@@ -518,9 +524,24 @@ template <detail::Path_traits_kind Traits_kind = detail::default_path_traits_kin
           Char_type Preferred_separator = detail::Path_traits<Traits_kind>::preferred_separator,
           bool Needs_root_name_to_be_absolute =
               detail::Path_traits<Traits_kind>::needs_root_name_to_be_absolute>
+class basic_path;
+
+template <detail::Path_traits_kind Traits_kind,
+          typename Char_type,
+          Char_type Preferred_separator,
+          bool Needs_root_name_to_be_absolute>
+std::size_t hash_value(
+    const basic_path<Traits_kind, Char_type, Preferred_separator, Needs_root_name_to_be_absolute>
+        &v) noexcept;
+
+template <detail::Path_traits_kind Traits_kind,
+          typename Char_type,
+          Char_type Preferred_separator,
+          bool Needs_root_name_to_be_absolute>
 class basic_path
 {
     friend struct detail::Path_tester;
+    friend std::size_t hash_value(const basic_path &v) noexcept;
     static_assert(std::is_same<Char_type, char>::value || std::is_same<Char_type, wchar_t>::value,
                   "");
 
@@ -1251,10 +1272,12 @@ public:
     basic_path &operator/=(const string_type &p)
     {
         append_string(p);
+        return *this;
     }
     basic_path &operator/=(const string_view_type &p)
     {
         append_string(p);
+        return *this;
     }
     template <typename Source>
     basic_path &operator/=(const Source &source)
@@ -1274,6 +1297,14 @@ public:
         append_string(
             detail::Path_convert_range<Char_type, Input_iterator>::to_string(first, last));
         return *this;
+    }
+    friend basic_path operator/(const basic_path &l, const basic_path &r)
+    {
+        return basic_path(l) /= r;
+    }
+    friend basic_path operator/(basic_path &&l, const basic_path &r)
+    {
+        return l /= r;
     }
     basic_path &operator+=(const basic_path &p)
     {
@@ -1565,7 +1596,7 @@ private:
                             Path_part_kind b_kind) noexcept
     {
         constexpr Char_type generic_separator_char = '/';
-        constexpr string_view_type generic_separator(&generic_separator_char, 1);
+        string_view_type generic_separator(&generic_separator_char, 1);
         if(a_kind == Path_part_kind::root_dir)
             a = generic_separator;
         if(b_kind == Path_part_kind::root_dir)
@@ -1652,6 +1683,78 @@ public:
     {
         return compare(rt.value);
     }
+    friend bool operator==(const basic_path &l, const basic_path &r) noexcept
+    {
+        return l.compare(r) == 0;
+    }
+    friend bool operator!=(const basic_path &l, const basic_path &r) noexcept
+    {
+        return l.compare(r) != 0;
+    }
+    friend bool operator<=(const basic_path &l, const basic_path &r) noexcept
+    {
+        return l.compare(r) <= 0;
+    }
+    friend bool operator>=(const basic_path &l, const basic_path &r) noexcept
+    {
+        return l.compare(r) >= 0;
+    }
+    friend bool operator<(const basic_path &l, const basic_path &r) noexcept
+    {
+        return l.compare(r) < 0;
+    }
+    friend bool operator>(const basic_path &l, const basic_path &r) noexcept
+    {
+        return l.compare(r) > 0;
+    }
+    friend bool operator==(const basic_path &l, string_view_type r) noexcept
+    {
+        return l.compare(r) == 0;
+    }
+    friend bool operator!=(const basic_path &l, string_view_type r) noexcept
+    {
+        return l.compare(r) != 0;
+    }
+    friend bool operator<=(const basic_path &l, string_view_type r) noexcept
+    {
+        return l.compare(r) <= 0;
+    }
+    friend bool operator>=(const basic_path &l, string_view_type r) noexcept
+    {
+        return l.compare(r) >= 0;
+    }
+    friend bool operator<(const basic_path &l, string_view_type r) noexcept
+    {
+        return l.compare(r) < 0;
+    }
+    friend bool operator>(const basic_path &l, string_view_type r) noexcept
+    {
+        return l.compare(r) > 0;
+    }
+    friend bool operator==(string_view_type l, const basic_path &r) noexcept
+    {
+        return r.compare(l) == 0;
+    }
+    friend bool operator!=(string_view_type l, const basic_path &r) noexcept
+    {
+        return r.compare(l) != 0;
+    }
+    friend bool operator<=(string_view_type l, const basic_path &r) noexcept
+    {
+        return r.compare(l) >= 0;
+    }
+    friend bool operator>=(string_view_type l, const basic_path &r) noexcept
+    {
+        return r.compare(l) <= 0;
+    }
+    friend bool operator<(string_view_type l, const basic_path &r) noexcept
+    {
+        return r.compare(l) > 0;
+    }
+    friend bool operator>(string_view_type l, const basic_path &r) noexcept
+    {
+        return r.compare(l) < 0;
+    }
     iterator begin() const noexcept
     {
         return iterator(this, 0);
@@ -1662,27 +1765,17 @@ public:
     }
     basic_path root_name() const
     {
-        auto iter = begin();
-        if(iter == end())
+        auto index_range = get_root_name_index_range(value);
+        if(index_range.empty())
             return {};
-        if(iter->kind == Path_part_kind::relative_root_name
-           || iter->kind == Path_part_kind::absolute_root_name)
-            return *iter;
-        return {};
+        return value.substr(index_range.begin, index_range.size());
     }
     basic_path root_directory() const
     {
-        auto iter = begin();
-        if(iter == end())
+        auto index_range = get_root_dir_index_range(value);
+        if(index_range.empty())
             return {};
-        if(iter->kind == Path_part_kind::relative_root_name
-           || iter->kind == Path_part_kind::absolute_root_name)
-            ++iter;
-        if(iter == end())
-            return {};
-        if(iter->kind == Path_part_kind::root_dir)
-            return *iter;
-        return {};
+        return value.substr(index_range.begin, index_range.size());
     }
     basic_path root_path() const
     {
@@ -1888,6 +1981,66 @@ public:
         retval.parse();
         return retval;
     }
+    basic_path lexically_relative(const basic_path &base) const
+    {
+        constexpr Char_type dot_char = '.';
+        constexpr std::size_t dot_dot_size = 2;
+        constexpr std::size_t dot_size = 1;
+        constexpr Char_type dot_dot_storage[dot_dot_size + 1] = {dot_char, dot_char};
+        constexpr Char_type dot_storage[dot_size + 1] = {dot_char};
+        string_view_type dot_dot(dot_dot_storage, dot_dot_size);
+        string_view_type dot(dot_storage, dot_size);
+        if(root_name() != base.root_name())
+            return {};
+        if(is_absolute() != base.is_absolute())
+            return {};
+        if(!has_root_directory() && base.has_root_directory())
+            return {};
+        auto a = begin();
+        auto b = base.begin();
+        while(a != end() && b != base.end() && *a == *b)
+        {
+            ++a;
+            ++b;
+        }
+        if(a == end() && b == base.end())
+            return dot;
+        std::ptrdiff_t n = 0;
+        for(auto i = b; i != base.end(); ++i)
+        {
+            if(i->kind == Path_part_kind::file_name)
+            {
+                if(i->value == dot_dot)
+                    n--;
+                else if(i->value != dot)
+                    n++;
+            }
+        }
+        if(n < 0)
+            return {};
+        std::size_t retval_value_reserve_size = static_cast<std::size_t>(n) * (dot_dot.size() + 1);
+        std::size_t retval_parts_reserve_size = n;
+        for(auto i = a; i != end(); ++i)
+        {
+            retval_value_reserve_size += 1 + i->value.size();
+            retval_parts_reserve_size++;
+        }
+        basic_path retval;
+        retval.value.reserve(retval_value_reserve_size);
+        retval.parts.reserve(retval_parts_reserve_size);
+        for(std::size_t i = n; i > 0; i--)
+            retval /= dot_dot;
+        for(auto i = a; i != end(); ++i)
+            retval /= *i;
+        return retval;
+    }
+    basic_path lexically_proximate(const basic_path &base) const
+    {
+        auto retval = lexically_relative(base);
+        if(retval.empty())
+            return *this;
+        return retval;
+    }
 #warning finish
 };
 
@@ -1901,6 +2054,25 @@ void swap(
         &r) noexcept
 {
     l.swap(r);
+}
+
+/** @note the filesystem specification specifies to have hash_value instead of a std::hash
+ * specialization */
+template <detail::Path_traits_kind Traits_kind,
+          typename Char_type,
+          Char_type Preferred_separator,
+          bool Needs_root_name_to_be_absolute>
+std::size_t hash_value(
+    const basic_path<Traits_kind, Char_type, Preferred_separator, Needs_root_name_to_be_absolute>
+        &v) noexcept
+{
+    std::size_t retval = 0;
+    for(auto &part : v.parts)
+    {
+        retval *= 849372545UL;
+        retval ^= std::hash<std::basic_string<Char_type>>()(part.value);
+    }
+    return retval;
 }
 
 template <detail::Path_traits_kind Traits_kind,
@@ -1937,6 +2109,18 @@ void basic_path<Traits_kind, Char_type, Preferred_separator, Needs_root_name_to_
 }
 
 typedef basic_path<> path;
+
+template <typename Source>
+path u8path(const Source &source)
+{
+    return path(source);
+}
+
+template <typename Input_iterator>
+path u8path(Input_iterator first, Input_iterator last)
+{
+    return path(first, last);
+}
 }
 }
 }
