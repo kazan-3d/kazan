@@ -201,6 +201,11 @@ public:
     {
         return std::basic_string<Char_type, Char_traits, Allocator>(begin(), end());
     }
+    template <typename Char_traits>
+    constexpr operator basic_string_view<Char_type, Char_traits>() const noexcept
+    {
+        return basic_string_view<Char_type, Char_traits>(chars, used);
+    }
     template <typename Char_traits, typename Allocator>
     friend std::basic_string<Char_type, Char_traits, Allocator> operator+(
         std::basic_string<Char_type, Char_traits, Allocator> a, const Encoded_character &b)
