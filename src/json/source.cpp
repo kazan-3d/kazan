@@ -102,8 +102,12 @@ Source Source::load_file(const util::filesystem::path &file_path)
 {
     // TODO: add code to use mmap
     std::ifstream is;
-    is.exceptions(std::ios::badbit | std::ios::failbit);
+    is.exceptions(std::ios::badbit);
     is.open(file_path);
+    if(!is)
+        throw util::filesystem::filesystem_error(
+            "open failed", file_path, std::make_error_code(std::io_errc::stream));
+    is.exceptions(std::ios::badbit | std::ios::failbit);
     std::vector<char> buffer;
     while(is.peek() != std::char_traits<char>::eof())
     {
