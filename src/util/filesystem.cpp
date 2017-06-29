@@ -35,12 +35,12 @@
 #define NOMINMAX
 #include <windows.h>
 #elif defined(__linux__)
+#include <cerrno>
 #include <time.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <unistd.h>
 #include <dirent.h>
-#include <cerrno>
 #else
 #error filesystem is not implemented for your operating system
 #endif
@@ -103,13 +103,46 @@ struct Stat_results
     constexpr Stat_results() noexcept : type(file_type::none), stat_results{}
     {
     }
-    Stat_results(const path &p, bool follow_symlink, bool ignore_unknown_type, std::error_code *ec)
+    Stat_results(const path &p, bool follow_symlink, std::error_code &ec)
         : type(file_type::none), stat_results{}
     {
-        if(ec)
-            ec->clear();
-        assert(!"finish");
-#warning finish
+        ec.clear();
+        int old_errno = errno;
+        int stat_retval =
+            follow_symlink ? stat64(p.c_str(), &stat_results) : lstat64(p.c_str(), &stat_results);
+        int error = errno;
+        errno = old_errno;
+        if(stat_retval != 0)
+        {
+            switch(error)
+            {
+            case ENOENT:
+                ec = make_error_code(std::errc::no_such_file_or_directory);
+                type = file_type::not_found;
+                break;
+            default:
+                ec = std::error_code(errno, std::generic_category());
+                type = file_type::none;
+                break;
+            }
+            return;
+        }
+        if(S_ISBLK(stat_results.st_mode))
+            type = file_type::block;
+        else if(S_ISCHR(stat_results.st_mode))
+            type = file_type::character;
+        else if(S_ISDIR(stat_results.st_mode))
+            type = file_type::directory;
+        else if(S_ISFIFO(stat_results.st_mode))
+            type = file_type::fifo;
+        else if(S_ISREG(stat_results.st_mode))
+            type = file_type::regular;
+        else if(S_ISLNK(stat_results.st_mode))
+            type = file_type::symlink;
+        else if(S_ISSOCK(stat_results.st_mode))
+            type = file_type::symlink;
+        else
+            type = file_type::unknown;
     }
 #else
 #error Stat_results is not implemented for your operating system
@@ -121,9 +154,15 @@ std::uintmax_t file_size(const path &p, std::error_code *ec)
 #ifdef _WIN32
 #error file_size is not implemented on windows
 #elif defined(__linux__)
-    Stat_results stat_results(p, true, true, ec);
-    if(ec && *ec)
+    if(ec)
+        ec->clear();
+    std::error_code stat_error;
+    Stat_results stat_results(p, true, stat_error);
+    if(stat_error)
+    {
+        set_or_throw_error(ec, "stat failed", p, stat_error);
         return -1;
+    }
     return stat_results.stat_results.st_size;
 #else
 #error file_size is not implemented for your operating system
@@ -135,9 +174,15 @@ std::uintmax_t hard_link_count(const path &p, std::error_code *ec)
 #ifdef _WIN32
 #error hard_link_count is not implemented on windows
 #elif defined(__linux__)
-    Stat_results stat_results(p, true, true, ec);
-    if(ec && *ec)
+    if(ec)
+        ec->clear();
+    std::error_code stat_error;
+    Stat_results stat_results(p, true, stat_error);
+    if(stat_error)
+    {
+        set_or_throw_error(ec, "stat failed", p, stat_error);
         return -1;
+    }
     return stat_results.stat_results.st_nlink;
 #else
 #error hard_link_count is not implemented for your operating system
@@ -149,9 +194,15 @@ file_time_type last_write_time(const path &p, std::error_code *ec)
 #ifdef _WIN32
 #error hard_link_count is not implemented on windows
 #elif defined(__linux__)
-    Stat_results stat_results(p, true, true, ec);
-    if(ec && *ec)
+    if(ec)
+        ec->clear();
+    std::error_code stat_error;
+    Stat_results stat_results(p, true, stat_error);
+    if(stat_error)
+    {
+        set_or_throw_error(ec, "stat failed", p, stat_error);
         return file_time_type::min();
+    }
     return timespec_to_time_point(stat_results.stat_results.st_mtim);
 #else
 #error hard_link_count is not implemented for your operating system
@@ -160,15 +211,64 @@ file_time_type last_write_time(const path &p, std::error_code *ec)
 
 file_status status(const path &p, bool follow_symlink, std::error_code *ec)
 {
-#warning finish
-    assert(!"finish");
+#ifdef _WIN32
+#error status is not implemented on windows
+#elif defined(__linux__)
+    if(ec)
+        ec->clear();
+    std::error_code stat_error;
+    Stat_results stat_results(p, follow_symlink, stat_error);
+    if(stat_error)
+    {
+        if(stat_results.type == file_type::none || ec)
+            set_or_throw_error(ec, "stat failed", p, stat_error);
+        return file_status(stat_results.type);
+    }
+    return file_status(stat_results.type,
+                       static_cast<perms>(static_cast<std::uint32_t>(perms::mask)
+                                          & stat_results.stat_results.st_mode));
+#else
+#error status is not implemented for your operating system
+#endif
 }
 }
 
 void directory_entry::refresh(std::error_code *ec)
 {
-#warning finish
-    assert(!"finish");
+#ifdef _WIN32
+#error status is not implemented on windows
+#elif defined(__linux__)
+    if(ec)
+        ec->clear();
+    flags = Flags{};
+    std::error_code stat_error;
+    detail::Stat_results stat_results(path_value, false, stat_error);
+    if(stat_error)
+    {
+        if(stat_results.type == file_type::none)
+        {
+            detail::set_or_throw_error(ec, "stat failed", path_value, stat_error);
+            return;
+        }
+        flags.has_symlink_status_full_value = true;
+        symlink_status_value = file_status(stat_results.type);
+        return;
+    }
+    flags.has_symlink_status_full_value = true;
+    symlink_status_value = file_status(stat_results.type,
+                                       static_cast<perms>(static_cast<std::uint32_t>(perms::mask)
+                                                          & stat_results.stat_results.st_mode));
+    flags.has_file_size_value = true;
+    file_size_value = stat_results.stat_results.st_size;
+    flags.has_hard_link_count_value = true;
+    hard_link_count_value = stat_results.stat_results.st_nlink;
+    flags.has_last_write_time_value = true;
+    last_write_time_value = detail::timespec_to_time_point(stat_results.stat_results.st_mtim)
+                                .time_since_epoch()
+                                .count();
+#else
+#error status is not implemented for your operating system
+#endif
 }
 
 #ifdef _WIN32
@@ -199,7 +299,7 @@ struct directory_iterator::Implementation
             if(error != EACCES
                || (options & directory_options::skip_permission_denied) == directory_options::none)
                 detail::set_or_throw_error(
-                    ec, "opendir failed", std::error_code(error, std::generic_category()));
+                    ec, "opendir failed", p, std::error_code(error, std::generic_category()));
             failed = true;
             return;
         }
