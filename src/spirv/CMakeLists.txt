@@ -26,14 +26,19 @@ set(spirv_parser_generated_include_dir ${CMAKE_CURRENT_BINARY_DIR}/generated)
 set(spirv_parser_generated_dir ${spirv_parser_generated_include_dir}/spirv)
 set(spirv_parser_sources ${spirv_parser_generated_dir}/parser.cpp ${spirv_parser_generated_dir}/spirv.cpp)
 set(spirv_parser_headers ${spirv_parser_generated_dir}/parser.h ${spirv_parser_generated_dir}/spirv.h)
-set(spirv_core_grammar_json ${CMAKE_CURRENT_SOURCE_DIR}/../khronos-spirv/spirv.core.grammar.json)
+set(spirv_grammar_json_dir ${CMAKE_CURRENT_SOURCE_DIR}/../khronos-spirv)
+set(spirv_core_grammar_json ${spirv_grammar_json_dir}/spirv.core.grammar.json)
+file(GLOB spirv_extension_instruction_set_json_files ${spirv_grammar_json_dir}/extinst.*.grammar.json)
 message(STATUS "spirv_parser_generated_dir: " ${spirv_parser_generated_dir})
+foreach(i ${spirv_extension_instruction_set_json_files})
+    message(STATUS "spirv_extension_instruction_set_json_files: " ${i})
+endforeach(i)
 
 add_custom_command(OUTPUT ${spirv_parser_sources} ${spirv_parser_headers}
                    COMMAND ${CMAKE_COMMAND} -E make_directory ${spirv_parser_generated_dir}
-                   COMMAND ${CMAKE_COMMAND} -E chdir ${spirv_parser_generated_include_dir} $<TARGET_FILE:generate_spirv_parser> ${spirv_core_grammar_json} spirv
+                   COMMAND ${CMAKE_COMMAND} -E chdir ${spirv_parser_generated_include_dir} $<TARGET_FILE:generate_spirv_parser> ${spirv_grammar_json_dir} spirv
                    MAIN_DEPENDENCY ${spirv_core_grammar_json}
-                   DEPENDS $<TARGET_FILE:generate_spirv_parser>
+                   DEPENDS $<TARGET_FILE:generate_spirv_parser> ${spirv_extension_instruction_set_json_files}
                    VERBATIM
                    COMMENT "Generating SPIR-V Parser")
 set(sources ${sources} ${spirv_parser_sources})

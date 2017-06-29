@@ -32,6 +32,7 @@
 #include "util/variant.h"
 #include "json/json.h"
 #include "json/parser.h"
+#include "util/filesystem.h"
 
 namespace vulkan_cpu
 {
@@ -110,7 +111,9 @@ public:
     }
 };
 
-ast::Top_level parse(json::ast::Value &&top_level_value);
+std::shared_ptr<std::vector<ast::Json_file>> read_required_files(const util::filesystem::path &dir_path);
+
+ast::Top_level parse(std::vector<ast::Json_file> &&json_files);
 }
 }
 }

@@ -34,26 +34,25 @@ namespace generate_spirv_parser
 {
 int generate_spirv_parser_main(int argc, char **argv)
 {
-    std::string file_name;
+    std::string input_directory;
     std::string output_directory;
     if(argc >= 2)
-        file_name = argv[1];
+        input_directory = argv[1];
     if(argc >= 3)
         output_directory = argv[2];
-    if(argc != 3 || (file_name.size() > 1 && file_name[0] == '-')
-       || (output_directory.size() > 1 && output_directory[0] == '-'))
+    if(argc != 3 || input_directory.empty() || input_directory[0] == '-' || output_directory.empty()
+       || output_directory[0] == '-')
     {
-        std::cerr << "usage: " << argv[0] << " <input.json> <output-directory>" << std::endl;
+        std::cerr << "usage: " << argv[0] << " <input-directory> <output-directory>" << std::endl;
         return 1;
     }
     try
     {
-        auto source = file_name == "-" ? json::Source::load_stdin() :
-                                         json::Source::load_file(std::move(file_name));
+        std::shared_ptr<std::vector<ast::Json_file>> required_files; // outside of try so 
         try
         {
-            auto json_in = json::parse(&source);
-            auto ast = parser::parse(json_in.duplicate());
+            required_files = parser::read_required_files(std::move(input_directory));
+            auto ast = parser::parse(std::move(*required_files));
             for(auto *patch : Ast_patches::get_patches())
                 patch->run(ast, &std::cout);
             for(auto &generator : generate::Generators::make_all_generators())
@@ -73,7 +72,7 @@ int generate_spirv_parser_main(int argc, char **argv)
             return 1;
         }
     }
-    catch(std::exception &e)
+    catch(std::runtime_error &e)
     {
         std::cerr << "error: " << e.what() << std::endl;
         return 1;

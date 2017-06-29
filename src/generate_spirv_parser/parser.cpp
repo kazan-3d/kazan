@@ -22,10 +22,12 @@
  */
 #include "parser.h"
 #include "util/optional.h"
+#include "util/string_view.h"
 #include <sstream>
 #include <limits>
 #include <iostream>
 #include <cstdlib>
+#include <list>
 
 namespace vulkan_cpu
 {
@@ -248,10 +250,10 @@ std::string parse_identifier_string(json::ast::Value value,
     for(char ch : string_value.value)
         if(!is_identifier_continue(ch))
             throw Parse_error(
-        value.location,
-        parent_path_builder->path(),
-        std::string(name)
-            + ": invalid identifier in string: character is not a letter, digit, or underline");
+                value.location,
+                parent_path_builder->path(),
+                std::string(name)
+                + ": invalid identifier in string: character is not a letter, digit, or underline");
     return std::move(string_value.value);
 }
 
@@ -735,13 +737,156 @@ ast::Instructions parse_instructions(json::ast::Value value,
     }
     return ast::Instructions(std::move(instructions));
 }
-}
 
-ast::Top_level parse(json::ast::Value &&top_level_value)
+ast::Extension_instruction_set parse_extension_instruction_set(json::ast::Value top_level_value,
+                                                               std::string file_name,
+                                                               std::string import_name)
 {
+    util::string_view file_name_prefix = ast::Extension_instruction_set::json_file_name_prefix;
+    util::string_view file_name_suffix = ast::Extension_instruction_set::json_file_name_suffix;
+    if(file_name.size() <= file_name_prefix.size() + file_name_suffix.size()
+       || util::string_view(file_name).compare(0, file_name_prefix.size(), file_name_prefix) != 0
+       || util::string_view(file_name).compare(
+              file_name.size() - file_name_suffix.size(), file_name_suffix.size(), file_name_suffix)
+              != 0)
+        throw Parse_error(top_level_value.location, {}, "file name is unrecognizable");
+    auto instruction_set_name = std::move(file_name);
+    instruction_set_name.erase(instruction_set_name.size() - file_name_suffix.size(), file_name_suffix.size());
+    instruction_set_name.erase(0, file_name_prefix.size());
     if(top_level_value.get_value_kind() != json::ast::Value_kind::object)
         throw Parse_error(top_level_value.location, {}, "top level value is not an object");
     auto &top_level_object = top_level_value.get_object();
+    util::optional<ast::Copyright> copyright;
+    util::optional<std::size_t> version;
+    util::optional<std::size_t> revision;
+    util::optional<ast::Instructions> instructions;
+    for(auto &entry : top_level_object.values)
+    {
+        const auto &key = std::get<0>(entry);
+        auto &entry_value = std::get<1>(entry);
+        Path_builder<std::string> path_builder(&key, nullptr);
+        if(key == "copyright")
+        {
+            copyright = parse_copyright(std::move(entry_value), &path_builder);
+        }
+        else if(key == "version")
+        {
+            version = parse_integer<std::size_t>(entry_value, &path_builder, "version");
+        }
+        else if(key == "revision")
+        {
+            revision = parse_integer<std::size_t>(entry_value, &path_builder, "revision");
+        }
+        else if(key == "instructions")
+        {
+            instructions = parse_instructions(std::move(entry_value), &path_builder);
+        }
+        else
+        {
+            throw Parse_error(entry_value.location, path_builder.path(), "unknown key");
+        }
+    }
+    return ast::Extension_instruction_set(
+        std::move(instruction_set_name),
+        std::move(import_name),
+        get_value_or_throw_parse_error(
+            std::move(copyright), top_level_value.location, nullptr, "missing copyright"),
+        get_value_or_throw_parse_error(
+            version, top_level_value.location, nullptr, "missing version"),
+        get_value_or_throw_parse_error(
+            revision, top_level_value.location, nullptr, "missing revision"),
+        get_value_or_throw_parse_error(
+            std::move(instructions), top_level_value.location, nullptr, "missing instructions"));
+}
+}
+
+std::shared_ptr<std::vector<ast::Json_file>> read_required_files(
+    const util::filesystem::path &dir_path)
+{
+    struct Result_holder
+    {
+        std::vector<ast::Json_file> retval;
+        std::list<json::Source> sources;
+    };
+    auto result_holder = std::make_shared<Result_holder>();
+    auto retval =
+        std::shared_ptr<std::vector<ast::Json_file>>(result_holder, &result_holder->retval);
+    auto &sources = result_holder->sources;
+    retval->push_back(ast::Json_file(
+        ast::Top_level::core_grammar_json_file_name, json::ast::Value({}, nullptr), {}));
+    util::string_view extension_grammar_prefix =
+        ast::Extension_instruction_set::json_file_name_prefix;
+    util::string_view extension_grammar_suffix =
+        ast::Extension_instruction_set::json_file_name_suffix;
+    for(auto &entry : util::filesystem::directory_iterator(dir_path))
+    {
+        auto filename = entry.path().filename().string();
+        if(filename == ast::Top_level::core_grammar_json_file_name)
+        {
+            // already added; just check file type
+        }
+        else if(filename.size() > extension_grammar_prefix.size() + extension_grammar_suffix.size()
+                && util::string_view(filename)
+                           .compare(0, extension_grammar_prefix.size(), extension_grammar_prefix)
+                       == 0
+                && util::string_view(filename)
+                           .compare(filename.size() - extension_grammar_suffix.size(),
+                                    extension_grammar_suffix.size(),
+                                    extension_grammar_suffix)
+                       == 0)
+        {
+            util::string_view instruction_set_name = filename;
+            instruction_set_name.remove_prefix(extension_grammar_prefix.size());
+            instruction_set_name.remove_suffix(extension_grammar_suffix.size());
+            auto import_name =
+                ast::Extension_instruction_set::get_import_name_from_instruction_set_name(
+                    instruction_set_name);
+            if(!import_name)
+            {
+                std::cerr << "Warning: unknown extended instruction set grammar file -- ignored: "
+                          << entry.path() << std::endl;
+                continue;
+            }
+            retval->push_back(ast::Json_file(
+                std::move(filename), json::ast::Value({}, nullptr), std::move(*import_name)));
+        }
+        else
+            continue;
+        if(!entry.is_regular_file())
+            throw Parse_error({}, {}, "file is not a regular file: " + entry.path().string());
+    }
+    for(auto &file : *retval)
+    {
+        sources.push_back(json::Source::load_file(dir_path / file.file_name));
+        auto &source = sources.back();
+        file.json = json::parse(&source);
+    }
+    return retval;
+}
+
+ast::Top_level parse(std::vector<ast::Json_file> &&json_files)
+{
+    util::optional<json::ast::Value> top_level_value;
+    std::vector<ast::Extension_instruction_set> extension_instruction_sets;
+    if(!json_files.empty())
+        extension_instruction_sets.reserve(json_files.size() - 1);
+    for(auto &file : json_files)
+    {
+        if(file.extension_instruction_set_import_name)
+            extension_instruction_sets.push_back(parse_extension_instruction_set(
+                std::move(file.json),
+                std::move(file.file_name),
+                std::move(*file.extension_instruction_set_import_name)));
+        else if(top_level_value)
+            throw Parse_error(top_level_value->location, {}, "multiple core grammar files");
+        else
+            top_level_value = std::move(file.json);
+    }
+    if(!top_level_value)
+        throw Parse_error(top_level_value->location, {}, "no core grammar file");
+    if(top_level_value->get_value_kind() != json::ast::Value_kind::object)
+        throw Parse_error(top_level_value->location, {}, "top level value is not an object");
+    auto &top_level_object = top_level_value->get_object();
     util::optional<ast::Copyright> copyright;
     util::optional<std::uint32_t> magic_number;
     util::optional<std::size_t> major_version;
@@ -790,19 +935,20 @@ ast::Top_level parse(json::ast::Value &&top_level_value)
     }
     return ast::Top_level(
         get_value_or_throw_parse_error(
-            std::move(copyright), top_level_value.location, nullptr, "missing copyright"),
+            std::move(copyright), top_level_value->location, nullptr, "missing copyright"),
         get_value_or_throw_parse_error(
-            magic_number, top_level_value.location, nullptr, "missing magic_number"),
+            magic_number, top_level_value->location, nullptr, "missing magic_number"),
         get_value_or_throw_parse_error(
-            major_version, top_level_value.location, nullptr, "missing major_version"),
+            major_version, top_level_value->location, nullptr, "missing major_version"),
         get_value_or_throw_parse_error(
-            minor_version, top_level_value.location, nullptr, "missing minor_version"),
+            minor_version, top_level_value->location, nullptr, "missing minor_version"),
         get_value_or_throw_parse_error(
-            revision, top_level_value.location, nullptr, "missing revision"),
+            revision, top_level_value->location, nullptr, "missing revision"),
         get_value_or_throw_parse_error(
-            std::move(instructions), top_level_value.location, nullptr, "missing instructions"),
+            std::move(instructions), top_level_value->location, nullptr, "missing instructions"),
         get_value_or_throw_parse_error(
-            std::move(operand_kinds), top_level_value.location, nullptr, "missing operand_kinds"));
+            std::move(operand_kinds), top_level_value->location, nullptr, "missing operand_kinds"),
+        std::move(extension_instruction_sets));
 }
 
 #if 0
@@ -815,7 +961,7 @@ void test_fn()
         std::size_t path_index = 0;
         Path_builder<std::size_t> path_builder(&path_index, nullptr);
         std::cout << parse_hex_integer_string<std::uint32_t>(
-                         json::ast::Value({}, "0x1234"), &path_builder, "test", 1, 8)
+                      json::ast::Value({}, "0x1234"), &path_builder, "test", 1, 8)
                   << std::endl;
     }
     catch(std::exception &e)

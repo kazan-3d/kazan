@@ -475,8 +475,60 @@ struct Operand_kinds
     }
 };
 
+struct Json_file
+{
+    std::string file_name;
+    json::ast::Value json;
+    util::optional<std::string> extension_instruction_set_import_name;
+    Json_file(std::string file_name,
+              json::ast::Value json,
+              util::optional<std::string> extension_instruction_set_import_name)
+        : file_name(std::move(file_name)),
+          json(std::move(json)),
+          extension_instruction_set_import_name(std::move(extension_instruction_set_import_name))
+    {
+    }
+};
+
+struct Extension_instruction_set
+{
+    std::string instruction_set_name;
+    std::string import_name;
+    Copyright copyright;
+    std::size_t version;
+    std::size_t revision;
+    Instructions instructions;
+    Extension_instruction_set(std::string instruction_set_name,
+                              std::string import_name,
+                              Copyright copyright,
+                              std::size_t version,
+                              std::size_t revision,
+                              Instructions instructions)
+        : instruction_set_name(std::move(instruction_set_name)),
+          import_name(std::move(import_name)),
+          copyright(std::move(copyright)),
+          version(version),
+          revision(revision),
+          instructions(std::move(instructions))
+    {
+    }
+    static constexpr const char *json_file_name_prefix = "extinst.";
+    static constexpr const char *json_file_name_suffix = ".grammar.json";
+    static util::optional<std::string> get_import_name_from_instruction_set_name(
+        util::string_view instruction_set_name);
+    Json_file to_json() const;
+    template <typename Fn>
+    void visit(Fn fn) const
+    {
+        fn(*this);
+        copyright.visit(fn);
+        instructions.visit(fn);
+    }
+};
+
 struct Top_level
 {
+    static constexpr const char *core_grammar_json_file_name = "spirv.core.grammar.json";
     Copyright copyright;
     std::uint32_t magic_number;
     std::size_t major_version;
@@ -484,23 +536,26 @@ struct Top_level
     std::size_t revision;
     Instructions instructions;
     Operand_kinds operand_kinds;
+    std::vector<Extension_instruction_set> extension_instruction_sets;
     Top_level(Copyright copyright,
               std::uint32_t magic_number,
               std::size_t major_version,
               std::size_t minor_version,
               std::size_t revision,
               Instructions instructions,
-              Operand_kinds operand_kinds)
+              Operand_kinds operand_kinds,
+              std::vector<Extension_instruction_set> extension_instruction_sets)
         : copyright(std::move(copyright)),
           magic_number(magic_number),
           major_version(major_version),
           minor_version(minor_version),
           revision(revision),
           instructions(std::move(instructions)),
-          operand_kinds(std::move(operand_kinds))
+          operand_kinds(std::move(operand_kinds)),
+          extension_instruction_sets(std::move(extension_instruction_sets))
     {
     }
-    json::ast::Value to_json() const;
+    std::vector<Json_file> to_json() const;
     template <typename Fn>
     void visit(Fn fn) const
     {
@@ -508,6 +563,8 @@ struct Top_level
         copyright.visit(fn);
         instructions.visit(fn);
         operand_kinds.visit(fn);
+        for(auto &extension_instruction_set : extension_instruction_sets)
+            extension_instruction_set.visit(fn);
     }
 };
 }

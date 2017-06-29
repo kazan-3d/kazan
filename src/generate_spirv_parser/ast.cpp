@@ -28,6 +28,11 @@ namespace generate_spirv_parser
 {
 namespace ast
 {
+constexpr const char *Extension_instruction_set::json_file_name_prefix;
+constexpr const char *Extension_instruction_set::json_file_name_suffix;
+
+constexpr const char *Top_level::core_grammar_json_file_name;
+
 namespace
 {
 std::string to_hex_string(std::uint32_t v, std::size_t min_digit_count)
@@ -201,18 +206,53 @@ json::ast::Value Operand_kinds::to_json() const
     return json::ast::Value(make_empty_location(), std::move(retval));
 }
 
-json::ast::Value Top_level::to_json() const
+util::optional<std::string> Extension_instruction_set::get_import_name_from_instruction_set_name(
+    util::string_view instruction_set_name)
 {
-    json::ast::Object retval;
-    retval.values["copyright"] = copyright.to_json();
-    retval.values["magic_number"] =
+    if(instruction_set_name == "glsl.std.450")
+        return "GLSL.std.450";
+    if(instruction_set_name == "opencl.std.100")
+        return "OpenCL.std";
+    return {};
+}
+
+Json_file Extension_instruction_set::to_json() const
+{
+    json::ast::Object grammar;
+    grammar.values["copyright"] = copyright.to_json();
+    grammar.values["version"] = json::ast::Value(make_empty_location(), version);
+    grammar.values["revision"] = json::ast::Value(make_empty_location(), revision);
+    grammar.values["instructions"] = instructions.to_json();
+    auto file_name = json_file_name_prefix + instruction_set_name + json_file_name_suffix;
+    for(char &ch : file_name)
+    {
+        if(ch >= 'A' && ch <= 'Z')
+            ch = ch - 'A' + 'a'; // to lower
+    }
+    return Json_file(std::move(file_name),
+                     json::ast::Value(make_empty_location(), std::move(grammar)),
+                     import_name);
+}
+
+std::vector<Json_file> Top_level::to_json() const
+{
+    json::ast::Object core_grammar;
+    core_grammar.values["copyright"] = copyright.to_json();
+    core_grammar.values["magic_number"] =
         json::ast::Value(make_empty_location(), to_hex_string(magic_number, 8));
-    retval.values["major_version"] = json::ast::Value(make_empty_location(), major_version);
-    retval.values["minor_version"] = json::ast::Value(make_empty_location(), minor_version);
-    retval.values["revision"] = json::ast::Value(make_empty_location(), revision);
-    retval.values["instructions"] = instructions.to_json();
-    retval.values["operand_kinds"] = operand_kinds.to_json();
-    return json::ast::Value(make_empty_location(), std::move(retval));
+    core_grammar.values["major_version"] = json::ast::Value(make_empty_location(), major_version);
+    core_grammar.values["minor_version"] = json::ast::Value(make_empty_location(), minor_version);
+    core_grammar.values["revision"] = json::ast::Value(make_empty_location(), revision);
+    core_grammar.values["instructions"] = instructions.to_json();
+    core_grammar.values["operand_kinds"] = operand_kinds.to_json();
+    std::vector<Json_file> retval;
+    retval.reserve(extension_instruction_sets.size() + 1);
+    retval.push_back(Json_file("spirv.core.grammar.json",
+                               json::ast::Value(make_empty_location(), std::move(core_grammar)),
+                               util::nullopt));
+    for(auto &extension_instruction_set : extension_instruction_sets)
+        retval.push_back(extension_instruction_set.to_json());
+    return retval;
 }
 }
 }
