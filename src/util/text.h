@@ -234,7 +234,7 @@ public:
     }
 };
 
-Encoded_character<char, 4> encode_utf8(char32_t ch, bool use_2_byte_null = false) noexcept
+constexpr Encoded_character<char, 4> encode_utf8(char32_t ch, bool use_2_byte_null = false) noexcept
 {
     assert(ch < 0x10FFFFUL && ch >= 0);
     if(use_2_byte_null && ch == 0)
@@ -278,7 +278,7 @@ typename std::char_traits<char32_t>::int_type decode_utf16(
     return unit0;
 }
 
-Encoded_character<char16_t, 2> encode_utf16(char32_t ch) noexcept
+constexpr Encoded_character<char16_t, 2> encode_utf16(char32_t ch) noexcept
 {
     assert(ch < 0x10FFFFUL && ch >= 0);
     if(ch < 0x10000UL)
@@ -307,7 +307,7 @@ typename std::char_traits<char32_t>::int_type decode_utf32(
     return retval;
 }
 
-Encoded_character<char32_t, 1> encode_utf32(char32_t ch) noexcept
+constexpr Encoded_character<char32_t, 1> encode_utf32(char32_t ch) noexcept
 {
     return Encoded_character<char32_t, 1>(ch);
 }
@@ -320,7 +320,7 @@ static_assert(std::numeric_limits<wchar_t>::digits
 
 constexpr bool is_wide_character_utf16 = std::numeric_limits<wchar_t>::digits <= 16;
 
-Encoded_character<wchar_t, 2> encode_wide(char32_t ch) noexcept
+constexpr Encoded_character<wchar_t, 2> encode_wide(char32_t ch) noexcept
 {
     if(is_wide_character_utf16)
     {
