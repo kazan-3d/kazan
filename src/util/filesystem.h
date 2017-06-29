@@ -1776,6 +1776,102 @@ public:
     {
         return r.compare(l) < 0;
     }
+    friend bool operator==(const basic_path &l, string_type r) noexcept
+    {
+        return l.compare(r) == 0;
+    }
+    friend bool operator!=(const basic_path &l, string_type r) noexcept
+    {
+        return l.compare(r) != 0;
+    }
+    friend bool operator<=(const basic_path &l, string_type r) noexcept
+    {
+        return l.compare(r) <= 0;
+    }
+    friend bool operator>=(const basic_path &l, string_type r) noexcept
+    {
+        return l.compare(r) >= 0;
+    }
+    friend bool operator<(const basic_path &l, string_type r) noexcept
+    {
+        return l.compare(r) < 0;
+    }
+    friend bool operator>(const basic_path &l, string_type r) noexcept
+    {
+        return l.compare(r) > 0;
+    }
+    friend bool operator==(string_type l, const basic_path &r) noexcept
+    {
+        return r.compare(l) == 0;
+    }
+    friend bool operator!=(string_type l, const basic_path &r) noexcept
+    {
+        return r.compare(l) != 0;
+    }
+    friend bool operator<=(string_type l, const basic_path &r) noexcept
+    {
+        return r.compare(l) >= 0;
+    }
+    friend bool operator>=(string_type l, const basic_path &r) noexcept
+    {
+        return r.compare(l) <= 0;
+    }
+    friend bool operator<(string_type l, const basic_path &r) noexcept
+    {
+        return r.compare(l) > 0;
+    }
+    friend bool operator>(string_type l, const basic_path &r) noexcept
+    {
+        return r.compare(l) < 0;
+    }
+    friend bool operator==(const basic_path &l, const Char_type *r) noexcept
+    {
+        return l.compare(r) == 0;
+    }
+    friend bool operator!=(const basic_path &l, const Char_type *r) noexcept
+    {
+        return l.compare(r) != 0;
+    }
+    friend bool operator<=(const basic_path &l, const Char_type *r) noexcept
+    {
+        return l.compare(r) <= 0;
+    }
+    friend bool operator>=(const basic_path &l, const Char_type *r) noexcept
+    {
+        return l.compare(r) >= 0;
+    }
+    friend bool operator<(const basic_path &l, const Char_type *r) noexcept
+    {
+        return l.compare(r) < 0;
+    }
+    friend bool operator>(const basic_path &l, const Char_type *r) noexcept
+    {
+        return l.compare(r) > 0;
+    }
+    friend bool operator==(const Char_type *l, const basic_path &r) noexcept
+    {
+        return r.compare(l) == 0;
+    }
+    friend bool operator!=(const Char_type *l, const basic_path &r) noexcept
+    {
+        return r.compare(l) != 0;
+    }
+    friend bool operator<=(const Char_type *l, const basic_path &r) noexcept
+    {
+        return r.compare(l) >= 0;
+    }
+    friend bool operator>=(const Char_type *l, const basic_path &r) noexcept
+    {
+        return r.compare(l) <= 0;
+    }
+    friend bool operator<(const Char_type *l, const basic_path &r) noexcept
+    {
+        return r.compare(l) > 0;
+    }
+    friend bool operator>(const Char_type *l, const basic_path &r) noexcept
+    {
+        return r.compare(l) < 0;
+    }
     iterator begin() const noexcept
     {
         return iterator(this, 0);

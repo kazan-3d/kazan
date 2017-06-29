@@ -33,4 +33,4 @@ set(sources bit_intrinsics.cpp
             variant.cpp
             void_t.cpp)
 add_library(util STATIC ${sources})
-add_executable(util_test ${sources} util_test.cpp)
+add_executable(util_test EXCLUDE_FROM_ALL ${sources} util_test.cpp)
