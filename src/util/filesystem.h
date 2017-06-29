@@ -653,7 +653,7 @@ private:
             Parts new_parts;
             new_parts.reserve(rt.used_count);
             for(std::size_t i = 0; i < rt.used_count; i++)
-                push_back(rt.values[i]);
+                new_parts.push_back(rt.values[i]);
             swap(new_parts);
         }
         Parts(Parts &&rt) noexcept : Parts()
