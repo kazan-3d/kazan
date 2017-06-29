@@ -28,6 +28,7 @@
 #include <memory>
 #include <vector>
 #include <iosfwd>
+#include "util/filesystem.h"
 
 namespace vulkan_cpu
 {
@@ -96,7 +97,7 @@ struct Source
     {
         return contents != nullptr;
     }
-    static Source load_file(std::string file_name);
+    static Source load_file(const util::filesystem::path &file_path);
     static Source load_stdin();
     struct Line_and_index
     {

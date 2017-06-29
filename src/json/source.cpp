@@ -98,12 +98,12 @@ std::vector<std::size_t> Source::find_line_start_indexes(const char *contents,
     return retval;
 }
 
-Source Source::load_file(std::string file_name)
+Source Source::load_file(const util::filesystem::path &file_path)
 {
     // TODO: add code to use mmap
     std::ifstream is;
     is.exceptions(std::ios::badbit | std::ios::failbit);
-    is.open(file_name);
+    is.open(file_path);
     std::vector<char> buffer;
     while(is.peek() != std::char_traits<char>::eof())
     {
@@ -116,7 +116,7 @@ Source Source::load_file(std::string file_name)
     std::size_t contents_size = buffer.size();
     auto buffer_ptr = std::make_shared<std::vector<char>>(std::move(buffer));
     std::shared_ptr<const char> contents(buffer_ptr, buffer_ptr->data());
-    return Source(std::move(file_name), std::move(contents), contents_size);
+    return Source(file_path.string(), std::move(contents), contents_size);
 }
 
 Source Source::load_stdin()
