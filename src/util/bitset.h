@@ -187,7 +187,9 @@ public:
     constexpr bitset(unsigned long long val) noexcept
         : Base(bit_count >= std::numeric_limits<unsigned long long>::digits ?
                    val :
-                   val & ((1ULL << bit_count) - 1ULL))
+                   val & ((1ULL << detail::Bitset_nontemplate_base::constexpr_min(
+                               bit_count, std::numeric_limits<unsigned long long>::digits - 1))
+                          - 1ULL))
     {
     }
     class reference final
