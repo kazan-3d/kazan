@@ -70,8 +70,7 @@ public:
     }
     constexpr basic_string_view(const basic_string_view &) noexcept = default;
     template <typename Allocator>
-    constexpr basic_string_view(
-        const std::basic_string<Char_type, Traits_type, Allocator> &str) noexcept
+    basic_string_view(const std::basic_string<Char_type, Traits_type, Allocator> &str) noexcept
         : string_pointer(str.data()),
           string_size(str.size())
     {
@@ -81,11 +80,11 @@ public:
           string_size(count)
     {
     }
-    basic_string_view(const Char_type *str)
+    constexpr basic_string_view(const Char_type *str)
         : string_pointer(str), string_size(traits_type::length(str))
     {
     }
-    basic_string_view &operator=(const basic_string_view &) noexcept = default;
+    constexpr basic_string_view &operator=(const basic_string_view &) noexcept = default;
     constexpr const_iterator begin() const noexcept
     {
         return string_pointer;
@@ -156,22 +155,22 @@ public:
     {
         return string_size == 0;
     }
-    void remove_prefix(std::size_t n) noexcept
+    constexpr void remove_prefix(std::size_t n) noexcept
     {
         string_pointer += n;
         string_size -= n;
     }
-    void remove_suffix(std::size_t n) noexcept
+    constexpr void remove_suffix(std::size_t n) noexcept
     {
         string_size -= n;
     }
-    void swap(basic_string_view &rt) noexcept
+    constexpr void swap(basic_string_view &rt) noexcept
     {
         basic_string_view temp = *this;
         *this = rt;
         rt = temp;
     }
-    std::size_t copy(Char_type *dest, std::size_t count, std::size_t pos = 0) const
+    constexpr std::size_t copy(Char_type *dest, std::size_t count, std::size_t pos = 0) const
     {
         if(pos > count)
             throw std::out_of_range("out of range in util::basic_string_view::copy");
@@ -230,7 +229,7 @@ public:
     {
         return substr(pos1, count1).compare(basic_string_view(rt, count2));
     }
-    std::size_t find(basic_string_view v, std::size_t pos = 0) const noexcept
+    constexpr std::size_t find(basic_string_view v, std::size_t pos = 0) const noexcept
     {
         if(pos > string_size)
             return npos;
@@ -250,19 +249,20 @@ public:
         }
         return npos;
     }
-    std::size_t find(Char_type c, std::size_t pos = 0) const noexcept
+    constexpr std::size_t find(Char_type c, std::size_t pos = 0) const noexcept
     {
         return find(basic_string_view(std::addressof(c), 1), pos);
     }
-    std::size_t find(const Char_type *s, std::size_t pos, std::size_t count) const noexcept
+    constexpr std::size_t find(const Char_type *s, std::size_t pos, std::size_t count) const
+        noexcept
     {
         return find(basic_string_view(s, count), pos);
     }
-    std::size_t find(const Char_type *s, std::size_t pos = 0) const
+    constexpr std::size_t find(const Char_type *s, std::size_t pos = 0) const
     {
         return find(basic_string_view(s), pos);
     }
-    std::size_t rfind(basic_string_view v, std::size_t pos = npos) const noexcept
+    constexpr std::size_t rfind(basic_string_view v, std::size_t pos = npos) const noexcept
     {
         if(v.string_size > string_size)
             return npos;
@@ -283,19 +283,20 @@ public:
         }
         return npos;
     }
-    std::size_t rfind(Char_type c, std::size_t pos = npos) const noexcept
+    constexpr std::size_t rfind(Char_type c, std::size_t pos = npos) const noexcept
     {
         return rfind(basic_string_view(std::addressof(c), 1), pos);
     }
-    std::size_t rfind(const Char_type *s, std::size_t pos, std::size_t count) const noexcept
+    constexpr std::size_t rfind(const Char_type *s, std::size_t pos, std::size_t count) const
+        noexcept
     {
         return rfind(basic_string_view(s, count), pos);
     }
-    std::size_t rfind(const Char_type *s, std::size_t pos = npos) const
+    constexpr std::size_t rfind(const Char_type *s, std::size_t pos = npos) const
     {
         return rfind(basic_string_view(s), pos);
     }
-    std::size_t find_first_of(basic_string_view v, std::size_t pos = 0) const noexcept
+    constexpr std::size_t find_first_of(basic_string_view v, std::size_t pos = 0) const noexcept
     {
         for(; pos < string_size; pos++)
         {
@@ -304,19 +305,21 @@ public:
         }
         return npos;
     }
-    std::size_t find_first_of(Char_type v, std::size_t pos = 0) const noexcept
+    constexpr std::size_t find_first_of(Char_type v, std::size_t pos = 0) const noexcept
     {
         return find(v, pos);
     }
-    std::size_t find_first_of(const Char_type *s, std::size_t pos, std::size_t count) const noexcept
+    constexpr std::size_t find_first_of(const Char_type *s,
+                                        std::size_t pos,
+                                        std::size_t count) const noexcept
     {
         return find_first_of(basic_string_view(s, count), pos);
     }
-    std::size_t find_first_of(const Char_type *s, std::size_t pos = 0) const
+    constexpr std::size_t find_first_of(const Char_type *s, std::size_t pos = 0) const
     {
         return find_first_of(basic_string_view(s), pos);
     }
-    std::size_t find_first_not_of(basic_string_view v, std::size_t pos = 0) const noexcept
+    constexpr std::size_t find_first_not_of(basic_string_view v, std::size_t pos = 0) const noexcept
     {
         for(; pos < string_size; pos++)
         {
@@ -325,20 +328,21 @@ public:
         }
         return npos;
     }
-    std::size_t find_first_not_of(Char_type v, std::size_t pos = 0) const noexcept
+    constexpr std::size_t find_first_not_of(Char_type v, std::size_t pos = 0) const noexcept
     {
         return find_first_not_of(basic_string_view(std::addressof(v), 1), pos);
     }
-    std::size_t find_first_not_of(const Char_type *s, std::size_t pos, std::size_t count) const
-        noexcept
+    constexpr std::size_t find_first_not_of(const Char_type *s,
+                                            std::size_t pos,
+                                            std::size_t count) const noexcept
     {
         return find_first_not_of(basic_string_view(s, count), pos);
     }
-    std::size_t find_first_not_of(const Char_type *s, std::size_t pos = 0) const
+    constexpr std::size_t find_first_not_of(const Char_type *s, std::size_t pos = 0) const
     {
         return find_first_not_of(basic_string_view(s), pos);
     }
-    std::size_t find_last_of(basic_string_view v, std::size_t pos = npos) const noexcept
+    constexpr std::size_t find_last_of(basic_string_view v, std::size_t pos = npos) const noexcept
     {
         if(empty())
             return npos;
@@ -350,19 +354,21 @@ public:
         }
         return npos;
     }
-    std::size_t find_last_of(Char_type v, std::size_t pos = npos) const noexcept
+    constexpr std::size_t find_last_of(Char_type v, std::size_t pos = npos) const noexcept
     {
         return rfind(v, pos);
     }
-    std::size_t find_last_of(const Char_type *s, std::size_t pos, std::size_t count) const noexcept
+    constexpr std::size_t find_last_of(const Char_type *s, std::size_t pos, std::size_t count) const
+        noexcept
     {
         return find_last_of(basic_string_view(s, count), pos);
     }
-    std::size_t find_last_of(const Char_type *s, std::size_t pos = npos) const
+    constexpr std::size_t find_last_of(const Char_type *s, std::size_t pos = npos) const
     {
         return find_last_of(basic_string_view(s), pos);
     }
-    std::size_t find_last_not_of(basic_string_view v, std::size_t pos = npos) const noexcept
+    constexpr std::size_t find_last_not_of(basic_string_view v, std::size_t pos = npos) const
+        noexcept
     {
         if(empty())
             return npos;
@@ -374,16 +380,17 @@ public:
         }
         return npos;
     }
-    std::size_t find_last_not_of(Char_type v, std::size_t pos = npos) const noexcept
+    constexpr std::size_t find_last_not_of(Char_type v, std::size_t pos = npos) const noexcept
     {
         return find_last_not_of(basic_string_view(std::addressof(v), 1), pos);
     }
-    std::size_t find_last_not_of(const Char_type *s, std::size_t pos, std::size_t count) const
-        noexcept
+    constexpr std::size_t find_last_not_of(const Char_type *s,
+                                           std::size_t pos,
+                                           std::size_t count) const noexcept
     {
         return find_last_not_of(basic_string_view(s, count), pos);
     }
-    std::size_t find_last_not_of(const Char_type *s, std::size_t pos = npos) const
+    constexpr std::size_t find_last_not_of(const Char_type *s, std::size_t pos = npos) const
     {
         return find_last_not_of(basic_string_view(s), pos);
     }
