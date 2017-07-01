@@ -27,6 +27,7 @@
 #include "json/json.h"
 #include "util/optional.h"
 #include "util/string_view.h"
+#include "util/enum.h"
 #include <cstdint>
 #include <vector>
 #include <string>
@@ -98,6 +99,19 @@ struct Extensions
     }
 };
 
+enum class Instructions_Instruction_Operands_Operand_Quantifier
+{
+    none,
+    optional,
+    variable,
+};
+
+vulkan_cpu_util_generate_enum_traits(
+    Instructions_Instruction_Operands_Operand_Quantifier,
+    Instructions_Instruction_Operands_Operand_Quantifier::none,
+    Instructions_Instruction_Operands_Operand_Quantifier::optional,
+    Instructions_Instruction_Operands_Operand_Quantifier::variable);
+
 struct Instructions
 {
     struct Instruction
@@ -106,12 +120,7 @@ struct Instructions
         {
             struct Operand
             {
-                enum class Quantifier
-                {
-                    none,
-                    optional,
-                    variable,
-                };
+                using Quantifier = Instructions_Instruction_Operands_Operand_Quantifier;
                 static constexpr const char *get_quantifier_string(Quantifier quantifier) noexcept
                 {
                     switch(quantifier)
@@ -203,18 +212,44 @@ struct Instructions
     }
 };
 
+enum class Operand_kinds_Operand_kind_Category
+{
+    bit_enum,
+    value_enum,
+    id,
+    literal,
+    composite,
+};
+
+vulkan_cpu_util_generate_enum_traits(Operand_kinds_Operand_kind_Category,
+                                     Operand_kinds_Operand_kind_Category::bit_enum,
+                                     Operand_kinds_Operand_kind_Category::value_enum,
+                                     Operand_kinds_Operand_kind_Category::id,
+                                     Operand_kinds_Operand_kind_Category::literal,
+                                     Operand_kinds_Operand_kind_Category::composite);
+
+enum class Operand_kinds_Operand_kind_Literal_kind
+{
+    literal_integer,
+    literal_string,
+    literal_context_dependent_number,
+    literal_ext_inst_integer,
+    literal_spec_constant_op_integer,
+};
+
+vulkan_cpu_util_generate_enum_traits(
+    Operand_kinds_Operand_kind_Literal_kind,
+    Operand_kinds_Operand_kind_Literal_kind::literal_integer,
+    Operand_kinds_Operand_kind_Literal_kind::literal_string,
+    Operand_kinds_Operand_kind_Literal_kind::literal_context_dependent_number,
+    Operand_kinds_Operand_kind_Literal_kind::literal_ext_inst_integer,
+    Operand_kinds_Operand_kind_Literal_kind::literal_spec_constant_op_integer);
+
 struct Operand_kinds
 {
     struct Operand_kind
     {
-        enum class Category
-        {
-            bit_enum,
-            value_enum,
-            id,
-            literal,
-            composite,
-        };
+        using Category = Operand_kinds_Operand_kind_Category;
         Category category;
         static constexpr const char *get_json_name_from_category(Category category) noexcept
         {
@@ -234,14 +269,7 @@ struct Operand_kinds
             return "";
         }
         std::string kind;
-        enum class Literal_kind
-        {
-            literal_integer,
-            literal_string,
-            literal_context_dependent_number,
-            literal_ext_inst_integer,
-            literal_spec_constant_op_integer,
-        };
+        using Literal_kind = Operand_kinds_Operand_kind_Literal_kind;
         static constexpr const char *get_json_name_from_literal_kind(Literal_kind kind) noexcept
         {
             switch(kind)

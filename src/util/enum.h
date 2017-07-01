@@ -451,6 +451,42 @@ public:
         return {end(), end()};
     }
 };
+
+#if 1
+#warning finish implementing Enum_map
+#else
+namespace detail
+{
+template <typename T,
+          bool Is_Trivially_Destructible = std::is_trivially_destructible<T>::value,
+          bool Is_Trivially_Copyable = std::is_trivially_copyable<T>::value>
+struct Enum_map_base
+{
+    union Entry_type
+    {
+        T full_value;
+        alignas(T) char empty_value[sizeof(T)];
+    };
+};
+}
+
+/** behaves like a std::map<K, V> */
+template <typename K, typename V>
+class Enum_map
+{
+public:
+    typedef K key_type;
+    typedef V mapped_type;
+    typedef std::pair<const K, V> value_type;
+
+private:
+    union
+    {
+        T full_value;
+        alignas(T) char empty_value[sizeof(T)];
+    };
+};
+#endif
 }
 }
 

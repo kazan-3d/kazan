@@ -364,6 +364,9 @@ private:
         write_local_include(parser_h, spirv_h.get_file_path().filename().string());
         write_local_include(parser_cpp, parser_h.get_file_path().filename().string());
         write_system_include(spirv_h, "cstdint");
+        write_system_include(spirv_h, "vector");
+        write_system_include(spirv_h, "string");
+        write_system_include(spirv_h, "iterator");
         write_local_include(spirv_h, "util/string_view.h");
         write_local_include(spirv_h, "util/enum.h");
     }
@@ -401,6 +404,10 @@ private:
     static constexpr util::string_view op_enum_json_name = "Op"_sv;
     static constexpr util::string_view extension_enum_json_name = "Extension"_sv;
     static constexpr util::string_view capability_enum_json_name = "Capability"_sv;
+    static constexpr util::string_view extension_instruction_set_enum_json_name =
+        "Extension_instruction_set"_sv;
+    static constexpr util::string_view unknown_extension_instruction_set_enumerant_json_name =
+        "Unknown"_sv;
     struct Enumerant_descriptor
     {
         std::uint32_t value;
@@ -483,6 +490,8 @@ private:
     util::optional<std::list<Enumeration_descriptor>::const_iterator> capability_enumeration;
     util::optional<std::list<Enumeration_descriptor>::const_iterator> extension_enumeration;
     util::optional<std::list<Enumeration_descriptor>::const_iterator> op_enumeration;
+    util::optional<std::list<Enumeration_descriptor>::const_iterator>
+        extension_instruction_set_enumeration;
     std::unordered_map<std::string, std::list<Enumeration_descriptor>::const_iterator>
         instruction_set_extension_op_enumeration_map;
 
@@ -544,9 +553,16 @@ private:
             for(auto &extension : instruction.extensions.extensions)
                 extensions_set.insert(extension);
         }
-        auto op_iter = add_enumeration(Enumeration_descriptor(
+        op_enumeration = add_enumeration(Enumeration_descriptor(
             false, static_cast<std::string>(op_enum_json_name), std::move(op_enumerants)));
-        op_enumeration = op_iter;
+        std::list<Enumerant_descriptor> extension_instruction_set_enumerants;
+        std::size_t extension_instruction_set_index = 0;
+        extension_instruction_set_enumerants.push_back(Enumerant_descriptor(
+            extension_instruction_set_index++,
+            extension_instruction_set_enum_json_name,
+            static_cast<std::string>(unknown_extension_instruction_set_enumerant_json_name),
+            {},
+            {}));
         for(auto &instruction_set : top_level.extension_instruction_sets)
         {
             std::string json_enumeration_name =
@@ -565,26 +581,72 @@ private:
             auto iter = add_enumeration(
                 Enumeration_descriptor(false, json_enumeration_name, std::move(enumerants)));
             instruction_set_extension_op_enumeration_map.emplace(instruction_set.import_name, iter);
+            extension_instruction_set_enumerants.push_back(
+                Enumerant_descriptor(extension_instruction_set_index++,
+                                     extension_instruction_set_enum_json_name,
+                                     instruction_set.import_name,
+                                     {},
+                                     {}));
         }
         std::list<Enumerant_descriptor> extension_enumerants;
         std::uint32_t extension_index = 0;
         for(auto &extension : extensions_set)
             extension_enumerants.push_back(Enumerant_descriptor(
                 extension_index++, extension_enum_json_name, extension, {}, {}));
-        auto extension_iter = add_enumeration(
+        extension_enumeration = add_enumeration(
             Enumeration_descriptor(false,
                                    static_cast<std::string>(extension_enum_json_name),
                                    std::move(extension_enumerants)));
-        extension_enumeration = extension_iter;
+        extension_instruction_set_enumeration = add_enumeration(Enumeration_descriptor(
+            false,
+            static_cast<std::string>(extension_instruction_set_enum_json_name),
+            std::move(extension_instruction_set_enumerants)));
         if(!capability_enumeration)
             throw Generate_error("missing " + std::string(capability_enum_json_name) + " enum");
     }
     void write_basic_types()
     {
-        spirv_h << R"(
-typedef std::uint32_t Word;
+        spirv_h << R"(typedef std::uint32_t Word;
 typedef Word Id;
+
+#error add Literal_string
 )";
+#warning add Literal_string
+    }
+    static std::string instruction_set_version_name(const ast::Extension_instruction_set &v)
+    {
+        using detail::name_from_words_all_lowercase;
+        return name_from_words_all_lowercase("version"_sv, v.import_name).to_string();
+    }
+    static std::string instruction_set_revision_name(const ast::Extension_instruction_set &v)
+    {
+        using detail::name_from_words_all_lowercase;
+        return name_from_words_all_lowercase("revision"_sv, v.import_name).to_string();
+    }
+    void write_basic_constants()
+    {
+        using detail::unsigned_integer;
+        spirv_h << R"(
+constexpr Word magic_number = 0x)"
+                << unsigned_integer(top_level.magic_number, 0x10, 8) << R"(UL;
+constexpr std::uint32_t major_version = )"
+                << unsigned_integer(top_level.major_version) << R"(UL;
+constexpr std::uint32_t minor_version = )"
+                << unsigned_integer(top_level.minor_version) << R"(UL;
+constexpr std::uint32_t revision = )"
+                << unsigned_integer(top_level.revision) << R"(UL;
+)";
+        for(auto &instruction_set : top_level.extension_instruction_sets)
+        {
+            spirv_h << R"(
+constexpr std::uint32_t )"
+                    << instruction_set_version_name(instruction_set) << R"( = )"
+                    << unsigned_integer(instruction_set.version) << R"(UL;
+constexpr std::uint32_t )"
+                    << instruction_set_revision_name(instruction_set) << R"( = )"
+                    << unsigned_integer(instruction_set.revision) << R"(UL;
+)";
+        }
     }
     void write_enum_declarations()
     {
@@ -606,9 +668,9 @@ enum class )" << enumeration.cpp_name
             {
                 spirv_h << enumerant.cpp_name << " = ";
                 if(enumeration.is_bitwise)
-                    spirv_h << "0x" << unsigned_integer(enumerant.value, 0x10);
+                    spirv_h << "0x" << unsigned_integer(enumerant.value, 0x10) << "UL";
                 else
-                    spirv_h << unsigned_integer(enumerant.value, 10);
+                    spirv_h << unsigned_integer(enumerant.value, 10) << "UL";
                 spirv_h << ",\n";
             }
             spirv_h << R"(@-};
@@ -731,9 +793,91 @@ constexpr util::Enum_set<)"
         }
     }
 
+private:
+    struct Literal_type_descriptor
+    {
+        ast::Operand_kinds::Operand_kind::Literal_kind literal_kind;
+        std::string cpp_name;
+        static std::string get_cpp_name(ast::Operand_kinds::Operand_kind::Literal_kind literal_kind)
+        {
+            using detail::name_from_words_initial_capital;
+            return name_from_words_initial_capital(
+                       ast::Operand_kinds::Operand_kind::get_json_name_from_literal_kind(
+                           literal_kind))
+                .to_string();
+        }
+        explicit Literal_type_descriptor(
+            ast::Operand_kinds::Operand_kind::Literal_kind literal_kind)
+            : literal_kind(literal_kind), cpp_name(get_cpp_name(literal_kind))
+        {
+        }
+    };
+    struct Literal_kind_hasher
+    {
+        // use my own hasher because libstdc++ from gcc 5 doesn't support std::hash on enums
+        constexpr std::size_t operator()(ast::Operand_kinds::Operand_kind::Literal_kind v) const noexcept
+        {
+            return static_cast<std::size_t>(v);
+        }
+    };
+
+private:
+#warning replace with util::Enum_map when finished
+    std::unordered_map<ast::Operand_kinds::Operand_kind::Literal_kind,
+                       Literal_type_descriptor,
+                       Literal_kind_hasher>
+        literal_type_descriptors;
+
+private:
+    void fill_literal_type_descriptors()
+    {
+        for(auto literal_kind :
+            util::Enum_traits<ast::Operand_kinds::Operand_kind::Literal_kind>::values)
+        {
+            literal_type_descriptors.emplace(literal_kind, Literal_type_descriptor(literal_kind));
+        }
+    }
+    void write_literal_kinds()
+    {
+        for(auto &operand_kind : top_level.operand_kinds.operand_kinds)
+        {
+            if(operand_kind.category != ast::Operand_kinds::Operand_kind::Category::literal)
+                continue;
+            auto literal_kind = ast::Operand_kinds::Operand_kind::get_literal_kind_from_json_name(
+                operand_kind.kind);
+            if(!literal_kind)
+                throw Generate_error("unknown literal kind: " + operand_kind.kind);
+            auto underlying_type = "<<<<<Unknown>>>>>"_sv;
+            switch(*literal_kind)
+            {
+            case ast::Operand_kinds::Operand_kind::Literal_kind::literal_integer:
+                underlying_type = "std::uint64_t"_sv;
+                break;
+            case ast::Operand_kinds::Operand_kind::Literal_kind::literal_string:
+                // Literal_string is defined in write_basic_types
+                continue;
+            case ast::Operand_kinds::Operand_kind::Literal_kind::literal_context_dependent_number:
+                underlying_type = "std::vector<Word>"_sv;
+                break;
+            case ast::Operand_kinds::Operand_kind::Literal_kind::literal_ext_inst_integer:
+                underlying_type = "Word"_sv;
+                break;
+            case ast::Operand_kinds::Operand_kind::Literal_kind::literal_spec_constant_op_integer:
+                underlying_type = op_enumeration.value()->cpp_name;
+                break;
+            }
+            auto &descriptor = literal_type_descriptors.at(*literal_kind);
+            spirv_h << R"(
+typedef )" << underlying_type
+                    << " " << descriptor.cpp_name << R"(;
+)";
+        }
+    }
+
 public:
     void run()
     {
+        fill_literal_type_descriptors();
         fill_enumerations();
         write_file_comments();
         write_opening_inclusion_guards();
@@ -744,9 +888,11 @@ public:
         write_includes();
         write_opening_namespaces();
         write_basic_types();
+        write_basic_constants();
         write_enum_declarations();
         write_enum_definitions();
         write_enum_properties_definitions();
+        write_literal_kinds();
         write_closing_namespaces();
         write_closing_inclusion_guards();
         spirv_h.write_to_file();
@@ -759,6 +905,10 @@ public:
 constexpr util::string_view Spirv_and_parser_generator::State::op_enum_json_name;
 constexpr util::string_view Spirv_and_parser_generator::State::extension_enum_json_name;
 constexpr util::string_view Spirv_and_parser_generator::State::capability_enum_json_name;
+constexpr util::string_view
+    Spirv_and_parser_generator::State::extension_instruction_set_enum_json_name;
+constexpr util::string_view
+    Spirv_and_parser_generator::State::unknown_extension_instruction_set_enumerant_json_name;
 
 void Spirv_and_parser_generator::run(Generator_args &generator_args,
                                      const ast::Top_level &top_level) const
