@@ -209,8 +209,8 @@ constexpr Constexpr_array<Enum, sizeof...(Values)> Default_enum_traits<Enum, Val
 /** generate code for Enum_traits instantiation; use like
  * <code>vulkan_cpu_util_generate_enum_traits(Enum, Enum::Value1, Enum::Value2, Enum::Value3,
  * <...>);</code> */
-#define vulkan_cpu_util_generate_enum_traits(Enum, ...)                \
-    ::vulkan_cpu::util::detail::Default_enum_traits<Enum, __VA_ARGS__> \
+#define vulkan_cpu_util_generate_enum_traits(Enum, ...)                                \
+    [[gnu::unused]] ::vulkan_cpu::util::detail::Default_enum_traits<Enum, __VA_ARGS__> \
         enum_traits_resolve_function(Enum)
 }
 
