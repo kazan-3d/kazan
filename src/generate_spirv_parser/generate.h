@@ -28,11 +28,13 @@
 #include "util/filesystem.h"
 #include "util/string_view.h"
 #include "word_iterator.h"
+#include "util/enum.h"
 #include <stdexcept>
 #include <deque>
 #include <cstdint>
 #include <string>
 #include <utility>
+#include <cassert>
 
 namespace vulkan_cpu
 {
@@ -210,6 +212,12 @@ public:
     Generated_output_stream &operator<<(char ch)
     {
         value.push_back(ch);
+        return *this;
+    }
+    Generated_output_stream &operator<<(const Generated_output_stream &s)
+    {
+        assert(this != &s);
+        value.insert(value.end(), s.value.begin(), s.value.end());
         return *this;
     }
     Generated_output_stream &operator<<(util::string_view sv)
@@ -396,12 +404,10 @@ public:
     }
     template <typename... Args>
     static constexpr Name_from_words_holder<sizeof...(Args)>
-        name_from_words(Name_format name_format, Args &&... args) noexcept(
-            noexcept(Name_from_words_holder<sizeof...(Args)>(name_format,
-                                                             std::forward<Args>(args)...)))
+        name_from_words(Name_format name_format, Args &&... args) noexcept(noexcept(
+            Name_from_words_holder<sizeof...(Args)>(name_format, std::forward<Args>(args)...)))
     {
-        return Name_from_words_holder<sizeof...(Args)>(name_format,
-                                                       std::forward<Args>(args)...);
+        return Name_from_words_holder<sizeof...(Args)>(name_format, std::forward<Args>(args)...);
     }
 };
 
@@ -438,38 +444,51 @@ constexpr auto signed_integer(std::int64_t value, unsigned base) noexcept
 constexpr Generated_output_stream::Guard_macro guard_macro{};
 
 template <typename... Args>
-constexpr auto name_from_words(Generated_output_stream::Name_format name_format, Args &&... args) noexcept(
-    noexcept(Generated_output_stream::name_from_words(name_format, std::forward<Args>(args)...)))
+constexpr auto name_from_words(
+    Generated_output_stream::Name_format name_format,
+    Args &&... args) noexcept(noexcept(Generated_output_stream::name_from_words(name_format,
+                                                                                std::forward<Args>(
+                                                                                    args)...)))
 {
     return Generated_output_stream::name_from_words(name_format, std::forward<Args>(args)...);
 }
 
 template <typename... Args>
 constexpr auto name_from_words_all_lowercase(Args &&... args) noexcept(
-    noexcept(Generated_output_stream::name_from_words(Generated_output_stream::all_lowercase, std::forward<Args>(args)...)))
+    noexcept(Generated_output_stream::name_from_words(Generated_output_stream::all_lowercase,
+                                                      std::forward<Args>(args)...)))
 {
-    return Generated_output_stream::name_from_words(Generated_output_stream::all_lowercase, std::forward<Args>(args)...);
+    return Generated_output_stream::name_from_words(Generated_output_stream::all_lowercase,
+                                                    std::forward<Args>(args)...);
 }
 
 template <typename... Args>
 constexpr auto name_from_words_all_uppercase(Args &&... args) noexcept(
-    noexcept(Generated_output_stream::name_from_words(Generated_output_stream::all_uppercase, std::forward<Args>(args)...)))
+    noexcept(Generated_output_stream::name_from_words(Generated_output_stream::all_uppercase,
+                                                      std::forward<Args>(args)...)))
 {
-    return Generated_output_stream::name_from_words(Generated_output_stream::all_uppercase, std::forward<Args>(args)...);
+    return Generated_output_stream::name_from_words(Generated_output_stream::all_uppercase,
+                                                    std::forward<Args>(args)...);
 }
 
 template <typename... Args>
 constexpr auto name_from_words_initial_capital(Args &&... args) noexcept(
-    noexcept(Generated_output_stream::name_from_words(Generated_output_stream::initial_capital, std::forward<Args>(args)...)))
+    noexcept(Generated_output_stream::name_from_words(Generated_output_stream::initial_capital,
+                                                      std::forward<Args>(args)...)))
 {
-    return Generated_output_stream::name_from_words(Generated_output_stream::initial_capital, std::forward<Args>(args)...);
+    return Generated_output_stream::name_from_words(Generated_output_stream::initial_capital,
+                                                    std::forward<Args>(args)...);
 }
 
 template <typename... Args>
 constexpr auto name_from_words_all_uppercase_with_trailing_underline(Args &&... args) noexcept(
-    noexcept(Generated_output_stream::name_from_words(Generated_output_stream::all_uppercase_with_trailing_underline, std::forward<Args>(args)...)))
+    noexcept(Generated_output_stream::name_from_words(
+        Generated_output_stream::all_uppercase_with_trailing_underline,
+        std::forward<Args>(args)...)))
 {
-    return Generated_output_stream::name_from_words(Generated_output_stream::all_uppercase_with_trailing_underline, std::forward<Args>(args)...);
+    return Generated_output_stream::name_from_words(
+        Generated_output_stream::all_uppercase_with_trailing_underline,
+        std::forward<Args>(args)...);
 }
 }
 
