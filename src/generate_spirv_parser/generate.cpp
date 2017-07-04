@@ -369,6 +369,8 @@ private:
         write_system_include(spirv_h, "iterator");
         write_local_include(spirv_h, "util/string_view.h");
         write_local_include(spirv_h, "util/enum.h");
+        write_local_include(spirv_h, "spirv/word.h");
+        write_local_include(spirv_h, "spirv/literal_string.h");
     }
     static void write_opening_namespaces(detail::Generated_output_stream &os)
     {
@@ -606,12 +608,8 @@ private:
     }
     void write_basic_types()
     {
-        spirv_h << R"(typedef std::uint32_t Word;
-typedef Word Id;
-
-#error add Literal_string
+        spirv_h << R"(typedef Word Id;
 )";
-#warning add Literal_string
     }
     static std::string instruction_set_version_name(const ast::Extension_instruction_set &v)
     {
@@ -815,7 +813,8 @@ private:
     struct Literal_kind_hasher
     {
         // use my own hasher because libstdc++ from gcc 5 doesn't support std::hash on enums
-        constexpr std::size_t operator()(ast::Operand_kinds::Operand_kind::Literal_kind v) const noexcept
+        constexpr std::size_t operator()(ast::Operand_kinds::Operand_kind::Literal_kind v) const
+            noexcept
         {
             return static_cast<std::size_t>(v);
         }
@@ -825,8 +824,7 @@ private:
 #warning replace with util::Enum_map when finished
     std::unordered_map<ast::Operand_kinds::Operand_kind::Literal_kind,
                        Literal_type_descriptor,
-                       Literal_kind_hasher>
-        literal_type_descriptors;
+                       Literal_kind_hasher> literal_type_descriptors;
 
 private:
     void fill_literal_type_descriptors()

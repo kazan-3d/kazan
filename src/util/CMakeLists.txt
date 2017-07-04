@@ -19,6 +19,14 @@
 # SOFTWARE.
 #
 cmake_minimum_required(VERSION 3.1 FATAL_ERROR)
+include(TestBigEndian)
+TEST_BIG_ENDIAN(is_big_endian)
+if(is_big_endian)
+set(UTIL_ENDIAN Big)
+else()
+set(UTIL_ENDIAN Little)
+endif()
+configure_file(endian_config.h.in endian_config.h ESCAPE_QUOTES)
 set(sources bit_intrinsics.cpp
             bitset.cpp
             copy_cv_ref.cpp
@@ -33,4 +41,6 @@ set(sources bit_intrinsics.cpp
             variant.cpp
             void_t.cpp)
 add_library(util STATIC ${sources})
+target_include_directories(util PUBLIC ${CMAKE_CURRENT_BINARY_DIR}/..)
 add_executable(util_test EXCLUDE_FROM_ALL ${sources} util_test.cpp)
+target_include_directories(util_test PUBLIC ${CMAKE_CURRENT_BINARY_DIR}/..)

@@ -20,7 +20,7 @@
 #
 cmake_minimum_required(VERSION 3.1 FATAL_ERROR)
 
-set(sources)
+set(sources literal_string.cpp)
 
 set(spirv_parser_generated_include_dir ${CMAKE_CURRENT_BINARY_DIR}/generated)
 set(spirv_parser_generated_dir ${spirv_parser_generated_include_dir}/spirv)
