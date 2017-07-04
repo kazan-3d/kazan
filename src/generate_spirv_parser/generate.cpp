@@ -810,21 +810,10 @@ private:
         {
         }
     };
-    struct Literal_kind_hasher
-    {
-        // use my own hasher because libstdc++ from gcc 5 doesn't support std::hash on enums
-        constexpr std::size_t operator()(ast::Operand_kinds::Operand_kind::Literal_kind v) const
-            noexcept
-        {
-            return static_cast<std::size_t>(v);
-        }
-    };
 
 private:
-#warning replace with util::Enum_map when finished
-    std::unordered_map<ast::Operand_kinds::Operand_kind::Literal_kind,
-                       Literal_type_descriptor,
-                       Literal_kind_hasher> literal_type_descriptors;
+    util::Enum_map<ast::Operand_kinds::Operand_kind::Literal_kind,
+                       Literal_type_descriptor> literal_type_descriptors;
 
 private:
     void fill_literal_type_descriptors()
