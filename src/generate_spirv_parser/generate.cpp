@@ -358,6 +358,7 @@ enum class Output_part
     enum_properties_definitions,
     literal_types,
     enum_structs,
+    composite_types,
     namespaces_end,
     include_guard_end,
 
@@ -386,6 +387,7 @@ vulkan_cpu_util_generate_enum_traits(Output_part,
                                      Output_part::enum_properties_definitions,
                                      Output_part::literal_types,
                                      Output_part::enum_structs,
+                                     Output_part::composite_types,
                                      Output_part::namespaces_end,
                                      Output_part::include_guard_end,
                                      Output_part::struct_opening,
@@ -730,6 +732,7 @@ namespace spirv
         detail::Generated_output_stream enum_definitions;
         detail::Generated_output_stream enum_properties_definitions;
         detail::Generated_output_stream literal_types;
+        std::list<Output_struct> composite_types;
         std::list<Output_struct> enum_structs;
         explicit Spirv_h(const util::filesystem::path &file_path)
             : Header_file_base(file_path),
@@ -748,6 +751,7 @@ namespace spirv
                                  &Spirv_h::enum_properties_definitions);
             register_output_part(Output_part::literal_types, &Spirv_h::literal_types);
             register_output_part(Output_part::enum_structs, &Spirv_h::write_enum_structs);
+            register_output_part(Output_part::composite_types, &Spirv_h::write_composite_types);
         }
         void write_enum_structs(detail::Generated_output_stream &output_stream, Output_part) const
         {
@@ -755,6 +759,15 @@ namespace spirv
             {
                 output_stream << "\n";
                 enum_struct.write_whole_output(output_stream);
+            }
+        }
+        void write_composite_types(detail::Generated_output_stream &output_stream,
+                                   Output_part) const
+        {
+            for(auto &composite_type : composite_types)
+            {
+                output_stream << "\n";
+                composite_type.write_whole_output(output_stream);
             }
         }
         void write_literal_kinds(State &state)
@@ -1015,6 +1028,19 @@ constexpr util::Enum_set<)" << state.extension_enumeration.value()->cpp_name
                 }
             }
         }
+        void write_composite_types(State &state)
+        {
+            for(auto &composite_type : state.composite_type_list)
+            {
+                auto &composite_type_struct = *composite_types.emplace(
+                    composite_types.end(), file_path, composite_type.cpp_name);
+                for(auto &base : composite_type.bases)
+                    composite_type_struct.add_nonstatic_member(
+                        state.get_operand_kind(base.json_type)->cpp_name_with_parameters,
+                        base.cpp_name,
+                        true);
+            }
+        }
         virtual void fill_output(State &state) override
         {
             Header_file_base::fill_output(state);
@@ -1039,6 +1065,7 @@ constexpr util::Enum_set<)" << state.extension_enumeration.value()->cpp_name
             write_enums(state);
             write_id_types(state);
             write_enum_parameters(state);
+            write_composite_types(state);
         }
     };
     struct Spirv_cpp : public Source_file_base
@@ -1432,6 +1459,73 @@ private:
     }
 
 private:
+    struct Composite_type_descriptor
+    {
+        struct Base
+        {
+            std::string cpp_name;
+            std::string json_type;
+            explicit Base(std::string json_type, std::size_t index)
+                : cpp_name(
+                      detail::name_from_words_all_lowercase(
+                          "part"_sv, json::ast::Number_value::unsigned_integer_to_string(index + 1))
+                          .to_string()),
+                  json_type(std::move(json_type))
+            {
+            }
+        };
+        std::string cpp_name;
+        std::string json_name;
+        std::list<Base> bases;
+        explicit Composite_type_descriptor(std::string json_name, std::list<Base> bases)
+            : cpp_name(detail::name_from_words_initial_capital(json_name).to_string()),
+              json_name(std::move(json_name)),
+              bases(std::move(bases))
+        {
+        }
+    };
+
+private:
+    std::list<Composite_type_descriptor> composite_type_list;
+    std::unordered_map<std::string, std::list<Composite_type_descriptor>::const_iterator>
+        composite_type_map;
+
+private:
+    std::list<Composite_type_descriptor>::const_iterator add_composite_type_descriptor(
+        Composite_type_descriptor &&composite_type_descriptor)
+    {
+        auto name = composite_type_descriptor.json_name;
+        auto iter = composite_type_list.insert(composite_type_list.end(),
+                                               std::move(composite_type_descriptor));
+        if(!std::get<1>(composite_type_map.emplace(name, iter)))
+            throw Generate_error("duplicate composite type: " + name);
+        return iter;
+    }
+    void fill_composite_type_descriptors()
+    {
+        for(auto &operand_kind : top_level.operand_kinds.operand_kinds)
+        {
+            if(operand_kind.category != ast::Operand_kinds::Operand_kind::Category::composite)
+                continue;
+            std::list<Composite_type_descriptor::Base> bases;
+            std::size_t index = 0;
+            for(auto &base :
+                util::get<ast::Operand_kinds::Operand_kind::Bases>(operand_kind.value).values)
+                bases.push_back(Composite_type_descriptor::Base(base, index++));
+            add_composite_type_descriptor(
+                Composite_type_descriptor(operand_kind.kind, std::move(bases)));
+        }
+    }
+    std::list<Composite_type_descriptor>::const_iterator get_composite_type(
+        const std::string &json_name)
+    {
+        auto iter = composite_type_map.find(json_name);
+        if(iter == composite_type_map.end())
+            throw Generate_error("unknown composite type: " + json_name);
+        return std::get<1>(*iter);
+    }
+
+private:
     struct Enum_parameter
     {
         std::list<Enumerant_descriptor>::const_iterator enumerant;
@@ -1456,7 +1550,8 @@ private:
         util::variant<util::monostate,
                       std::list<Enumeration_descriptor>::const_iterator,
                       std::list<Id_type_descriptor>::const_iterator,
-                      ast::Operand_kinds::Operand_kind::Literal_kind> value;
+                      ast::Operand_kinds::Operand_kind::Literal_kind,
+                      std::list<Composite_type_descriptor>::const_iterator> value;
         std::list<Enum_parameter> enum_parameters;
         std::string make_cpp_name() const
         {
@@ -1480,6 +1575,10 @@ private:
                 void operator()(ast::Operand_kinds::Operand_kind::Literal_kind literal_kind)
                 {
                     retval = Literal_type_descriptor::get_cpp_name(literal_kind);
+                }
+                void operator()(std::list<Composite_type_descriptor>::const_iterator iter)
+                {
+                    retval = iter->cpp_name;
                 }
             };
             util::visit(Visitor{retval, json_name}, value);
@@ -1571,19 +1670,123 @@ private:
             }
             case ast::Operand_kinds::Operand_kind::Category::id:
                 add_operand_kind(
-                    Operand_kind_descriptor(operand_kind.kind, id_type_map.at(operand_kind.kind)));
+                    Operand_kind_descriptor(operand_kind.kind, get_id_type(operand_kind.kind)));
                 continue;
             case ast::Operand_kinds::Operand_kind::Category::literal:
                 add_operand_kind(Operand_kind_descriptor(operand_kind.kind,
                                                          get_literal_kind(operand_kind.kind)));
                 continue;
             case ast::Operand_kinds::Operand_kind::Category::composite:
-#warning finish
-                add_operand_kind(Operand_kind_descriptor(operand_kind.kind));
+                add_operand_kind(Operand_kind_descriptor(operand_kind.kind,
+                                                         get_composite_type(operand_kind.kind)));
                 continue;
             }
             assert(false);
         }
+    }
+
+private:
+    struct Operand_descriptor
+    {
+        std::string cpp_name;
+        std::string json_name;
+        std::string json_type;
+    };
+    struct Instruction_descriptor
+    {
+        std::string cpp_struct_name;
+        std::list<Enumeration_descriptor>::const_iterator enumeration;
+        std::list<Enumerant_descriptor>::const_iterator enumerant;
+        const ast::Extension_instruction_set *extension_instruction_set;
+        std::string json_name;
+        std::list<Operand_descriptor> operands;
+        static std::string make_cpp_struct_name(
+            const ast::Extension_instruction_set *extension_instruction_set,
+            util::string_view json_name)
+        {
+            if(extension_instruction_set)
+                return detail::name_from_words_initial_capital(
+                           extension_instruction_set->import_name, "op"_sv, json_name)
+                    .to_string();
+            return detail::name_from_words_initial_capital(json_name).to_string();
+        }
+        explicit Instruction_descriptor(
+            std::list<Enumeration_descriptor>::const_iterator enumeration,
+            std::list<Enumerant_descriptor>::const_iterator enumerant,
+            const ast::Extension_instruction_set *extension_instruction_set,
+            std::string json_name,
+            std::list<Operand_descriptor> operands)
+            : cpp_struct_name(make_cpp_struct_name(extension_instruction_set, json_name)),
+              enumeration(enumeration),
+              enumerant(enumerant),
+              extension_instruction_set(extension_instruction_set),
+              json_name(std::move(json_name)),
+              operands(std::move(operands))
+        {
+        }
+    };
+
+private:
+    std::list<Instruction_descriptor> instruction_descriptor_list;
+    std::unordered_map<const ast::Extension_instruction_set *,
+                       std::unordered_map<std::string,
+                                          std::list<Instruction_descriptor>::const_iterator>>
+        instruction_descriptor_map;
+
+private:
+    static std::string get_instruction_name_for_diagnostics(
+        const ast::Extension_instruction_set *extension_instruction_set,
+        util::string_view json_name)
+    {
+        std::string retval;
+        if(extension_instruction_set)
+            retval = extension_instruction_set->import_name;
+        else
+            retval = "core";
+        retval += ":";
+        retval += json_name;
+        return retval;
+    }
+    std::list<Instruction_descriptor>::const_iterator add_instruction_descriptor(
+        Instruction_descriptor &&instruction_descriptor)
+    {
+        auto name = instruction_descriptor.json_name;
+        auto extension_instruction_set = instruction_descriptor.extension_instruction_set;
+        auto iter = instruction_descriptor_list.insert(instruction_descriptor_list.end(),
+                                                       std::move(instruction_descriptor));
+        if(!std::get<1>(instruction_descriptor_map[extension_instruction_set].emplace(name, iter)))
+            throw Generate_error("duplicate instruction: " + get_instruction_name_for_diagnostics(
+                                                                 extension_instruction_set, name));
+        return iter;
+    }
+    std::list<Instruction_descriptor>::const_iterator get_instruction_descriptor(
+        const ast::Extension_instruction_set *extension_instruction_set,
+        const std::string &json_name)
+    {
+        auto iter1 = instruction_descriptor_map.find(extension_instruction_set);
+        if(iter1 == instruction_descriptor_map.end())
+            throw Generate_error(
+                "unknown instruction: "
+                + get_instruction_name_for_diagnostics(extension_instruction_set, json_name));
+        auto iter2 = std::get<1>(*iter1).find(json_name);
+        if(iter2 == std::get<1>(*iter1).end())
+            throw Generate_error(
+                "unknown instruction: "
+                + get_instruction_name_for_diagnostics(extension_instruction_set, json_name));
+        return std::get<1>(*iter2);
+    }
+    void fill_instruction_descriptors(
+        const ast::Extension_instruction_set *extension_instruction_set,
+        const ast::Instructions &instructions)
+    {
+#warning finish
+    }
+    void fill_instruction_descriptors()
+    {
+        for(auto &extension_instruction_set : top_level.extension_instruction_sets)
+            fill_instruction_descriptors(&extension_instruction_set,
+                                         extension_instruction_set.instructions);
+        fill_instruction_descriptors(nullptr, top_level.instructions);
     }
 
 public:
@@ -1592,7 +1795,9 @@ public:
         fill_literal_type_descriptors();
         fill_enumerations();
         fill_id_type_descriptors();
+        fill_composite_type_descriptors();
         fill_operand_kinds();
+        fill_instruction_descriptors();
         for(auto *file :
             std::initializer_list<Output_file_base *>{&spirv_h, &spirv_cpp, &parser_h, &parser_cpp})
             file->fill_output(*this);
