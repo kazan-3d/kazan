@@ -584,7 +584,7 @@ struct Variant_get<Index, T, Types...>
     }                                                                                              \
                                                                                                    \
     template <typename Fn, typename... Args, typename... Types>                                    \
-    constexpr auto variant_dispatch(                                                               \
+    constexpr auto variant_dispatch_index(                                                         \
         Fn &&fn, Const Variant_values<Types...> Ref values, std::size_t index, Args &&... args)    \
         ->decltype(                                                                                \
             variant_dispatch_helper(std::forward<Fn>(fn),                                          \
@@ -628,7 +628,7 @@ struct Variant_get<Index, T, Types...>
     }                                                                                              \
                                                                                                    \
     template <typename Fn, typename... Args, typename... Types>                                    \
-    constexpr auto variant_dispatch_nothrow(                                                       \
+    constexpr auto variant_dispatch_index_nothrow(                                                 \
         Fn &&fn, Const Variant_values<Types...> Ref values, std::size_t index, Args &&... args)    \
         ->decltype(variant_dispatch_helper_nothrow(                                                \
             std::forward<Fn>(fn),                                                                  \
@@ -1300,7 +1300,7 @@ template <typename Fn, typename... Types, typename... Args>
 typename std::common_type<decltype(std::declval<Fn>()(std::declval<Types &>()))...>::type
     variant_dispatch(Fn &&fn, variant<Types...> &v, Args &&... args)
 {
-    return variant_dispatch(
+    return variant_dispatch_index(
         std::forward<Fn>(fn), v.values, v.index_value.get(), std::forward<Args>(args)...);
 }
 
@@ -1308,7 +1308,7 @@ template <typename Fn, typename... Types, typename... Args>
 typename std::common_type<decltype(std::declval<Fn>()(std::declval<const Types &>()))...>::type
     variant_dispatch(Fn &&fn, const variant<Types...> &v, Args &&... args)
 {
-    return variant_dispatch(
+    return variant_dispatch_index(
         std::forward<Fn>(fn), v.values, v.index_value.get(), std::forward<Args>(args)...);
 }
 
@@ -1316,45 +1316,45 @@ template <typename Fn, typename... Types, typename... Args>
 typename std::common_type<decltype(std::declval<Fn>()(std::declval<Types &&>()))...>::type
     variant_dispatch(Fn &&fn, variant<Types...> &&v, Args &&... args)
 {
-    return variant_dispatch(std::forward<Fn>(fn),
-                            std::move(v.values),
-                            v.index_value.get(),
-                            std::forward<Args>(args)...);
+    return variant_dispatch_index(std::forward<Fn>(fn),
+                                  std::move(v.values),
+                                  v.index_value.get(),
+                                  std::forward<Args>(args)...);
 }
 
 template <typename Fn, typename... Types, typename... Args>
 typename std::common_type<decltype(std::declval<Fn>()(std::declval<const Types &&>()))...>::type
     variant_dispatch(Fn &&fn, const variant<Types...> &&v, Args &&... args)
 {
-    return variant_dispatch(std::forward<Fn>(fn),
-                            std::move(v.values),
-                            v.index_value.get(),
-                            std::forward<Args>(args)...);
+    return variant_dispatch_index(std::forward<Fn>(fn),
+                                  std::move(v.values),
+                                  v.index_value.get(),
+                                  std::forward<Args>(args)...);
 }
 
 template <typename Fn, typename... Types>
-decltype(variant_dispatch(std::declval<Fn>(), std::declval<variant<Types...> &>())) variant_visit(
-    Fn &&fn, variant<Types...> &v)
+typename std::common_type<decltype(std::declval<Fn>()(std::declval<Types &>()))...>::type
+    variant_visit(Fn &&fn, variant<Types...> &v)
 {
     return variant_dispatch(std::forward<Fn>(fn), v);
 }
 
 template <typename Fn, typename... Types>
-decltype(variant_dispatch(std::declval<Fn>(), std::declval<const variant<Types...> &>()))
+typename std::common_type<decltype(std::declval<Fn>()(std::declval<const Types &>()))...>::type
     variant_visit(Fn &&fn, const variant<Types...> &v)
 {
     return variant_dispatch(std::forward<Fn>(fn), v);
 }
 
 template <typename Fn, typename... Types>
-decltype(variant_dispatch(std::declval<Fn>(), std::declval<variant<Types...> &&>())) variant_visit(
-    Fn &&fn, variant<Types...> &&v)
+typename std::common_type<decltype(std::declval<Fn>()(std::declval<Types &&>()))...>::type
+    variant_visit(Fn &&fn, variant<Types...> &&v)
 {
     return variant_dispatch(std::forward<Fn>(fn), std::move(v));
 }
 
 template <typename Fn, typename... Types>
-decltype(variant_dispatch(std::declval<Fn>(), std::declval<const variant<Types...> &&>()))
+typename std::common_type<decltype(std::declval<Fn>()(std::declval<const Types &&>()))...>::type
     variant_visit(Fn &&fn, const variant<Types...> &&v)
 {
     return variant_dispatch(std::forward<Fn>(fn), std::move(v));
