@@ -40,6 +40,10 @@ namespace generate
 {
 constexpr std::size_t detail::Generated_output_stream::output_tab_width_no_tabs_allowed;
 constexpr util::string_view detail::Generated_output_stream::literal_command;
+constexpr util::string_view detail::Generated_output_stream::push_start_command;
+constexpr util::string_view detail::Generated_output_stream::pop_start_command;
+constexpr util::string_view detail::Generated_output_stream::add_start_offset_command;
+constexpr util::string_view detail::Generated_output_stream::restart_indent_command;
 constexpr char detail::Generated_output_stream::indent_indicator_char;
 constexpr char detail::Generated_output_stream::literal_indent_indicator_char;
 constexpr std::size_t detail::Generated_output_stream::indent_indicators_per_indent;
@@ -60,6 +64,7 @@ void detail::Generated_output_stream::write_to_file(bool do_reindent) const
         auto iter = value.begin();
         bool is_at_start_of_line = true;
         std::size_t start_indent_depth = 0;
+        std::vector<std::size_t> start_indent_depth_stack;
         std::size_t indent_depth = 0;
         constexpr std::size_t output_indent_width = 4;
         constexpr std::size_t output_tab_width = output_tab_width_no_tabs_allowed;
@@ -149,6 +154,52 @@ void detail::Generated_output_stream::write_to_file(bool do_reindent) const
                                 }
                                 assert(iter != value.end() && *iter == escape_char);
                                 ++iter;
+                                continue;
+                            }
+                            else if(command_sv.compare(0,
+                                                       add_start_offset_command.size(),
+                                                       add_start_offset_command)
+                                    == 0)
+                            {
+                                auto arg = command_sv.substr(add_start_offset_command.size());
+                                std::int64_t offset = 0;
+                                bool is_negative_offset = false;
+                                assert(!arg.empty());
+                                if(arg.front() == '-')
+                                {
+                                    arg.remove_prefix(1);
+                                    is_negative_offset = true;
+                                }
+                                do
+                                {
+                                    offset *= 10;
+                                    assert(!arg.empty() && arg.front() >= '0'
+                                           && arg.front() <= '9');
+                                    offset += arg.front() - '0';
+                                    arg.remove_prefix(1);
+                                } while(!arg.empty());
+                                if(is_negative_offset)
+                                    offset = -offset;
+                                assert(offset > 0
+                                       || start_indent_depth >= static_cast<std::size_t>(-offset));
+                                start_indent_depth += offset;
+                                continue;
+                            }
+                            else if(command_sv == push_start_command)
+                            {
+                                start_indent_depth_stack.push_back(start_indent_depth);
+                                continue;
+                            }
+                            else if(command_sv == pop_start_command)
+                            {
+                                assert(!start_indent_depth_stack.empty());
+                                start_indent_depth = start_indent_depth_stack.back();
+                                start_indent_depth_stack.pop_back();
+                                continue;
+                            }
+                            else if(command_sv == restart_indent_command)
+                            {
+                                indent_depth = start_indent_depth;
                                 continue;
                             }
                             else
@@ -306,8 +357,21 @@ enum class Output_part
     enum_definitions,
     enum_properties_definitions,
     literal_types,
+    enum_structs,
     namespaces_end,
-    include_guard_end
+    include_guard_end,
+
+    struct_opening,
+    struct_members,
+    struct_default_constructor,
+    struct_default_constructor_initializers,
+    struct_default_constructor_body,
+    struct_fill_constructor_start,
+    struct_fill_constructor_args,
+    struct_fill_constructor_args_end,
+    struct_fill_constructor_initializers,
+    struct_fill_constructor_body,
+    struct_closing,
 };
 
 vulkan_cpu_util_generate_enum_traits(Output_part,
@@ -321,8 +385,20 @@ vulkan_cpu_util_generate_enum_traits(Output_part,
                                      Output_part::enum_definitions,
                                      Output_part::enum_properties_definitions,
                                      Output_part::literal_types,
+                                     Output_part::enum_structs,
                                      Output_part::namespaces_end,
-                                     Output_part::include_guard_end);
+                                     Output_part::include_guard_end,
+                                     Output_part::struct_opening,
+                                     Output_part::struct_members,
+                                     Output_part::struct_default_constructor,
+                                     Output_part::struct_default_constructor_initializers,
+                                     Output_part::struct_default_constructor_body,
+                                     Output_part::struct_fill_constructor_start,
+                                     Output_part::struct_fill_constructor_args,
+                                     Output_part::struct_fill_constructor_args_end,
+                                     Output_part::struct_fill_constructor_initializers,
+                                     Output_part::struct_fill_constructor_body,
+                                     Output_part::struct_closing);
 
 static_assert(util::Enum_traits<Output_part>::is_compact,
               "mismatch between declaration and generate enum traits");
@@ -331,26 +407,234 @@ static_assert(util::Enum_traits<Output_part>::is_compact,
 struct Spirv_and_parser_generator::State
 {
 private:
-    struct Output_file_base
+    struct Output_base
     {
-        util::Enum_map<Output_part, detail::Generated_output_stream Output_file_base::*>
-            output_parts;
-        template <typename Derived_class>
-        void register_output_part(Output_part part,
-                                  detail::Generated_output_stream Derived_class::*variable)
-        {
-            static_assert(std::is_base_of<Output_file_base, Derived_class>::value, "");
-            assert(dynamic_cast<Derived_class *>(this));
-            output_parts.insert_or_assign(
-                part, static_cast<detail::Generated_output_stream Output_file_base::*>(variable));
-        }
+        Output_base(const Output_base &) = delete;
+        Output_base &operator=(const Output_base &) = delete;
+        typedef void (Output_base::*Write_function)(detail::Generated_output_stream &output_stream,
+                                                    Output_part part) const;
+        typedef util::variant<const detail::Generated_output_stream *,
+                              const Output_base *,
+                              Write_function> Output_part_value;
+        util::Enum_map<Output_part, Output_part_value> output_parts;
         const util::filesystem::path file_path;
+        template <typename T>
+        void register_output_part(Output_part part,
+                                  const detail::Generated_output_stream T::*variable)
+        {
+            static_assert(std::is_base_of<Output_base, T>::value, "");
+            assert(dynamic_cast<T *>(this));
+            auto *derived_class = static_cast<T *>(this);
+            output_parts.insert_or_assign(part, &(derived_class->*variable));
+        }
+        template <typename T>
+        void register_output_part(Output_part part,
+                                  void (T::*write_function)(detail::Generated_output_stream &,
+                                                            Output_part) const)
+        {
+            static_assert(std::is_base_of<Output_base, T>::value, "");
+            assert(dynamic_cast<T *>(this));
+            output_parts.insert_or_assign(part, static_cast<Write_function>(write_function));
+        }
+        template <typename T, typename T2>
+        void register_output_part(
+            typename std::enable_if<std::is_base_of<Output_base, T>::value, Output_part>::type part,
+            const T T2::*variable)
+        {
+            static_assert(std::is_base_of<Output_base, T2>::value, "");
+            assert(dynamic_cast<T2 *>(this));
+            auto *derived_class = static_cast<T2 *>(this);
+            output_parts.insert_or_assign(part, &(derived_class->*variable));
+        }
+        explicit Output_base(const util::filesystem::path &file_path)
+            : output_parts(), file_path(file_path)
+        {
+        }
+        void write_whole_output(detail::Generated_output_stream &output_stream) const
+        {
+            for(auto &part : output_parts)
+            {
+                struct Visitor
+                {
+                    detail::Generated_output_stream &output_stream;
+                    const Output_base *this_;
+                    Output_part output_part;
+                    void operator()(const Output_base *v)
+                    {
+                        v->write_whole_output(output_stream);
+                    }
+                    void operator()(const detail::Generated_output_stream *v)
+                    {
+                        output_stream << *v;
+                    }
+                    void operator()(Write_function write_function)
+                    {
+                        (this_->*write_function)(output_stream, output_part);
+                    }
+                };
+                util::visit(Visitor{output_stream, this, std::get<0>(part)}, std::get<1>(part));
+            }
+        }
+        detail::Generated_output_stream get_whole_output() const
+        {
+            detail::Generated_output_stream retval(file_path);
+            write_whole_output(retval);
+            return retval;
+        }
+        virtual void write_to_file() const
+        {
+            get_whole_output().write_to_file();
+        }
+    };
+    struct Output_struct final : public Output_base
+    {
+        const std::string struct_name;
+        detail::Generated_output_stream struct_members;
+        detail::Generated_output_stream struct_default_constructor_initializers;
+        detail::Generated_output_stream struct_fill_constructor_args;
+        detail::Generated_output_stream struct_fill_constructor_initializers;
+        std::size_t nonstatic_member_count;
+        Output_struct(const util::filesystem::path &file_path, util::string_view struct_name)
+            : Output_base(file_path),
+              struct_name(struct_name),
+              struct_members(file_path),
+              struct_default_constructor_initializers(file_path),
+              struct_fill_constructor_args(file_path),
+              struct_fill_constructor_initializers(file_path),
+              nonstatic_member_count(0)
+        {
+            register_output_part(Output_part::struct_opening, &Output_struct::write_output_part);
+            register_output_part(Output_part::struct_members, &Output_struct::struct_members);
+            register_output_part(Output_part::struct_default_constructor,
+                                 &Output_struct::write_output_part);
+            register_output_part(Output_part::struct_default_constructor_initializers,
+                                 &Output_struct::struct_default_constructor_initializers);
+            register_output_part(Output_part::struct_default_constructor_body,
+                                 &Output_struct::write_output_part);
+            register_output_part(Output_part::struct_fill_constructor_start,
+                                 &Output_struct::write_output_part);
+            register_output_part(Output_part::struct_fill_constructor_args,
+                                 &Output_struct::struct_fill_constructor_args);
+            register_output_part(Output_part::struct_fill_constructor_args_end,
+                                 &Output_struct::write_output_part);
+            register_output_part(Output_part::struct_fill_constructor_initializers,
+                                 &Output_struct::struct_fill_constructor_initializers);
+            register_output_part(Output_part::struct_fill_constructor_body,
+                                 &Output_struct::write_output_part);
+            register_output_part(Output_part::struct_closing, &Output_struct::write_output_part);
+        }
+        std::string get_struct_fill_constructor_start() const
+        {
+            std::string retval;
+            if(nonstatic_member_count == 1)
+                retval += "explicit ";
+            retval += struct_name;
+            retval += '(';
+            return retval;
+        }
+        void write_output_part(detail::Generated_output_stream &output_stream,
+                               Output_part part) const
+        {
+            switch(part)
+            {
+            case Output_part::struct_opening:
+                output_stream << "struct " << struct_name << R"(
+{
+@+)";
+                return;
+            case Output_part::struct_default_constructor:
+                output_stream << struct_name << R"(()
+@+)";
+                if(nonstatic_member_count > 0)
+                    output_stream << detail::add_start_offset(2) << ": ";
+                return;
+            case Output_part::struct_default_constructor_body:
+                if(nonstatic_member_count > 0)
+                    output_stream << "\n" << detail::add_start_offset(-2) << detail::restart_indent;
+                output_stream << R"(@-{
+}
+)";
+                return;
+            case Output_part::struct_fill_constructor_start:
+                if(nonstatic_member_count > 0)
+                {
+                    auto struct_fill_constructor_start = get_struct_fill_constructor_start();
+                    output_stream << detail::push_start
+                                  << detail::add_start_offset(struct_fill_constructor_start.size())
+                                  << struct_fill_constructor_start;
+                }
+                return;
+            case Output_part::struct_fill_constructor_args_end:
+                if(nonstatic_member_count > 0)
+                {
+                    output_stream << R"()
+)" << detail::pop_start << detail::restart_indent
+                                  << detail::add_start_offset(2) << R"(@+: )";
+                }
+                return;
+            case Output_part::struct_fill_constructor_body:
+                if(nonstatic_member_count > 0)
+                {
+                    output_stream << "\n" << detail::add_start_offset(-2) << detail::restart_indent
+                                  << R"(@-{
+}
+)";
+                }
+                return;
+            case Output_part::struct_closing:
+                output_stream << R"(@-};
+)";
+                return;
+            default:
+                break;
+            }
+            assert(false);
+        }
+        static util::string_view get_variable_declaration_type_name_separator(
+            util::string_view type)
+        {
+            assert(!type.empty());
+            if(type.back() == '&' || type.back() == '*')
+                return ""_sv;
+            return " "_sv;
+        }
+        void add_nonstatic_member(util::string_view member_type,
+                                  util::string_view member_name,
+                                  bool needs_move)
+        {
+            if(nonstatic_member_count != 0)
+            {
+                struct_default_constructor_initializers << ",\n";
+                struct_fill_constructor_initializers << ",\n";
+                struct_fill_constructor_args << ",\n";
+            }
+            nonstatic_member_count++;
+            struct_members << member_type
+                           << get_variable_declaration_type_name_separator(member_type)
+                           << member_name << ";\n";
+            struct_default_constructor_initializers << member_name << "()";
+            auto move_start = ""_sv;
+            auto move_end = ""_sv;
+            if(needs_move)
+            {
+                move_start = "std::move("_sv;
+                move_end = ")"_sv;
+            }
+            struct_fill_constructor_initializers << member_name << "(" << move_start << member_name
+                                                 << move_end << ")";
+            struct_fill_constructor_args
+                << member_type << get_variable_declaration_type_name_separator(member_type)
+                << member_name;
+        }
+    };
+    struct Output_file_base : public Output_base
+    {
         detail::Generated_output_stream file_comments;
         detail::Generated_output_stream includes;
         detail::Generated_output_stream namespaces_start;
         detail::Generated_output_stream namespaces_end;
         explicit Output_file_base(const util::filesystem::path &file_path)
-            : file_path(file_path),
+            : Output_base(file_path),
               file_comments(file_path),
               includes(file_path),
               namespaces_start(file_path),
@@ -378,17 +662,6 @@ namespace spirv
             namespaces_end << R"(}
 }
 )";
-        }
-        detail::Generated_output_stream get_whole_output() const
-        {
-            detail::Generated_output_stream retval(file_path);
-            for(auto &part : output_parts)
-                retval << this->*std::get<1>(part);
-            return retval;
-        }
-        virtual void write_to_file() const
-        {
-            get_whole_output().write_to_file();
         }
         void write_local_include_string(util::string_view header_file)
         {
@@ -457,6 +730,7 @@ namespace spirv
         detail::Generated_output_stream enum_definitions;
         detail::Generated_output_stream enum_properties_definitions;
         detail::Generated_output_stream literal_types;
+        std::list<Output_struct> enum_structs;
         explicit Spirv_h(const util::filesystem::path &file_path)
             : Header_file_base(file_path),
               basic_types(file_path),
@@ -473,6 +747,15 @@ namespace spirv
             register_output_part(Output_part::enum_properties_definitions,
                                  &Spirv_h::enum_properties_definitions);
             register_output_part(Output_part::literal_types, &Spirv_h::literal_types);
+            register_output_part(Output_part::enum_structs, &Spirv_h::write_enum_structs);
+        }
+        void write_enum_structs(detail::Generated_output_stream &output_stream, Output_part) const
+        {
+            for(auto &enum_struct : enum_structs)
+            {
+                output_stream << "\n";
+                enum_struct.write_whole_output(output_stream);
+            }
         }
         void write_literal_kinds(State &state)
         {
@@ -652,16 +935,84 @@ constexpr util::Enum_set<)" << state.extension_enumeration.value()->cpp_name
 }
 )";
             }
-#warning add writing enum parameters
         }
         void write_id_types(State &state)
         {
             id_types << "\n";
             for(auto &id_type : state.id_type_list)
             {
-                id_types << "typedef Id " << id_type.cpp_name
-                         << R"(;
+                id_types << "typedef Id " << id_type.cpp_name << R"(;
 )";
+            }
+        }
+        void write_enum_parameters(State &state)
+        {
+            std::unordered_map<std::string, std::list<Output_struct>::iterator>
+                enumerant_parameter_structs;
+            for(auto &operand_kind : state.operand_kind_list)
+            {
+                if(operand_kind.enum_parameters.empty())
+                    continue;
+                auto enumeration_iter = state.get_enumeration(operand_kind.json_name);
+                enumerant_parameter_structs.clear();
+                for(auto &parameter : operand_kind.enum_parameters)
+                {
+                    auto enumerant_parameter_struct_iter =
+                        enumerant_parameter_structs.find(parameter.enumerant->json_name);
+                    if(enumerant_parameter_struct_iter == enumerant_parameter_structs.end())
+                    {
+                        auto output_struct_iter =
+                            enum_structs.emplace(enum_structs.end(),
+                                                 file_path,
+                                                 parameter.enumerant->parameters_struct_cpp_name);
+                        enumerant_parameter_struct_iter =
+                            std::get<0>(enumerant_parameter_structs.emplace(
+                                parameter.enumerant->json_name, output_struct_iter));
+                    }
+                    auto &output_struct = *std::get<1>(*enumerant_parameter_struct_iter);
+                    auto parameter_type = state.get_operand_kind(parameter.json_kind);
+                    if(!parameter_type->enum_parameters.empty())
+                        throw Generate_error("enum parameter can't contain enum with parameters: "
+                                             + operand_kind.json_name);
+                    output_struct.add_nonstatic_member(
+                        parameter_type->cpp_name_with_parameters, parameter.cpp_name, true);
+                }
+                auto &enum_with_parameters_struct = *enum_structs.emplace(
+                    enum_structs.end(), file_path, operand_kind.cpp_name_with_parameters);
+                enum_with_parameters_struct.add_nonstatic_member(
+                    enumeration_iter->cpp_name, "value", false);
+                if(enumeration_iter->is_bitwise)
+                {
+                    for(auto &enumerant : enumeration_iter->enumerants)
+                    {
+                        if(enumerant.parameters.empty())
+                            continue;
+                        enum_with_parameters_struct.add_nonstatic_member(
+                            "util::optional<" + enumerant.parameters_struct_cpp_name + ">",
+                            enumerant.parameters_variable_cpp_name,
+                            true);
+                    }
+                }
+                else
+                {
+                    auto parameters_name = "Parameters"_sv;
+                    auto variant_start = "typedef util::variant<"_sv;
+                    enum_with_parameters_struct.struct_members
+                        << detail::push_start << detail::add_start_offset(variant_start.size())
+                        << variant_start << "util::monostate";
+                    for(auto &enumerant : enumeration_iter->enumerants)
+                    {
+                        if(enumerant.parameters.empty())
+                            continue;
+                        enum_with_parameters_struct.struct_members
+                            << ",\n" << enumerant.parameters_struct_cpp_name;
+                    }
+                    enum_with_parameters_struct.struct_members << "> " << parameters_name << ";\n"
+                                                               << detail::pop_start
+                                                               << detail::restart_indent;
+                    enum_with_parameters_struct.add_nonstatic_member(
+                        parameters_name, "parameters", true);
+                }
             }
         }
         virtual void fill_output(State &state) override
@@ -673,6 +1024,8 @@ constexpr util::Enum_set<)" << state.extension_enumeration.value()->cpp_name
             write_system_include("iterator");
             write_local_include_string("util/string_view.h");
             write_local_include_string("util/enum.h");
+            write_local_include_string("util/optional.h");
+            write_local_include_string("util/variant.h");
             write_local_include_string("spirv/word.h");
             write_local_include_string("spirv/literal_string.h");
             basic_types << R"(typedef Word Id;
@@ -685,6 +1038,7 @@ constexpr util::Enum_set<)" << state.extension_enumeration.value()->cpp_name
             write_basic_constants(state);
             write_enums(state);
             write_id_types(state);
+            write_enum_parameters(state);
         }
     };
     struct Spirv_cpp : public Source_file_base
@@ -738,13 +1092,17 @@ private:
         "Extension_instruction_set"_sv;
     static constexpr util::string_view unknown_extension_instruction_set_enumerant_json_name =
         "Unknown"_sv;
+    struct Enum_parameter;
     struct Enumerant_descriptor
     {
         std::uint32_t value;
         std::string cpp_name;
+        std::string parameters_struct_cpp_name;
+        std::string parameters_variable_cpp_name;
         std::string json_name;
         ast::Capabilities capabilities;
         ast::Extensions extensions;
+        std::vector<const Enum_parameter *> parameters;
         static std::string make_cpp_name(util::string_view json_enumeration_name,
                                          util::string_view json_enumerant_name)
         {
@@ -771,6 +1129,18 @@ private:
                 throw Generate_error("json enumerant name can't be empty");
             return name_from_words_all_lowercase(json_enumerant_name).to_string();
         }
+        static std::string make_parameters_struct_cpp_name(util::string_view json_enumeration_name,
+                                                           util::string_view cpp_name)
+        {
+            using detail::name_from_words_initial_capital;
+            return name_from_words_initial_capital(json_enumeration_name, cpp_name, "parameters"_sv)
+                .to_string();
+        }
+        static std::string make_parameters_variable_cpp_name(util::string_view cpp_name)
+        {
+            using detail::name_from_words_all_lowercase;
+            return name_from_words_all_lowercase(cpp_name).to_string();
+        }
         Enumerant_descriptor(std::uint32_t value,
                              util::string_view json_enumeration_name,
                              std::string json_name,
@@ -778,9 +1148,13 @@ private:
                              ast::Extensions extensions)
             : value(value),
               cpp_name(make_cpp_name(json_enumeration_name, json_name)),
+              parameters_struct_cpp_name(
+                  make_parameters_struct_cpp_name(json_enumeration_name, cpp_name)),
+              parameters_variable_cpp_name(make_parameters_variable_cpp_name(cpp_name)),
               json_name(std::move(json_name)),
               capabilities(std::move(capabilities)),
-              extensions(std::move(extensions))
+              extensions(std::move(extensions)),
+              parameters()
         {
         }
     };
@@ -790,11 +1164,11 @@ private:
         std::string cpp_name;
         std::string json_name;
         std::list<Enumerant_descriptor> enumerants;
-        typedef std::unordered_map<std::string, std::list<Enumerant_descriptor>::const_iterator>
+        typedef std::unordered_map<std::string, std::list<Enumerant_descriptor>::iterator>
             Json_name_to_enumerant_map;
         Json_name_to_enumerant_map json_name_to_enumerant_map;
         static Json_name_to_enumerant_map make_json_name_to_enumerant_map(
-            const std::list<Enumerant_descriptor> *enumerants)
+            std::list<Enumerant_descriptor> *enumerants)
         {
             Json_name_to_enumerant_map retval;
             for(auto i = enumerants->begin(); i != enumerants->end(); ++i)
@@ -960,6 +1334,13 @@ private:
             throw Generate_error("unknown extension: " + extension);
         return *std::get<1>(*iter);
     }
+    std::list<Enumeration_descriptor>::const_iterator get_enumeration(const std::string &json_name)
+    {
+        auto iter = enumerations_map.find(json_name);
+        if(iter == enumerations_map.end())
+            throw Generate_error("unknown enum: " + json_name);
+        return std::get<1>(*iter);
+    }
 
 private:
     struct Literal_type_descriptor
@@ -1051,6 +1432,24 @@ private:
     }
 
 private:
+    struct Enum_parameter
+    {
+        std::list<Enumerant_descriptor>::const_iterator enumerant;
+        std::string cpp_name;
+        std::string json_kind;
+        std::string json_name;
+        explicit Enum_parameter(std::list<Enumerant_descriptor>::const_iterator enumerant,
+                                std::string json_kind,
+                                std::string json_name)
+            : enumerant(enumerant),
+              cpp_name(json_name.empty() ?
+                           detail::name_from_words_all_lowercase(json_kind).to_string() :
+                           detail::name_from_words_all_lowercase(json_name).to_string()),
+              json_kind(std::move(json_kind)),
+              json_name(std::move(json_name))
+        {
+        }
+    };
     struct Operand_kind_descriptor
     {
         std::string json_name;
@@ -1058,6 +1457,7 @@ private:
                       std::list<Enumeration_descriptor>::const_iterator,
                       std::list<Id_type_descriptor>::const_iterator,
                       ast::Operand_kinds::Operand_kind::Literal_kind> value;
+        std::list<Enum_parameter> enum_parameters;
         std::string make_cpp_name() const
         {
             std::string retval;
@@ -1088,14 +1488,9 @@ private:
         std::string make_cpp_name_with_parameters() const
         {
             auto *iter = util::get_if<std::list<Enumeration_descriptor>::const_iterator>(&value);
-            if(iter)
-            {
-                bool need_parameters = false;
-#warning finish
-                if(need_parameters)
-                    return detail::name_from_words_initial_capital(json_name, "with parameters"_sv)
-                        .to_string();
-            }
+            if(iter && !enum_parameters.empty())
+                return detail::name_from_words_initial_capital(json_name, "with parameters"_sv)
+                    .to_string();
             return cpp_name;
         }
         std::string cpp_name;
@@ -1105,9 +1500,12 @@ private:
         {
         }
         template <typename T>
-        Operand_kind_descriptor(std::string json_name, T arg)
+        Operand_kind_descriptor(std::string json_name,
+                                T arg,
+                                std::list<Enum_parameter> enum_parameters = {})
             : json_name(std::move(json_name)),
               value(std::move(arg)),
+              enum_parameters(std::move(enum_parameters)),
               cpp_name(make_cpp_name()),
               cpp_name_with_parameters(make_cpp_name_with_parameters())
         {
@@ -1130,6 +1528,14 @@ private:
             throw Generate_error("duplicate operand kind: " + name);
         return iter;
     }
+    std::list<Operand_kind_descriptor>::const_iterator get_operand_kind(
+        const std::string &json_name)
+    {
+        auto iter = operand_kind_map.find(json_name);
+        if(iter == operand_kind_map.end())
+            throw Generate_error("unknown operand kind: " + json_name);
+        return std::get<1>(*iter);
+    }
     void fill_operand_kinds()
     {
         for(auto &operand_kind : top_level.operand_kinds.operand_kinds)
@@ -1138,12 +1544,34 @@ private:
             {
             case ast::Operand_kinds::Operand_kind::Category::bit_enum:
             case ast::Operand_kinds::Operand_kind::Category::value_enum:
+            {
+                auto enumeration_iter = get_enumeration(operand_kind.kind);
+                auto &enumerants =
+                    util::get<ast::Operand_kinds::Operand_kind::Enumerants>(operand_kind.value);
+                std::list<Enum_parameter> enum_parameters;
+                for(auto &enumerant : enumerants.enumerants)
+                {
+                    if(enumerant.parameters.empty())
+                        continue;
+                    auto enumerant_iter_iter =
+                        enumeration_iter->json_name_to_enumerant_map.find(enumerant.enumerant);
+                    if(enumerant_iter_iter == enumeration_iter->json_name_to_enumerant_map.end())
+                        throw Generate_error("unknown enumerant: " + enumerant.enumerant);
+                    auto enumerant_iter = std::get<1>(*enumerant_iter_iter);
+                    for(auto &parameter : enumerant.parameters.parameters)
+                    {
+                        enumerant_iter->parameters.push_back(&*enum_parameters.emplace(
+                            enum_parameters.end(), enumerant_iter, parameter.kind, parameter.name));
+                    }
+                }
                 add_operand_kind(Operand_kind_descriptor(operand_kind.kind,
-                                                         enumerations_map.at(operand_kind.kind)));
+                                                         enumerations_map.at(operand_kind.kind),
+                                                         std::move(enum_parameters)));
                 continue;
+            }
             case ast::Operand_kinds::Operand_kind::Category::id:
-                add_operand_kind(Operand_kind_descriptor(operand_kind.kind,
-                                                         id_type_map.at(operand_kind.kind)));
+                add_operand_kind(
+                    Operand_kind_descriptor(operand_kind.kind, id_type_map.at(operand_kind.kind)));
                 continue;
             case ast::Operand_kinds::Operand_kind::Category::literal:
                 add_operand_kind(Operand_kind_descriptor(operand_kind.kind,

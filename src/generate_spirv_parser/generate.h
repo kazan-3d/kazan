@@ -184,6 +184,10 @@ private:
             write_char(' ');
     }
     static constexpr util::string_view literal_command = "literal:"_sv;
+    static constexpr util::string_view push_start_command = "push_start"_sv;
+    static constexpr util::string_view pop_start_command = "pop_start"_sv;
+    static constexpr util::string_view add_start_offset_command = "add_start_offset:"_sv;
+    static constexpr util::string_view restart_indent_command = "restart_indent"_sv;
 
 public:
     static constexpr char indent_indicator_char = ' ';
@@ -202,7 +206,7 @@ private:
     void write_signed_integer(std::int64_t value, unsigned base = 10);
     void write_literal(util::string_view value)
     {
-        *this << escape_char << literal_command << value.size() << escape_char << value
+        *this << escape_char << literal_command << static_cast<std::uint64_t>(value.size()) << escape_char << value
               << escape_char;
     }
 
@@ -286,6 +290,49 @@ public:
     static constexpr Literal_holder literal(util::string_view value) noexcept
     {
         return Literal_holder{value};
+    }
+    struct Push_start
+    {
+    };
+    Generated_output_stream &operator<<(Push_start)
+    {
+        *this << escape_char << push_start_command << escape_char;
+        return *this;
+    }
+    struct Pop_start
+    {
+    };
+    Generated_output_stream &operator<<(Pop_start)
+    {
+        *this << escape_char << pop_start_command << escape_char;
+        return *this;
+    }
+    class Add_start_offset_holder
+    {
+        friend class Generated_output_stream;
+
+    private:
+        std::int64_t offset;
+        constexpr explicit Add_start_offset_holder(std::int64_t offset) noexcept : offset(offset)
+        {
+        }
+    };
+    Generated_output_stream &operator<<(const Add_start_offset_holder &v)
+    {
+        *this << escape_char << add_start_offset_command << v.offset << escape_char;
+        return *this;
+    }
+    static constexpr Add_start_offset_holder add_start_offset(std::int64_t offset) noexcept
+    {
+        return Add_start_offset_holder{offset};
+    }
+    struct Restart_indent
+    {
+    };
+    Generated_output_stream &operator<<(Restart_indent)
+    {
+        *this << escape_char << restart_indent_command << escape_char;
+        return *this;
     }
     class Unsigned_integer_holder
     {
@@ -416,6 +463,11 @@ constexpr auto literal(util::string_view value) noexcept
     return Generated_output_stream::literal(value);
 }
 
+constexpr auto add_start_offset(std::int64_t offset) noexcept
+{
+    return Generated_output_stream::add_start_offset(offset);
+}
+
 constexpr auto unsigned_integer(std::uint64_t value) noexcept
 {
     return Generated_output_stream::unsigned_integer(value);
@@ -442,6 +494,9 @@ constexpr auto signed_integer(std::int64_t value, unsigned base) noexcept
 }
 
 constexpr Generated_output_stream::Guard_macro guard_macro{};
+constexpr Generated_output_stream::Push_start push_start{};
+constexpr Generated_output_stream::Pop_start pop_start{};
+constexpr Generated_output_stream::Restart_indent restart_indent{};
 
 template <typename... Args>
 constexpr auto name_from_words(
