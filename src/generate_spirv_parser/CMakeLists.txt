@@ -22,6 +22,7 @@ cmake_minimum_required(VERSION 3.1 FATAL_ERROR)
 set(sources ast.cpp
             generate.cpp
             generate_spirv_parser.cpp
+            instruction_properties.cpp
             parser.cpp
             patch.cpp)
 add_executable(generate_spirv_parser ${sources})

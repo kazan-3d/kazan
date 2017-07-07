@@ -180,11 +180,12 @@ struct Instructions
                     std::uint32_t opcode,
                     Operands operands,
                     Capabilities capabilities,
-                    Extensions extensions) noexcept : opname(std::move(opname)),
-                                                      opcode(opcode),
-                                                      operands(std::move(operands)),
-                                                      capabilities(std::move(capabilities)),
-                                                      extensions(std::move(extensions))
+                    Extensions extensions) noexcept
+            : opname(std::move(opname)),
+              opcode(opcode),
+              operands(std::move(operands)),
+              capabilities(std::move(capabilities)),
+              extensions(std::move(extensions))
         {
         }
         json::ast::Value to_json() const;
