@@ -420,6 +420,7 @@ static_assert(util::Enum_traits<Output_part>::is_compact,
 struct Spirv_and_parser_generator::State
 {
 private:
+    struct Operand_descriptor;
     struct Output_base
     {
         Output_base(const Output_base &) = delete;
@@ -1123,6 +1124,26 @@ constexpr util::Enum_set<)" << state.extension_enumeration.value()->cpp_name
                         true);
             }
         }
+        void write_instruction_operand(State &state,
+                                       const Operand_descriptor &operand,
+                                       Output_struct &instruction_struct)
+        {
+            typedef Operand_descriptor::Quantifier Quantifier;
+            std::string member_type =
+                state.get_operand_kind(operand.json_kind)->cpp_name_with_parameters;
+            switch(operand.quantifier)
+            {
+            case Quantifier::none:
+                break;
+            case Quantifier::optional:
+                member_type = "util::optional<" + std::move(member_type) + ">";
+                break;
+            case Quantifier::variable:
+                member_type = "std::vector<" + std::move(member_type) + ">";
+                break;
+            }
+            instruction_struct.add_nonstatic_member(member_type, operand.cpp_name, true);
+        }
         void write_instructions(State &state)
         {
             for(auto &instruction_descriptor : state.instruction_descriptor_list)
@@ -1137,25 +1158,10 @@ constexpr util::Enum_set<)" << state.extension_enumeration.value()->cpp_name
                     << "::" << instruction_descriptor.enumerant->cpp_name << R"(;
 }
 )";
-                for(auto &operand : instruction_descriptor.operands)
-                {
-                    typedef Operand_descriptor::Quantifier Quantifier;
-                    std::string member_type =
-                        state.get_operand_kind(operand.json_kind)->cpp_name_with_parameters;
-                    switch(operand.quantifier)
-                    {
-                    case Quantifier::none:
-                        break;
-                    case Quantifier::optional:
-                        member_type = "util::optional<" + std::move(member_type) + ">";
-                        break;
-                    case Quantifier::variable:
-                        member_type = "std::vector<" + std::move(member_type) + ">";
-                        break;
-                    }
-                    instruction_struct.add_nonstatic_member(member_type, operand.cpp_name, true);
-                }
-#warning finish
+                for(auto &operand : instruction_descriptor.implied_operands)
+                    write_instruction_operand(state, operand, instruction_struct);
+                for(auto &operand : instruction_descriptor.explicit_operands)
+                    write_instruction_operand(state, operand, instruction_struct);
             }
         }
         virtual void fill_output(State &state) override
@@ -1208,6 +1214,35 @@ constexpr util::Enum_set<)" << state.extension_enumeration.value()->cpp_name
             register_output_part(Output_part::dump_callbacks_class,
                                  &Parser_h::dump_callbacks_class);
             register_output_part(Output_part::parser_class, &Parser_h::parser_class);
+        }
+        void write_instruction_operand(State &state, Operand_descriptor &operand)
+        {
+            typedef Operand_descriptor::Quantifier Quantifier;
+            auto operand_kind = state.get_operand_kind(operand.json_kind);
+            switch(operand.quantifier)
+            {
+            case Quantifier::none:
+                dump_callbacks_class << operand_kind->cpp_dump_function_name << "(instruction."
+                                     << operand.cpp_name << ", indent_depth + 1);\n";
+#warning finish
+                break;
+            case Quantifier::optional:
+                dump_callbacks_class << "if(instruction." << operand.cpp_name << R"()
+    )" << operand_kind->cpp_dump_function_name
+                                     << "(*instruction." << operand.cpp_name
+                                     << R"(, indent_depth + 1);
+)";
+#warning finish
+                break;
+            case Quantifier::variable:
+                dump_callbacks_class << "for(auto &operand : instruction." << operand.cpp_name
+                                     << R"()
+    )" << operand_kind->cpp_dump_function_name
+                                     << R"((operand, indent_depth + 1);
+)";
+#warning finish
+                break;
+            }
         }
         virtual void fill_output(State &state) override
         {
@@ -1369,10 +1404,10 @@ if(bits == 0)
                         else if(enumerant.value & (enumerant.value - 1))
                         {
                             throw Generate_error(
-                                    "in bitwise enum, enumerant is not a power of 2 or zero: "
-                                    + enumeration->json_name
-                                    + "."
-                                    + enumerant.json_name);
+                                "in bitwise enum, enumerant is not a power of 2 or zero: "
+                                + enumeration->json_name
+                                + "."
+                                + enumerant.json_name);
                         }
                         dump_callbacks_class << R"(if(bits & static_cast<Word>()"
                                              << enumeration->cpp_name << "::" << enumerant.cpp_name
@@ -1383,21 +1418,80 @@ if(bits == 0)
                                              << R"(\n";
     bits &= ~static_cast<Word>()" << enumeration->cpp_name
                                              << "::" << enumerant.cpp_name << R"();
-)";
-                        for(auto &parameter : enumerant.parameters)
+@+)";
+                        if(!enumerant.parameters.empty())
                         {
-                            parameter;
-#warning finish
+                            dump_callbacks_class << "auto &parameters = *operand."
+                                                 << enumerant.parameters_variable_cpp_name << ";\n";
                         }
-                        dump_callbacks_class << R"(}
+                        for(auto *parameter : enumerant.parameters)
+                        {
+                            auto parameter_operand_kind =
+                                state.get_operand_kind(parameter->json_kind);
+                            dump_callbacks_class << parameter_operand_kind->cpp_dump_function_name
+                                                 << R"((parameters.)" << parameter->cpp_name
+                                                 << R"(, indent_depth + 2);
+)";
+                        }
+                        dump_callbacks_class << R"(@-}
 )";
                     }
-#warning finish
                     break;
                 }
                 case Category::value_enum:
-#warning finish
+                {
+                    dump_callbacks_class << R"(write_indent(indent_depth);
+ss << ")" << operand_kind.operand_kind->kind
+                                         << R"(: ";
+switch(operand)" << (operand_kind.enum_parameters.empty() ? "" : ".value")
+                                         << R"()
+{
+)";
+                    auto enumeration = util::get<std::list<Enumeration_descriptor>::const_iterator>(
+                        operand_kind.value);
+                    std::unordered_set<std::uint32_t> values;
+                    for(auto &enumerant : enumeration->enumerants)
+                    {
+                        if(!std::get<1>(values.insert(enumerant.value)))
+                            continue; // skip duplicate values
+                        dump_callbacks_class << "case " << enumeration->cpp_name
+                                             << "::" << enumerant.cpp_name << R"(:
+)" << (enumerant.parameters.empty() ? "" : "{\n")
+                                             << R"(    ss << ")" << enumerant.json_name
+                                             << (enumerant.parameters.empty() ? "" : ":") << R"(\n";
+@+)";
+                        if(!enumerant.parameters.empty())
+                        {
+                            dump_callbacks_class << "auto &parameters = util::get<"
+                                                 << enumerant.parameters_struct_cpp_name
+                                                 << ">(operand.parameters);\n";
+                            for(auto *parameter : enumerant.parameters)
+                            {
+                                auto parameter_operand_kind =
+                                    state.get_operand_kind(parameter->json_kind);
+                                dump_callbacks_class
+                                    << parameter_operand_kind->cpp_dump_function_name
+                                    << R"((parameters.)" << parameter->cpp_name
+                                    << R"(, indent_depth + 1);
+)";
+                            }
+                            dump_callbacks_class << R"(return;
+@-}
+)";
+                        }
+                        else
+                        {
+                            dump_callbacks_class << R"(return;
+@-)";
+                        }
+                    }
+                    dump_callbacks_class << R"(}
+ss << "<Unknown> (" << static_cast<Word>(operand)"
+                                         << (operand_kind.enum_parameters.empty() ? "" : ".value")
+                                         << R"() << ")\n";
+)";
                     break;
+                }
                 case Category::id:
                     dump_callbacks_class << R"(write_indent(indent_depth);
 ss << ")" << operand_kind.operand_kind->kind
@@ -1454,7 +1548,6 @@ ss << "}\n";
                 }
                 case Category::composite:
                 {
-#warning finish
                     dump_callbacks_class << R"(write_indent(indent_depth);
 ss << ")" << operand_kind.operand_kind->kind
                                          << R"(:\n";
@@ -1482,7 +1575,30 @@ ss << ")" << operand_kind.operand_kind->kind
                                        << " instruction) = 0;\n";
                 dump_callbacks_class << "virtual void " << instruction.cpp_parse_callback_name
                                      << "(" << instruction.cpp_struct_name
-                                     << " instruction) override\n{\n@+";
+                                     << R"( instruction) override
+{
+    ss << ")";
+                if(instruction.extension_instruction_set)
+                    dump_callbacks_class << op_ext_inst_json_name;
+                else
+                    dump_callbacks_class << instruction.json_name;
+                dump_callbacks_class << R"(:\n";
+@+)";
+                if(!instruction.implied_operands.empty() || !instruction.explicit_operands.empty()
+                   || instruction.extension_instruction_set)
+                    dump_callbacks_class << "constexpr std::size_t indent_depth = 0;\n";
+                else
+                    dump_callbacks_class << "static_cast<void>(instruction);\n";
+                for(auto &operand : instruction.implied_operands)
+                    write_instruction_operand(state, operand);
+                if(instruction.extension_instruction_set)
+                {
+                    dump_callbacks_class << R"(write_indent(indent_depth + 1);
+ss << ")" << instruction.json_name << R"(\n";
+)";
+                }
+                for(auto &operand : instruction.explicit_operands)
+                    write_instruction_operand(state, operand);
 #warning finish
                 dump_callbacks_class << "@-}\n";
             }
@@ -1527,6 +1643,11 @@ private:
         "Extension_instruction_set"_sv;
     static constexpr util::string_view unknown_extension_instruction_set_enumerant_json_name =
         "Unknown"_sv;
+    static constexpr util::string_view op_ext_inst_import_json_name = "OpExtInstImport"_sv;
+    static constexpr util::string_view op_ext_inst_json_name = "OpExtInst"_sv;
+    static constexpr util::string_view id_result_json_name = "IdResult"_sv;
+    static constexpr util::string_view id_result_type_json_name = "IdResultType"_sv;
+    static constexpr util::string_view id_ref_json_name = "IdRef"_sv;
     struct Enum_parameter;
     struct Enumerant_descriptor
     {
@@ -2213,7 +2334,8 @@ private:
         std::list<Enumerant_descriptor>::const_iterator enumerant;
         const ast::Extension_instruction_set *extension_instruction_set;
         std::string json_name;
-        std::list<Operand_descriptor> operands;
+        std::list<Operand_descriptor> implied_operands;
+        std::list<Operand_descriptor> explicit_operands;
         const Instruction_properties_descriptor *properties_descriptor;
         static std::string make_cpp_struct_name(
             const ast::Extension_instruction_set *extension_instruction_set,
@@ -2235,7 +2357,8 @@ private:
             std::list<Enumerant_descriptor>::const_iterator enumerant,
             const ast::Extension_instruction_set *extension_instruction_set,
             std::string json_name,
-            std::list<Operand_descriptor> operands,
+            std::list<Operand_descriptor> implied_operands,
+            std::list<Operand_descriptor> explicit_operands,
             const Instruction_properties_descriptor *properties_descriptor)
             : cpp_struct_name(make_cpp_struct_name(extension_instruction_set, json_name)),
               cpp_parse_callback_name(make_cpp_parse_callback_name(cpp_struct_name)),
@@ -2243,7 +2366,8 @@ private:
               enumerant(enumerant),
               extension_instruction_set(extension_instruction_set),
               json_name(std::move(json_name)),
-              operands(std::move(operands)),
+              implied_operands(std::move(implied_operands)),
+              explicit_operands(std::move(explicit_operands)),
               properties_descriptor(properties_descriptor)
         {
         }
@@ -2354,6 +2478,25 @@ private:
         retval += "}},";
         return retval;
     }
+    std::list<Operand_descriptor> make_instruction_implied_operands(bool is_extension)
+    {
+        if(!is_extension)
+            return {};
+        std::list<Operand_descriptor> retval;
+        retval.push_back(Operand_descriptor(
+            "",
+            std::string(id_result_type_json_name),
+            ast::Instructions::Instruction::Operands::Operand::Quantifier::none));
+        retval.push_back(Operand_descriptor(
+            "",
+            std::string(id_result_json_name),
+            ast::Instructions::Instruction::Operands::Operand::Quantifier::none));
+        retval.push_back(Operand_descriptor(
+            "'Set'",
+            std::string(id_ref_json_name),
+            ast::Instructions::Instruction::Operands::Operand::Quantifier::none));
+        return retval;
+    }
     void fill_instruction_descriptors(
         const ast::Extension_instruction_set *extension_instruction_set,
         const ast::Instructions &instructions)
@@ -2389,7 +2532,9 @@ private:
                     get_instruction_properties_descriptor(extension_instruction_set->import_name,
                                                           instruction.opname) :
                     get_instruction_properties_descriptor({}, instruction.opname);
-            std::list<Operand_descriptor> operands;
+            auto implied_operands =
+                make_instruction_implied_operands(extension_instruction_set != nullptr);
+            std::list<Operand_descriptor> explicit_operands;
             util::optional<Instruction_properties_descriptor::Operand_descriptors::const_iterator>
                 operand_properties_iter;
             if(instruction_properties_descriptor)
@@ -2397,7 +2542,7 @@ private:
                     instruction_properties_descriptor->operand_descriptors.begin();
             for(auto &operand : instruction.operands.operands)
             {
-                operands.push_back(
+                explicit_operands.push_back(
                     Operand_descriptor(operand.name, operand.kind, operand.quantifier));
                 bool has_integer_literal_size = false;
                 if(operand_properties_iter)
@@ -2440,7 +2585,8 @@ private:
                                                               enumerant,
                                                               extension_instruction_set,
                                                               instruction.opname,
-                                                              std::move(operands),
+                                                              std::move(implied_operands),
+                                                              std::move(explicit_operands),
                                                               instruction_properties_descriptor));
         }
     }
@@ -2477,6 +2623,11 @@ constexpr util::string_view
     Spirv_and_parser_generator::State::extension_instruction_set_enum_json_name;
 constexpr util::string_view
     Spirv_and_parser_generator::State::unknown_extension_instruction_set_enumerant_json_name;
+constexpr util::string_view Spirv_and_parser_generator::State::op_ext_inst_import_json_name;
+constexpr util::string_view Spirv_and_parser_generator::State::op_ext_inst_json_name;
+constexpr util::string_view Spirv_and_parser_generator::State::id_result_json_name;
+constexpr util::string_view Spirv_and_parser_generator::State::id_result_type_json_name;
+constexpr util::string_view Spirv_and_parser_generator::State::id_ref_json_name;
 
 void Spirv_and_parser_generator::run(Generator_args &generator_args,
                                      const ast::Top_level &top_level) const
