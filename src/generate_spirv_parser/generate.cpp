@@ -361,6 +361,10 @@ enum class Output_part
     enum_structs,
     composite_types,
     instruction_structs,
+    parse_error_class,
+    parser_callbacks_class,
+    dump_callbacks_class,
+    parser_class,
     namespaces_end,
     include_guard_end,
 
@@ -391,6 +395,10 @@ vulkan_cpu_util_generate_enum_traits(Output_part,
                                      Output_part::enum_structs,
                                      Output_part::composite_types,
                                      Output_part::instruction_structs,
+                                     Output_part::parse_error_class,
+                                     Output_part::parser_callbacks_class,
+                                     Output_part::dump_callbacks_class,
+                                     Output_part::parser_class,
                                      Output_part::namespaces_end,
                                      Output_part::include_guard_end,
                                      Output_part::struct_opening,
@@ -894,6 +902,65 @@ vulkan_cpu_util_generate_enum_traits()"
                 }
                 enum_definitions << R"();
 )";
+                if(enumeration.is_bitwise)
+                {
+                    enum_definitions << R"(
+constexpr )" << enumeration.cpp_name << R"( operator~()"
+                                     << enumeration.cpp_name << R"( v) noexcept
+{
+    return static_cast<)" << enumeration.cpp_name
+                                     << R"(>(~static_cast<Word>(v));
+}
+
+constexpr )" << enumeration.cpp_name << R"( operator&()"
+                                     << enumeration.cpp_name << R"( a, )" << enumeration.cpp_name
+                                     << R"( b) noexcept
+{
+    return static_cast<)" << enumeration.cpp_name
+                                     << R"(>(static_cast<Word>(a) & static_cast<Word>(b));
+}
+
+constexpr )" << enumeration.cpp_name << R"( operator|()"
+                                     << enumeration.cpp_name << R"( a, )" << enumeration.cpp_name
+                                     << R"( b) noexcept
+{
+    return static_cast<)" << enumeration.cpp_name
+                                     << R"(>(static_cast<Word>(a) | static_cast<Word>(b));
+}
+
+constexpr )" << enumeration.cpp_name << R"( operator^()"
+                                     << enumeration.cpp_name << R"( a, )" << enumeration.cpp_name
+                                     << R"( b) noexcept
+{
+    return static_cast<)" << enumeration.cpp_name
+                                     << R"(>(static_cast<Word>(a) ^ static_cast<Word>(b));
+}
+
+constexpr )" << enumeration.cpp_name << R"( &operator&=()"
+                                     << enumeration.cpp_name << R"( &a, )" << enumeration.cpp_name
+                                     << R"( b) noexcept
+{
+    a = a & b;
+    return a;
+}
+
+constexpr )" << enumeration.cpp_name << R"( &operator|=()"
+                                     << enumeration.cpp_name << R"( &a, )" << enumeration.cpp_name
+                                     << R"( b) noexcept
+{
+    a = a | b;
+    return a;
+}
+
+constexpr )" << enumeration.cpp_name << R"( &operator^=()"
+                                     << enumeration.cpp_name << R"( &a, )" << enumeration.cpp_name
+                                     << R"( b) noexcept
+{
+    a = a ^ b;
+    return a;
+}
+)";
+                }
                 enum_properties_definitions << R"(@-@_}
     return ""_sv;
 }
@@ -981,7 +1048,7 @@ constexpr util::Enum_set<)" << state.extension_enumeration.value()->cpp_name
             {
                 if(operand_kind.enum_parameters.empty())
                     continue;
-                auto enumeration_iter = state.get_enumeration(operand_kind.json_name);
+                auto enumeration_iter = state.get_enumeration(operand_kind.operand_kind->kind);
                 enumerant_parameter_structs.clear();
                 for(auto &parameter : operand_kind.enum_parameters)
                 {
@@ -1001,7 +1068,7 @@ constexpr util::Enum_set<)" << state.extension_enumeration.value()->cpp_name
                     auto parameter_type = state.get_operand_kind(parameter.json_kind);
                     if(!parameter_type->enum_parameters.empty())
                         throw Generate_error("enum parameter can't contain enum with parameters: "
-                                             + operand_kind.json_name);
+                                             + operand_kind.operand_kind->kind);
                     output_struct.add_nonstatic_member(
                         parameter_type->cpp_name_with_parameters, parameter.cpp_name, true);
                 }
@@ -1124,16 +1191,306 @@ constexpr util::Enum_set<)" << state.extension_enumeration.value()->cpp_name
     };
     struct Parser_h : public Header_file_base
     {
-        explicit Parser_h(const util::filesystem::path &file_path) : Header_file_base(file_path)
+        detail::Generated_output_stream parse_error_class;
+        detail::Generated_output_stream parser_callbacks_class;
+        detail::Generated_output_stream dump_callbacks_class;
+        detail::Generated_output_stream parser_class;
+        explicit Parser_h(const util::filesystem::path &file_path)
+            : Header_file_base(file_path),
+              parse_error_class(file_path),
+              parser_callbacks_class(file_path),
+              dump_callbacks_class(file_path),
+              parser_class(file_path)
         {
+            register_output_part(Output_part::parse_error_class, &Parser_h::parse_error_class);
+            register_output_part(Output_part::parser_callbacks_class,
+                                 &Parser_h::parser_callbacks_class);
+            register_output_part(Output_part::dump_callbacks_class,
+                                 &Parser_h::dump_callbacks_class);
+            register_output_part(Output_part::parser_class, &Parser_h::parser_class);
         }
         virtual void fill_output(State &state) override
         {
             Header_file_base::fill_output(state);
             write_local_include_path(state.spirv_h.file_path);
+            write_local_include_string("util/optional.h"_sv);
+            write_local_include_string("util/string_view.h"_sv);
+            write_local_include_string("json/json.h"_sv);
+            write_system_include("sstream"_sv);
+            write_system_include("vector"_sv);
+            write_system_include("cassert"_sv);
+            write_system_include("type_traits"_sv);
 #warning finish
             include_guard_start << R"(#error generator not finished being implemented
 
+)";
+            parse_error_class << R"a(struct Parser_error : public std::runtime_error
+{
+    std::size_t error_index;
+    std::size_t instruction_start_index;
+    static std::string make_error_message(std::size_t error_index,
+    ``````````````````````````````````````std::size_t instruction_start_index,
+    ``````````````````````````````````````util::string_view message)
+    {
+        std::ostringstream ss;
+        ss << "parse error at 0x" << std::hex << std::uppercase << error_index;
+        if(instruction_start_index != 0)
+            ss << " (instruction starts at 0x" << instruction_start_index << ")";
+        ss << ": " << message;
+        return ss.str();
+    }
+    Parser_error(std::size_t error_index, std::size_t instruction_start_index, util::string_view message)
+        : runtime_error(make_error_message(error_index, instruction_start_index, message)),
+        ``error_index(error_index),
+        ``instruction_start_index(instruction_start_index)
+    {
+    }
+};
+)a";
+            parser_callbacks_class << R"(
+struct Parser_callbacks
+{
+    virtual ~Parser_callbacks() = default;
+    virtual void handle_header(unsigned version_number_major,
+    ```````````````````````````unsigned version_number_minor,
+    ```````````````````````````Word generator_magic_number,
+    ```````````````````````````Word id_bound,
+    ```````````````````````````Word instruction_schema) = 0;
+@+)";
+            dump_callbacks_class << R"(
+struct Dump_callbacks final : public Parser_callbacks
+{
+    std::ostringstream ss;
+    Dump_callbacks() : ss()
+    {
+        ss << std::uppercase;
+    }
+    void write_indent(std::size_t indent_count)
+    {
+        for(std::size_t i = 0; i < indent_count; i++)
+            ss << "    ";
+    }
+    virtual void handle_header(unsigned version_number_major,
+    ```````````````````````````unsigned version_number_minor,
+    ```````````````````````````Word generator_magic_number,
+    ```````````````````````````Word id_bound,
+    ```````````````````````````Word instruction_schema) override
+    {
+        ss << "SPIR-V Version: " << std::dec << version_number_major << '.' << version_number_minor << '\n';
+        ss << "Generator Magic Number: 0x" << std::hex << generator_magic_number << '\n';
+        ss << "Id Bound: " << std::dec << id_bound << '\n';
+        ss << "Instruction Schema (reserved): " << std::dec << instruction_schema << '\n';
+    }
+@+)";
+            parser_class << R"(
+class Parser final
+{
+    Parser(const Parser &) = delete;
+    Parser &operator =(const Parser &) = delete;
+
+private:
+    struct Id_state
+    {
+        util::optional<Extension_instruction_set> instruction_set;
+        util::optional<std::size_t> type_word_count;
+    };
+
+private:
+    Parser_callbacks &parser_callbacks;
+    std::vector<Id_state> id_states;
+    const Word *shader_words;
+    std::size_t shader_size;
+
+private:
+    Parser(Parser_callbacks &parser_callbacks,
+    ```````const Word *shader_words,
+    ```````std::size_t shader_size) noexcept
+        : parser_callbacks(parser_callbacks),
+        ``id_states(),
+        ``shader_words(shader_words),
+        ``shader_size(shader_size)
+    {
+    }
+    Id_state &get_id_state(Id id) noexcept
+    {
+        assert(id > 0 && id <= id_states.size());
+        return id_states[id - 1];
+    }
+@+)";
+            for(auto &operand_kind : state.operand_kind_list)
+            {
+                dump_callbacks_class << "void " << operand_kind.cpp_dump_function_name << "(const "
+                                     << operand_kind.cpp_name_with_parameters
+                                     << R"( &operand, std::size_t indent_depth)
+{
+@+)";
+                typedef ast::Operand_kinds::Operand_kind::Category Category;
+                switch(operand_kind.operand_kind->category)
+                {
+                case Category::bit_enum:
+                {
+                    dump_callbacks_class << R"(write_indent(indent_depth);
+ss << ")" << operand_kind.operand_kind->kind
+                                         << R"(:\n";
+)";
+                    util::string_view zero_enumerant_name = "0"_sv;
+                    auto enumeration = util::get<std::list<Enumeration_descriptor>::const_iterator>(
+                        operand_kind.value);
+                    for(auto &enumerant : enumeration->enumerants)
+                    {
+                        if(enumerant.value == 0)
+                        {
+                            zero_enumerant_name = enumerant.json_name;
+                            break;
+                        }
+                    }
+                    dump_callbacks_class << R"(Word bits = static_cast<Word>(operand)"
+                                         << (operand_kind.enum_parameters.empty() ? "" : ".value")
+                                         << R"();
+if(bits == 0)
+{
+    write_indent(indent_depth + 1);
+    ss << ")" << zero_enumerant_name << R"(\n";
+    return;
+}
+)";
+                    for(auto &enumerant : enumeration->enumerants)
+                    {
+                        if(enumerant.value == 0)
+                        {
+                            if(!enumerant.parameters.empty())
+                                throw Generate_error(
+                                    "in bitwise enum, zero enumerant can't have parameters: "
+                                    + enumeration->json_name
+                                    + "."
+                                    + enumerant.json_name);
+                            continue;
+                        }
+                        else if(enumerant.value & (enumerant.value - 1))
+                        {
+                            throw Generate_error(
+                                    "in bitwise enum, enumerant is not a power of 2 or zero: "
+                                    + enumeration->json_name
+                                    + "."
+                                    + enumerant.json_name);
+                        }
+                        dump_callbacks_class << R"(if(bits & static_cast<Word>()"
+                                             << enumeration->cpp_name << "::" << enumerant.cpp_name
+                                             << R"())
+{
+    write_indent(indent_depth + 1);
+    ss << ")" << enumerant.json_name << (enumerant.parameters.empty() ? "" : ":")
+                                             << R"(\n";
+    bits &= ~static_cast<Word>()" << enumeration->cpp_name
+                                             << "::" << enumerant.cpp_name << R"();
+)";
+                        for(auto &parameter : enumerant.parameters)
+                        {
+                            parameter;
+#warning finish
+                        }
+                        dump_callbacks_class << R"(}
+)";
+                    }
+#warning finish
+                    break;
+                }
+                case Category::value_enum:
+#warning finish
+                    break;
+                case Category::id:
+                    dump_callbacks_class << R"(write_indent(indent_depth);
+ss << ")" << operand_kind.operand_kind->kind
+                                         << R"(: " << std::dec << operand << '\n';
+)";
+                    break;
+                case Category::literal:
+                {
+                    typedef ast::Operand_kinds::Operand_kind::Literal_kind Literal_kind;
+                    auto literal = util::get<Literal_kind>(operand_kind.value);
+                    dump_callbacks_class << R"(write_indent(indent_depth);
+ss << ")" << operand_kind.operand_kind->kind
+                                         << R"(: ";
+)";
+                    switch(literal)
+                    {
+                    case Literal_kind::literal_integer:
+                        dump_callbacks_class << R"(ss << "0x" << std::hex << operand << std::dec;
+ss << " u64=" << static_cast<std::uint64_t>(operand);
+ss << " s64=" << static_cast<std::int64_t>(operand);
+ss << " u32=" << static_cast<std::uint32_t>(operand);
+ss << " s32=" << static_cast<std::int32_t>(operand) << '\n';
+)";
+                        break;
+                    case Literal_kind::literal_string:
+                        dump_callbacks_class
+                            << R"(json::ast::String_value::write(ss, static_cast<std::string>(operand));
+ss << '\n';
+)";
+                        break;
+                    case Literal_kind::literal_context_dependent_number:
+                        dump_callbacks_class << R"(ss << "{";
+auto separator = "";
+static_assert(std::is_same<decltype(operand), const std::vector<Word> &>::value, "");
+for(auto word : operand)
+{
+    ss << separator;
+    separator = ", ";
+    ss << "0x" << std::hex << word;
+}
+ss << "}\n";
+)";
+                        break;
+                    case Literal_kind::literal_ext_inst_integer:
+                        dump_callbacks_class << R"(ss << std::dec << operand << '\n';
+)";
+                        break;
+                    case Literal_kind::literal_spec_constant_op_integer:
+                        dump_callbacks_class << R"(ss << get_enumerant_name(operand) << '\n';
+)";
+                        break;
+                    }
+                    break;
+                }
+                case Category::composite:
+                {
+#warning finish
+                    dump_callbacks_class << R"(write_indent(indent_depth);
+ss << ")" << operand_kind.operand_kind->kind
+                                         << R"(:\n";
+)";
+                    auto &composite =
+                        util::get<std::list<Composite_type_descriptor>::const_iterator>(
+                            operand_kind.value);
+                    for(auto &base : composite->bases)
+                    {
+                        auto base_operand_kind = state.get_operand_kind(base.json_type);
+                        dump_callbacks_class << base_operand_kind->cpp_dump_function_name
+                                             << "(operand." << base.cpp_name
+                                             << ", indent_depth + 1);\n";
+                    }
+                    break;
+                }
+                }
+                dump_callbacks_class << R"(@-}
+)";
+            }
+            for(auto &instruction : state.instruction_descriptor_list)
+            {
+                parser_callbacks_class << "virtual void " << instruction.cpp_parse_callback_name
+                                       << "(" << instruction.cpp_struct_name
+                                       << " instruction) = 0;\n";
+                dump_callbacks_class << "virtual void " << instruction.cpp_parse_callback_name
+                                     << "(" << instruction.cpp_struct_name
+                                     << " instruction) override\n{\n@+";
+#warning finish
+                dump_callbacks_class << "@-}\n";
+            }
+            dump_callbacks_class << R"(@-};
+)";
+            parser_callbacks_class << R"(@-};
+)";
+            parser_class << R"(@-};
 )";
         }
     };
@@ -1609,7 +1966,7 @@ private:
     };
     struct Operand_kind_descriptor
     {
-        std::string json_name;
+        const ast::Operand_kinds::Operand_kind *operand_kind;
         util::variant<util::monostate,
                       std::list<Enumeration_descriptor>::const_iterator,
                       std::list<Id_type_descriptor>::const_iterator,
@@ -1644,33 +2001,40 @@ private:
                     retval = iter->cpp_name;
                 }
             };
-            util::visit(Visitor{retval, json_name}, value);
+            util::visit(Visitor{retval, operand_kind->kind}, value);
             return retval;
         }
         std::string make_cpp_name_with_parameters() const
         {
             auto *iter = util::get_if<std::list<Enumeration_descriptor>::const_iterator>(&value);
             if(iter && !enum_parameters.empty())
-                return detail::name_from_words_initial_capital(json_name, "with parameters"_sv)
+                return detail::name_from_words_initial_capital(operand_kind->kind,
+                                                               "with parameters"_sv)
                     .to_string();
             return cpp_name;
         }
+        std::string make_cpp_dump_function_name() const
+        {
+            return detail::name_from_words_all_lowercase("dump_operand"_sv, cpp_name).to_string();
+        }
         std::string cpp_name;
         std::string cpp_name_with_parameters;
+        std::string cpp_dump_function_name;
         bool needs_integer_literal_size = false;
-        explicit Operand_kind_descriptor(std::string json_name)
-            : Operand_kind_descriptor(std::move(json_name), util::monostate{})
+        explicit Operand_kind_descriptor(const ast::Operand_kinds::Operand_kind *operand_kind)
+            : Operand_kind_descriptor(operand_kind, util::monostate{})
         {
         }
         template <typename T>
-        Operand_kind_descriptor(std::string json_name,
+        Operand_kind_descriptor(const ast::Operand_kinds::Operand_kind *operand_kind,
                                 T arg,
                                 std::list<Enum_parameter> enum_parameters = {})
-            : json_name(std::move(json_name)),
+            : operand_kind(operand_kind),
               value(std::move(arg)),
               enum_parameters(std::move(enum_parameters)),
               cpp_name(make_cpp_name()),
-              cpp_name_with_parameters(make_cpp_name_with_parameters())
+              cpp_name_with_parameters(make_cpp_name_with_parameters()),
+              cpp_dump_function_name(make_cpp_dump_function_name())
         {
         }
     };
@@ -1684,7 +2048,7 @@ private:
     std::list<Operand_kind_descriptor>::const_iterator add_operand_kind(
         Operand_kind_descriptor &&operand_kind_descriptor)
     {
-        auto name = operand_kind_descriptor.json_name;
+        auto name = operand_kind_descriptor.operand_kind->kind;
         auto iter =
             operand_kind_list.insert(operand_kind_list.end(), std::move(operand_kind_descriptor));
         if(!std::get<1>(operand_kind_map.emplace(name, iter)))
@@ -1782,22 +2146,22 @@ private:
                             enum_parameters.end(), enumerant_iter, parameter.kind, parameter.name));
                     }
                 }
-                add_operand_kind(Operand_kind_descriptor(operand_kind.kind,
+                add_operand_kind(Operand_kind_descriptor(&operand_kind,
                                                          enumerations_map.at(operand_kind.kind),
                                                          std::move(enum_parameters)));
                 continue;
             }
             case ast::Operand_kinds::Operand_kind::Category::id:
                 add_operand_kind(
-                    Operand_kind_descriptor(operand_kind.kind, get_id_type(operand_kind.kind)));
+                    Operand_kind_descriptor(&operand_kind, get_id_type(operand_kind.kind)));
                 continue;
             case ast::Operand_kinds::Operand_kind::Category::literal:
-                add_operand_kind(Operand_kind_descriptor(operand_kind.kind,
-                                                         get_literal_kind(operand_kind.kind)));
+                add_operand_kind(
+                    Operand_kind_descriptor(&operand_kind, get_literal_kind(operand_kind.kind)));
                 continue;
             case ast::Operand_kinds::Operand_kind::Category::composite:
-                add_operand_kind(Operand_kind_descriptor(operand_kind.kind,
-                                                         get_composite_type(operand_kind.kind)));
+                add_operand_kind(
+                    Operand_kind_descriptor(&operand_kind, get_composite_type(operand_kind.kind)));
                 continue;
             }
             assert(false);
@@ -1844,6 +2208,7 @@ private:
     struct Instruction_descriptor
     {
         std::string cpp_struct_name;
+        std::string cpp_parse_callback_name;
         std::list<Enumeration_descriptor>::const_iterator enumeration;
         std::list<Enumerant_descriptor>::const_iterator enumerant;
         const ast::Extension_instruction_set *extension_instruction_set;
@@ -1860,6 +2225,11 @@ private:
                     .to_string();
             return detail::name_from_words_initial_capital(json_name).to_string();
         }
+        static std::string make_cpp_parse_callback_name(util::string_view cpp_struct_name)
+        {
+            return detail::name_from_words_all_lowercase("handle_instruction"_sv, cpp_struct_name)
+                .to_string();
+        }
         explicit Instruction_descriptor(
             std::list<Enumeration_descriptor>::const_iterator enumeration,
             std::list<Enumerant_descriptor>::const_iterator enumerant,
@@ -1868,6 +2238,7 @@ private:
             std::list<Operand_descriptor> operands,
             const Instruction_properties_descriptor *properties_descriptor)
             : cpp_struct_name(make_cpp_struct_name(extension_instruction_set, json_name)),
+              cpp_parse_callback_name(make_cpp_parse_callback_name(cpp_struct_name)),
               enumeration(enumeration),
               enumerant(enumerant),
               extension_instruction_set(extension_instruction_set),
