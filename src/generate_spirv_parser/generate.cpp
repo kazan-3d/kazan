@@ -1397,7 +1397,7 @@ private:
         using detail::name_from_words_all_lowercase;
         return name_from_words_all_lowercase("revision"_sv, v.import_name).to_string();
     }
-    const Enumerant_descriptor &get_capability(const std::string &capability)
+    const Enumerant_descriptor &get_capability(const std::string &capability) const
     {
         auto &enumerant_map = capability_enumeration.value()->json_name_to_enumerant_map;
         auto iter = enumerant_map.find(capability);
@@ -1405,7 +1405,7 @@ private:
             throw Generate_error("unknown capability: " + capability);
         return *std::get<1>(*iter);
     }
-    const Enumerant_descriptor &get_extension(const std::string &extension)
+    const Enumerant_descriptor &get_extension(const std::string &extension) const
     {
         auto &enumerant_map = extension_enumeration.value()->json_name_to_enumerant_map;
         auto iter = enumerant_map.find(extension);
@@ -1413,7 +1413,8 @@ private:
             throw Generate_error("unknown extension: " + extension);
         return *std::get<1>(*iter);
     }
-    std::list<Enumeration_descriptor>::const_iterator get_enumeration(const std::string &json_name)
+    std::list<Enumeration_descriptor>::const_iterator get_enumeration(
+        const std::string &json_name) const
     {
         auto iter = enumerations_map.find(json_name);
         if(iter == enumerations_map.end())
@@ -1502,7 +1503,7 @@ private:
             add_id_type_descriptor(Id_type_descriptor(operand_kind.kind));
         }
     }
-    std::list<Id_type_descriptor>::const_iterator get_id_type(const std::string &json_name)
+    std::list<Id_type_descriptor>::const_iterator get_id_type(const std::string &json_name) const
     {
         auto iter = id_type_map.find(json_name);
         if(iter == id_type_map.end())
@@ -1569,7 +1570,7 @@ private:
         }
     }
     std::list<Composite_type_descriptor>::const_iterator get_composite_type(
-        const std::string &json_name)
+        const std::string &json_name) const
     {
         auto iter = composite_type_map.find(json_name);
         if(iter == composite_type_map.end())
@@ -1691,7 +1692,7 @@ private:
         return iter;
     }
     std::list<Operand_kind_descriptor>::const_iterator get_operand_kind(
-        const std::string &json_name)
+        const std::string &json_name) const
     {
         auto iter = operand_kind_map.find(json_name);
         if(iter == operand_kind_map.end())
@@ -1957,6 +1958,31 @@ private:
                 + get_instruction_name_for_diagnostics(extension_instruction_set, json_name));
         return std::get<1>(*iter2);
     }
+    std::string generate_guessed_instruction_properties_descriptor_string(
+        const ast::Extension_instruction_set *extension_instruction_set,
+        const ast::Instructions::Instruction &instruction) const
+    {
+        std::string retval;
+        retval += "{\""_sv;
+        if(extension_instruction_set)
+            retval += extension_instruction_set->import_name;
+        retval += "\"_sv, \"";
+        retval += instruction.opname;
+        retval += "\"_sv, {"_sv;
+        auto separator = ""_sv;
+        for(auto &operand : instruction.operands.operands)
+        {
+            retval += separator;
+            separator = ", "_sv;
+            retval += '{';
+            auto operand_kind = get_operand_kind(operand.kind);
+            if(operand_kind->needs_integer_literal_size)
+                retval += "Integer_literal_size::always_32bits"_sv;
+            retval += '}';
+        }
+        retval += "}},";
+        return retval;
+    }
     void fill_instruction_descriptors(
         const ast::Extension_instruction_set *extension_instruction_set,
         const ast::Instructions &instructions)
@@ -2024,7 +2050,9 @@ private:
                             "instruction has no Instruction_properties_descriptor: "
                             + get_instruction_name_for_diagnostics(extension_instruction_set,
                                                                    instruction.opname)
-                            + "\nNeeded because operand needs IntegerLiteral size");
+                            + "\nNeeded because operand needs IntegerLiteral size\n"
+                            "instruction properties descriptor guess:\n"
+                            + generate_guessed_instruction_properties_descriptor_string(extension_instruction_set, instruction));
                     throw Generate_error(
                         "instruction operand properties has no Integer_literal_size: "
                         + get_instruction_name_for_diagnostics(extension_instruction_set,

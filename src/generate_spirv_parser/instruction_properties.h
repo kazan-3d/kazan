@@ -55,7 +55,7 @@ struct Instruction_properties_descriptor
     };
     struct Operand_descriptors
     {
-        static constexpr std::size_t allocated_size = 7; // increase if we run out of room
+        static constexpr std::size_t allocated_size = 10; // increase if we run out of room
     private:
         std::size_t used_size;
         Operand_descriptor operands[allocated_size];
