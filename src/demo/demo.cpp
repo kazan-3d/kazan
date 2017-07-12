@@ -206,19 +206,23 @@ int test_main(int argc, char **argv)
     if(file)
     {
         dump_words(*file);
-        spirv::Parse_dump semantics(std::cout);
-        auto parse_error = spirv::Parser<>::parse(file->data(), file->size(), semantics);
-        if(parse_error)
+        spirv::Dump_callbacks callbacks;
+        try
         {
-            std::cerr << std::hex << std::uppercase;
-            std::cerr << "error: ";
-            if(parse_error->instruction_word_index != 0)
-                std::cerr << "in instruction starting at 0x" << parse_error->instruction_word_index
-                          << ": ";
-            std::cerr << "at 0x" << parse_error->word_index << ": " << parse_error->message
-                      << std::endl;
+            spirv::Parser::parse(callbacks, file->data(), file->size());
+        }
+        catch(spirv::Parser_error &e)
+        {
+            std::cout << callbacks.ss.str() << std::endl;
+            std::cerr << "error: " << e.what();
             return 1;
         }
+        std::cout << callbacks.ss.str() << std::endl;
+    }
+    else
+    {
+        std::cerr << "error: can't load file" << std::endl;
+        return 1;
     }
     return 0;
 }

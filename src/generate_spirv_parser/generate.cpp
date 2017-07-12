@@ -1215,7 +1215,7 @@ constexpr util::Enum_set<)" << state.extension_enumeration.value()->cpp_name
                                  &Parser_h::dump_callbacks_class);
             register_output_part(Output_part::parser_class, &Parser_h::parser_class);
         }
-        void write_instruction_operand(State &state, Operand_descriptor &operand)
+        void write_instruction_operand_dump_code(State &state, Operand_descriptor &operand)
         {
             typedef Operand_descriptor::Quantifier Quantifier;
             auto operand_kind = state.get_operand_kind(operand.json_kind);
@@ -1224,7 +1224,6 @@ constexpr util::Enum_set<)" << state.extension_enumeration.value()->cpp_name
             case Quantifier::none:
                 dump_callbacks_class << operand_kind->cpp_dump_function_name << "(instruction."
                                      << operand.cpp_name << ", indent_depth + 1);\n";
-#warning finish
                 break;
             case Quantifier::optional:
                 dump_callbacks_class << "if(instruction." << operand.cpp_name << R"()
@@ -1232,7 +1231,6 @@ constexpr util::Enum_set<)" << state.extension_enumeration.value()->cpp_name
                                      << "(*instruction." << operand.cpp_name
                                      << R"(, indent_depth + 1);
 )";
-#warning finish
                 break;
             case Quantifier::variable:
                 dump_callbacks_class << "for(auto &operand : instruction." << operand.cpp_name
@@ -1240,7 +1238,6 @@ constexpr util::Enum_set<)" << state.extension_enumeration.value()->cpp_name
     )" << operand_kind->cpp_dump_function_name
                                      << R"((operand, indent_depth + 1);
 )";
-#warning finish
                 break;
             }
         }
@@ -1256,7 +1253,7 @@ constexpr util::Enum_set<)" << state.extension_enumeration.value()->cpp_name
             write_system_include("cassert"_sv);
             write_system_include("type_traits"_sv);
 #warning finish
-            include_guard_start << R"(#error generator not finished being implemented
+            include_guard_start << R"(#warning generator not finished being implemented
 
 )";
             parse_error_class << R"a(struct Parser_error : public std::runtime_error
@@ -1317,41 +1314,8 @@ struct Dump_callbacks final : public Parser_callbacks
         ss << "Instruction Schema (reserved): " << std::dec << instruction_schema << '\n';
     }
 @+)";
-            parser_class << R"(
-class Parser final
-{
-    Parser(const Parser &) = delete;
-    Parser &operator =(const Parser &) = delete;
-
-private:
-    struct Id_state
-    {
-        util::optional<Extension_instruction_set> instruction_set;
-        util::optional<std::size_t> type_word_count;
-    };
-
-private:
-    Parser_callbacks &parser_callbacks;
-    std::vector<Id_state> id_states;
-    const Word *shader_words;
-    std::size_t shader_size;
-
-private:
-    Parser(Parser_callbacks &parser_callbacks,
-    ```````const Word *shader_words,
-    ```````std::size_t shader_size) noexcept
-        : parser_callbacks(parser_callbacks),
-        ``id_states(),
-        ``shader_words(shader_words),
-        ``shader_size(shader_size)
-    {
-    }
-    Id_state &get_id_state(Id id) noexcept
-    {
-        assert(id > 0 && id <= id_states.size());
-        return id_states[id - 1];
-    }
-@+)";
+            typedef ast::Operand_kinds::Operand_kind::Category Category;
+            typedef ast::Operand_kinds::Operand_kind::Literal_kind Literal_kind;
             for(auto &operand_kind : state.operand_kind_list)
             {
                 dump_callbacks_class << "void " << operand_kind.cpp_dump_function_name << "(const "
@@ -1359,7 +1323,6 @@ private:
                                      << R"( &operand, std::size_t indent_depth)
 {
 @+)";
-                typedef ast::Operand_kinds::Operand_kind::Category Category;
                 switch(operand_kind.operand_kind->category)
                 {
                 case Category::bit_enum:
@@ -1500,7 +1463,6 @@ ss << ")" << operand_kind.operand_kind->kind
                     break;
                 case Category::literal:
                 {
-                    typedef ast::Operand_kinds::Operand_kind::Literal_kind Literal_kind;
                     auto literal = util::get<Literal_kind>(operand_kind.value);
                     dump_callbacks_class << R"(write_indent(indent_depth);
 ss << ")" << operand_kind.operand_kind->kind
@@ -1590,7 +1552,7 @@ ss << ")" << operand_kind.operand_kind->kind
                 else
                     dump_callbacks_class << "static_cast<void>(instruction);\n";
                 for(auto &operand : instruction.implied_operands)
-                    write_instruction_operand(state, operand);
+                    write_instruction_operand_dump_code(state, operand);
                 if(instruction.extension_instruction_set)
                 {
                     dump_callbacks_class << R"(write_indent(indent_depth + 1);
@@ -1598,15 +1560,472 @@ ss << ")" << instruction.json_name << R"(\n";
 )";
                 }
                 for(auto &operand : instruction.explicit_operands)
-                    write_instruction_operand(state, operand);
-#warning finish
+                    write_instruction_operand_dump_code(state, operand);
                 dump_callbacks_class << "@-}\n";
             }
             dump_callbacks_class << R"(@-};
 )";
             parser_callbacks_class << R"(@-};
 )";
-            parser_class << R"(@-};
+            parser_class << R"(
+class Parser final
+{
+    Parser(const Parser &) = delete;
+    Parser &operator =(const Parser &) = delete;
+
+private:
+    struct Id_state
+    {
+        util::optional<Extension_instruction_set> instruction_set;
+        util::optional<std::size_t> type_word_count;
+        util::optional<std::size_t> value_word_count;
+    };
+
+private:
+    Parser_callbacks &parser_callbacks;
+    std::vector<Id_state> id_states;
+    const Word *shader_words;
+    std::size_t shader_size;
+
+private:
+    Parser(Parser_callbacks &parser_callbacks,
+    ```````const Word *shader_words,
+    ```````std::size_t shader_size) noexcept
+        : parser_callbacks(parser_callbacks),
+        ``id_states(),
+        ``shader_words(shader_words),
+        ``shader_size(shader_size)
+    {
+    }
+    Id_state &get_id_state(Id id) noexcept
+    {
+        // id_states[0] is for id #1
+        assert(id > 0 && id <= id_states.size());
+        return id_states[id - 1];
+    }
+    const Word &read_word(std::size_t word_index, std::size_t instruction_start_index, std::size_t instruction_end_index) const
+    {
+        if(word_index >= instruction_end_index)
+            throw Parser_error(word_index,
+            ```````````````````instruction_start_index,
+            ```````````````````instruction_start_index == 0 ? "premature end of shader" : "premature end of instruction");
+        return shader_words[word_index];
+    }
+    Id read_id(std::size_t word_index, std::size_t instruction_start_index, std::size_t instruction_end_index) const
+    {
+        Id retval = read_word(word_index, instruction_start_index, instruction_end_index);
+        if(retval == 0 || retval > id_states.size())
+            throw Parser_error(word_index, instruction_start_index, "id number out of range");
+        return retval;
+    }
+@+)";
+            for(auto &operand_kind : state.operand_kind_list)
+            {
+                parser_class
+                    << operand_kind.cpp_name_with_parameters << " "
+                    << operand_kind.cpp_parse_function_name
+                    << R"((std::size_t &word_index, std::size_t instruction_start_index, std::size_t instruction_end_index)";
+                if(operand_kind.needs_integer_literal_size)
+                    parser_class << ", std::size_t literal_integer_size";
+                parser_class << R"() const
+{
+@+)";
+                switch(operand_kind.operand_kind->category)
+                {
+                case Category::bit_enum:
+                {
+                    parser_class << operand_kind.cpp_name_with_parameters << " retval{};\n";
+                    bool zero_is_valid = false;
+                    std::uint32_t allowed_bits = 0;
+                    auto enumeration = util::get<std::list<Enumeration_descriptor>::const_iterator>(
+                        operand_kind.value);
+                    for(auto &enumerant : enumeration->enumerants)
+                    {
+                        if(enumerant.value == 0)
+                            zero_is_valid = true;
+                        allowed_bits |= enumerant.value;
+                    }
+                    parser_class
+                        << R"(Word bits = read_word(word_index, instruction_start_index, instruction_end_index);
+retval)";
+                    if(!operand_kind.enum_parameters.empty())
+                        parser_class << ".value";
+                    parser_class << " = static_cast<" << enumeration->cpp_name << R"(>(bits);
+if((bits & 0x)" << detail::unsigned_integer(static_cast<std::uint32_t>(~allowed_bits), 0x10)
+                                 << "UL) != 0";
+                    if(!zero_is_valid)
+                        parser_class << " || bits == 0";
+                    parser_class << R"()
+    throw Parser_error(word_index, instruction_start_index, "invalid enum value");
+else
+    word_index++;
+)";
+                    for(auto &enumerant : enumeration->enumerants)
+                    {
+                        if(enumerant.parameters.empty())
+                            continue;
+                        if(enumerant.value == 0)
+                            throw Generate_error(
+                                "in bitwise enum, zero enumerant can't have parameters: "
+                                + enumeration->json_name
+                                + "."
+                                + enumerant.json_name);
+                        parser_class << R"(if(bits & 0x)"
+                                     << detail::unsigned_integer(enumerant.value, 0x10) << R"(UL)
+{
+    bits &= ~0x)" << detail::unsigned_integer(enumerant.value, 0x10)
+                                     << R"(UL;
+    retval.)" << enumerant.parameters_variable_cpp_name
+                                     << R"(.emplace();
+    auto &parameters = *retval.)" << enumerant.parameters_variable_cpp_name
+                                     << R"(;
+@+)";
+                        for(auto *parameter : enumerant.parameters)
+                        {
+                            auto parameter_operand_kind =
+                                state.get_operand_kind(parameter->json_kind);
+                            parser_class
+                                << R"(parameters.)" << parameter->cpp_name << R"( = )"
+                                << parameter_operand_kind->cpp_parse_function_name
+                                << R"((word_index, instruction_start_index, instruction_end_index)";
+                            if(parameter_operand_kind->needs_integer_literal_size)
+                            {
+                                /* FIXME: verify that all LiteralIntegers in enum parameters are
+                                 * 32-bits */
+                                parser_class << ", 1";
+                            }
+                            parser_class << R"();
+)";
+                        }
+                        parser_class << R"(@-}
+)";
+                    }
+                    parser_class << R"(return retval;
+)";
+                    break;
+                }
+                case Category::value_enum:
+                {
+                    auto enumeration = util::get<std::list<Enumeration_descriptor>::const_iterator>(
+                        operand_kind.value);
+                    if(operand_kind.enum_parameters.empty())
+                    {
+                        parser_class
+                            << "auto retval = static_cast<" << enumeration->cpp_name
+                            << R"(>(read_word(word_index++, instruction_start_index, instruction_end_index));
+switch(retval)";
+                    }
+                    else
+                    {
+                        parser_class
+                            << operand_kind.cpp_name_with_parameters << R"( retval{};
+retval.value = static_cast<)"
+                            << enumeration->cpp_name
+                            << R"(>(read_word(word_index++, instruction_start_index, instruction_end_index));
+switch(retval.value)";
+                    }
+                    parser_class << R"()
+{
+)";
+                    std::unordered_map<std::uint32_t, const Enumerant_descriptor *> values;
+                    for(auto &enumerant : enumeration->enumerants)
+                    {
+                        auto &values_entry = values[enumerant.value];
+                        if(values_entry)
+                        {
+                            if(!enumerant.parameters.empty())
+                                throw Generate_error("duplicate enumerants can't have parameters: "
+                                                     + enumeration->json_name
+                                                     + "."
+                                                     + enumerant.json_name);
+                            if(!values_entry->parameters.empty())
+                                throw Generate_error("duplicate enumerants can't have parameters: "
+                                                     + enumeration->json_name
+                                                     + "."
+                                                     + values_entry->json_name);
+                            continue;
+                        }
+                        values_entry = &enumerant;
+                        parser_class << "case " << enumeration->cpp_name
+                                     << "::" << enumerant.cpp_name << ":\n";
+                        if(enumerant.parameters.empty())
+                        {
+                            parser_class << "    break;\n";
+                            continue;
+                        }
+                        parser_class << R"({
+    retval.parameters.emplace<)" << enumerant.parameters_struct_cpp_name
+                                     << R"(>();
+    auto &parameters = util::get<)" << enumerant.parameters_struct_cpp_name
+                                     << R"(>(retval.parameters);
+@+)";
+                        for(auto *parameter : enumerant.parameters)
+                        {
+                            auto parameter_operand_kind =
+                                state.get_operand_kind(parameter->json_kind);
+                            parser_class
+                                << R"(parameters.)" << parameter->cpp_name << R"( = )"
+                                << parameter_operand_kind->cpp_parse_function_name
+                                << R"((word_index, instruction_start_index, instruction_end_index)";
+                            if(parameter_operand_kind->needs_integer_literal_size)
+                            {
+                                /* FIXME: verify that all LiteralIntegers in enum parameters are
+                                 * 32-bits */
+                                parser_class << ", 1";
+                            }
+                            parser_class << R"();
+)";
+                        }
+                        parser_class << R"(@_break;
+}
+)";
+                    }
+                    parser_class << R"(default:
+    word_index--;
+    throw Parser_error(word_index, instruction_start_index, "invalid enum value");
+}
+return retval;
+)";
+                    break;
+                }
+                case Category::id:
+                    parser_class
+                        << R"(return read_id(word_index++, instruction_start_index, instruction_end_index);
+)";
+                    break;
+                case Category::literal:
+                {
+                    auto literal = util::get<Literal_kind>(operand_kind.value);
+                    switch(literal)
+                    {
+                    case Literal_kind::literal_integer:
+                        parser_class << R"(if(literal_integer_size == 0 || literal_integer_size > 2)
+    throw Parser_error(word_index, instruction_start_index, "LiteralInteger word count is out of range");
+Literal_integer retval = read_word(word_index++, instruction_start_index, instruction_end_index);
+if(literal_integer_size == 2)
+    retval |= static_cast<std::uint64_t>(read_word(word_index++, instruction_start_index, instruction_end_index)) << 32;
+return retval;
+)";
+                        break;
+                    case Literal_kind::literal_string:
+                        parser_class
+                            << R"(const Word *word_array = &read_word(word_index, instruction_start_index, instruction_end_index);
+std::size_t byte_count = 0;
+Word word = *word_array;
+Word word_padding_mask = 0;
+while(true)
+{
+    if((word & 0xFFU) == 0)
+    {
+        word_padding_mask = 0xFFFF'FF00UL;
+        break;
+    }
+    byte_count++;
+    if((word & 0xFF00U) == 0)
+    {
+        word_padding_mask = 0xFFFF'0000UL;
+        break;
+    }
+    byte_count++;
+    if((word & 0xFF'0000UL) == 0)
+    {
+        word_padding_mask = 0xFF00'0000UL;
+        break;
+    }
+    byte_count++;
+    if((word & 0xFF00'0000UL) == 0)
+    {
+        word_padding_mask = 0;
+        break;
+    }
+    byte_count++;
+    word = read_word(++word_index, instruction_start_index, instruction_end_index);
+}
+if(word & word_padding_mask)
+    throw Parser_error(word_index, instruction_start_index, "string has non-zero padding");
+word_index++;
+return Literal_string(word_array, byte_count);
+)";
+                        break;
+                    case Literal_kind::literal_context_dependent_number:
+                        parser_class
+                            << R"(static_assert(std::is_same<Literal_context_dependent_number, std::vector<Word>>::value, "");
+const Word *words = &read_word(word_index, instruction_start_index, instruction_end_index);
+// LiteralContextDependentNumber is always the last operand, so just read the rest of the words
+std::size_t word_count = instruction_end_index - word_index;
+word_index = instruction_end_index;
+return std::vector<Word>(words, words + word_count);
+)";
+                        break;
+                    case Literal_kind::literal_ext_inst_integer:
+                        parser_class
+                            << R"(static_assert(std::is_same<Literal_ext_inst_integer, Word>::value, "");
+return read_word(word_index++, instruction_start_index, instruction_end_index);
+)";
+                        break;
+                    case Literal_kind::literal_spec_constant_op_integer:
+                        parser_class
+                            << R"(static_assert(std::is_same<Literal_spec_constant_op_integer, Op>::value, "");
+// value is checked by caller, just cast and return
+return static_cast<Literal_spec_constant_op_integer>(read_word(word_index++, instruction_start_index, instruction_end_index));
+)";
+                        break;
+                    }
+                    break;
+                }
+                case Category::composite:
+                {
+                    auto &composite =
+                        util::get<std::list<Composite_type_descriptor>::const_iterator>(
+                            operand_kind.value);
+                    parser_class << operand_kind.cpp_name_with_parameters << " retval{};\n";
+                    for(auto &base : composite->bases)
+                    {
+                        auto base_operand_kind = state.get_operand_kind(base.json_type);
+                        parser_class
+                            << "retval." << base.cpp_name << " = "
+                            << base_operand_kind->cpp_parse_function_name
+                            << "(word_index, instruction_start_index, instruction_end_index";
+                        if(base_operand_kind->needs_integer_literal_size)
+                            parser_class << ", literal_integer_size";
+                        parser_class << ");\n";
+                    }
+                    parser_class << "return retval;\n";
+                    break;
+                }
+                }
+                parser_class << R"(@-}
+)";
+            }
+            parser_class
+                << R"(@_static Extension_instruction_set parse_extension_instruction_set_name(Literal_string name) noexcept
+    {
+@+@+)";
+            for(auto &extension_instruction_set : state.top_level.extension_instruction_sets)
+            {
+                auto enumeration = state.extension_instruction_set_enumeration.value();
+                auto &enumerant_map = enumeration->json_name_to_enumerant_map;
+                auto iter = enumerant_map.find(extension_instruction_set.import_name);
+                if(iter == enumerant_map.end())
+                    throw Generate_error("unknown extension instruction set: "
+                                         + extension_instruction_set.import_name);
+                auto enumerant = std::get<1>(*iter);
+                parser_class << R"(if(name == ")" << extension_instruction_set.import_name << R"(")
+    return )" << enumeration->cpp_name
+                             << "::" << enumerant->cpp_name << R"(;
+)";
+            }
+            parser_class << R"(@_@_return Extension_instruction_set::unknown;
+    }
+    void parse()
+    {
+        std::size_t word_index = 0;
+        if(read_word(word_index, 0, shader_size) != magic_number)
+            throw Parser_error(word_index, 0, "invalid magic number");
+        else
+            word_index++;
+        Word spirv_version_word = read_word(word_index, 0, shader_size);
+        if(spirv_version_word & ~0xFFFF00UL)
+            throw Parser_error(word_index, 0, "invalid SPIR-V version word");
+        unsigned version_number_major = (spirv_version_word >> 16) & 0xFFU;
+        unsigned version_number_minor = (spirv_version_word >> 8) & 0xFFU;
+        if(version_number_major != major_version || version_number_minor > minor_version)
+            throw Parser_error(word_index, 0, "unsupported SPIR-V version");
+        else
+            word_index++;
+        Word generator_magic_number = read_word(word_index++, 0, shader_size);
+        Word id_bound = read_word(word_index, 0, shader_size);
+        if(id_bound == 0 || id_bound > max_id_bound())
+            throw Parser_error(word_index, 0, "invalid id bound");
+        else
+            word_index++;
+        Word instruction_schema = read_word(word_index, 0, shader_size);
+        if(instruction_schema != 0)
+            throw Parser_error(word_index, 0, "invalid instruction schema");
+        else
+            word_index++;
+        parser_callbacks.handle_header(version_number_major,
+        ```````````````````````````````version_number_minor,
+        ```````````````````````````````generator_magic_number,
+        ```````````````````````````````id_bound,
+        ```````````````````````````````instruction_schema);
+        id_states.clear();
+        id_states.resize(id_bound - 1); // id_states[0] is for id #1
+        auto instructions_start_index = word_index;
+        while(word_index < shader_size)
+        {
+            auto instruction_start_index = word_index;
+            Word instruction_word = read_word(word_index, instruction_start_index, shader_size);
+            Word instruction_length = instruction_word >> 16;
+            if(instruction_length == 0)
+                throw Parser_error(word_index, instruction_start_index, "invalid zero-length instruction");
+            std::size_t instruction_end_index = instruction_start_index + instruction_length;
+            if(instruction_end_index > shader_size)
+                throw Parser_error(word_index, instruction_start_index, "instruction extends past end of shader");
+            Word opcode = instruction_word & 0xFFFFU;
+            word_index++;
+            switch(static_cast<Op>(opcode))
+            {
+            case Op::op_ext_inst_import:
+            {
+                Id_result result = read_id(word_index++, instruction_start_index, instruction_end_index);
+                Literal_string import_name = parse_literal_string(word_index, instruction_start_index, instruction_end_index);
+                get_id_state(result).instruction_set = parse_extension_instruction_set_name(import_name);
+                break;
+            }
+            case Op::op_type_int:
+            case Op::op_type_float:
+            {
+                Id_result result = read_id(word_index++, instruction_start_index, instruction_end_index);
+                Word bit_width = read_word(word_index++, instruction_start_index, instruction_end_index);
+                constexpr std::size_t word_bit_width = 32;
+                get_id_state(result).type_word_count = static_cast<std::size_t>((bit_width + word_bit_width - 1) / word_bit_width);
+                break;
+            }
+@+@+@+)";
+#warning finish
+            parser_class << R"(@_@_@_default:
+                break;
+            }
+            word_index = instruction_end_index;
+        }
+        word_index = instructions_start_index;
+        while(word_index < shader_size)
+        {
+            auto instruction_start_index = word_index;
+            Word instruction_word = read_word(word_index, instruction_start_index, shader_size);
+            Word instruction_length = instruction_word >> 16;
+            if(instruction_length == 0)
+                throw Parser_error(word_index, instruction_start_index, "invalid zero-length instruction");
+            std::size_t instruction_end_index = instruction_start_index + instruction_length;
+            if(instruction_end_index > shader_size)
+                throw Parser_error(word_index, instruction_start_index, "instruction extends past end of shader");
+            Word opcode = instruction_word & 0xFFFFU;
+            word_index++;
+            switch(static_cast<Op>(opcode))
+            {
+@+@+@+)";
+#warning finish
+            parser_class << R"(@_@_@_default:
+                throw Parser_error(word_index, instruction_start_index, "unknown instruction");
+            }
+            if(word_index != instruction_end_index)
+                throw Parser_error(word_index, instruction_start_index, "instruction has extra words after end");
+        }
+    }
+
+public:
+    static constexpr Word max_id_bound() noexcept
+    {
+        return 0x1000'0000UL;
+    }
+    static void parse(Parser_callbacks &parser_callbacks,
+    ``````````````````const Word *shader_words,
+    ``````````````````std::size_t shader_size)
+    {
+        Parser(parser_callbacks, shader_words, shader_size).parse();
+    }
+};
 )";
         }
     };
@@ -2138,9 +2557,14 @@ private:
         {
             return detail::name_from_words_all_lowercase("dump_operand"_sv, cpp_name).to_string();
         }
+        std::string make_cpp_parse_function_name() const
+        {
+            return detail::name_from_words_all_lowercase("parse"_sv, cpp_name).to_string();
+        }
         std::string cpp_name;
         std::string cpp_name_with_parameters;
         std::string cpp_dump_function_name;
+        std::string cpp_parse_function_name;
         bool needs_integer_literal_size = false;
         explicit Operand_kind_descriptor(const ast::Operand_kinds::Operand_kind *operand_kind)
             : Operand_kind_descriptor(operand_kind, util::monostate{})
@@ -2155,7 +2579,8 @@ private:
               enum_parameters(std::move(enum_parameters)),
               cpp_name(make_cpp_name()),
               cpp_name_with_parameters(make_cpp_name_with_parameters()),
-              cpp_dump_function_name(make_cpp_dump_function_name())
+              cpp_dump_function_name(make_cpp_dump_function_name()),
+              cpp_parse_function_name(make_cpp_parse_function_name())
         {
         }
     };
