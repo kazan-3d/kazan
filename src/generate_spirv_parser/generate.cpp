@@ -1600,10 +1600,10 @@ ss << ")" << operand_kind.operand_kind->kind
             {
                 parser_callbacks_class << "virtual void " << instruction.cpp_parse_callback_name
                                        << "(" << instruction.cpp_struct_name
-                                       << " instruction) = 0;\n";
+                                       << " instruction, std::size_t instruction_start_index) = 0;\n";
                 dump_callbacks_class << "virtual void " << instruction.cpp_parse_callback_name
                                      << "(" << instruction.cpp_struct_name
-                                     << R"( instruction) override
+                                     << R"( instruction, std::size_t instruction_start_index) override
 {
     ss << ")";
                 if(instruction.extension_instruction_set)
@@ -2141,7 +2141,7 @@ return static_cast<Literal_spec_constant_op_integer>(read_word(word_index++, ins
                 {
                     std::vector<Id_ref> args(shader_words + word_index, shader_words + instruction_end_index);
                     word_index = instruction_end_index;
-                    parser_callbacks.handle_instruction_op_ext_inst(Op_ext_inst(result_type, result, instruction_set_id, instruction_integer, std::move(args)));
+                    parser_callbacks.handle_instruction_op_ext_inst(Op_ext_inst(result_type, result, instruction_set_id, instruction_integer, std::move(args)), instruction_start_index);
                     break;
                 }
 @+@+@+@+)";
@@ -2218,7 +2218,7 @@ return static_cast<Literal_spec_constant_op_integer>(read_word(word_index++, ins
                             + get_instruction_name_for_diagnostics(&extension_instruction_set,
                                                                    instruction.json_name));
                     parser_class << "@_parser_callbacks." << instruction.cpp_parse_callback_name
-                                 << R"((std::move(instruction));
+                                 << R"((std::move(instruction), instruction_start_index);
     break;
 }
 )";
@@ -2275,7 +2275,7 @@ return static_cast<Literal_spec_constant_op_integer>(read_word(word_index++, ins
                         "instruction properties operand count mismatch: "
                         + get_instruction_name_for_diagnostics(nullptr, instruction.json_name));
                 parser_class << "@_parser_callbacks." << instruction.cpp_parse_callback_name
-                             << R"((std::move(instruction));
+                             << R"((std::move(instruction), instruction_start_index);
     break;
 }
 )";
