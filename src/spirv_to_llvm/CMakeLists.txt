@@ -19,6 +19,7 @@
 # SOFTWARE.
 #
 cmake_minimum_required(VERSION 3.1 FATAL_ERROR)
-set(sources demo.cpp) 
-add_executable(demo ${sources})
-target_link_libraries(demo spirv util spirv_to_llvm)
+
+set(sources spirv_to_llvm.cpp)
+add_library(spirv_to_llvm STATIC ${sources})
+target_link_libraries(spirv_to_llvm util spirv llvm_wrapper)

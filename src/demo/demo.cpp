@@ -31,6 +31,8 @@
 #include "spirv/parser.h"
 #include "util/optional.h"
 #include "util/string_view.h"
+#include "spirv_to_llvm/spirv_to_llvm.h"
+#include "llvm_wrapper/llvm_wrapper.h"
 
 namespace vulkan_cpu
 {
@@ -217,19 +219,36 @@ int test_main(int argc, char **argv)
     auto file = load_file(filename);
     if(file)
     {
-        dump_words(*file);
-        spirv::Dump_callbacks callbacks;
-        try
         {
-            spirv::Parser::parse(callbacks, file->data(), file->size());
+            dump_words(*file);
+            spirv::Dump_callbacks dump_callbacks;
+            try
+            {
+                spirv::Parser::parse(dump_callbacks, file->data(), file->size());
+            }
+            catch(spirv::Parser_error &e)
+            {
+                std::cout << dump_callbacks.ss.str() << std::endl;
+                std::cerr << "error: " << e.what();
+                return 1;
+            }
+            std::cout << dump_callbacks.ss.str() << std::endl;
         }
-        catch(spirv::Parser_error &e)
+        auto llvm_context = llvm_wrapper::Context::create();
+        llvm_wrapper::Module module;
         {
-            std::cout << callbacks.ss.str() << std::endl;
-            std::cerr << "error: " << e.what();
-            return 1;
+            spirv_to_llvm::Spirv_to_llvm callbacks(llvm_context);
+            try
+            {
+                spirv::Parser::parse(callbacks, file->data(), file->size());
+                module = callbacks.finish();
+            }
+            catch(spirv::Parser_error &e)
+            {
+                std::cerr << "error: " << e.what();
+                return 1;
+            }
         }
-        std::cout << callbacks.ss.str() << std::endl;
     }
     else
     {
@@ -244,5 +263,4 @@ int test_main(int argc, char **argv)
 int main(int argc, char **argv)
 {
     return vulkan_cpu::test::test_main(argc, argv);
-    using namespace vulkan_cpu;
 }
