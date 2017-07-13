@@ -30,17 +30,18 @@
 #include "spirv/spirv.h"
 #include "spirv/parser.h"
 #include "util/optional.h"
+#include "util/string_view.h"
 
 namespace vulkan_cpu
 {
 namespace test
 {
-util::optional<std::vector<spirv::Word>> load_file(const char *fileName)
+util::optional<std::vector<spirv::Word>> load_file(const char *filename)
 {
     using spirv::Word;
     constexpr int eof = std::char_traits<char>::eof();
     std::ifstream is;
-    is.open(fileName, std::ios::in | std::ios::binary);
+    is.open(filename, std::ios::in | std::ios::binary);
     if(!is)
         return {};
     constexpr std::size_t block_size = 0x1000;
@@ -202,7 +203,18 @@ void dump_words(const std::vector<spirv::Word> &words)
 
 int test_main(int argc, char **argv)
 {
-    auto file = load_file("test-files/test.spv");
+    const char *filename = "test-files/test.spv";
+    if(argc > 1)
+    {
+        if(argv[1][0] == '-')
+        {
+            std::cerr << "usage: demo [<file.spv>]\n";
+            return 1;
+        }
+        filename = argv[1];
+    }
+    std::cout << "loading " << filename << std::endl;
+    auto file = load_file(filename);
     if(file)
     {
         dump_words(*file);

@@ -421,6 +421,7 @@ struct Spirv_and_parser_generator::State
 {
 private:
     struct Operand_descriptor;
+    struct Instruction_descriptor;
     struct Output_base
     {
         Output_base(const Output_base &) = delete;
@@ -1241,6 +1242,75 @@ constexpr util::Enum_set<)" << state.extension_enumeration.value()->cpp_name
                 break;
             }
         }
+        void write_instruction_operand_parse_code(
+            State &state,
+            Operand_descriptor &operand,
+            util::optional<Instruction_properties_descriptor::Operand_descriptors::const_iterator>
+                operand_descriptor_iter,
+            const Instruction_descriptor &instruction)
+        {
+            typedef Operand_descriptor::Quantifier Quantifier;
+            auto operand_kind = state.get_operand_kind(operand.json_kind);
+            auto write_parse_fn = [&]()
+            {
+                parser_class << operand_kind->cpp_parse_function_name
+                             << "(word_index, instruction_start_index, instruction_end_index";
+                if(operand_kind->needs_integer_literal_size)
+                {
+                    if(!operand_descriptor_iter)
+                        throw Generate_error(
+                            "instruction has no Instruction_properties_descriptor: "
+                            + get_instruction_name_for_diagnostics(
+                                  instruction.extension_instruction_set, instruction.json_name)
+                            + "\nNeeded because operand needs IntegerLiteral size");
+                    typedef Instruction_properties_descriptor::Operand_descriptor::
+                        Integer_literal_size Integer_literal_size;
+                    switch((*operand_descriptor_iter)->integer_literal_size)
+                    {
+                    case Integer_literal_size::not_implemented:
+                        throw Generate_error(
+                            "instruction operand properties has no "
+                            "Integer_literal_size: "
+                            + get_instruction_name_for_diagnostics(
+                                  instruction.extension_instruction_set, instruction.json_name));
+                    case Integer_literal_size::always_32bits:
+                        parser_class << ", 1";
+                        break;
+                    case Integer_literal_size::always_64bits:
+                        parser_class << ", 2";
+                        break;
+                    case Integer_literal_size::matches_type_of_operand_0:
+                        parser_class << ", get_operand_literal_integer_size(word_index, "
+                                        "instruction_start_index, instruction."
+                                     << instruction.explicit_operands.front().cpp_name << ')';
+                        break;
+                    }
+                }
+                parser_class << ')';
+            };
+            switch(operand.quantifier)
+            {
+            case Quantifier::none:
+                parser_class << "instruction." << operand.cpp_name << " = ";
+                write_parse_fn();
+                parser_class << ";\n";
+                break;
+            case Quantifier::optional:
+                parser_class << R"(if(word_index < instruction_end_index)
+    instruction.)" << operand.cpp_name
+                             << " = ";
+                write_parse_fn();
+                parser_class << ";\n";
+                break;
+            case Quantifier::variable:
+                parser_class << R"(while(word_index < instruction_end_index)
+    instruction.)" << operand.cpp_name
+                             << ".push_back(";
+                write_parse_fn();
+                parser_class << ");\n";
+                break;
+            }
+        }
         virtual void fill_output(State &state) override
         {
             Header_file_base::fill_output(state);
@@ -1252,10 +1322,6 @@ constexpr util::Enum_set<)" << state.extension_enumeration.value()->cpp_name
             write_system_include("vector"_sv);
             write_system_include("cassert"_sv);
             write_system_include("type_traits"_sv);
-#warning finish
-            include_guard_start << R"(#warning generator not finished being implemented
-
-)";
             parse_error_class << R"a(struct Parser_error : public std::runtime_error
 {
     std::size_t error_index;
@@ -1917,6 +1983,13 @@ return static_cast<Literal_spec_constant_op_integer>(read_word(word_index++, ins
             }
             parser_class << R"(@_@_return Extension_instruction_set::unknown;
     }
+    std::size_t get_operand_literal_integer_size(std::size_t word_index, std::size_t instruction_start_index, Id operand)
+    {
+        auto &state = get_id_state(operand);
+        if(!state.value_word_count)
+            throw Parser_error(word_index, instruction_start_index, "can't deduce operand size, operand type not known");
+        return *state.value_word_count;
+    }
     void parse()
     {
         std::size_t word_index = 0;
@@ -1983,8 +2056,59 @@ return static_cast<Literal_spec_constant_op_integer>(read_word(word_index++, ins
                 break;
             }
 @+@+@+)";
-#warning finish
-            parser_class << R"(@_@_@_default:
+            for(auto &instruction : state.instruction_descriptor_list)
+            {
+                if(instruction.extension_instruction_set)
+                    continue;
+                bool has_result_type = false;
+                bool is_result_type_allowed = true;
+                bool has_result = false;
+                bool is_result_allowed = true;
+                auto handle_operand = [&](const Operand_descriptor &operand) -> void
+                {
+                    if(operand.json_kind == id_result_type_json_name)
+                    {
+                        if(!is_result_type_allowed)
+                            throw Generate_error(operand.json_kind + " must be the first operand: "
+                                                 + instruction.json_name);
+                        has_result_type = true;
+                        is_result_type_allowed = false;
+                    }
+                    else if(operand.json_kind == id_result_json_name)
+                    {
+                        if(!is_result_allowed)
+                            throw Generate_error(
+                                operand.json_kind
+                                + " must be the first operand or immediately after "
+                                + std::string(id_result_type_json_name)
+                                + ": "
+                                + instruction.json_name);
+                        has_result = true;
+                        is_result_type_allowed = false;
+                        is_result_allowed = false;
+                    }
+                    else
+                    {
+                        is_result_type_allowed = false;
+                        is_result_allowed = false;
+                    }
+                };
+                for(auto &operand : instruction.implied_operands)
+                    handle_operand(operand);
+                for(auto &operand : instruction.explicit_operands)
+                    handle_operand(operand);
+                if(has_result_type && has_result)
+                    parser_class << "case Op::" << instruction.enumerant->cpp_name << ":\n";
+            }
+            parser_class << R"(@_@_@_{
+                Id_result_type result_type = read_id(word_index++, instruction_start_index, instruction_end_index);
+                Id_result result = read_id(word_index++, instruction_start_index, instruction_end_index);
+                auto &result_type_state = get_id_state(result_type);
+                if(result_type_state.type_word_count)
+                    get_id_state(result).value_word_count = result_type_state.type_word_count;
+                break;
+            }
+            default:
                 break;
             }
             word_index = instruction_end_index;
@@ -2004,8 +2128,158 @@ return static_cast<Literal_spec_constant_op_integer>(read_word(word_index++, ins
             word_index++;
             switch(static_cast<Op>(opcode))
             {
+            case Op::op_ext_inst:
+            {
+                Id_result_type result_type = read_id(word_index++, instruction_start_index, instruction_end_index);
+                Id_result result = read_id(word_index++, instruction_start_index, instruction_end_index);
+                Id_ref instruction_set_id = read_id(word_index++, instruction_start_index, instruction_end_index);
+                auto instruction_integer = parse_literal_ext_inst_integer(word_index, instruction_start_index, instruction_end_index);
+                auto &instruction_set_id_state = get_id_state(instruction_set_id);
+                switch(instruction_set_id_state.instruction_set.value_or(Extension_instruction_set::unknown))
+                {
+                case Extension_instruction_set::unknown:
+                {
+                    std::vector<Id_ref> args(shader_words + word_index, shader_words + instruction_end_index);
+                    word_index = instruction_end_index;
+                    parser_callbacks.handle_instruction_op_ext_inst(Op_ext_inst(result_type, result, instruction_set_id, instruction_integer, std::move(args)));
+                    break;
+                }
+@+@+@+@+)";
+            for(auto &extension_instruction_set : state.top_level.extension_instruction_sets)
+            {
+                std::list<Enumerant_descriptor>::const_iterator extension_instruction_set_enumerant;
+                {
+                    auto iter = state.extension_instruction_set_enumeration.value()
+                                    ->json_name_to_enumerant_map.find(
+                                        extension_instruction_set.import_name);
+                    if(iter
+                       == state.extension_instruction_set_enumeration.value()
+                              ->json_name_to_enumerant_map.end())
+                        throw Generate_error("unknown extension instruction set: "
+                                             + extension_instruction_set.import_name);
+                    extension_instruction_set_enumerant = std::get<1>(*iter);
+                }
+                auto iter = state.instruction_set_extension_op_enumeration_map.find(
+                    &extension_instruction_set);
+                if(iter == state.instruction_set_extension_op_enumeration_map.end())
+                    throw Generate_error("unknown extension instruction set: "
+                                         + extension_instruction_set.import_name);
+                auto extension_op_enumeration = std::get<1>(*iter);
+                parser_class << "case Extension_instruction_set::"
+                             << extension_instruction_set_enumerant->cpp_name << R"(:
+{
+    auto operation = static_cast<)"
+                             << extension_op_enumeration->cpp_name << R"(>(instruction_integer);
+    switch(operation)
+    {
+@+)";
+                for(auto &instruction : state.instruction_descriptor_list)
+                {
+                    if(instruction.extension_instruction_set != &extension_instruction_set)
+                        continue;
+                    parser_class << "case " << instruction.enumeration->cpp_name
+                                 << "::" << instruction.enumerant->cpp_name << R"(:
+{
+    )" << instruction.cpp_struct_name
+                                 << R"( instruction{};
+    instruction.result_type = result_type;
+    instruction.result = result;
+    instruction.set = instruction_set_id;
+@+)";
+                    // skip instruction.implied_operands, already processed by OpExtInst code
+                    auto *instruction_properties_descriptor =
+                        state.get_instruction_properties_descriptor(
+                            extension_instruction_set.import_name, instruction.json_name);
+                    util::optional<Instruction_properties_descriptor::Operand_descriptors::
+                                       const_iterator> operand_descriptor_iter;
+                    if(instruction_properties_descriptor)
+                        operand_descriptor_iter =
+                            instruction_properties_descriptor->operand_descriptors.begin();
+                    for(auto &operand : instruction.explicit_operands)
+                    {
+                        write_instruction_operand_parse_code(
+                            state, operand, operand_descriptor_iter, instruction);
+                        if(operand_descriptor_iter)
+                        {
+                            if(*operand_descriptor_iter
+                               == instruction_properties_descriptor->operand_descriptors.end())
+                                throw Generate_error(
+                                    "instruction properties operand count mismatch: "
+                                    + get_instruction_name_for_diagnostics(
+                                          &extension_instruction_set, instruction.json_name));
+                            ++*operand_descriptor_iter;
+                        }
+                    }
+                    if(operand_descriptor_iter
+                       && *operand_descriptor_iter
+                              != instruction_properties_descriptor->operand_descriptors.end())
+                        throw Generate_error(
+                            "instruction properties operand count mismatch: "
+                            + get_instruction_name_for_diagnostics(&extension_instruction_set,
+                                                                   instruction.json_name));
+                    parser_class << "@_parser_callbacks." << instruction.cpp_parse_callback_name
+                                 << R"((std::move(instruction));
+    break;
+}
+)";
+                }
+                parser_class << R"(@_default:
+        throw Parser_error(word_index, instruction_start_index, "unknown extension instruction");
+    }
+    break;
+}
+)";
+            }
+            parser_class << R"(@_@_@_@_}
+                break;
+            }
 @+@+@+)";
-#warning finish
+            for(auto &instruction : state.instruction_descriptor_list)
+            {
+                if(instruction.extension_instruction_set)
+                    continue;
+                if(instruction.json_name == op_ext_inst_json_name)
+                    continue;
+                parser_class << "case " << instruction.enumeration->cpp_name
+                             << "::" << instruction.enumerant->cpp_name << R"(:
+{
+    )" << instruction.cpp_struct_name
+                             << R"( instruction{};
+@+)";
+                assert(instruction.implied_operands.empty());
+                auto *instruction_properties_descriptor =
+                    state.get_instruction_properties_descriptor("", instruction.json_name);
+                util::optional<Instruction_properties_descriptor::Operand_descriptors::
+                                   const_iterator> operand_descriptor_iter;
+                if(instruction_properties_descriptor)
+                    operand_descriptor_iter =
+                        instruction_properties_descriptor->operand_descriptors.begin();
+                for(auto &operand : instruction.explicit_operands)
+                {
+                    write_instruction_operand_parse_code(
+                        state, operand, operand_descriptor_iter, instruction);
+                    if(operand_descriptor_iter)
+                    {
+                        if(*operand_descriptor_iter
+                           == instruction_properties_descriptor->operand_descriptors.end())
+                            throw Generate_error("instruction properties operand count mismatch: "
+                                                 + get_instruction_name_for_diagnostics(
+                                                       nullptr, instruction.json_name));
+                        ++*operand_descriptor_iter;
+                    }
+                }
+                if(operand_descriptor_iter
+                   && *operand_descriptor_iter
+                          != instruction_properties_descriptor->operand_descriptors.end())
+                    throw Generate_error(
+                        "instruction properties operand count mismatch: "
+                        + get_instruction_name_for_diagnostics(nullptr, instruction.json_name));
+                parser_class << "@_parser_callbacks." << instruction.cpp_parse_callback_name
+                             << R"((std::move(instruction));
+    break;
+}
+)";
+            }
             parser_class << R"(@_@_@_default:
                 throw Parser_error(word_index, instruction_start_index, "unknown instruction");
             }
