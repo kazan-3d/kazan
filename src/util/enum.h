@@ -27,8 +27,13 @@
 #include <type_traits>
 #include <utility>
 #include <iterator>
+#include <new>
+#include <stdexcept>
+#include <cassert>
+#include <tuple>
 #include "constexpr_array.h"
 #include "bitset.h"
+#include "is_swappable.h"
 
 namespace vulkan_cpu
 {
@@ -204,8 +209,8 @@ constexpr Constexpr_array<Enum, sizeof...(Values)> Default_enum_traits<Enum, Val
 /** generate code for Enum_traits instantiation; use like
  * <code>vulkan_cpu_util_generate_enum_traits(Enum, Enum::Value1, Enum::Value2, Enum::Value3,
  * <...>);</code> */
-#define vulkan_cpu_util_generate_enum_traits(Enum, ...)                \
-    ::vulkan_cpu::util::detail::Default_enum_traits<Enum, __VA_ARGS__> \
+#define vulkan_cpu_util_generate_enum_traits(Enum, ...)                                \
+    [[gnu::unused]] ::vulkan_cpu::util::detail::Default_enum_traits<Enum, __VA_ARGS__> \
         enum_traits_resolve_function(Enum)
 }
 
@@ -367,7 +372,7 @@ public:
         bits[index] = true;
         return {iterator(this, index), inserted};
     }
-    constexpr iterator insert(iterator hint, T value) noexcept
+    constexpr iterator insert([[gnu::unused]] iterator hint, T value) noexcept
     {
         std::size_t index = Enum_traits<T>::find_value(value);
         bits[index] = true;
@@ -438,19 +443,859 @@ public:
             return iterator(this, index);
         return 0;
     }
+    iterator lower_bound(T value) const noexcept
+    {
+        return iterator::first_at_or_after(this, Enum_traits<T>::find_value(value));
+    }
+    iterator upper_bound(T value) const noexcept
+    {
+        std::size_t index = Enum_traits<T>::find_value(value);
+        if(index >= bits.size())
+            return end();
+        auto retval = iterator::first_at_or_after(this, index);
+        if(retval.index == index)
+            ++retval;
+        return retval;
+    }
     std::pair<iterator, iterator> equal_range(T value) const noexcept
     {
         std::size_t index = Enum_traits<T>::find_value(value);
-        if(index < bits.size() && bits[index])
+        if(index < bits.size())
         {
-            auto first = iterator(this, index);
+            auto first = iterator::first_at_or_after(this, index);
             auto last = first;
-            ++last;
+            if(first.index == index)
+                ++last;
             return {first, last};
         }
         return {end(), end()};
     }
 };
+
+#if 0
+#warning finish implementing Enum_map
+#else
+namespace detail
+{
+template <typename T,
+          std::size_t Entry_count,
+          bool Is_Trivially_Destructible = std::is_trivially_destructible<T>::value,
+          bool Is_Trivially_Copyable = std::is_trivially_copyable<T>::value>
+struct Enum_map_base
+{
+    union Entry_type
+    {
+        T full_value;
+        alignas(T) char empty_value[sizeof(T)];
+        constexpr Entry_type() noexcept : empty_value{}
+        {
+        }
+        ~Entry_type()
+        {
+        }
+    };
+    typedef util::bitset<Entry_count> Bits;
+    Entry_type entries[Entry_count];
+    Bits full_entries;
+    void erase_at_index(std::size_t index) noexcept
+    {
+        entries[index].full_value.~T();
+        full_entries[index] = false;
+    }
+    template <typename... Args>
+    void emplace_at_index(std::size_t index,
+                          Args &&... args) noexcept(noexcept(new(std::declval<void *>())
+                                                                 T(std::declval<Args>()...)))
+    {
+        new(const_cast<void *>(static_cast<const void *>(
+            std::addressof(entries[index].full_value)))) T(std::forward<Args>(args)...);
+        full_entries[index] = true;
+    }
+    constexpr Enum_map_base() noexcept : entries{}, full_entries(0)
+    {
+    }
+    Enum_map_base(const Enum_map_base &rt) noexcept(noexcept(new(std::declval<void *>())
+                                                                 T(std::declval<const T &>())))
+        : entries{}, full_entries(0)
+    {
+        try
+        {
+            operator=(rt);
+        }
+        catch(...)
+        {
+            clear();
+            throw;
+        }
+    }
+    Enum_map_base(Enum_map_base &&rt) noexcept(noexcept(new(std::declval<void *>())
+                                                            T(std::declval<T &&>())))
+        : entries{}, full_entries(0)
+    {
+        try
+        {
+            operator=(std::move(rt));
+        }
+        catch(...)
+        {
+            clear();
+            throw;
+        }
+    }
+    Enum_map_base &operator=(const Enum_map_base &rt) noexcept(
+        noexcept(new(std::declval<void *>()) T(std::declval<const T &>()))
+        && noexcept(std::declval<T &>() = std::declval<const T &>()))
+    {
+        auto either_full = full_entries | rt.full_entries;
+        for(std::size_t index = either_full.find_first(true); index != Bits::npos;
+            index = either_full.find_first(true, index + 1))
+            if(rt.full_entries[index])
+                if(full_entries[index])
+                    entries[index].full_value = rt.entries[index].full_value;
+                else
+                    emplace_at_index(index, rt.entries[index].full_value);
+            else
+                erase_at_index(index);
+        return *this;
+    }
+    Enum_map_base &operator=(Enum_map_base &&rt) noexcept(
+        noexcept(new(std::declval<void *>()) T(std::declval<T &&>()))
+        && noexcept(std::declval<T &>() = std::declval<T &&>()))
+    {
+        auto either_full = full_entries | rt.full_entries;
+        for(std::size_t index = either_full.find_first(true); index != Bits::npos;
+            index = either_full.find_first(true, index + 1))
+            if(rt.full_entries[index])
+                if(full_entries[index])
+                    entries[index].full_value = std::move(rt.entries[index].full_value);
+                else
+                    emplace_at_index(index, std::move(rt.entries[index].full_value));
+            else
+                erase_at_index(index);
+        return *this;
+    }
+    void clear() noexcept
+    {
+        for(std::size_t index = full_entries.find_first(true); index != Bits::npos;
+            index = full_entries.find_first(true, index + 1))
+            erase_at_index(index);
+    }
+    ~Enum_map_base()
+    {
+        clear();
+    }
+};
+
+template <typename T, std::size_t Entry_count>
+struct Enum_map_base<T, Entry_count, true, false>
+{
+    union Entry_type
+    {
+        T full_value;
+        alignas(T) char empty_value[sizeof(T)];
+        constexpr Entry_type() noexcept : empty_value{}
+        {
+        }
+    };
+    typedef util::bitset<Entry_count> Bits;
+    Entry_type entries[Entry_count];
+    Bits full_entries;
+    constexpr void erase_at_index(std::size_t index) noexcept
+    {
+        full_entries[index] = false;
+    }
+    template <typename... Args>
+    void emplace_at_index(std::size_t index,
+                          Args &&... args) noexcept(noexcept(new(std::declval<void *>())
+                                                                 T(std::declval<Args>()...)))
+    {
+        new(const_cast<void *>(static_cast<const void *>(
+            std::addressof(entries[index].full_value)))) T(std::forward<Args>(args)...);
+        full_entries[index] = true;
+    }
+    constexpr Enum_map_base() noexcept : entries{}, full_entries(0)
+    {
+    }
+    Enum_map_base(const Enum_map_base &rt) noexcept(noexcept(new(std::declval<void *>())
+                                                                 T(std::declval<const T &>())))
+        : entries{}, full_entries(0)
+    {
+        try
+        {
+            operator=(rt);
+        }
+        catch(...)
+        {
+            clear();
+            throw;
+        }
+    }
+    Enum_map_base(Enum_map_base &&rt) noexcept(noexcept(new(std::declval<void *>())
+                                                            T(std::declval<T &&>())))
+        : entries{}, full_entries(0)
+    {
+        try
+        {
+            operator=(std::move(rt));
+        }
+        catch(...)
+        {
+            clear();
+            throw;
+        }
+    }
+    Enum_map_base &operator=(const Enum_map_base &rt) noexcept(
+        noexcept(new(std::declval<void *>()) T(std::declval<const T &>()))
+        && noexcept(std::declval<T &>() = std::declval<const T &>()))
+    {
+        auto either_full = full_entries | rt.full_entries;
+        for(std::size_t index = either_full.find_first(true); index != Bits::npos;
+            index = either_full.find_first(true, index + 1))
+            if(rt.full_entries[index])
+                if(full_entries[index])
+                    entries[index].full_value = rt.entries[index].full_value;
+                else
+                    emplace_at_index(index, rt.entries[index].full_value);
+            else
+                erase_at_index(index);
+        return *this;
+    }
+    Enum_map_base &operator=(Enum_map_base &&rt) noexcept(
+        noexcept(new(std::declval<void *>()) T(std::declval<T &&>()))
+        && noexcept(std::declval<T &>() = std::declval<T &&>()))
+    {
+        auto either_full = full_entries | rt.full_entries;
+        for(std::size_t index = either_full.find_first(true); index != Bits::npos;
+            index = either_full.find_first(true, index + 1))
+            if(rt.full_entries[index])
+                if(full_entries[index])
+                    entries[index].full_value = std::move(rt.entries[index].full_value);
+                else
+                    emplace_at_index(index, std::move(rt.entries[index].full_value));
+            else
+                erase_at_index(index);
+        return *this;
+    }
+    constexpr void clear() noexcept
+    {
+        for(std::size_t index = full_entries.find_first(true); index != Bits::npos;
+            index = full_entries.find_first(true, index + 1))
+            erase_at_index(index);
+    }
+    ~Enum_map_base() = default;
+};
+
+template <typename T, std::size_t Entry_count>
+struct Enum_map_base<T, Entry_count, true, true>
+{
+    union Entry_type
+    {
+        T full_value;
+        alignas(T) char empty_value[sizeof(T)];
+        constexpr Entry_type() noexcept : empty_value{}
+        {
+        }
+    };
+    typedef util::bitset<Entry_count> Bits;
+    Entry_type entries[Entry_count];
+    Bits full_entries;
+    constexpr void erase_at_index(std::size_t index) noexcept
+    {
+        full_entries[index] = false;
+    }
+    template <typename... Args>
+    void emplace_at_index(std::size_t index,
+                          Args &&... args) noexcept(noexcept(new(std::declval<void *>())
+                                                                 T(std::declval<Args>()...)))
+    {
+        new(const_cast<void *>(static_cast<const void *>(
+            std::addressof(entries[index].full_value)))) T(std::forward<Args>(args)...);
+        full_entries[index] = true;
+    }
+    constexpr Enum_map_base() noexcept : entries{}, full_entries(0)
+    {
+    }
+    constexpr Enum_map_base(const Enum_map_base &rt) noexcept = default;
+    constexpr Enum_map_base(Enum_map_base &&rt) noexcept = default;
+    constexpr Enum_map_base &operator=(const Enum_map_base &rt) noexcept = default;
+    constexpr Enum_map_base &operator=(Enum_map_base &&rt) noexcept = default;
+    constexpr void clear() noexcept
+    {
+        for(std::size_t index = full_entries.find_first(true); index != Bits::npos;
+            index = full_entries.find_first(true, index + 1))
+            erase_at_index(index);
+    }
+    ~Enum_map_base() = default;
+};
+}
+
+/** behaves like a std::map<K, V> */
+template <typename K, typename V>
+class Enum_map : private detail::Enum_map_base<std::pair<const K, V>, Enum_traits<K>::value_count>
+{
+private:
+    typedef detail::Enum_map_base<std::pair<const K, V>, Enum_traits<K>::value_count> Base;
+
+public:
+    typedef K key_type;
+    typedef V mapped_type;
+    typedef std::pair<const K, V> value_type;
+    typedef std::size_t size_type;
+    typedef std::ptrdiff_t difference_type;
+    typedef value_type &reference;
+    typedef const value_type &const_reference;
+    typedef value_type *pointer;
+    typedef const value_type *const_pointer;
+
+private:
+    using typename Base::Entry_type;
+    using typename Base::Bits;
+    using Base::entries;
+    using Base::full_entries;
+    using Base::emplace_at_index;
+    using Base::erase_at_index;
+
+public:
+    constexpr Enum_map() noexcept = default;
+    constexpr Enum_map(const Enum_map &) noexcept(noexcept(Base(std::declval<const Base &>()))) =
+        default;
+    constexpr Enum_map(Enum_map &&) noexcept(noexcept(Base(std::declval<Base &&>()))) = default;
+    constexpr Enum_map &operator=(const Enum_map &) noexcept(
+        noexcept(std::declval<Base &>() = std::declval<const Base &>())) = default;
+    constexpr Enum_map &operator=(Enum_map &&) noexcept(
+        noexcept(std::declval<Base &>() = std::declval<Base &&>())) = default;
+    constexpr void clear() noexcept
+    {
+        Base::clear();
+    }
+    template <typename Input_iterator>
+    Enum_map(Input_iterator first, Input_iterator last) noexcept(
+        noexcept(std::declval<Enum_map &>().insert(std::move(first), std::move(last))))
+        : Enum_map()
+    {
+        insert(std::move(first), std::move(last));
+    }
+    Enum_map(std::initializer_list<value_type> il) noexcept(
+        noexcept(std::declval<Enum_map &>().insert(il.begin(), il.end())))
+        : Enum_map()
+    {
+        insert(il.begin(), il.end());
+    }
+    Enum_map &operator=(std::initializer_list<value_type> il) noexcept(
+        noexcept(std::declval<Enum_map &>().insert(il.begin(), il.end())))
+    {
+        clear();
+        insert(il.begin(), il.end());
+        return *this;
+    }
+    constexpr V &at(K key)
+    {
+        std::size_t index = Enum_traits<K>::find_value(key);
+        if(index >= full_entries.size() || !full_entries[index])
+            throw std::out_of_range("Enum_map::at");
+        return std::get<1>(entries[index].full_value);
+    }
+    constexpr const V &at(K key) const
+    {
+        std::size_t index = Enum_traits<K>::find_value(key);
+        if(index >= full_entries.size() || !full_entries[index])
+            throw std::out_of_range("Enum_map::at");
+        return std::get<1>(entries[index].full_value);
+    }
+    V &operator[](K key) noexcept(noexcept(std::declval<Enum_map &>().emplace_at_index(
+        0, std::piecewise_construct, std::forward_as_tuple(key), std::make_tuple())))
+    {
+        std::size_t index = Enum_traits<K>::find_value(key);
+        assert(index < full_entries.size());
+        if(!full_entries[index])
+            emplace_at_index(
+                index, std::piecewise_construct, std::forward_as_tuple(key), std::make_tuple());
+        return std::get<1>(entries[index].full_value);
+    }
+    constexpr bool empty() const noexcept
+    {
+        return full_entries.none();
+    }
+    constexpr std::size_t size() const noexcept
+    {
+        return full_entries.count();
+    }
+    constexpr std::size_t max_size() const noexcept
+    {
+        return full_entries.size();
+    }
+    constexpr void swap(Enum_map &other) noexcept(noexcept(Base(std::declval<Base &&>()))
+                                                  && util::is_nothrow_swappable<V>::value)
+    {
+        auto either_full = full_entries | other.full_entries;
+        using std::swap;
+        for(std::size_t index = either_full.find_first(true); index != Bits::npos;
+            index = either_full.find_first(true, index + 1))
+        {
+            if(other.full_entries[index])
+            {
+                if(full_entries[index])
+                {
+                    swap(entries[index].full_value, other.entries[index].full_value);
+                }
+                else
+                {
+                    emplace_at_index(index, std::move(other.entries[index].full_value));
+                    other.erase_at_index(index);
+                }
+            }
+            else
+            {
+                other.emplace_at_index(index, std::move(entries[index].full_value));
+                erase_at_index(index);
+            }
+        }
+    }
+    constexpr std::size_t count(K key) const noexcept
+    {
+        std::size_t index = Enum_traits<K>::find_value(key);
+        if(index >= full_entries.size() || !full_entries[index])
+            return 0;
+        return 1;
+    }
+    class const_iterator;
+    class iterator
+    {
+        template <typename, typename>
+        friend class Enum_map;
+        friend class const_iterator;
+
+    public:
+        typedef std::ptrdiff_t difference_type;
+        typedef std::pair<const K, V> value_type;
+        typedef value_type *pointer;
+        typedef value_type &reference;
+        std::bidirectional_iterator_tag iterator_category;
+
+    private:
+        Enum_map *map;
+        std::size_t index;
+
+    private:
+        constexpr iterator(Enum_map *map, std::size_t index) noexcept : map(map), index(index)
+        {
+        }
+        static constexpr iterator first_at_or_after(Enum_map *map, std::size_t index) noexcept
+        {
+            return iterator(map, map->full_entries.find_first(true, index));
+        }
+        static constexpr iterator first_at_or_before(Enum_map *map, std::size_t index) noexcept
+        {
+            return iterator(map, map->full_entries.find_last(true, index));
+        }
+
+    public:
+        constexpr iterator() noexcept : map(nullptr), index(0)
+        {
+        }
+        friend constexpr bool operator==(const iterator &l, const iterator &r) noexcept
+        {
+            return l.index == r.index && l.map == r.map;
+        }
+        friend constexpr bool operator!=(const iterator &l, const iterator &r) noexcept
+        {
+            return !operator==(l, r);
+        }
+        constexpr iterator &operator++() noexcept
+        {
+            *this = first_at_or_after(map, index + 1);
+            return *this;
+        }
+        constexpr iterator &operator--() noexcept
+        {
+            *this = first_at_or_before(map, index + 1);
+            return *this;
+        }
+        constexpr iterator operator++(int) noexcept
+        {
+            auto retval = *this;
+            operator++();
+            return retval;
+        }
+        constexpr iterator operator--(int) noexcept
+        {
+            auto retval = *this;
+            operator--();
+            return retval;
+        }
+        constexpr value_type &operator*() const noexcept
+        {
+            return map->entries[index].full_value;
+        }
+        constexpr value_type *operator->() const noexcept
+        {
+            return &operator*();
+        }
+    };
+    class const_iterator
+    {
+        template <typename, typename>
+        friend class Enum_map;
+
+    public:
+        typedef std::ptrdiff_t difference_type;
+        typedef std::pair<const K, V> value_type;
+        typedef const value_type *pointer;
+        typedef const value_type &reference;
+        std::bidirectional_iterator_tag iterator_category;
+
+    private:
+        const Enum_map *map;
+        std::size_t index;
+
+    private:
+        constexpr const_iterator(const Enum_map *map, std::size_t index) noexcept : map(map),
+                                                                                    index(index)
+        {
+        }
+        static constexpr const_iterator first_at_or_after(const Enum_map *map,
+                                                          std::size_t index) noexcept
+        {
+            return const_iterator(map, map->full_entries.find_first(true, index));
+        }
+        static constexpr const_iterator first_at_or_before(const Enum_map *map,
+                                                           std::size_t index) noexcept
+        {
+            return const_iterator(map, map->full_entries.find_last(true, index));
+        }
+
+    public:
+        constexpr const_iterator() noexcept : map(nullptr), index(0)
+        {
+        }
+        constexpr const_iterator(const iterator &iter) noexcept : map(iter.map), index(iter.index)
+        {
+        }
+        friend constexpr bool operator==(const const_iterator &l, const const_iterator &r) noexcept
+        {
+            return l.index == r.index && l.map == r.map;
+        }
+        friend constexpr bool operator!=(const const_iterator &l, const const_iterator &r) noexcept
+        {
+            return !operator==(l, r);
+        }
+        friend constexpr bool operator==(const iterator &l, const const_iterator &r) noexcept
+        {
+            return operator==(const_iterator(l), r);
+        }
+        friend constexpr bool operator!=(const iterator &l, const const_iterator &r) noexcept
+        {
+            return operator!=(const_iterator(l), r);
+        }
+        friend constexpr bool operator==(const const_iterator &l, const iterator &r) noexcept
+        {
+            return operator==(l, const_iterator(r));
+        }
+        friend constexpr bool operator!=(const const_iterator &l, const iterator &r) noexcept
+        {
+            return operator!=(l, const_iterator(r));
+        }
+        constexpr const_iterator &operator++() noexcept
+        {
+            *this = first_at_or_after(map, index + 1);
+            return *this;
+        }
+        constexpr const_iterator &operator--() noexcept
+        {
+            *this = first_at_or_before(map, index + 1);
+            return *this;
+        }
+        constexpr const_iterator operator++(int) noexcept
+        {
+            auto retval = *this;
+            operator++();
+            return retval;
+        }
+        constexpr const_iterator operator--(int) noexcept
+        {
+            auto retval = *this;
+            operator--();
+            return retval;
+        }
+        constexpr const value_type &operator*() const noexcept
+        {
+            return map->entries[index].full_value;
+        }
+        constexpr const value_type *operator->() const noexcept
+        {
+            return &operator*();
+        }
+    };
+    typedef std::reverse_iterator<iterator> reverse_iterator;
+    typedef std::reverse_iterator<const_iterator> const_reverse_iterator;
+    constexpr iterator begin() noexcept
+    {
+        return iterator::first_at_or_after(this, 0);
+    }
+    constexpr const_iterator begin() const noexcept
+    {
+        return const_iterator::first_at_or_after(this, 0);
+    }
+    constexpr const_iterator cbegin() const noexcept
+    {
+        return const_iterator::first_at_or_after(this, 0);
+    }
+    constexpr iterator end() noexcept
+    {
+        return iterator(this, Bits::npos);
+    }
+    constexpr const_iterator end() const noexcept
+    {
+        return const_iterator(this, Bits::npos);
+    }
+    constexpr const_iterator cend() const noexcept
+    {
+        return const_iterator(this, Bits::npos);
+    }
+    constexpr reverse_iterator rbegin() noexcept
+    {
+        return reverse_iterator(end());
+    }
+    constexpr const_reverse_iterator rbegin() const noexcept
+    {
+        return const_reverse_iterator(end());
+    }
+    constexpr const_reverse_iterator crbegin() const noexcept
+    {
+        return const_reverse_iterator(end());
+    }
+    constexpr reverse_iterator rend() noexcept
+    {
+        return reverse_iterator(begin());
+    }
+    constexpr const_reverse_iterator rend() const noexcept
+    {
+        return const_reverse_iterator(begin());
+    }
+    constexpr const_reverse_iterator crend() const noexcept
+    {
+        return const_reverse_iterator(begin());
+    }
+    std::pair<iterator, bool> insert(const value_type &value) noexcept(
+        noexcept(Base(std::declval<const Base &>())))
+    {
+        std::size_t index = Enum_traits<K>::find_value(std::get<0>(value));
+        assert(index < full_entries.size());
+        if(!full_entries[index])
+        {
+            emplace_at_index(index, value);
+            return {iterator(this, index), true};
+        }
+        return {iterator(this, index), false};
+    }
+    std::pair<iterator, bool> insert(value_type &&value) noexcept(
+        noexcept(Base(std::declval<Base &&>())))
+    {
+        std::size_t index = Enum_traits<K>::find_value(std::get<0>(value));
+        assert(index < full_entries.size());
+        if(!full_entries[index])
+        {
+            emplace_at_index(index, std::move(value));
+            return {iterator(this, index), true};
+        }
+        return {iterator(this, index), false};
+    }
+    iterator insert([[gnu::unused]] const_iterator hint,
+                    const value_type &value) noexcept(noexcept(Base(std::declval<const Base &>())))
+    {
+        return std::get<0>(insert(value));
+    }
+    iterator insert([[gnu::unused]] const_iterator hint,
+                    value_type &&value) noexcept(noexcept(Base(std::declval<Base &&>())))
+    {
+        return std::get<0>(insert(std::move(value)));
+    }
+    template <typename... Args>
+    std::pair<iterator, bool> emplace(Args &&... args) noexcept(
+        noexcept(std::declval<Enum_map>().insert(value_type(std::declval<Args>()...))))
+    {
+        return insert(value_type(std::forward<Args>(args)...));
+    }
+    template <typename T>
+    typename std::enable_if<std::is_constructible<value_type, T &&>::value,
+                            std::pair<iterator, bool>>::type
+        insert(T &&value) noexcept(noexcept(std::declval<Enum_map>().emplace(std::declval<T &&>())))
+    {
+        return emplace(std::forward<T>(value));
+    }
+    template <typename T>
+    typename std::enable_if<std::is_constructible<value_type, T &&>::value, iterator>::type insert(
+        [[gnu::unused]] const_iterator hint,
+        T &&value) noexcept(noexcept(std::declval<Enum_map>().emplace(std::declval<T &&>())))
+    {
+        return std::get<0>(emplace(std::forward<T>(value)));
+    }
+    template <typename Input_iterator>
+    void insert(Input_iterator first,
+                Input_iterator last) noexcept(noexcept(std::declval<Enum_map>().emplace(*first))
+                                              && noexcept(first != last ? 0 : 0)
+                                              && noexcept(++first))
+    {
+        for(; first != last; ++first)
+            emplace(*first);
+    }
+    void insert(std::initializer_list<value_type> il) noexcept(
+        noexcept(std::declval<Enum_map>().insert(il.begin(), il.end())))
+    {
+        insert(il.begin(), il.end());
+    }
+    template <typename T>
+    std::pair<iterator, bool> insert_or_assign(K key, T &&mapped_value) noexcept(
+        noexcept(std::declval<V &>() = std::declval<T &&>())
+        && noexcept(std::declval<Enum_map>().emplace_at_index(0, key, std::declval<T &&>()))
+        && noexcept(Base(std::declval<Base &&>())))
+    {
+        std::size_t index = Enum_traits<K>::find_value(key);
+        assert(index < full_entries.size());
+        if(!full_entries[index])
+        {
+            emplace_at_index(index, key, std::forward<T>(mapped_value));
+            return {iterator(this, index), true};
+        }
+        std::get<1>(entries[index].full_value) = std::forward<T>(mapped_value);
+        return {iterator(this, index), false};
+    }
+    template <typename T>
+    iterator
+        insert_or_assign([[gnu::unused]] const_iterator hint, K key, T &&mapped_value) noexcept(
+            noexcept(std::declval<Enum_map>().insert_or_assign(key, std::declval<T &&>())))
+    {
+        return std::get<0>(insert_or_assign(key, std::forward<T>(mapped_value)));
+    }
+    template <typename... Args>
+    iterator emplace_hint([[gnu::unused]] const_iterator hint, Args &&... args) noexcept(
+        noexcept(std::declval<Enum_map>().emplace(std::declval<Args &&>()...)))
+    {
+        return std::get<0>(emplace(std::forward<Args>(args)...));
+    }
+    template <typename... Args>
+    std::pair<iterator, bool> try_emplace(K key, Args &&... args) noexcept(
+        noexcept(std::declval<Enum_map>().emplace_at_index(
+            0,
+            std::piecewise_construct,
+            std::forward_as_tuple(key),
+            std::forward_as_tuple(std::forward<Args>(args)...))))
+    {
+        std::size_t index = Enum_traits<K>::find_value(key);
+        assert(index < full_entries.size());
+        if(!full_entries[index])
+        {
+            emplace_at_index(index,
+                             std::piecewise_construct,
+                             std::forward_as_tuple(key),
+                             std::forward_as_tuple(std::forward<Args>(args)...));
+            return {iterator(this, index), true};
+        }
+        return {iterator(this, index), false};
+    }
+    template <typename... Args>
+    iterator try_emplace([[gnu::unused]] const_iterator hint, K key, Args &&... args) noexcept(
+        noexcept(std::declval<Enum_map>().try_emplace(key, std::declval<Args &&>()...)))
+    {
+        return std::get<0>(try_emplace(key, std::forward<Args>(args)...));
+    }
+    iterator erase(const_iterator pos) noexcept
+    {
+        erase_at_index(pos.index);
+        ++pos;
+        return iterator(this, pos.index);
+    }
+    iterator erase(iterator pos) noexcept
+    {
+        return erase(const_iterator(pos));
+    }
+    iterator erase(const_iterator first, const_iterator last) noexcept
+    {
+        if(first == last)
+            return end();
+        iterator retval = erase(first);
+        while(retval != last)
+            retval = erase(retval);
+        return retval;
+    }
+    std::size_t erase(K key) noexcept
+    {
+        std::size_t index = Enum_traits<K>::find_value(key);
+        if(index < full_entries.size() || !full_entries[index])
+            return 0;
+        erase_at_index(index);
+        return 1;
+    }
+    iterator find(K key) noexcept
+    {
+        std::size_t index = Enum_traits<K>::find_value(key);
+        if(index < full_entries.size() || !full_entries[index])
+            return end();
+        return iterator(this, index);
+    }
+    const_iterator find(K key) const noexcept
+    {
+        std::size_t index = Enum_traits<K>::find_value(key);
+        if(index < full_entries.size() || !full_entries[index])
+            return end();
+        return const_iterator(this, index);
+    }
+    const_iterator lower_bound(K key) const noexcept
+    {
+        return const_iterator::first_at_or_after(this, Enum_traits<K>::find_value(key));
+    }
+    const_iterator upper_bound(K key) const noexcept
+    {
+        std::size_t index = Enum_traits<K>::find_value(key);
+        if(index >= full_entries.size())
+            return end();
+        auto retval = const_iterator::first_at_or_after(this, index);
+        if(retval.index == index)
+            ++retval;
+        return retval;
+    }
+    std::pair<const_iterator, const_iterator> equal_range(K key) const noexcept
+    {
+        std::size_t index = Enum_traits<K>::find_value(key);
+        if(index < full_entries.size())
+        {
+            auto first = const_iterator::first_at_or_after(this, index);
+            auto last = first;
+            if(first.index == index)
+                ++last;
+            return {first, last};
+        }
+        return {end(), end()};
+    }
+    iterator lower_bound(K key) noexcept
+    {
+        return iterator::first_at_or_after(this, Enum_traits<K>::find_value(key));
+    }
+    iterator upper_bound(K key) noexcept
+    {
+        std::size_t index = Enum_traits<K>::find_value(key);
+        if(index >= full_entries.size())
+            return end();
+        auto retval = iterator::first_at_or_after(this, index);
+        if(retval.index == index)
+            ++retval;
+        return retval;
+    }
+    std::pair<iterator, iterator> equal_range(K key) noexcept
+    {
+        std::size_t index = Enum_traits<K>::find_value(key);
+        if(index < full_entries.size())
+        {
+            auto first = iterator::first_at_or_after(this, index);
+            auto last = first;
+            if(first.index == index)
+                ++last;
+            return {first, last};
+        }
+        return {end(), end()};
+    }
+};
+#endif
 }
 }
 

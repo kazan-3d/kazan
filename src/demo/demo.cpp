@@ -30,17 +30,18 @@
 #include "spirv/spirv.h"
 #include "spirv/parser.h"
 #include "util/optional.h"
+#include "util/string_view.h"
 
 namespace vulkan_cpu
 {
 namespace test
 {
-util::optional<std::vector<spirv::Word>> load_file(const char *fileName)
+util::optional<std::vector<spirv::Word>> load_file(const char *filename)
 {
     using spirv::Word;
     constexpr int eof = std::char_traits<char>::eof();
     std::ifstream is;
-    is.open(fileName, std::ios::in | std::ios::binary);
+    is.open(filename, std::ios::in | std::ios::binary);
     if(!is)
         return {};
     constexpr std::size_t block_size = 0x1000;
@@ -202,23 +203,38 @@ void dump_words(const std::vector<spirv::Word> &words)
 
 int test_main(int argc, char **argv)
 {
-    auto file = load_file("test-files/test.spv");
+    const char *filename = "test-files/test.spv";
+    if(argc > 1)
+    {
+        if(argv[1][0] == '-')
+        {
+            std::cerr << "usage: demo [<file.spv>]\n";
+            return 1;
+        }
+        filename = argv[1];
+    }
+    std::cout << "loading " << filename << std::endl;
+    auto file = load_file(filename);
     if(file)
     {
         dump_words(*file);
-        spirv::Parse_dump semantics(std::cout);
-        auto parse_error = spirv::Parser<>::parse(file->data(), file->size(), semantics);
-        if(parse_error)
+        spirv::Dump_callbacks callbacks;
+        try
         {
-            std::cerr << std::hex << std::uppercase;
-            std::cerr << "error: ";
-            if(parse_error->instruction_word_index != 0)
-                std::cerr << "in instruction starting at 0x" << parse_error->instruction_word_index
-                          << ": ";
-            std::cerr << "at 0x" << parse_error->word_index << ": " << parse_error->message
-                      << std::endl;
+            spirv::Parser::parse(callbacks, file->data(), file->size());
+        }
+        catch(spirv::Parser_error &e)
+        {
+            std::cout << callbacks.ss.str() << std::endl;
+            std::cerr << "error: " << e.what();
             return 1;
         }
+        std::cout << callbacks.ss.str() << std::endl;
+    }
+    else
+    {
+        std::cerr << "error: can't load file" << std::endl;
+        return 1;
     }
     return 0;
 }

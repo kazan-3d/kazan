@@ -750,7 +750,7 @@ ast::Extension_instruction_set parse_extension_instruction_set(json::ast::Value 
               file_name.size() - file_name_suffix.size(), file_name_suffix.size(), file_name_suffix)
               != 0)
         throw Parse_error(top_level_value.location, {}, "file name is unrecognizable");
-    auto instruction_set_name = std::move(file_name);
+    auto instruction_set_name = file_name;
     instruction_set_name.erase(instruction_set_name.size() - file_name_suffix.size(), file_name_suffix.size());
     instruction_set_name.erase(0, file_name_prefix.size());
     if(top_level_value.get_value_kind() != json::ast::Value_kind::object)
@@ -786,9 +786,9 @@ ast::Extension_instruction_set parse_extension_instruction_set(json::ast::Value 
             throw Parse_error(entry_value.location, path_builder.path(), "unknown key");
         }
     }
-    return ast::Extension_instruction_set(
+    auto retval = ast::Extension_instruction_set(
         std::move(instruction_set_name),
-        std::move(import_name),
+        import_name,
         get_value_or_throw_parse_error(
             std::move(copyright), top_level_value.location, nullptr, "missing copyright"),
         get_value_or_throw_parse_error(
@@ -797,6 +797,8 @@ ast::Extension_instruction_set parse_extension_instruction_set(json::ast::Value 
             revision, top_level_value.location, nullptr, "missing revision"),
         get_value_or_throw_parse_error(
             std::move(instructions), top_level_value.location, nullptr, "missing instructions"));
+    std::cerr << "Parsed extension instruction set: " << import_name << " from " << file_name << std::endl;
+    return retval;
 }
 }
 

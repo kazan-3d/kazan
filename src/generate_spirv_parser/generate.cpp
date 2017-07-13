@@ -22,12 +22,16 @@
  */
 #include "generate.h"
 #include "json/json.h"
-#include "util/optional.h"
-#include <limits>
-#include <algorithm>
-#include <cstdlib>
+#include "instruction_properties.h"
+#include <fstream>
 #include <iostream>
+#include <cassert>
+#include <limits>
+#include <unordered_map>
 #include <unordered_set>
+#include <set>
+#include <list>
+#include <deque>
 
 namespace vulkan_cpu
 {
@@ -35,2300 +39,3310 @@ namespace generate_spirv_parser
 {
 namespace generate
 {
-Generator::Generator_state::Generator_state(const Generator *generator,
-                                            Generator_args &generator_args,
-                                            const ast::Top_level &top_level)
-    : generator_args(generator_args),
-      indent_level(0),
-      full_output_file_name(generator_args.output_directory + "/"
-                            + generator->output_base_file_name),
-      guard_macro_name(get_guard_macro_name_from_file_name(full_output_file_name)),
-      os(),
-      top_level(top_level),
-      operand_kind_map(),
-      operand_has_any_parameters_map()
+constexpr std::size_t detail::Generated_output_stream::output_tab_width_no_tabs_allowed;
+constexpr util::string_view detail::Generated_output_stream::literal_command;
+constexpr util::string_view detail::Generated_output_stream::push_start_command;
+constexpr util::string_view detail::Generated_output_stream::pop_start_command;
+constexpr util::string_view detail::Generated_output_stream::add_start_offset_command;
+constexpr util::string_view detail::Generated_output_stream::restart_indent_command;
+constexpr char detail::Generated_output_stream::indent_indicator_char;
+constexpr char detail::Generated_output_stream::literal_indent_indicator_char;
+constexpr std::size_t detail::Generated_output_stream::indent_indicators_per_indent;
+constexpr char detail::Generated_output_stream::escape_char;
+constexpr bool detail::Generated_output_stream::indent_blank_lines;
+
+void detail::Generated_output_stream::write_to_file(bool do_reindent) const
 {
+    std::ofstream os;
+    os.exceptions(std::ios::badbit);
+    os.open(file_path.c_str());
+    if(!os)
+        throw util::filesystem::filesystem_error(
+            "open failed", file_path, std::make_error_code(std::io_errc::stream));
     os.exceptions(std::ios::badbit | std::ios::failbit);
-    for(auto &operand_kind : top_level.operand_kinds.operand_kinds)
+    if(do_reindent)
     {
-        operand_kind_map.emplace(operand_kind.kind, &operand_kind);
-        bool &has_any_parameters = operand_has_any_parameters_map[&operand_kind];
-        has_any_parameters = false;
-        if(util::holds_alternative<ast::Operand_kinds::Operand_kind::Enumerants>(
-               operand_kind.value))
+        auto iter = value.begin();
+        bool is_at_start_of_line = true;
+        std::size_t start_indent_depth = 0;
+        std::vector<std::size_t> start_indent_depth_stack;
+        std::size_t indent_depth = 0;
+        constexpr std::size_t output_indent_width = 4;
+        constexpr std::size_t output_tab_width = output_tab_width_no_tabs_allowed;
+        while(iter != value.end())
         {
-            auto &enumerants =
-                util::get<ast::Operand_kinds::Operand_kind::Enumerants>(operand_kind.value);
-            for(auto &enumerant : enumerants.enumerants)
+            if(*iter == '\n')
             {
-                if(!enumerant.parameters.empty())
+                if(indent_blank_lines && is_at_start_of_line)
+                    write_indent(
+                        [&](char ch)
+                        {
+                            os << ch;
+                        },
+                        indent_depth,
+                        output_tab_width);
+                is_at_start_of_line = true;
+                indent_depth = start_indent_depth;
+                os << *iter++;
+            }
+            else if(is_at_start_of_line)
+            {
+                switch(*iter)
                 {
-                    has_any_parameters = true;
+                case '\r':
+                case '\t':
+                case '\f':
+                case '\0':
+                    assert(false);
+                    continue;
+                case literal_indent_indicator_char:
+                    ++iter;
+                    indent_depth++;
+                    continue;
+                case indent_indicator_char:
+                    for(std::size_t i = 0; i < indent_indicators_per_indent; i++)
+                    {
+                        assert(iter != value.end());
+                        assert(*iter == indent_indicator_char);
+                        ++iter;
+                    }
+                    indent_depth += output_indent_width;
+                    continue;
+                case escape_char:
+                {
+                    ++iter;
+                    assert(iter != value.end());
+                    if(*iter != escape_char)
+                    {
+                        if(*iter >= 'a' && *iter <= 'z')
+                        {
+                            std::string command;
+                            while(true)
+                            {
+                                assert(iter != value.end());
+                                if(*iter == escape_char)
+                                    break;
+                                command += *iter++;
+                            }
+                            assert(iter != value.end());
+                            assert(*iter == escape_char);
+                            ++iter;
+                            auto command_sv = util::string_view(command);
+                            if(command_sv.compare(0, literal_command.size(), literal_command) == 0)
+                            {
+                                auto arg = command_sv.substr(literal_command.size());
+                                std::size_t count = 0;
+                                do
+                                {
+                                    count *= 10;
+                                    assert(!arg.empty() && arg.front() >= '0'
+                                           && arg.front() <= '9');
+                                    count += arg.front() - '0';
+                                    arg.remove_prefix(1);
+                                } while(!arg.empty());
+                                write_indent(
+                                    [&](char ch)
+                                    {
+                                        os << ch;
+                                    },
+                                    indent_depth,
+                                    output_tab_width);
+                                indent_depth = 0;
+                                for(std::size_t i = 0; i < count; i++)
+                                {
+                                    assert(iter != value.end());
+                                    os << *iter++;
+                                }
+                                assert(iter != value.end() && *iter == escape_char);
+                                ++iter;
+                                continue;
+                            }
+                            else if(command_sv.compare(0,
+                                                       add_start_offset_command.size(),
+                                                       add_start_offset_command)
+                                    == 0)
+                            {
+                                auto arg = command_sv.substr(add_start_offset_command.size());
+                                std::int64_t offset = 0;
+                                bool is_negative_offset = false;
+                                assert(!arg.empty());
+                                if(arg.front() == '-')
+                                {
+                                    arg.remove_prefix(1);
+                                    is_negative_offset = true;
+                                }
+                                do
+                                {
+                                    offset *= 10;
+                                    assert(!arg.empty() && arg.front() >= '0'
+                                           && arg.front() <= '9');
+                                    offset += arg.front() - '0';
+                                    arg.remove_prefix(1);
+                                } while(!arg.empty());
+                                if(is_negative_offset)
+                                    offset = -offset;
+                                assert(offset > 0
+                                       || start_indent_depth >= static_cast<std::size_t>(-offset));
+                                start_indent_depth += offset;
+                                continue;
+                            }
+                            else if(command_sv == push_start_command)
+                            {
+                                start_indent_depth_stack.push_back(start_indent_depth);
+                                continue;
+                            }
+                            else if(command_sv == pop_start_command)
+                            {
+                                assert(!start_indent_depth_stack.empty());
+                                start_indent_depth = start_indent_depth_stack.back();
+                                start_indent_depth_stack.pop_back();
+                                continue;
+                            }
+                            else if(command_sv == restart_indent_command)
+                            {
+                                indent_depth = start_indent_depth;
+                                continue;
+                            }
+                            else
+                            {
+                                assert(false);
+                            }
+                        }
+                        switch(*iter)
+                        {
+                        case '-':
+                            ++iter;
+                            assert(start_indent_depth >= output_indent_width);
+                            assert(indent_depth >= output_indent_width);
+                            start_indent_depth -= output_indent_width;
+                            indent_depth -= output_indent_width;
+                            continue;
+                        case '_':
+                            ++iter;
+                            assert(start_indent_depth >= output_indent_width);
+                            start_indent_depth -= output_indent_width;
+                            continue;
+                        case '+':
+                            ++iter;
+                            start_indent_depth += output_indent_width;
+                            indent_depth += output_indent_width;
+                            continue;
+                        }
+                        assert(false);
+                        continue;
+                    }
                     break;
                 }
+                }
+                write_indent(
+                    [&](char ch)
+                    {
+                        os << ch;
+                    },
+                    indent_depth,
+                    output_tab_width);
+                is_at_start_of_line = false;
+                os << *iter++;
+            }
+            else
+            {
+                os << *iter++;
             }
         }
-    }
-}
-
-void Generator::Generator_state::open_output_file()
-{
-    os.open(full_output_file_name);
-}
-
-constexpr Generator::Indent_t Generator::indent;
-constexpr const char *Generator::vulkan_cpu_namespace_name;
-constexpr const char *Generator::spirv_namespace_name;
-constexpr const char *Generator::spirv_namespace_names[];
-constexpr const char *Generator::extension_enum_name;
-constexpr const char *Generator::capability_enum_name;
-constexpr const char *Generator::op_enum_name;
-
-std::string Generator::get_guard_macro_name_from_file_name(std::string file_name)
-{
-    auto retval = std::move(file_name);
-    for(char &ch : retval)
-    {
-        if(ch >= 'a' && ch <= 'z')
-        {
-            ch = ch - 'a' + 'A'; // convert to uppercase
-            continue;
-        }
-        if(ch >= 'A' && ch <= 'Z')
-            continue;
-        if(ch >= '0' && ch <= '9')
-            continue;
-        ch = '_';
-    }
-    retval += '_';
-    if(retval[0] >= '0' && retval[0] <= '9')
-        retval.insert(0, 1, '_');
-    for(std::size_t double_underline_index = retval.find("__");
-        double_underline_index != std::string::npos;
-        double_underline_index = retval.find("__", double_underline_index + 1))
-    {
-        // insert a u in all pairs of underlines to prevent generating a reserved identifier
-        retval.insert(++double_underline_index, "u");
-    }
-    if(retval.size() >= 2 && retval[0] == '_' && retval[1] >= 'A' && retval[1] <= 'Z')
-    {
-        // insert a u to prevent generating a reserved identifier: starting with an underline and a
-        // capital letter
-        retval.insert(1, "u");
-    }
-    return retval;
-}
-
-namespace
-{
-constexpr bool is_uppercase_letter(char ch) noexcept
-{
-    if(ch >= 'A' && ch <= 'Z')
-        return true;
-    return false;
-}
-
-constexpr bool is_lowercase_letter(char ch) noexcept
-{
-    if(ch >= 'a' && ch <= 'z')
-        return true;
-    return false;
-}
-
-constexpr bool is_letter(char ch) noexcept
-{
-    return is_uppercase_letter(ch) || is_lowercase_letter(ch);
-}
-
-constexpr bool is_identifier_start(char ch) noexcept
-{
-    return is_letter(ch) || ch == '_';
-}
-
-constexpr bool is_digit(char ch) noexcept
-{
-    if(ch >= '0' && ch <= '9')
-        return true;
-    return false;
-}
-}
-
-std::string Generator::get_enumerant_name(const char *enumeration_name,
-                                          std::size_t enumeration_name_size,
-                                          std::string enumerant_name,
-                                          bool input_name_should_have_prefix)
-{
-    bool starts_with_enumeration_name =
-        enumerant_name.compare(0, enumeration_name_size, enumeration_name, enumeration_name_size)
-        == 0;
-    bool starts_with_doubled_enumeration_name = false;
-    if(starts_with_enumeration_name)
-        starts_with_doubled_enumeration_name = enumerant_name.compare(enumeration_name_size,
-                                                                      enumeration_name_size,
-                                                                      enumeration_name,
-                                                                      enumeration_name_size)
-                                               == 0;
-    std::size_t needed_prefix_count;
-    if(input_name_should_have_prefix)
-    {
-        if(!starts_with_enumeration_name)
-            needed_prefix_count = 2;
-        else if(starts_with_doubled_enumeration_name)
-            needed_prefix_count = 1;
-        else
-            needed_prefix_count = 0;
     }
     else
     {
-        if(starts_with_enumeration_name)
-            needed_prefix_count = 1; // ensure that we don't end up with name collisions
-        else if(enumerant_name.empty())
-            needed_prefix_count = 1; // return something other than the empty string
-        else
-            needed_prefix_count = is_identifier_start(enumerant_name[0]) ? 0 : 1;
+        for(char ch : value)
+            os << ch;
     }
-    for(std::size_t i = 0; i < needed_prefix_count; i++)
-        enumerant_name.insert(0, enumeration_name, enumeration_name_size);
-    return enumerant_name;
+    os.close(); // manually close to not hide error exceptions
 }
 
-void Generator::write_indent_absolute(Generator_state &state, std::size_t amount)
+void detail::Generated_output_stream::write_unsigned_integer(std::uint64_t value,
+                                                             unsigned base,
+                                                             std::size_t min_length)
 {
-    static constexpr auto indent_string = "    ";
-    for(std::size_t i = 0; i < amount; i++)
-        state << indent_string;
-}
-
-void Generator::write_indent_interpreted_text(Generator_state &state,
-                                              const char *text,
-                                              std::ptrdiff_t offset,
-                                              bool start_indented)
-{
-    bool did_indent = start_indented;
-    std::size_t indent_amount = offset + state.indent_level;
-    for(; *text; text++)
+    static_assert(std::numeric_limits<decltype(value)>::radix == 2, "");
+    constexpr std::size_t buffer_size = std::numeric_limits<decltype(value)>::digits;
+    char buffer[buffer_size];
+    while(min_length > buffer_size)
     {
-        auto &ch = *text;
-        if(ch == '\n')
-        {
-            state << ch;
-            did_indent = false;
-            indent_amount = offset + state.indent_level;
-        }
-        else if(!did_indent && ch == '`')
-        {
-            indent_amount++;
-        }
-        else
-        {
-            if(!did_indent)
-            {
-                did_indent = true;
-                write_indent_absolute(state, indent_amount);
-            }
-            state << ch;
-        }
+        *this << '0';
+        min_length--;
     }
+    std::size_t length = json::ast::Number_value::unsigned_integer_to_buffer(
+        value, buffer, buffer_size, false, base, min_length);
+    *this << util::string_view(buffer, length);
 }
 
-void Generator::write_automatically_generated_file_warning(Generator_state &state)
+void detail::Generated_output_stream::write_signed_integer(std::int64_t value, unsigned base)
 {
-    state
-        << "/* This file is automatically generated by generate_spirv_parser. DO NOT MODIFY. */\n";
+    static_assert(std::numeric_limits<decltype(value)>::radix == 2, "");
+    constexpr std::size_t buffer_size =
+        std::numeric_limits<decltype(value)>::digits + 1; // one extra for sign
+    char buffer[buffer_size];
+    std::size_t length =
+        json::ast::Number_value::signed_integer_to_buffer(value, buffer, buffer_size, false, base);
+    *this << util::string_view(buffer, length);
 }
 
-void Generator::write_copyright_comment(Generator_state &state, const ast::Copyright &copyright)
+detail::Generated_output_stream &detail::Generated_output_stream::operator<<(Guard_macro)
 {
-    state << "/*\n";
-    for(auto &line : copyright.lines)
-    {
-        if(line.empty())
-        {
-            state << " *\n";
-            continue;
-        }
-        state << " * ";
-        bool was_last_star = false;
-        for(char ch : line)
-        {
-            if(was_last_star && ch == '/')
-                state << ' ';
-            was_last_star = (ch == '*');
-            state << ch;
-        }
-        state << "\n";
-    }
-    state << " */\n";
+    *this << name_from_words_all_uppercase_with_trailing_underline(get_file_path().string());
+    return *this;
 }
 
-void Generator::write_file_guard_start(Generator_state &state)
+std::string detail::Generated_output_stream::name_from_words_helper(Name_format name_format,
+                                                                    std::string name)
 {
-    state << "#ifndef " << state.guard_macro_name << R"(
-#define )"
-          << state.guard_macro_name << "\n"
-                                       "\n";
-}
-
-void Generator::write_file_guard_end(Generator_state &state)
-{
-    state << "#endif /* " << state.guard_macro_name << " */\n";
-}
-
-void Generator::write_namespace_start(Generator_state &state, const char *namespace_name)
-{
-    state << "namespace " << namespace_name << "\n"
-                                               "{\n";
-}
-
-void Generator::write_namespace_start(Generator_state &state, const std::string &namespace_name)
-{
-    state << "namespace " << namespace_name << "\n"
-                                               "{\n";
-}
-
-void Generator::write_namespace_end(Generator_state &state)
-{
-    state << "}\n";
-}
-
-void Generator::write_unsigned_integer_literal(Generator_state &state,
-                                               std::uint64_t value,
-                                               Integer_literal_base base,
-                                               std::size_t minimum_digit_count)
-{
-    constexpr std::uint64_t max_unsigned_value = std::numeric_limits<std::uint16_t>::max();
-    constexpr std::uint64_t max_unsigned_long_value = std::numeric_limits<std::uint32_t>::max();
-    auto literal_type =
-        value <= max_unsigned_value ? "U" : value <= max_unsigned_long_value ? "UL" : "ULL";
-    auto number_prefix = "";
-    unsigned base_as_number = 10;
-    switch(base)
-    {
-    case Integer_literal_base::dec:
-        minimum_digit_count = 1;
-        break;
-    case Integer_literal_base::hex:
-        base_as_number = 0x10;
-        number_prefix = "0x";
-        break;
-    case Integer_literal_base::oct:
-        base_as_number = 010;
-        number_prefix = "0";
-        break;
-    }
-    auto number_string = json::ast::Number_value::append_unsigned_integer_to_string(
-                             value, number_prefix, base_as_number, minimum_digit_count)
-                         + literal_type;
-    state << number_string;
-}
-
-void Generator::write_signed_integer_literal(Generator_state &state, std::int64_t value)
-{
-    constexpr std::int64_t max_int_value = std::numeric_limits<std::int16_t>::max();
-    constexpr std::int64_t min_int_value = std::numeric_limits<std::int16_t>::min();
-    constexpr std::int64_t max_long_value = std::numeric_limits<std::int32_t>::max();
-    constexpr std::int64_t min_long_value = std::numeric_limits<std::int32_t>::min();
-    auto literal_type = "";
-    if(value < min_int_value || value > max_int_value)
-        literal_type = "L";
-    if(value < min_long_value || value > max_long_value)
-        literal_type = "LL";
-    state << value << literal_type;
-}
-
-struct Generator::Get_extensions_visitor
-{
-    std::unordered_set<std::string> &retval;
-    constexpr Get_extensions_visitor(std::unordered_set<std::string> &retval) noexcept
-        : retval(retval)
-    {
-    }
-    template <typename T>
-    void operator()(const T &)
-    {
-    }
-    void operator()(const ast::Extensions &extensions)
-    {
-        for(auto &extension : extensions.extensions)
-            retval.insert(extension);
-    }
-};
-
-std::unordered_set<std::string> Generator::get_extensions(const ast::Top_level &top_level)
-{
-    std::unordered_set<std::string> retval;
-    top_level.visit(Get_extensions_visitor(retval));
-    return retval;
-}
-
-void Generator::write_capabilities_set(Generator_state &state,
-                                       const ast::Capabilities &capabilities)
-{
-    state << "util::Enum_set<" << capability_enum_name << ">{";
-    auto separator = "";
-    for(auto &capability : capabilities.capabilities)
-    {
-        state << separator << capability_enum_name
-              << "::" << get_enumerant_name(capability_enum_name, capability, false);
-        separator = ", ";
-    }
-    state << "}";
-}
-
-void Generator::write_extensions_set(Generator_state &state, const ast::Extensions &extensions)
-{
-    state << "util::Enum_set<" << extension_enum_name << ">{";
-    auto separator = "";
-    for(auto &extension : extensions.extensions)
-    {
-        state << separator << extension_enum_name
-              << "::" << get_enumerant_name(extension_enum_name, extension, false);
-        separator = ", ";
-    }
-    state << "}";
-}
-
-std::string Generator::get_name_from_words(const std::string &words)
-{
-    enum class Char_class
-    {
-        Uppercase,
-        OtherIdentifier,
-        WordSeparator,
-    };
-    auto get_char_class = [](char ch) -> Char_class
-    {
-        if(is_uppercase_letter(ch))
-            return Char_class::Uppercase;
-        if(is_letter(ch) || is_digit(ch))
-            return Char_class::OtherIdentifier;
-        return Char_class::WordSeparator;
-    };
-    auto find_words = [&](auto found_word_callback) -> void
-    {
-        util::optional<std::size_t> word_start;
-        auto finish_word = [&](std::size_t index)
-        {
-            found_word_callback(util::string_view(words.data() + *word_start, index - *word_start));
-            word_start = {};
-        };
-        auto start_word = [&](std::size_t index)
-        {
-            word_start = index;
-        };
-        auto last_char_class = Char_class::WordSeparator;
-        for(std::size_t i = 0; i < words.size(); i++)
-        {
-            auto current_char_class = get_char_class(words[i]);
-            if(word_start)
-            {
-                switch(current_char_class)
-                {
-                case Char_class::WordSeparator:
-                    finish_word(i);
-                    break;
-                case Char_class::Uppercase:
-                    if(last_char_class != Char_class::Uppercase)
-                    {
-                        finish_word(i);
-                        start_word(i);
-                    }
-                    else if(i + 1 < words.size()
-                            && get_char_class(words[i + 1]) == Char_class::OtherIdentifier)
-                    {
-                        finish_word(i);
-                        start_word(i);
-                    }
-                    break;
-                case Char_class::OtherIdentifier:
-                    break;
-                }
-            }
-            else if(current_char_class != Char_class::WordSeparator)
-            {
-                start_word(i);
-            }
-            last_char_class = current_char_class;
-        }
-        if(word_start)
-            finish_word(words.size());
-    };
-    std::size_t retval_size = 0;
-    bool first = true;
-    find_words([&](util::string_view word)
-               {
-                   if(!first)
-                       retval_size++; // separating '_'
-                   first = false;
-                   retval_size += word.size();
-               });
-    std::string retval;
-    retval.reserve(retval_size);
-    first = true;
-    find_words([&](util::string_view word)
-               {
-                   if(!first)
-                       retval += '_';
-                   first = false;
-                   retval += word;
-               });
-    for(char &ch : retval)
-    {
-        if(is_uppercase_letter(ch))
+    for(char &ch : name)
+        if(ch >= 'A' && ch <= 'Z')
             ch = ch - 'A' + 'a'; // to lowercase
-    }
-    static constexpr const char *const reserved_words[] = {
-        "alignas",
-        "alignof",
-        "and",
-        "and_eq",
-        "asm",
-        "atomic_cancel",
-        "atomic_commit",
-        "atomic_noexcept",
-        "auto",
-        "bitand",
-        "bitor",
-        "bool",
-        "break",
-        "case",
-        "catch",
-        "char",
-        "char16_t",
-        "char32_t",
-        "class",
-        "compl",
-        "concept",
-        "concepts",
-        "const",
-        "const_cast",
-        "constexpr",
-        "continue",
-        "decltype",
-        "default",
-        "delete",
-        "do",
-        "double",
-        "dynamic_cast",
-        "else",
-        "enum",
-        "explicit",
-        "export",
-        "extern",
-        "false",
-        "float",
-        "for",
-        "friend",
-        "goto",
-        "if",
-        "import",
-        "inline",
-        "int",
-        "long",
-        "module",
-        "modules",
-        "mutable",
-        "namespace",
-        "new",
-        "noexcept",
-        "not",
-        "not_eq",
-        "nullptr",
-        "operator",
-        "or",
-        "or_eq",
-        "private",
-        "protected",
-        "public",
-        "register",
-        "reinterpret_cast",
-        "requires",
-        "return",
-        "short",
-        "signed",
-        "sizeof",
-        "static",
-        "static_assert",
-        "static_cast",
-        "struct",
-        "switch",
-        "synchronized",
-        "template",
-        "this",
-        "thread_local",
-        "throw",
-        "true",
-        "try",
-        "typedef",
-        "typeid",
-        "typename",
-        "union",
-        "unsigned",
-        "using",
-        "virtual",
-        "void",
-        "volatile",
-        "wchar_t",
-        "while",
-        "xor",
-        "xor_eq",
-    };
-    for(const char *reserved_word : reserved_words)
+    if(name.empty() || (name[0] >= '0' && name[0] <= '9'))
+        name.insert(0, 1, '_');
+    bool has_trailing_underline = false;
+    switch(name_format)
     {
-        if(retval == reserved_word)
+    case initial_capital:
+        // can't be empty because of previous insert
+        if(name[0] >= 'a' && name[0] <= 'z')
+            name[0] = name[0] - 'a' + 'A'; // to uppercase
+        break;
+    case all_uppercase_with_trailing_underline:
+    case all_uppercase:
+        if(name_format == all_uppercase_with_trailing_underline)
+            has_trailing_underline = true;
+        for(char &ch : name)
+            if(ch >= 'a' && ch <= 'z')
+                ch = ch - 'a' + 'A'; // to uppercase
+        break;
+    case all_lowercase:
+        break;
+    }
+    if(!has_trailing_underline)
+    {
+        for(auto &keyword : keywords)
         {
-            retval += '_';
-            break;
+            if(name == keyword)
+            {
+                has_trailing_underline = true;
+                break;
+            }
         }
     }
-    return retval;
+    if(has_trailing_underline)
+        name += '_';
+    return name;
 }
 
-#if 0
-#warning testing Generator::get_name_from_words
-struct Generator::Tester
+struct Spirv_and_parser_generator : public Generator
 {
-    struct Test_runner
-    {
-        Test_runner()
-        {
-            test();
-            std::exit(1);
-        }
-    };
-    static Test_runner test_runner;
-    static void test()
-    {
-        for(auto &input : {
-                    "abc  def", "AbcDef", "ABCDef", "'abc, def'",
-                })
-        {
-            std::cout << "\"" << input << "\" -> " << get_name_from_words(input)
-                      << std::endl;
-        }
-    }
+    struct State;
+    virtual void run(Generator_args &generator_args,
+                     const ast::Top_level &top_level) const override;
 };
 
-Generator::Tester::Test_runner Generator::Tester::test_runner;
-#endif
+using namespace util::string_view_literals;
 
-std::string Generator::get_member_name_from_operand(
-    const ast::Instructions::Instruction::Operands::Operand &operand)
+namespace
 {
-    if(!operand.name.empty())
-        return get_name_from_words(operand.name);
-    util::string_view id_str = "Id";
-    if(util::string_view(operand.kind).compare(0, id_str.size(), id_str) == 0
-       && id_str.size() < operand.kind.size()
-       && is_uppercase_letter(operand.kind[id_str.size()]))
-        return get_name_from_words(operand.kind.substr(id_str.size()));
-    return get_name_from_words(operand.kind);
+enum class Output_part
+{
+    file_comments,
+    include_guard_start,
+    includes,
+    namespaces_start,
+    basic_types,
+    basic_constants,
+    id_types,
+    enum_definitions,
+    enum_properties_definitions,
+    literal_types,
+    enum_structs,
+    composite_types,
+    instruction_structs,
+    parse_error_class,
+    parser_callbacks_class,
+    dump_callbacks_class,
+    parser_class,
+    namespaces_end,
+    include_guard_end,
+
+    struct_opening,
+    struct_members,
+    struct_default_constructor,
+    struct_default_constructor_initializers,
+    struct_default_constructor_body,
+    struct_fill_constructor_start,
+    struct_fill_constructor_args,
+    struct_fill_constructor_args_end,
+    struct_fill_constructor_initializers,
+    struct_fill_constructor_body,
+    struct_closing,
+};
+
+vulkan_cpu_util_generate_enum_traits(Output_part,
+                                     Output_part::file_comments,
+                                     Output_part::include_guard_start,
+                                     Output_part::includes,
+                                     Output_part::namespaces_start,
+                                     Output_part::basic_types,
+                                     Output_part::basic_constants,
+                                     Output_part::id_types,
+                                     Output_part::enum_definitions,
+                                     Output_part::enum_properties_definitions,
+                                     Output_part::literal_types,
+                                     Output_part::enum_structs,
+                                     Output_part::composite_types,
+                                     Output_part::instruction_structs,
+                                     Output_part::parse_error_class,
+                                     Output_part::parser_callbacks_class,
+                                     Output_part::dump_callbacks_class,
+                                     Output_part::parser_class,
+                                     Output_part::namespaces_end,
+                                     Output_part::include_guard_end,
+                                     Output_part::struct_opening,
+                                     Output_part::struct_members,
+                                     Output_part::struct_default_constructor,
+                                     Output_part::struct_default_constructor_initializers,
+                                     Output_part::struct_default_constructor_body,
+                                     Output_part::struct_fill_constructor_start,
+                                     Output_part::struct_fill_constructor_args,
+                                     Output_part::struct_fill_constructor_args_end,
+                                     Output_part::struct_fill_constructor_initializers,
+                                     Output_part::struct_fill_constructor_body,
+                                     Output_part::struct_closing);
+
+static_assert(util::Enum_traits<Output_part>::is_compact,
+              "mismatch between declaration and generate enum traits");
 }
 
-std::string Generator::get_member_name_from_parameter(
-    const ast::Operand_kinds::Operand_kind::Enumerants::Enumerant::Parameters::Parameter &parameter)
+struct Spirv_and_parser_generator::State
 {
-    if(!parameter.name.empty())
-        return get_name_from_words(parameter.name);
-    return get_name_from_words(parameter.kind);
-}
-
-std::string Generator::get_member_name_from_enumerant(
-    const ast::Operand_kinds::Operand_kind::Enumerants::Enumerant &enumerant)
-{
-    return get_name_from_words(enumerant.enumerant + " parameters");
-}
-
-std::string Generator::get_operand_with_parameters_name(
-    Generator_state &state, const ast::Operand_kinds::Operand_kind &operand_kind)
-{
-    if(get_operand_has_any_parameters(state, operand_kind))
-        return operand_kind.kind + "_with_parameters";
-    return operand_kind.kind;
-}
-
-void Generator::write_struct_nonstatic_members_and_constructors(Generator_state &state,
-                                                                const std::string &struct_name,
-                                                                const std::string *member_types,
-                                                                const std::string *member_names,
-                                                                std::size_t member_count)
-{
-    for(std::size_t i = 0; i < member_count; i++)
-        state << indent << member_types[i] << " " << member_names[i] << ";\n";
-    state << indent << struct_name << "()\n";
+private:
+    struct Operand_descriptor;
+    struct Instruction_descriptor;
+    struct Output_base
     {
-        auto push_indent = state.pushed_indent();
-        for(std::size_t i = 0; i < member_count; i++)
+        Output_base(const Output_base &) = delete;
+        Output_base &operator=(const Output_base &) = delete;
+        typedef void (Output_base::*Write_function)(detail::Generated_output_stream &output_stream,
+                                                    Output_part part) const;
+        typedef util::variant<const detail::Generated_output_stream *,
+                              const Output_base *,
+                              Write_function> Output_part_value;
+        util::Enum_map<Output_part, Output_part_value> output_parts;
+        const util::filesystem::path file_path;
+        template <typename T>
+        void register_output_part(Output_part part,
+                                  const detail::Generated_output_stream T::*variable)
         {
-            state << indent;
-            if(i == 0)
-                state << ": ";
-            else
-                state << "  ";
-            state << member_names[i] << "()";
-            if(i != member_count - 1)
-                state << ",";
-            state << "\n";
+            static_assert(std::is_base_of<Output_base, T>::value, "");
+            assert(dynamic_cast<T *>(this));
+            auto *derived_class = static_cast<T *>(this);
+            output_parts.insert_or_assign(part, &(derived_class->*variable));
         }
-    }
-    state << indent(R"({
-}
-)");
-    if(member_count != 0)
-    {
-        state << indent;
-        if(member_count == 1)
-            state << "explicit ";
-        state << struct_name << "(";
-        for(std::size_t i = 0; i < member_count; i++)
+        template <typename T>
+        void register_output_part(Output_part part,
+                                  void (T::*write_function)(detail::Generated_output_stream &,
+                                                            Output_part) const)
         {
-            state << member_types[i] << " " << member_names[i];
-            if(i != member_count - 1)
-                state << ", ";
+            static_assert(std::is_base_of<Output_base, T>::value, "");
+            assert(dynamic_cast<T *>(this));
+            output_parts.insert_or_assign(part, static_cast<Write_function>(write_function));
         }
-        state << ")\n";
+        template <typename T, typename T2>
+        void register_output_part(
+            typename std::enable_if<std::is_base_of<Output_base, T>::value, Output_part>::type part,
+            const T T2::*variable)
         {
-            auto push_indent = state.pushed_indent();
-            for(std::size_t i = 0; i < member_count; i++)
+            static_assert(std::is_base_of<Output_base, T2>::value, "");
+            assert(dynamic_cast<T2 *>(this));
+            auto *derived_class = static_cast<T2 *>(this);
+            output_parts.insert_or_assign(part, &(derived_class->*variable));
+        }
+        explicit Output_base(const util::filesystem::path &file_path)
+            : output_parts(), file_path(file_path)
+        {
+        }
+        void write_whole_output(detail::Generated_output_stream &output_stream) const
+        {
+            for(auto &part : output_parts)
             {
-                state << indent;
-                if(i == 0)
-                    state << ": ";
-                else
-                    state << "  ";
-                state << member_names[i] << "(std::move(" << member_names[i] << "))";
-                if(i != member_count - 1)
-                    state << ",";
-                state << "\n";
+                struct Visitor
+                {
+                    detail::Generated_output_stream &output_stream;
+                    const Output_base *this_;
+                    Output_part output_part;
+                    void operator()(const Output_base *v)
+                    {
+                        v->write_whole_output(output_stream);
+                    }
+                    void operator()(const detail::Generated_output_stream *v)
+                    {
+                        output_stream << *v;
+                    }
+                    void operator()(Write_function write_function)
+                    {
+                        (this_->*write_function)(output_stream, output_part);
+                    }
+                };
+                util::visit(Visitor{output_stream, this, std::get<0>(part)}, std::get<1>(part));
             }
         }
-        state << indent(R"({
-}
-)");
-    }
-}
-
-std::vector<ast::Operand_kinds::Operand_kind::Enumerants::Enumerant>
-    Generator::get_unique_enumerants(
-        std::vector<ast::Operand_kinds::Operand_kind::Enumerants::Enumerant> enumerants)
-{
-    std::unordered_set<std::uint32_t> values;
-    std::size_t output_index = 0;
-    for(std::size_t input_index = 0; input_index < enumerants.size(); input_index++)
-    {
-        if(std::get<1>(values.insert(enumerants[input_index].value)))
+        detail::Generated_output_stream get_whole_output() const
         {
-            if(output_index != input_index)
-                enumerants[output_index] = std::move(enumerants[input_index]);
-            output_index++;
+            detail::Generated_output_stream retval(file_path);
+            write_whole_output(retval);
+            return retval;
         }
-    }
-    enumerants.erase(enumerants.begin() + output_index, enumerants.end());
-    return enumerants;
-}
-
-struct Spirv_header_generator final : public Generator
-{
-    Spirv_header_generator() : Generator("spirv.h")
-    {
-    }
-    enum class Enum_priority
-    {
-        default_priority = 0,
-        capability = 1,
+        virtual void write_to_file() const
+        {
+            get_whole_output().write_to_file();
+        }
     };
-    static Enum_priority get_enum_priority(const std::string &enum_name) noexcept
+    struct Output_struct final : public Output_base
     {
-        if(enum_name == capability_enum_name)
-            return Enum_priority::capability;
-        return Enum_priority::default_priority;
-    }
-    static bool compare_enum_names(const std::string &l, const std::string &r) noexcept
-    {
-        auto l_priority = get_enum_priority(l);
-        auto r_priority = get_enum_priority(r);
-        if(l_priority > r_priority)
-            return true; // higher priority sorts first
-        if(l_priority < r_priority)
-            return false;
-        return l < r;
-    }
-    /** lower priority means that the operand kind is declared first */
-    static int get_operand_category_priority(
-        ast::Operand_kinds::Operand_kind::Category category) noexcept
-    {
-        switch(category)
+        const std::string struct_name;
+        detail::Generated_output_stream struct_members;
+        detail::Generated_output_stream struct_default_constructor_initializers;
+        detail::Generated_output_stream struct_fill_constructor_args;
+        detail::Generated_output_stream struct_fill_constructor_initializers;
+        std::size_t nonstatic_member_count;
+        Output_struct(const util::filesystem::path &file_path, util::string_view struct_name)
+            : Output_base(file_path),
+              struct_name(struct_name),
+              struct_members(file_path),
+              struct_default_constructor_initializers(file_path),
+              struct_fill_constructor_args(file_path),
+              struct_fill_constructor_initializers(file_path),
+              nonstatic_member_count(0)
         {
-        case ast::Operand_kinds::Operand_kind::Category::bit_enum:
-        case ast::Operand_kinds::Operand_kind::Category::value_enum:
-            return 1;
-        case ast::Operand_kinds::Operand_kind::Category::id:
-            return 0;
-        case ast::Operand_kinds::Operand_kind::Category::literal:
-            return 0;
-        case ast::Operand_kinds::Operand_kind::Category::composite:
-            return 2;
+            register_output_part(Output_part::struct_opening, &Output_struct::write_output_part);
+            register_output_part(Output_part::struct_members, &Output_struct::struct_members);
+            register_output_part(Output_part::struct_default_constructor,
+                                 &Output_struct::write_output_part);
+            register_output_part(Output_part::struct_default_constructor_initializers,
+                                 &Output_struct::struct_default_constructor_initializers);
+            register_output_part(Output_part::struct_default_constructor_body,
+                                 &Output_struct::write_output_part);
+            register_output_part(Output_part::struct_fill_constructor_start,
+                                 &Output_struct::write_output_part);
+            register_output_part(Output_part::struct_fill_constructor_args,
+                                 &Output_struct::struct_fill_constructor_args);
+            register_output_part(Output_part::struct_fill_constructor_args_end,
+                                 &Output_struct::write_output_part);
+            register_output_part(Output_part::struct_fill_constructor_initializers,
+                                 &Output_struct::struct_fill_constructor_initializers);
+            register_output_part(Output_part::struct_fill_constructor_body,
+                                 &Output_struct::write_output_part);
+            register_output_part(Output_part::struct_closing, &Output_struct::write_output_part);
         }
-        return 0;
-    }
-    static bool compare_operand_kinds(const ast::Operand_kinds::Operand_kind &l,
-                                      const ast::Operand_kinds::Operand_kind &r)
+        std::string get_struct_fill_constructor_start() const
+        {
+            std::string retval;
+            if(nonstatic_member_count == 1)
+                retval += "explicit ";
+            retval += struct_name;
+            retval += '(';
+            return retval;
+        }
+        void write_output_part(detail::Generated_output_stream &output_stream,
+                               Output_part part) const
+        {
+            switch(part)
+            {
+            case Output_part::struct_opening:
+                output_stream << "struct " << struct_name << R"(
+{
+@+)";
+                return;
+            case Output_part::struct_default_constructor:
+                output_stream << struct_name << R"(()
+@+)";
+                if(nonstatic_member_count > 0)
+                    output_stream << detail::add_start_offset(2) << ": ";
+                return;
+            case Output_part::struct_default_constructor_body:
+                if(nonstatic_member_count > 0)
+                    output_stream << "\n" << detail::add_start_offset(-2) << detail::restart_indent;
+                output_stream << R"(@-{
+}
+)";
+                return;
+            case Output_part::struct_fill_constructor_start:
+                if(nonstatic_member_count > 0)
+                {
+                    auto struct_fill_constructor_start = get_struct_fill_constructor_start();
+                    output_stream << detail::push_start
+                                  << detail::add_start_offset(struct_fill_constructor_start.size())
+                                  << struct_fill_constructor_start;
+                }
+                return;
+            case Output_part::struct_fill_constructor_args_end:
+                if(nonstatic_member_count > 0)
+                {
+                    output_stream << R"()
+)" << detail::pop_start << detail::restart_indent
+                                  << detail::add_start_offset(2) << R"(@+: )";
+                }
+                return;
+            case Output_part::struct_fill_constructor_body:
+                if(nonstatic_member_count > 0)
+                {
+                    output_stream << "\n" << detail::add_start_offset(-2) << detail::restart_indent
+                                  << R"(@-{
+}
+)";
+                }
+                return;
+            case Output_part::struct_closing:
+                output_stream << R"(@-};
+)";
+                return;
+            default:
+                break;
+            }
+            assert(false);
+        }
+        static util::string_view get_variable_declaration_type_name_separator(
+            util::string_view type)
+        {
+            assert(!type.empty());
+            if(type.back() == '&' || type.back() == '*')
+                return ""_sv;
+            return " "_sv;
+        }
+        void add_nonstatic_member(util::string_view member_type,
+                                  util::string_view member_name,
+                                  bool needs_move)
+        {
+            if(nonstatic_member_count != 0)
+            {
+                struct_default_constructor_initializers << ",\n";
+                struct_fill_constructor_initializers << ",\n";
+                struct_fill_constructor_args << ",\n";
+            }
+            nonstatic_member_count++;
+            struct_members << member_type
+                           << get_variable_declaration_type_name_separator(member_type)
+                           << member_name << ";\n";
+            struct_default_constructor_initializers << member_name << "()";
+            auto move_start = ""_sv;
+            auto move_end = ""_sv;
+            if(needs_move)
+            {
+                move_start = "std::move("_sv;
+                move_end = ")"_sv;
+            }
+            struct_fill_constructor_initializers << member_name << "(" << move_start << member_name
+                                                 << move_end << ")";
+            struct_fill_constructor_args
+                << member_type << get_variable_declaration_type_name_separator(member_type)
+                << member_name;
+        }
+    };
+    struct Output_file_base : public Output_base
     {
-        auto l_priority = get_operand_category_priority(l.category);
-        auto r_priority = get_operand_category_priority(r.category);
-        if(l_priority != r_priority)
-            return l_priority < r_priority;
-        return compare_enum_names(l.kind, r.kind);
-    }
-    virtual void run(Generator_args &generator_args, const ast::Top_level &top_level) const override
+        detail::Generated_output_stream file_comments;
+        detail::Generated_output_stream includes;
+        detail::Generated_output_stream namespaces_start;
+        detail::Generated_output_stream namespaces_end;
+        explicit Output_file_base(const util::filesystem::path &file_path)
+            : Output_base(file_path),
+              file_comments(file_path),
+              includes(file_path),
+              namespaces_start(file_path),
+              namespaces_end(file_path)
+        {
+            register_output_part(Output_part::file_comments, &Output_file_base::file_comments);
+            register_output_part(Output_part::includes, &Output_file_base::includes);
+            register_output_part(Output_part::namespaces_start,
+                                 &Output_file_base::namespaces_start);
+            register_output_part(Output_part::namespaces_end, &Output_file_base::namespaces_end);
+        }
+        virtual void fill_output(State &state)
+        {
+            constexpr auto automatically_generated_file_warning_comment =
+                R"(/* This file is automatically generated by generate_spirv_parser. DO NOT MODIFY. */
+)"_sv;
+            file_comments << automatically_generated_file_warning_comment
+                          << state.top_level.copyright;
+            namespaces_start << R"(
+namespace vulkan_cpu
+{
+namespace spirv
+{
+)";
+            namespaces_end << R"(}
+}
+)";
+        }
+        void write_local_include_string(util::string_view header_file)
+        {
+            includes << R"(#include ")" << header_file << R"("
+)";
+        }
+        void write_local_include_path(util::filesystem::path header_file)
+        {
+            auto dir_path = file_path;
+            dir_path.remove_filename();
+            write_local_include_string(header_file.lexically_proximate(dir_path).generic_string());
+        }
+        void write_system_include(util::string_view header_file)
+        {
+            includes << R"(#include <)" << header_file << R"(>
+)";
+        }
+    };
+    struct Header_file_base : public Output_file_base
     {
-        Generator_state state(this, generator_args, top_level);
-        state.open_output_file();
-        write_file_comments(state, top_level.copyright);
-        write_file_guard_start(state);
-        state << indent(R"(#include <cstdint>
-#include "util/enum.h"
-#include "util/optional.h"
-#include "util/variant.h"
-#include <vector>
+        detail::Generated_output_stream include_guard_start;
+        detail::Generated_output_stream include_guard_end;
+        explicit Header_file_base(const util::filesystem::path &file_path)
+            : Output_file_base(file_path),
+              include_guard_start(file_path),
+              include_guard_end(file_path)
+        {
+            register_output_part(Output_part::include_guard_start,
+                                 &Header_file_base::include_guard_start);
+            register_output_part(Output_part::include_guard_end,
+                                 &Header_file_base::include_guard_end);
+        }
+        virtual void fill_output(State &state) override
+        {
+            using detail::guard_macro;
+            Output_file_base::fill_output(state);
+            include_guard_start << R"(#ifndef )" << guard_macro << R"(
+#define )" << guard_macro << R"(
 
-)");
-        write_namespaces_start(state, spirv_namespace_names);
-        state << indent(R"(typedef std::uint32_t Word;
-typedef Word Id;
-enum class Op : Word;
-constexpr Word magic_number = )")
-              << unsigned_hex_integer_literal(top_level.magic_number, 8)
-              << indent(true,
-                        ";\n"
-                        "constexpr std::uint32_t major_version = ")
-              << unsigned_dec_integer_literal(top_level.major_version)
-              << indent(true,
-                        ";\n"
-                        "constexpr std::uint32_t minor_version = ")
-              << unsigned_dec_integer_literal(top_level.minor_version)
-              << indent(true,
-                        ";\n"
-                        "constexpr std::uint32_t revision = ")
-              << unsigned_dec_integer_literal(top_level.revision) << ";\n";
-        auto extensions_set = get_extensions(top_level);
-        std::vector<std::string> extensions_list;
-        extensions_list.reserve(extensions_set.size());
-        for(auto &extension : extensions_set)
-            extensions_list.push_back(extension);
-        std::sort(extensions_list.begin(), extensions_list.end());
-        state << indent(
-                     "\n"
-                     "enum class ")
-              << extension_enum_name << indent(true,
-                                               " : std::size_t\n"
-                                               "{\n");
-        {
-            auto push_indent = state.pushed_indent();
-            for(auto &extension : extensions_list)
-                state << indent << get_enumerant_name(extension_enum_name, extension, false)
-                      << ",\n";
+)";
+            include_guard_end << R"(
+#endif /* )" << guard_macro << R"( */
+)";
         }
-        state << indent(
-                     "};\n"
-                     "\n"
-                     "vulkan_cpu_util_generate_enum_traits(")
-              << extension_enum_name;
+    };
+    struct Source_file_base : public Output_file_base
+    {
+        const Header_file_base *const header;
+        explicit Source_file_base(const util::filesystem::path &file_path,
+                                  const Header_file_base *header)
+            : Output_file_base(file_path), header(header)
         {
-            auto push_indent = state.pushed_indent();
-            for(auto &extension : extensions_list)
-                state << ",\n" << indent << extension_enum_name
-                      << "::" << get_enumerant_name(extension_enum_name, extension, false);
-            state << ");\n";
         }
-        state << indent(
-                     "\n"
-                     "constexpr const char *get_enumerant_name(")
-              << extension_enum_name << indent(true,
-                                               " v) noexcept\n"
-                                               "{\n");
+        virtual void fill_output(State &state) override
         {
-            auto push_indent = state.pushed_indent();
-            state << indent(
-                "switch(v)\n"
-                "{\n");
-            for(auto &extension : extensions_list)
-            {
-                state << indent("case ") << extension_enum_name
-                      << "::" << get_enumerant_name(extension_enum_name, extension, false)
-                      << indent(true,
-                                ":\n"
-                                "`return \"")
-                      << extension << "\";\n";
-            }
-            state << indent(
-                "}\n"
-                "return \"\";\n");
+            using detail::guard_macro;
+            Output_file_base::fill_output(state);
+            write_local_include_path(header->file_path);
         }
-        state << "}\n";
-        std::vector<const ast::Operand_kinds::Operand_kind *> operand_kinds;
-        operand_kinds.reserve(top_level.operand_kinds.operand_kinds.size());
-        for(auto &operand_kind : top_level.operand_kinds.operand_kinds)
-            operand_kinds.push_back(&operand_kind);
-        std::sort(
-            operand_kinds.begin(),
-            operand_kinds.end(),
-            [](const ast::Operand_kinds::Operand_kind *a, const ast::Operand_kinds::Operand_kind *b)
-            {
-                return compare_operand_kinds(*a, *b);
-            });
-        for(auto *operand_kind : operand_kinds)
+    };
+    struct Spirv_h : public Header_file_base
+    {
+        detail::Generated_output_stream basic_types;
+        detail::Generated_output_stream basic_constants;
+        detail::Generated_output_stream id_types;
+        detail::Generated_output_stream enum_definitions;
+        detail::Generated_output_stream enum_properties_definitions;
+        detail::Generated_output_stream literal_types;
+        std::list<Output_struct> composite_types;
+        std::list<Output_struct> enum_structs;
+        std::list<Output_struct> instruction_structs;
+        explicit Spirv_h(const util::filesystem::path &file_path)
+            : Header_file_base(file_path),
+              basic_types(file_path),
+              basic_constants(file_path),
+              id_types(file_path),
+              enum_definitions(file_path),
+              enum_properties_definitions(file_path),
+              literal_types(file_path)
         {
-            switch(operand_kind->category)
+            register_output_part(Output_part::basic_types, &Spirv_h::basic_types);
+            register_output_part(Output_part::basic_constants, &Spirv_h::basic_constants);
+            register_output_part(Output_part::id_types, &Spirv_h::id_types);
+            register_output_part(Output_part::enum_definitions, &Spirv_h::enum_definitions);
+            register_output_part(Output_part::enum_properties_definitions,
+                                 &Spirv_h::enum_properties_definitions);
+            register_output_part(Output_part::literal_types, &Spirv_h::literal_types);
+            register_output_part(Output_part::enum_structs, &Spirv_h::write_enum_structs);
+            register_output_part(Output_part::composite_types, &Spirv_h::write_composite_types);
+            register_output_part(Output_part::instruction_structs,
+                                 &Spirv_h::write_instruction_structs);
+        }
+        void write_enum_structs(detail::Generated_output_stream &output_stream, Output_part) const
+        {
+            for(auto &enum_struct : enum_structs)
             {
-            case ast::Operand_kinds::Operand_kind::Category::bit_enum:
-            case ast::Operand_kinds::Operand_kind::Category::value_enum:
-            {
-                bool is_bit_enum =
-                    operand_kind->category == ast::Operand_kinds::Operand_kind::Category::bit_enum;
-                auto &enumerants =
-                    util::get<ast::Operand_kinds::Operand_kind::Enumerants>(operand_kind->value);
-                auto unique_enumerants = get_unique_enumerants(enumerants.enumerants);
-                state << "\n"
-                         "enum class "
-                      << get_enum_name(*operand_kind) << " : Word\n"
-                                                         "{\n";
-                {
-                    auto push_indent = state.pushed_indent();
-                    for(auto &enumerant : enumerants.enumerants)
-                    {
-                        state << indent
-                              << get_enumerant_name(operand_kind->kind, enumerant.enumerant, false)
-                              << " = ";
-                        if(is_bit_enum)
-                            state << unsigned_hex_integer_literal(enumerant.value);
-                        else
-                            state << unsigned_dec_integer_literal(enumerant.value);
-                        state << ",\n";
-                    }
-                }
-                state << "};\n"
-                         "\n"
-                         "vulkan_cpu_util_generate_enum_traits("
-                      << get_enum_name(*operand_kind);
-                {
-                    auto push_indent = state.pushed_indent();
-                    for(auto &enumerant : unique_enumerants)
-                        state << ",\n" << indent << get_enum_name(*operand_kind) << "::"
-                              << get_enumerant_name(operand_kind->kind, enumerant.enumerant, false);
-                    state << ");\n";
-                }
-                state << "\n"
-                         "constexpr const char *get_enumerant_name("
-                      << get_enum_name(*operand_kind) << " v) noexcept\n"
-                                                         "{\n";
-                {
-                    auto push_indent = state.pushed_indent();
-                    state << indent(
-                        "switch(v)\n"
-                        "{\n");
-                    for(auto &enumerant : unique_enumerants)
-                    {
-                        state << indent("case ") << get_enum_name(*operand_kind) << "::"
-                              << get_enumerant_name(operand_kind->kind, enumerant.enumerant, false)
-                              << indent(true,
-                                        ":\n"
-                                        "`return \"")
-                              << enumerant.enumerant << "\";\n";
-                    }
-                    state << indent(
-                        "}\n"
-                        "return \"\";\n");
-                }
-                state << "}\n";
-                state << "\n"
-                         "constexpr util::Enum_set<"
-                      << capability_enum_name << "> get_directly_required_capability_set("
-                      << get_enum_name(*operand_kind) << " v) noexcept\n"
-                                                         "{\n";
-                {
-                    auto push_indent = state.pushed_indent();
-                    state << indent(
-                        "switch(v)\n"
-                        "{\n");
-                    for(auto &enumerant : unique_enumerants)
-                    {
-                        state << indent("case ") << get_enum_name(*operand_kind) << "::"
-                              << get_enumerant_name(operand_kind->kind, enumerant.enumerant, false)
-                              << indent(true,
-                                        ":\n"
-                                        "`return ")
-                              << enumerant.capabilities << ";\n";
-                    }
-                    state << indent(
-                        "}\n"
-                        "return {};\n");
-                }
-                state << "}\n"
-                         "\n"
-                         "constexpr util::Enum_set<"
-                      << extension_enum_name << "> get_directly_required_extension_set("
-                      << get_enum_name(*operand_kind) << " v) noexcept\n"
-                                                         "{\n";
-                {
-                    auto push_indent = state.pushed_indent();
-                    state << indent(
-                        "switch(v)\n"
-                        "{\n");
-                    for(auto &enumerant : unique_enumerants)
-                    {
-                        state << indent("case ") << get_enum_name(*operand_kind) << "::"
-                              << get_enumerant_name(operand_kind->kind, enumerant.enumerant, false)
-                              << indent(true,
-                                        ":\n"
-                                        "`return ")
-                              << enumerant.extensions << ";\n";
-                    }
-                    state << indent(
-                        "}\n"
-                        "return {};\n");
-                }
-                state << "}\n";
-                break;
+                output_stream << "\n";
+                enum_struct.write_whole_output(output_stream);
             }
-            case ast::Operand_kinds::Operand_kind::Category::composite:
+        }
+        void write_composite_types(detail::Generated_output_stream &output_stream,
+                                   Output_part) const
+        {
+            for(auto &composite_type : composite_types)
             {
-                auto &bases =
-                    util::get<ast::Operand_kinds::Operand_kind::Bases>(operand_kind->value);
-                state << "\n"
-                         "struct "
-                      << operand_kind->kind << "\n"
-                                               "{\n";
-                auto push_indent = state.pushed_indent();
-                std::vector<std::string> member_types;
-                std::vector<std::string> member_names;
-                member_types.reserve(bases.values.size());
-                member_names.reserve(bases.values.size());
-                for(std::size_t i = 0; i < bases.values.size(); i++)
-                {
-                    member_types.push_back(
-                        get_operand_with_parameters_name(state, bases.values[i]));
-                    member_names.push_back(
-                        json::ast::Number_value::append_unsigned_integer_to_string(i + 1, "part_"));
-                }
-                write_struct_nonstatic_members_and_constructors(state,
-                                                                operand_kind->kind,
-                                                                member_types.data(),
-                                                                member_names.data(),
-                                                                bases.values.size());
-                push_indent.finish();
-                state << "};\n";
-                break;
+                output_stream << "\n";
+                composite_type.write_whole_output(output_stream);
             }
-            case ast::Operand_kinds::Operand_kind::Category::id:
+        }
+        void write_instruction_structs(detail::Generated_output_stream &output_stream,
+                                       Output_part) const
+        {
+            for(auto &instruction_struct : instruction_structs)
             {
-                auto &doc = util::get<ast::Operand_kinds::Operand_kind::Doc>(operand_kind->value);
-                state << "\n"
-                         "/** ";
-                bool was_last_star = false;
-                for(char ch : doc.value)
-                {
-                    if(was_last_star && ch == '/')
-                        state << ' ';
-                    was_last_star = (ch == '*');
-                    state << ch;
-                }
-                state << " */\n"
-                         "typedef Id "
-                      << operand_kind->kind << ";\n";
-                break;
+                output_stream << "\n";
+                instruction_struct.write_whole_output(output_stream);
             }
-            case ast::Operand_kinds::Operand_kind::Category::literal:
+        }
+        void write_literal_kinds(State &state)
+        {
+            for(auto &operand_kind : state.top_level.operand_kinds.operand_kinds)
             {
-                auto &doc = util::get<ast::Operand_kinds::Operand_kind::Doc>(operand_kind->value);
+                if(operand_kind.category != ast::Operand_kinds::Operand_kind::Category::literal)
+                    continue;
                 auto literal_kind =
                     ast::Operand_kinds::Operand_kind::get_literal_kind_from_json_name(
-                        operand_kind->kind);
+                        operand_kind.kind);
                 if(!literal_kind)
-                    throw Generate_error("bad literal kind");
-                auto base_type = "std::vector<Word>";
+                    throw Generate_error("unknown literal kind: " + operand_kind.kind);
+                auto underlying_type = "<<<<<Unknown>>>>>"_sv;
                 switch(*literal_kind)
                 {
                 case ast::Operand_kinds::Operand_kind::Literal_kind::literal_integer:
-                    // TODO: fix after determining if LiteralInteger can be multiple words
-                    base_type = "std::uint32_t";
+                    underlying_type = "std::uint64_t"_sv;
                     break;
                 case ast::Operand_kinds::Operand_kind::Literal_kind::literal_string:
-                    base_type = "std::string";
-                    break;
+                    // Literal_string is defined in write_basic_types
+                    continue;
                 case ast::Operand_kinds::Operand_kind::Literal_kind::
                     literal_context_dependent_number:
+                    underlying_type = "std::vector<Word>"_sv;
                     break;
                 case ast::Operand_kinds::Operand_kind::Literal_kind::literal_ext_inst_integer:
-                    base_type = "Word";
+                    underlying_type = "Word"_sv;
                     break;
                 case ast::Operand_kinds::Operand_kind::Literal_kind::
                     literal_spec_constant_op_integer:
-                    base_type = "Op";
+                    underlying_type = state.op_enumeration.value()->cpp_name;
                     break;
                 }
-                state << "\n"
-                         "/** ";
-                bool was_last_star = false;
-                for(char ch : doc.value)
-                {
-                    if(was_last_star && ch == '/')
-                        state << ' ';
-                    was_last_star = (ch == '*');
-                    state << ch;
-                }
-                state << " */\n"
-                         "typedef "
-                      << base_type << " " << operand_kind->kind << ";\n";
-                break;
-            }
+                auto &descriptor = state.literal_type_descriptors.at(*literal_kind);
+                literal_types << R"(
+typedef )" << underlying_type << " "
+                              << descriptor.cpp_name << R"(;
+)";
             }
         }
-        for(auto *operand_kind : operand_kinds)
+        void write_basic_constants(State &state)
         {
-            switch(operand_kind->category)
+            using detail::unsigned_integer;
+            basic_constants << R"(
+constexpr Word magic_number = 0x)"
+                            << unsigned_integer(state.top_level.magic_number, 0x10, 8) << R"(UL;
+constexpr std::uint32_t major_version = )"
+                            << unsigned_integer(state.top_level.major_version) << R"(UL;
+constexpr std::uint32_t minor_version = )"
+                            << unsigned_integer(state.top_level.minor_version) << R"(UL;
+constexpr std::uint32_t revision = )"
+                            << unsigned_integer(state.top_level.revision) << R"(UL;
+)";
+            for(auto &instruction_set : state.top_level.extension_instruction_sets)
+            {
+                basic_constants << R"(
+constexpr std::uint32_t )" << instruction_set_version_name(instruction_set)
+                                << R"( = )" << unsigned_integer(instruction_set.version) << R"(UL;
+constexpr std::uint32_t )" << instruction_set_revision_name(instruction_set)
+                                << R"( = )" << unsigned_integer(instruction_set.revision) << R"(UL;
+)";
+            }
+        }
+        void write_enums(State &state)
+        {
+            using detail::unsigned_integer;
+            for(auto &enumeration : state.enumerations_list)
+            {
+                enum_definitions << R"(
+enum class )" << enumeration.cpp_name
+                                 << R"( : Word
+{
+@+)";
+                enum_properties_definitions << R"(
+constexpr util::string_view get_enumerant_name()"
+                                            << enumeration.cpp_name << R"( v) noexcept
+{
+    using namespace util::string_view_literals;
+    switch(v)
+    {
+@+@+)";
+                for(auto &enumerant : enumeration.enumerants)
+                {
+                    enum_definitions << enumerant.cpp_name << " = ";
+                    if(enumeration.is_bitwise)
+                        enum_definitions << "0x" << unsigned_integer(enumerant.value, 0x10) << "UL";
+                    else
+                        enum_definitions << unsigned_integer(enumerant.value, 10) << "UL";
+                    enum_definitions << ",\n";
+                }
+                enum_definitions << R"(@-};
+
+vulkan_cpu_util_generate_enum_traits()"
+                                 << enumeration.cpp_name;
+                std::unordered_set<std::uint32_t> values;
+                for(auto &enumerant : enumeration.enumerants)
+                {
+                    enum_definitions << R"(,
+`````````````````````````````````````)"
+                                     << enumeration.cpp_name << "::" << enumerant.cpp_name;
+                    if(std::get<1>(values.insert(enumerant.value)))
+                    {
+                        enum_properties_definitions << "case " << enumeration.cpp_name
+                                                    << "::" << enumerant.cpp_name << R"(:
+    return ")" << enumerant.json_name << R"("_sv;
+)";
+                    }
+                }
+                enum_definitions << R"();
+)";
+                if(enumeration.is_bitwise)
+                {
+                    enum_definitions << R"(
+constexpr )" << enumeration.cpp_name << R"( operator~()"
+                                     << enumeration.cpp_name << R"( v) noexcept
+{
+    return static_cast<)" << enumeration.cpp_name
+                                     << R"(>(~static_cast<Word>(v));
+}
+
+constexpr )" << enumeration.cpp_name << R"( operator&()"
+                                     << enumeration.cpp_name << R"( a, )" << enumeration.cpp_name
+                                     << R"( b) noexcept
+{
+    return static_cast<)" << enumeration.cpp_name
+                                     << R"(>(static_cast<Word>(a) & static_cast<Word>(b));
+}
+
+constexpr )" << enumeration.cpp_name << R"( operator|()"
+                                     << enumeration.cpp_name << R"( a, )" << enumeration.cpp_name
+                                     << R"( b) noexcept
+{
+    return static_cast<)" << enumeration.cpp_name
+                                     << R"(>(static_cast<Word>(a) | static_cast<Word>(b));
+}
+
+constexpr )" << enumeration.cpp_name << R"( operator^()"
+                                     << enumeration.cpp_name << R"( a, )" << enumeration.cpp_name
+                                     << R"( b) noexcept
+{
+    return static_cast<)" << enumeration.cpp_name
+                                     << R"(>(static_cast<Word>(a) ^ static_cast<Word>(b));
+}
+
+constexpr )" << enumeration.cpp_name << R"( &operator&=()"
+                                     << enumeration.cpp_name << R"( &a, )" << enumeration.cpp_name
+                                     << R"( b) noexcept
+{
+    a = a & b;
+    return a;
+}
+
+constexpr )" << enumeration.cpp_name << R"( &operator|=()"
+                                     << enumeration.cpp_name << R"( &a, )" << enumeration.cpp_name
+                                     << R"( b) noexcept
+{
+    a = a | b;
+    return a;
+}
+
+constexpr )" << enumeration.cpp_name << R"( &operator^=()"
+                                     << enumeration.cpp_name << R"( &a, )" << enumeration.cpp_name
+                                     << R"( b) noexcept
+{
+    a = a ^ b;
+    return a;
+}
+)";
+                }
+                enum_properties_definitions << R"(@-@_}
+    return ""_sv;
+}
+
+constexpr util::Enum_set<)" << state.capability_enumeration.value()->cpp_name
+                                            << R"(> get_directly_required_capabilities()"
+                                            << enumeration.cpp_name << R"( v) noexcept
+{
+    switch(v)
+    {
+@+@+)";
+                values.clear();
+                for(auto &enumerant : enumeration.enumerants)
+                {
+                    if(std::get<1>(values.insert(enumerant.value)))
+                    {
+                        enum_properties_definitions << "case " << enumeration.cpp_name
+                                                    << "::" << enumerant.cpp_name << R"(:
+    return {)";
+                        auto separator = ""_sv;
+                        for(auto &capability : enumerant.capabilities.capabilities)
+                        {
+                            enum_properties_definitions << separator;
+                            separator = ", "_sv;
+                            enum_properties_definitions
+                                << state.capability_enumeration.value()->cpp_name
+                                << "::" << state.get_capability(capability).cpp_name;
+                        }
+                        enum_properties_definitions << R"(};
+)";
+                    }
+                }
+                enum_properties_definitions << R"(@-@_}
+    return {};
+}
+
+constexpr util::Enum_set<)" << state.extension_enumeration.value()->cpp_name
+                                            << R"(> get_directly_required_extensions()"
+                                            << enumeration.cpp_name << R"( v) noexcept
+{
+    switch(v)
+    {
+@+@+)";
+                values.clear();
+                for(auto &enumerant : enumeration.enumerants)
+                {
+                    if(std::get<1>(values.insert(enumerant.value)))
+                    {
+                        enum_properties_definitions << "case " << enumeration.cpp_name
+                                                    << "::" << enumerant.cpp_name << R"(:
+    return {)";
+                        auto separator = ""_sv;
+                        for(auto &extension : enumerant.extensions.extensions)
+                        {
+                            enum_properties_definitions << separator;
+                            separator = ", "_sv;
+                            enum_properties_definitions
+                                << state.extension_enumeration.value()->cpp_name
+                                << "::" << state.get_extension(extension).cpp_name;
+                        }
+                        enum_properties_definitions << R"(};
+)";
+                    }
+                }
+                enum_properties_definitions << R"(@-@_}
+    return {};
+}
+)";
+            }
+        }
+        void write_id_types(State &state)
+        {
+            id_types << "\n";
+            for(auto &id_type : state.id_type_list)
+            {
+                id_types << "typedef Id " << id_type.cpp_name << R"(;
+)";
+            }
+        }
+        void write_enum_parameters(State &state)
+        {
+            std::unordered_map<std::string, std::list<Output_struct>::iterator>
+                enumerant_parameter_structs;
+            for(auto &operand_kind : state.operand_kind_list)
+            {
+                if(operand_kind.enum_parameters.empty())
+                    continue;
+                auto enumeration_iter = state.get_enumeration(operand_kind.operand_kind->kind);
+                enumerant_parameter_structs.clear();
+                for(auto &parameter : operand_kind.enum_parameters)
+                {
+                    auto enumerant_parameter_struct_iter =
+                        enumerant_parameter_structs.find(parameter.enumerant->json_name);
+                    if(enumerant_parameter_struct_iter == enumerant_parameter_structs.end())
+                    {
+                        auto output_struct_iter =
+                            enum_structs.emplace(enum_structs.end(),
+                                                 file_path,
+                                                 parameter.enumerant->parameters_struct_cpp_name);
+                        enumerant_parameter_struct_iter =
+                            std::get<0>(enumerant_parameter_structs.emplace(
+                                parameter.enumerant->json_name, output_struct_iter));
+                    }
+                    auto &output_struct = *std::get<1>(*enumerant_parameter_struct_iter);
+                    auto parameter_type = state.get_operand_kind(parameter.json_kind);
+                    if(!parameter_type->enum_parameters.empty())
+                        throw Generate_error("enum parameter can't contain enum with parameters: "
+                                             + operand_kind.operand_kind->kind);
+                    output_struct.add_nonstatic_member(
+                        parameter_type->cpp_name_with_parameters, parameter.cpp_name, true);
+                }
+                auto &enum_with_parameters_struct = *enum_structs.emplace(
+                    enum_structs.end(), file_path, operand_kind.cpp_name_with_parameters);
+                enum_with_parameters_struct.add_nonstatic_member(
+                    enumeration_iter->cpp_name, "value", false);
+                if(enumeration_iter->is_bitwise)
+                {
+                    for(auto &enumerant : enumeration_iter->enumerants)
+                    {
+                        if(enumerant.parameters.empty())
+                            continue;
+                        enum_with_parameters_struct.add_nonstatic_member(
+                            "util::optional<" + enumerant.parameters_struct_cpp_name + ">",
+                            enumerant.parameters_variable_cpp_name,
+                            true);
+                    }
+                }
+                else
+                {
+                    auto parameters_name = "Parameters"_sv;
+                    auto variant_start = "typedef util::variant<"_sv;
+                    enum_with_parameters_struct.struct_members
+                        << detail::push_start << detail::add_start_offset(variant_start.size())
+                        << variant_start << "util::monostate";
+                    for(auto &enumerant : enumeration_iter->enumerants)
+                    {
+                        if(enumerant.parameters.empty())
+                            continue;
+                        enum_with_parameters_struct.struct_members
+                            << ",\n" << enumerant.parameters_struct_cpp_name;
+                    }
+                    enum_with_parameters_struct.struct_members << "> " << parameters_name << ";\n"
+                                                               << detail::pop_start
+                                                               << detail::restart_indent;
+                    enum_with_parameters_struct.add_nonstatic_member(
+                        parameters_name, "parameters", true);
+                }
+            }
+        }
+        void write_composite_types(State &state)
+        {
+            for(auto &composite_type : state.composite_type_list)
+            {
+                auto &composite_type_struct = *composite_types.emplace(
+                    composite_types.end(), file_path, composite_type.cpp_name);
+                for(auto &base : composite_type.bases)
+                    composite_type_struct.add_nonstatic_member(
+                        state.get_operand_kind(base.json_type)->cpp_name_with_parameters,
+                        base.cpp_name,
+                        true);
+            }
+        }
+        void write_instruction_operand(State &state,
+                                       const Operand_descriptor &operand,
+                                       Output_struct &instruction_struct)
+        {
+            typedef Operand_descriptor::Quantifier Quantifier;
+            std::string member_type =
+                state.get_operand_kind(operand.json_kind)->cpp_name_with_parameters;
+            switch(operand.quantifier)
+            {
+            case Quantifier::none:
+                break;
+            case Quantifier::optional:
+                member_type = "util::optional<" + std::move(member_type) + ">";
+                break;
+            case Quantifier::variable:
+                member_type = "std::vector<" + std::move(member_type) + ">";
+                break;
+            }
+            instruction_struct.add_nonstatic_member(member_type, operand.cpp_name, true);
+        }
+        void write_instructions(State &state)
+        {
+            for(auto &instruction_descriptor : state.instruction_descriptor_list)
+            {
+                auto &instruction_struct = *instruction_structs.emplace(
+                    instruction_structs.end(), file_path, instruction_descriptor.cpp_struct_name);
+                instruction_struct.struct_members
+                    << "static constexpr " << instruction_descriptor.enumeration->cpp_name
+                    << R"( get_operation() noexcept
+{
+    return )" << instruction_descriptor.enumeration->cpp_name
+                    << "::" << instruction_descriptor.enumerant->cpp_name << R"(;
+}
+)";
+                for(auto &operand : instruction_descriptor.implied_operands)
+                    write_instruction_operand(state, operand, instruction_struct);
+                for(auto &operand : instruction_descriptor.explicit_operands)
+                    write_instruction_operand(state, operand, instruction_struct);
+            }
+        }
+        virtual void fill_output(State &state) override
+        {
+            Header_file_base::fill_output(state);
+            write_system_include("cstdint");
+            write_system_include("vector");
+            write_system_include("string");
+            write_system_include("iterator");
+            write_local_include_string("util/string_view.h");
+            write_local_include_string("util/enum.h");
+            write_local_include_string("util/optional.h");
+            write_local_include_string("util/variant.h");
+            write_local_include_string("spirv/word.h");
+            write_local_include_string("spirv/literal_string.h");
+            basic_types << R"(typedef Word Id;
+)";
+            write_literal_kinds(state);
+            write_basic_constants(state);
+            write_enums(state);
+            write_id_types(state);
+            write_enum_parameters(state);
+            write_composite_types(state);
+            write_instructions(state);
+        }
+    };
+    struct Spirv_cpp : public Source_file_base
+    {
+        explicit Spirv_cpp(const util::filesystem::path &file_path, const Spirv_h *header)
+            : Source_file_base(file_path, header)
+        {
+        }
+    };
+    struct Parser_h : public Header_file_base
+    {
+        detail::Generated_output_stream parse_error_class;
+        detail::Generated_output_stream parser_callbacks_class;
+        detail::Generated_output_stream dump_callbacks_class;
+        detail::Generated_output_stream parser_class;
+        explicit Parser_h(const util::filesystem::path &file_path)
+            : Header_file_base(file_path),
+              parse_error_class(file_path),
+              parser_callbacks_class(file_path),
+              dump_callbacks_class(file_path),
+              parser_class(file_path)
+        {
+            register_output_part(Output_part::parse_error_class, &Parser_h::parse_error_class);
+            register_output_part(Output_part::parser_callbacks_class,
+                                 &Parser_h::parser_callbacks_class);
+            register_output_part(Output_part::dump_callbacks_class,
+                                 &Parser_h::dump_callbacks_class);
+            register_output_part(Output_part::parser_class, &Parser_h::parser_class);
+        }
+        void write_instruction_operand_dump_code(State &state, Operand_descriptor &operand)
+        {
+            typedef Operand_descriptor::Quantifier Quantifier;
+            auto operand_kind = state.get_operand_kind(operand.json_kind);
+            switch(operand.quantifier)
+            {
+            case Quantifier::none:
+                dump_callbacks_class << operand_kind->cpp_dump_function_name << "(instruction."
+                                     << operand.cpp_name << ", indent_depth + 1);\n";
+                break;
+            case Quantifier::optional:
+                dump_callbacks_class << "if(instruction." << operand.cpp_name << R"()
+    )" << operand_kind->cpp_dump_function_name
+                                     << "(*instruction." << operand.cpp_name
+                                     << R"(, indent_depth + 1);
+)";
+                break;
+            case Quantifier::variable:
+                dump_callbacks_class << "for(auto &operand : instruction." << operand.cpp_name
+                                     << R"()
+    )" << operand_kind->cpp_dump_function_name
+                                     << R"((operand, indent_depth + 1);
+)";
+                break;
+            }
+        }
+        void write_instruction_operand_parse_code(
+            State &state,
+            Operand_descriptor &operand,
+            util::optional<Instruction_properties_descriptor::Operand_descriptors::const_iterator>
+                operand_descriptor_iter,
+            const Instruction_descriptor &instruction)
+        {
+            typedef Operand_descriptor::Quantifier Quantifier;
+            auto operand_kind = state.get_operand_kind(operand.json_kind);
+            auto write_parse_fn = [&]()
+            {
+                parser_class << operand_kind->cpp_parse_function_name
+                             << "(word_index, instruction_start_index, instruction_end_index";
+                if(operand_kind->needs_integer_literal_size)
+                {
+                    if(!operand_descriptor_iter)
+                        throw Generate_error(
+                            "instruction has no Instruction_properties_descriptor: "
+                            + get_instruction_name_for_diagnostics(
+                                  instruction.extension_instruction_set, instruction.json_name)
+                            + "\nNeeded because operand needs IntegerLiteral size");
+                    typedef Instruction_properties_descriptor::Operand_descriptor::
+                        Integer_literal_size Integer_literal_size;
+                    switch((*operand_descriptor_iter)->integer_literal_size)
+                    {
+                    case Integer_literal_size::not_implemented:
+                        throw Generate_error(
+                            "instruction operand properties has no "
+                            "Integer_literal_size: "
+                            + get_instruction_name_for_diagnostics(
+                                  instruction.extension_instruction_set, instruction.json_name));
+                    case Integer_literal_size::always_32bits:
+                        parser_class << ", 1";
+                        break;
+                    case Integer_literal_size::always_64bits:
+                        parser_class << ", 2";
+                        break;
+                    case Integer_literal_size::matches_type_of_operand_0:
+                        parser_class << ", get_operand_literal_integer_size(word_index, "
+                                        "instruction_start_index, instruction."
+                                     << instruction.explicit_operands.front().cpp_name << ')';
+                        break;
+                    }
+                }
+                parser_class << ')';
+            };
+            switch(operand.quantifier)
+            {
+            case Quantifier::none:
+                parser_class << "instruction." << operand.cpp_name << " = ";
+                write_parse_fn();
+                parser_class << ";\n";
+                break;
+            case Quantifier::optional:
+                parser_class << R"(if(word_index < instruction_end_index)
+    instruction.)" << operand.cpp_name
+                             << " = ";
+                write_parse_fn();
+                parser_class << ";\n";
+                break;
+            case Quantifier::variable:
+                parser_class << R"(while(word_index < instruction_end_index)
+    instruction.)" << operand.cpp_name
+                             << ".push_back(";
+                write_parse_fn();
+                parser_class << ");\n";
+                break;
+            }
+        }
+        virtual void fill_output(State &state) override
+        {
+            Header_file_base::fill_output(state);
+            write_local_include_path(state.spirv_h.file_path);
+            write_local_include_string("util/optional.h"_sv);
+            write_local_include_string("util/string_view.h"_sv);
+            write_local_include_string("json/json.h"_sv);
+            write_system_include("sstream"_sv);
+            write_system_include("vector"_sv);
+            write_system_include("cassert"_sv);
+            write_system_include("type_traits"_sv);
+            parse_error_class << R"a(struct Parser_error : public std::runtime_error
+{
+    std::size_t error_index;
+    std::size_t instruction_start_index;
+    static std::string make_error_message(std::size_t error_index,
+    ``````````````````````````````````````std::size_t instruction_start_index,
+    ``````````````````````````````````````util::string_view message)
+    {
+        std::ostringstream ss;
+        ss << "parse error at 0x" << std::hex << std::uppercase << error_index;
+        if(instruction_start_index != 0)
+            ss << " (instruction starts at 0x" << instruction_start_index << ")";
+        ss << ": " << message;
+        return ss.str();
+    }
+    Parser_error(std::size_t error_index, std::size_t instruction_start_index, util::string_view message)
+        : runtime_error(make_error_message(error_index, instruction_start_index, message)),
+        ``error_index(error_index),
+        ``instruction_start_index(instruction_start_index)
+    {
+    }
+};
+)a";
+            parser_callbacks_class << R"(
+struct Parser_callbacks
+{
+    virtual ~Parser_callbacks() = default;
+    virtual void handle_header(unsigned version_number_major,
+    ```````````````````````````unsigned version_number_minor,
+    ```````````````````````````Word generator_magic_number,
+    ```````````````````````````Word id_bound,
+    ```````````````````````````Word instruction_schema) = 0;
+@+)";
+            dump_callbacks_class << R"(
+struct Dump_callbacks final : public Parser_callbacks
+{
+    std::ostringstream ss;
+    Dump_callbacks() : ss()
+    {
+        ss << std::uppercase;
+    }
+    void write_indent(std::size_t indent_count)
+    {
+        for(std::size_t i = 0; i < indent_count; i++)
+            ss << "    ";
+    }
+    virtual void handle_header(unsigned version_number_major,
+    ```````````````````````````unsigned version_number_minor,
+    ```````````````````````````Word generator_magic_number,
+    ```````````````````````````Word id_bound,
+    ```````````````````````````Word instruction_schema) override
+    {
+        ss << "SPIR-V Version: " << std::dec << version_number_major << '.' << version_number_minor << '\n';
+        ss << "Generator Magic Number: 0x" << std::hex << generator_magic_number << '\n';
+        ss << "Id Bound: " << std::dec << id_bound << '\n';
+        ss << "Instruction Schema (reserved): " << std::dec << instruction_schema << '\n';
+    }
+@+)";
+            typedef ast::Operand_kinds::Operand_kind::Category Category;
+            typedef ast::Operand_kinds::Operand_kind::Literal_kind Literal_kind;
+            for(auto &operand_kind : state.operand_kind_list)
+            {
+                dump_callbacks_class << "void " << operand_kind.cpp_dump_function_name << "(const "
+                                     << operand_kind.cpp_name_with_parameters
+                                     << R"( &operand, std::size_t indent_depth)
+{
+@+)";
+                switch(operand_kind.operand_kind->category)
+                {
+                case Category::bit_enum:
+                {
+                    dump_callbacks_class << R"(write_indent(indent_depth);
+ss << ")" << operand_kind.operand_kind->kind
+                                         << R"(:\n";
+)";
+                    util::string_view zero_enumerant_name = "0"_sv;
+                    auto enumeration = util::get<std::list<Enumeration_descriptor>::const_iterator>(
+                        operand_kind.value);
+                    for(auto &enumerant : enumeration->enumerants)
+                    {
+                        if(enumerant.value == 0)
+                        {
+                            zero_enumerant_name = enumerant.json_name;
+                            break;
+                        }
+                    }
+                    dump_callbacks_class << R"(Word bits = static_cast<Word>(operand)"
+                                         << (operand_kind.enum_parameters.empty() ? "" : ".value")
+                                         << R"();
+if(bits == 0)
+{
+    write_indent(indent_depth + 1);
+    ss << ")" << zero_enumerant_name << R"(\n";
+    return;
+}
+)";
+                    for(auto &enumerant : enumeration->enumerants)
+                    {
+                        if(enumerant.value == 0)
+                        {
+                            if(!enumerant.parameters.empty())
+                                throw Generate_error(
+                                    "in bitwise enum, zero enumerant can't have parameters: "
+                                    + enumeration->json_name
+                                    + "."
+                                    + enumerant.json_name);
+                            continue;
+                        }
+                        else if(enumerant.value & (enumerant.value - 1))
+                        {
+                            throw Generate_error(
+                                "in bitwise enum, enumerant is not a power of 2 or zero: "
+                                + enumeration->json_name
+                                + "."
+                                + enumerant.json_name);
+                        }
+                        dump_callbacks_class << R"(if(bits & static_cast<Word>()"
+                                             << enumeration->cpp_name << "::" << enumerant.cpp_name
+                                             << R"())
+{
+    write_indent(indent_depth + 1);
+    ss << ")" << enumerant.json_name << (enumerant.parameters.empty() ? "" : ":")
+                                             << R"(\n";
+    bits &= ~static_cast<Word>()" << enumeration->cpp_name
+                                             << "::" << enumerant.cpp_name << R"();
+@+)";
+                        if(!enumerant.parameters.empty())
+                        {
+                            dump_callbacks_class << "auto &parameters = *operand."
+                                                 << enumerant.parameters_variable_cpp_name << ";\n";
+                        }
+                        for(auto *parameter : enumerant.parameters)
+                        {
+                            auto parameter_operand_kind =
+                                state.get_operand_kind(parameter->json_kind);
+                            dump_callbacks_class << parameter_operand_kind->cpp_dump_function_name
+                                                 << R"((parameters.)" << parameter->cpp_name
+                                                 << R"(, indent_depth + 2);
+)";
+                        }
+                        dump_callbacks_class << R"(@-}
+)";
+                    }
+                    break;
+                }
+                case Category::value_enum:
+                {
+                    dump_callbacks_class << R"(write_indent(indent_depth);
+ss << ")" << operand_kind.operand_kind->kind
+                                         << R"(: ";
+switch(operand)" << (operand_kind.enum_parameters.empty() ? "" : ".value")
+                                         << R"()
+{
+)";
+                    auto enumeration = util::get<std::list<Enumeration_descriptor>::const_iterator>(
+                        operand_kind.value);
+                    std::unordered_set<std::uint32_t> values;
+                    for(auto &enumerant : enumeration->enumerants)
+                    {
+                        if(!std::get<1>(values.insert(enumerant.value)))
+                            continue; // skip duplicate values
+                        dump_callbacks_class << "case " << enumeration->cpp_name
+                                             << "::" << enumerant.cpp_name << R"(:
+)" << (enumerant.parameters.empty() ? "" : "{\n")
+                                             << R"(    ss << ")" << enumerant.json_name
+                                             << (enumerant.parameters.empty() ? "" : ":") << R"(\n";
+@+)";
+                        if(!enumerant.parameters.empty())
+                        {
+                            dump_callbacks_class << "auto &parameters = util::get<"
+                                                 << enumerant.parameters_struct_cpp_name
+                                                 << ">(operand.parameters);\n";
+                            for(auto *parameter : enumerant.parameters)
+                            {
+                                auto parameter_operand_kind =
+                                    state.get_operand_kind(parameter->json_kind);
+                                dump_callbacks_class
+                                    << parameter_operand_kind->cpp_dump_function_name
+                                    << R"((parameters.)" << parameter->cpp_name
+                                    << R"(, indent_depth + 1);
+)";
+                            }
+                            dump_callbacks_class << R"(return;
+@-}
+)";
+                        }
+                        else
+                        {
+                            dump_callbacks_class << R"(return;
+@-)";
+                        }
+                    }
+                    dump_callbacks_class << R"(}
+ss << "<Unknown> (" << static_cast<Word>(operand)"
+                                         << (operand_kind.enum_parameters.empty() ? "" : ".value")
+                                         << R"() << ")\n";
+)";
+                    break;
+                }
+                case Category::id:
+                    dump_callbacks_class << R"(write_indent(indent_depth);
+ss << ")" << operand_kind.operand_kind->kind
+                                         << R"(: " << std::dec << operand << '\n';
+)";
+                    break;
+                case Category::literal:
+                {
+                    auto literal = util::get<Literal_kind>(operand_kind.value);
+                    dump_callbacks_class << R"(write_indent(indent_depth);
+ss << ")" << operand_kind.operand_kind->kind
+                                         << R"(: ";
+)";
+                    switch(literal)
+                    {
+                    case Literal_kind::literal_integer:
+                        dump_callbacks_class << R"(ss << "0x" << std::hex << operand << std::dec;
+ss << " u64=" << static_cast<std::uint64_t>(operand);
+ss << " s64=" << static_cast<std::int64_t>(operand);
+ss << " u32=" << static_cast<std::uint32_t>(operand);
+ss << " s32=" << static_cast<std::int32_t>(operand) << '\n';
+)";
+                        break;
+                    case Literal_kind::literal_string:
+                        dump_callbacks_class
+                            << R"(json::ast::String_value::write(ss, static_cast<std::string>(operand));
+ss << '\n';
+)";
+                        break;
+                    case Literal_kind::literal_context_dependent_number:
+                        dump_callbacks_class << R"(ss << "{";
+auto separator = "";
+static_assert(std::is_same<decltype(operand), const std::vector<Word> &>::value, "");
+for(auto word : operand)
+{
+    ss << separator;
+    separator = ", ";
+    ss << "0x" << std::hex << word;
+}
+ss << "}\n";
+)";
+                        break;
+                    case Literal_kind::literal_ext_inst_integer:
+                        dump_callbacks_class << R"(ss << std::dec << operand << '\n';
+)";
+                        break;
+                    case Literal_kind::literal_spec_constant_op_integer:
+                        dump_callbacks_class << R"(ss << get_enumerant_name(operand) << '\n';
+)";
+                        break;
+                    }
+                    break;
+                }
+                case Category::composite:
+                {
+                    dump_callbacks_class << R"(write_indent(indent_depth);
+ss << ")" << operand_kind.operand_kind->kind
+                                         << R"(:\n";
+)";
+                    auto &composite =
+                        util::get<std::list<Composite_type_descriptor>::const_iterator>(
+                            operand_kind.value);
+                    for(auto &base : composite->bases)
+                    {
+                        auto base_operand_kind = state.get_operand_kind(base.json_type);
+                        dump_callbacks_class << base_operand_kind->cpp_dump_function_name
+                                             << "(operand." << base.cpp_name
+                                             << ", indent_depth + 1);\n";
+                    }
+                    break;
+                }
+                }
+                dump_callbacks_class << R"(@-}
+)";
+            }
+            for(auto &instruction : state.instruction_descriptor_list)
+            {
+                parser_callbacks_class << "virtual void " << instruction.cpp_parse_callback_name
+                                       << "(" << instruction.cpp_struct_name
+                                       << " instruction) = 0;\n";
+                dump_callbacks_class << "virtual void " << instruction.cpp_parse_callback_name
+                                     << "(" << instruction.cpp_struct_name
+                                     << R"( instruction) override
+{
+    ss << ")";
+                if(instruction.extension_instruction_set)
+                    dump_callbacks_class << op_ext_inst_json_name;
+                else
+                    dump_callbacks_class << instruction.json_name;
+                dump_callbacks_class << R"(:\n";
+@+)";
+                if(!instruction.implied_operands.empty() || !instruction.explicit_operands.empty()
+                   || instruction.extension_instruction_set)
+                    dump_callbacks_class << "constexpr std::size_t indent_depth = 0;\n";
+                else
+                    dump_callbacks_class << "static_cast<void>(instruction);\n";
+                for(auto &operand : instruction.implied_operands)
+                    write_instruction_operand_dump_code(state, operand);
+                if(instruction.extension_instruction_set)
+                {
+                    dump_callbacks_class << R"(write_indent(indent_depth + 1);
+ss << ")" << instruction.json_name << R"(\n";
+)";
+                }
+                for(auto &operand : instruction.explicit_operands)
+                    write_instruction_operand_dump_code(state, operand);
+                dump_callbacks_class << "@-}\n";
+            }
+            dump_callbacks_class << R"(@-};
+)";
+            parser_callbacks_class << R"(@-};
+)";
+            parser_class << R"(
+class Parser final
+{
+    Parser(const Parser &) = delete;
+    Parser &operator =(const Parser &) = delete;
+
+private:
+    struct Id_state
+    {
+        util::optional<Extension_instruction_set> instruction_set;
+        util::optional<std::size_t> type_word_count;
+        util::optional<std::size_t> value_word_count;
+    };
+
+private:
+    Parser_callbacks &parser_callbacks;
+    std::vector<Id_state> id_states;
+    const Word *shader_words;
+    std::size_t shader_size;
+
+private:
+    Parser(Parser_callbacks &parser_callbacks,
+    ```````const Word *shader_words,
+    ```````std::size_t shader_size) noexcept
+        : parser_callbacks(parser_callbacks),
+        ``id_states(),
+        ``shader_words(shader_words),
+        ``shader_size(shader_size)
+    {
+    }
+    Id_state &get_id_state(Id id) noexcept
+    {
+        // id_states[0] is for id #1
+        assert(id > 0 && id <= id_states.size());
+        return id_states[id - 1];
+    }
+    const Word &read_word(std::size_t word_index, std::size_t instruction_start_index, std::size_t instruction_end_index) const
+    {
+        if(word_index >= instruction_end_index)
+            throw Parser_error(word_index,
+            ```````````````````instruction_start_index,
+            ```````````````````instruction_start_index == 0 ? "premature end of shader" : "premature end of instruction");
+        return shader_words[word_index];
+    }
+    Id read_id(std::size_t word_index, std::size_t instruction_start_index, std::size_t instruction_end_index) const
+    {
+        Id retval = read_word(word_index, instruction_start_index, instruction_end_index);
+        if(retval == 0 || retval > id_states.size())
+            throw Parser_error(word_index, instruction_start_index, "id number out of range");
+        return retval;
+    }
+@+)";
+            for(auto &operand_kind : state.operand_kind_list)
+            {
+                parser_class
+                    << operand_kind.cpp_name_with_parameters << " "
+                    << operand_kind.cpp_parse_function_name
+                    << R"((std::size_t &word_index, std::size_t instruction_start_index, std::size_t instruction_end_index)";
+                if(operand_kind.needs_integer_literal_size)
+                    parser_class << ", std::size_t literal_integer_size";
+                parser_class << R"() const
+{
+@+)";
+                switch(operand_kind.operand_kind->category)
+                {
+                case Category::bit_enum:
+                {
+                    parser_class << operand_kind.cpp_name_with_parameters << " retval{};\n";
+                    bool zero_is_valid = false;
+                    std::uint32_t allowed_bits = 0;
+                    auto enumeration = util::get<std::list<Enumeration_descriptor>::const_iterator>(
+                        operand_kind.value);
+                    for(auto &enumerant : enumeration->enumerants)
+                    {
+                        if(enumerant.value == 0)
+                            zero_is_valid = true;
+                        allowed_bits |= enumerant.value;
+                    }
+                    parser_class
+                        << R"(Word bits = read_word(word_index, instruction_start_index, instruction_end_index);
+retval)";
+                    if(!operand_kind.enum_parameters.empty())
+                        parser_class << ".value";
+                    parser_class << " = static_cast<" << enumeration->cpp_name << R"(>(bits);
+if((bits & 0x)" << detail::unsigned_integer(static_cast<std::uint32_t>(~allowed_bits), 0x10)
+                                 << "UL) != 0";
+                    if(!zero_is_valid)
+                        parser_class << " || bits == 0";
+                    parser_class << R"()
+    throw Parser_error(word_index, instruction_start_index, "invalid enum value");
+else
+    word_index++;
+)";
+                    for(auto &enumerant : enumeration->enumerants)
+                    {
+                        if(enumerant.parameters.empty())
+                            continue;
+                        if(enumerant.value == 0)
+                            throw Generate_error(
+                                "in bitwise enum, zero enumerant can't have parameters: "
+                                + enumeration->json_name
+                                + "."
+                                + enumerant.json_name);
+                        parser_class << R"(if(bits & 0x)"
+                                     << detail::unsigned_integer(enumerant.value, 0x10) << R"(UL)
+{
+    bits &= ~0x)" << detail::unsigned_integer(enumerant.value, 0x10)
+                                     << R"(UL;
+    retval.)" << enumerant.parameters_variable_cpp_name
+                                     << R"(.emplace();
+    auto &parameters = *retval.)" << enumerant.parameters_variable_cpp_name
+                                     << R"(;
+@+)";
+                        for(auto *parameter : enumerant.parameters)
+                        {
+                            auto parameter_operand_kind =
+                                state.get_operand_kind(parameter->json_kind);
+                            parser_class
+                                << R"(parameters.)" << parameter->cpp_name << R"( = )"
+                                << parameter_operand_kind->cpp_parse_function_name
+                                << R"((word_index, instruction_start_index, instruction_end_index)";
+                            if(parameter_operand_kind->needs_integer_literal_size)
+                            {
+                                /* FIXME: verify that all LiteralIntegers in enum parameters are
+                                 * 32-bits */
+                                parser_class << ", 1";
+                            }
+                            parser_class << R"();
+)";
+                        }
+                        parser_class << R"(@-}
+)";
+                    }
+                    parser_class << R"(return retval;
+)";
+                    break;
+                }
+                case Category::value_enum:
+                {
+                    auto enumeration = util::get<std::list<Enumeration_descriptor>::const_iterator>(
+                        operand_kind.value);
+                    if(operand_kind.enum_parameters.empty())
+                    {
+                        parser_class
+                            << "auto retval = static_cast<" << enumeration->cpp_name
+                            << R"(>(read_word(word_index++, instruction_start_index, instruction_end_index));
+switch(retval)";
+                    }
+                    else
+                    {
+                        parser_class
+                            << operand_kind.cpp_name_with_parameters << R"( retval{};
+retval.value = static_cast<)"
+                            << enumeration->cpp_name
+                            << R"(>(read_word(word_index++, instruction_start_index, instruction_end_index));
+switch(retval.value)";
+                    }
+                    parser_class << R"()
+{
+)";
+                    std::unordered_map<std::uint32_t, const Enumerant_descriptor *> values;
+                    for(auto &enumerant : enumeration->enumerants)
+                    {
+                        auto &values_entry = values[enumerant.value];
+                        if(values_entry)
+                        {
+                            if(!enumerant.parameters.empty())
+                                throw Generate_error("duplicate enumerants can't have parameters: "
+                                                     + enumeration->json_name
+                                                     + "."
+                                                     + enumerant.json_name);
+                            if(!values_entry->parameters.empty())
+                                throw Generate_error("duplicate enumerants can't have parameters: "
+                                                     + enumeration->json_name
+                                                     + "."
+                                                     + values_entry->json_name);
+                            continue;
+                        }
+                        values_entry = &enumerant;
+                        parser_class << "case " << enumeration->cpp_name
+                                     << "::" << enumerant.cpp_name << ":\n";
+                        if(enumerant.parameters.empty())
+                        {
+                            parser_class << "    break;\n";
+                            continue;
+                        }
+                        parser_class << R"({
+    retval.parameters.emplace<)" << enumerant.parameters_struct_cpp_name
+                                     << R"(>();
+    auto &parameters = util::get<)" << enumerant.parameters_struct_cpp_name
+                                     << R"(>(retval.parameters);
+@+)";
+                        for(auto *parameter : enumerant.parameters)
+                        {
+                            auto parameter_operand_kind =
+                                state.get_operand_kind(parameter->json_kind);
+                            parser_class
+                                << R"(parameters.)" << parameter->cpp_name << R"( = )"
+                                << parameter_operand_kind->cpp_parse_function_name
+                                << R"((word_index, instruction_start_index, instruction_end_index)";
+                            if(parameter_operand_kind->needs_integer_literal_size)
+                            {
+                                /* FIXME: verify that all LiteralIntegers in enum parameters are
+                                 * 32-bits */
+                                parser_class << ", 1";
+                            }
+                            parser_class << R"();
+)";
+                        }
+                        parser_class << R"(@_break;
+}
+)";
+                    }
+                    parser_class << R"(default:
+    word_index--;
+    throw Parser_error(word_index, instruction_start_index, "invalid enum value");
+}
+return retval;
+)";
+                    break;
+                }
+                case Category::id:
+                    parser_class
+                        << R"(return read_id(word_index++, instruction_start_index, instruction_end_index);
+)";
+                    break;
+                case Category::literal:
+                {
+                    auto literal = util::get<Literal_kind>(operand_kind.value);
+                    switch(literal)
+                    {
+                    case Literal_kind::literal_integer:
+                        parser_class << R"(if(literal_integer_size == 0 || literal_integer_size > 2)
+    throw Parser_error(word_index, instruction_start_index, "LiteralInteger word count is out of range");
+Literal_integer retval = read_word(word_index++, instruction_start_index, instruction_end_index);
+if(literal_integer_size == 2)
+    retval |= static_cast<std::uint64_t>(read_word(word_index++, instruction_start_index, instruction_end_index)) << 32;
+return retval;
+)";
+                        break;
+                    case Literal_kind::literal_string:
+                        parser_class
+                            << R"(const Word *word_array = &read_word(word_index, instruction_start_index, instruction_end_index);
+std::size_t byte_count = 0;
+Word word = *word_array;
+Word word_padding_mask = 0;
+while(true)
+{
+    if((word & 0xFFU) == 0)
+    {
+        word_padding_mask = 0xFFFF'FF00UL;
+        break;
+    }
+    byte_count++;
+    if((word & 0xFF00U) == 0)
+    {
+        word_padding_mask = 0xFFFF'0000UL;
+        break;
+    }
+    byte_count++;
+    if((word & 0xFF'0000UL) == 0)
+    {
+        word_padding_mask = 0xFF00'0000UL;
+        break;
+    }
+    byte_count++;
+    if((word & 0xFF00'0000UL) == 0)
+    {
+        word_padding_mask = 0;
+        break;
+    }
+    byte_count++;
+    word = read_word(++word_index, instruction_start_index, instruction_end_index);
+}
+if(word & word_padding_mask)
+    throw Parser_error(word_index, instruction_start_index, "string has non-zero padding");
+word_index++;
+return Literal_string(word_array, byte_count);
+)";
+                        break;
+                    case Literal_kind::literal_context_dependent_number:
+                        parser_class
+                            << R"(static_assert(std::is_same<Literal_context_dependent_number, std::vector<Word>>::value, "");
+const Word *words = &read_word(word_index, instruction_start_index, instruction_end_index);
+// LiteralContextDependentNumber is always the last operand, so just read the rest of the words
+std::size_t word_count = instruction_end_index - word_index;
+word_index = instruction_end_index;
+return std::vector<Word>(words, words + word_count);
+)";
+                        break;
+                    case Literal_kind::literal_ext_inst_integer:
+                        parser_class
+                            << R"(static_assert(std::is_same<Literal_ext_inst_integer, Word>::value, "");
+return read_word(word_index++, instruction_start_index, instruction_end_index);
+)";
+                        break;
+                    case Literal_kind::literal_spec_constant_op_integer:
+                        parser_class
+                            << R"(static_assert(std::is_same<Literal_spec_constant_op_integer, Op>::value, "");
+// value is checked by caller, just cast and return
+return static_cast<Literal_spec_constant_op_integer>(read_word(word_index++, instruction_start_index, instruction_end_index));
+)";
+                        break;
+                    }
+                    break;
+                }
+                case Category::composite:
+                {
+                    auto &composite =
+                        util::get<std::list<Composite_type_descriptor>::const_iterator>(
+                            operand_kind.value);
+                    parser_class << operand_kind.cpp_name_with_parameters << " retval{};\n";
+                    for(auto &base : composite->bases)
+                    {
+                        auto base_operand_kind = state.get_operand_kind(base.json_type);
+                        parser_class
+                            << "retval." << base.cpp_name << " = "
+                            << base_operand_kind->cpp_parse_function_name
+                            << "(word_index, instruction_start_index, instruction_end_index";
+                        if(base_operand_kind->needs_integer_literal_size)
+                            parser_class << ", literal_integer_size";
+                        parser_class << ");\n";
+                    }
+                    parser_class << "return retval;\n";
+                    break;
+                }
+                }
+                parser_class << R"(@-}
+)";
+            }
+            parser_class
+                << R"(@_static Extension_instruction_set parse_extension_instruction_set_name(Literal_string name) noexcept
+    {
+@+@+)";
+            for(auto &extension_instruction_set : state.top_level.extension_instruction_sets)
+            {
+                auto enumeration = state.extension_instruction_set_enumeration.value();
+                auto &enumerant_map = enumeration->json_name_to_enumerant_map;
+                auto iter = enumerant_map.find(extension_instruction_set.import_name);
+                if(iter == enumerant_map.end())
+                    throw Generate_error("unknown extension instruction set: "
+                                         + extension_instruction_set.import_name);
+                auto enumerant = std::get<1>(*iter);
+                parser_class << R"(if(name == ")" << extension_instruction_set.import_name << R"(")
+    return )" << enumeration->cpp_name
+                             << "::" << enumerant->cpp_name << R"(;
+)";
+            }
+            parser_class << R"(@_@_return Extension_instruction_set::unknown;
+    }
+    std::size_t get_operand_literal_integer_size(std::size_t word_index, std::size_t instruction_start_index, Id operand)
+    {
+        auto &state = get_id_state(operand);
+        if(!state.value_word_count)
+            throw Parser_error(word_index, instruction_start_index, "can't deduce operand size, operand type not known");
+        return *state.value_word_count;
+    }
+    void parse()
+    {
+        std::size_t word_index = 0;
+        if(read_word(word_index, 0, shader_size) != magic_number)
+            throw Parser_error(word_index, 0, "invalid magic number");
+        else
+            word_index++;
+        Word spirv_version_word = read_word(word_index, 0, shader_size);
+        if(spirv_version_word & ~0xFFFF00UL)
+            throw Parser_error(word_index, 0, "invalid SPIR-V version word");
+        unsigned version_number_major = (spirv_version_word >> 16) & 0xFFU;
+        unsigned version_number_minor = (spirv_version_word >> 8) & 0xFFU;
+        if(version_number_major != major_version || version_number_minor > minor_version)
+            throw Parser_error(word_index, 0, "unsupported SPIR-V version");
+        else
+            word_index++;
+        Word generator_magic_number = read_word(word_index++, 0, shader_size);
+        Word id_bound = read_word(word_index, 0, shader_size);
+        if(id_bound == 0 || id_bound > max_id_bound())
+            throw Parser_error(word_index, 0, "invalid id bound");
+        else
+            word_index++;
+        Word instruction_schema = read_word(word_index, 0, shader_size);
+        if(instruction_schema != 0)
+            throw Parser_error(word_index, 0, "invalid instruction schema");
+        else
+            word_index++;
+        parser_callbacks.handle_header(version_number_major,
+        ```````````````````````````````version_number_minor,
+        ```````````````````````````````generator_magic_number,
+        ```````````````````````````````id_bound,
+        ```````````````````````````````instruction_schema);
+        id_states.clear();
+        id_states.resize(id_bound - 1); // id_states[0] is for id #1
+        auto instructions_start_index = word_index;
+        while(word_index < shader_size)
+        {
+            auto instruction_start_index = word_index;
+            Word instruction_word = read_word(word_index, instruction_start_index, shader_size);
+            Word instruction_length = instruction_word >> 16;
+            if(instruction_length == 0)
+                throw Parser_error(word_index, instruction_start_index, "invalid zero-length instruction");
+            std::size_t instruction_end_index = instruction_start_index + instruction_length;
+            if(instruction_end_index > shader_size)
+                throw Parser_error(word_index, instruction_start_index, "instruction extends past end of shader");
+            Word opcode = instruction_word & 0xFFFFU;
+            word_index++;
+            switch(static_cast<Op>(opcode))
+            {
+            case Op::op_ext_inst_import:
+            {
+                Id_result result = read_id(word_index++, instruction_start_index, instruction_end_index);
+                Literal_string import_name = parse_literal_string(word_index, instruction_start_index, instruction_end_index);
+                get_id_state(result).instruction_set = parse_extension_instruction_set_name(import_name);
+                break;
+            }
+            case Op::op_type_int:
+            case Op::op_type_float:
+            {
+                Id_result result = read_id(word_index++, instruction_start_index, instruction_end_index);
+                Word bit_width = read_word(word_index++, instruction_start_index, instruction_end_index);
+                constexpr std::size_t word_bit_width = 32;
+                get_id_state(result).type_word_count = static_cast<std::size_t>((bit_width + word_bit_width - 1) / word_bit_width);
+                break;
+            }
+@+@+@+)";
+            for(auto &instruction : state.instruction_descriptor_list)
+            {
+                if(instruction.extension_instruction_set)
+                    continue;
+                bool has_result_type = false;
+                bool is_result_type_allowed = true;
+                bool has_result = false;
+                bool is_result_allowed = true;
+                auto handle_operand = [&](const Operand_descriptor &operand) -> void
+                {
+                    if(operand.json_kind == id_result_type_json_name)
+                    {
+                        if(!is_result_type_allowed)
+                            throw Generate_error(operand.json_kind + " must be the first operand: "
+                                                 + instruction.json_name);
+                        has_result_type = true;
+                        is_result_type_allowed = false;
+                    }
+                    else if(operand.json_kind == id_result_json_name)
+                    {
+                        if(!is_result_allowed)
+                            throw Generate_error(
+                                operand.json_kind
+                                + " must be the first operand or immediately after "
+                                + std::string(id_result_type_json_name)
+                                + ": "
+                                + instruction.json_name);
+                        has_result = true;
+                        is_result_type_allowed = false;
+                        is_result_allowed = false;
+                    }
+                    else
+                    {
+                        is_result_type_allowed = false;
+                        is_result_allowed = false;
+                    }
+                };
+                for(auto &operand : instruction.implied_operands)
+                    handle_operand(operand);
+                for(auto &operand : instruction.explicit_operands)
+                    handle_operand(operand);
+                if(has_result_type && has_result)
+                    parser_class << "case Op::" << instruction.enumerant->cpp_name << ":\n";
+            }
+            parser_class << R"(@_@_@_{
+                Id_result_type result_type = read_id(word_index++, instruction_start_index, instruction_end_index);
+                Id_result result = read_id(word_index++, instruction_start_index, instruction_end_index);
+                auto &result_type_state = get_id_state(result_type);
+                if(result_type_state.type_word_count)
+                    get_id_state(result).value_word_count = result_type_state.type_word_count;
+                break;
+            }
+            default:
+                break;
+            }
+            word_index = instruction_end_index;
+        }
+        word_index = instructions_start_index;
+        while(word_index < shader_size)
+        {
+            auto instruction_start_index = word_index;
+            Word instruction_word = read_word(word_index, instruction_start_index, shader_size);
+            Word instruction_length = instruction_word >> 16;
+            if(instruction_length == 0)
+                throw Parser_error(word_index, instruction_start_index, "invalid zero-length instruction");
+            std::size_t instruction_end_index = instruction_start_index + instruction_length;
+            if(instruction_end_index > shader_size)
+                throw Parser_error(word_index, instruction_start_index, "instruction extends past end of shader");
+            Word opcode = instruction_word & 0xFFFFU;
+            word_index++;
+            switch(static_cast<Op>(opcode))
+            {
+            case Op::op_ext_inst:
+            {
+                Id_result_type result_type = read_id(word_index++, instruction_start_index, instruction_end_index);
+                Id_result result = read_id(word_index++, instruction_start_index, instruction_end_index);
+                Id_ref instruction_set_id = read_id(word_index++, instruction_start_index, instruction_end_index);
+                auto instruction_integer = parse_literal_ext_inst_integer(word_index, instruction_start_index, instruction_end_index);
+                auto &instruction_set_id_state = get_id_state(instruction_set_id);
+                switch(instruction_set_id_state.instruction_set.value_or(Extension_instruction_set::unknown))
+                {
+                case Extension_instruction_set::unknown:
+                {
+                    std::vector<Id_ref> args(shader_words + word_index, shader_words + instruction_end_index);
+                    word_index = instruction_end_index;
+                    parser_callbacks.handle_instruction_op_ext_inst(Op_ext_inst(result_type, result, instruction_set_id, instruction_integer, std::move(args)));
+                    break;
+                }
+@+@+@+@+)";
+            for(auto &extension_instruction_set : state.top_level.extension_instruction_sets)
+            {
+                std::list<Enumerant_descriptor>::const_iterator extension_instruction_set_enumerant;
+                {
+                    auto iter = state.extension_instruction_set_enumeration.value()
+                                    ->json_name_to_enumerant_map.find(
+                                        extension_instruction_set.import_name);
+                    if(iter
+                       == state.extension_instruction_set_enumeration.value()
+                              ->json_name_to_enumerant_map.end())
+                        throw Generate_error("unknown extension instruction set: "
+                                             + extension_instruction_set.import_name);
+                    extension_instruction_set_enumerant = std::get<1>(*iter);
+                }
+                auto iter = state.instruction_set_extension_op_enumeration_map.find(
+                    &extension_instruction_set);
+                if(iter == state.instruction_set_extension_op_enumeration_map.end())
+                    throw Generate_error("unknown extension instruction set: "
+                                         + extension_instruction_set.import_name);
+                auto extension_op_enumeration = std::get<1>(*iter);
+                parser_class << "case Extension_instruction_set::"
+                             << extension_instruction_set_enumerant->cpp_name << R"(:
+{
+    auto operation = static_cast<)"
+                             << extension_op_enumeration->cpp_name << R"(>(instruction_integer);
+    switch(operation)
+    {
+@+)";
+                for(auto &instruction : state.instruction_descriptor_list)
+                {
+                    if(instruction.extension_instruction_set != &extension_instruction_set)
+                        continue;
+                    parser_class << "case " << instruction.enumeration->cpp_name
+                                 << "::" << instruction.enumerant->cpp_name << R"(:
+{
+    )" << instruction.cpp_struct_name
+                                 << R"( instruction{};
+    instruction.result_type = result_type;
+    instruction.result = result;
+    instruction.set = instruction_set_id;
+@+)";
+                    // skip instruction.implied_operands, already processed by OpExtInst code
+                    auto *instruction_properties_descriptor =
+                        state.get_instruction_properties_descriptor(
+                            extension_instruction_set.import_name, instruction.json_name);
+                    util::optional<Instruction_properties_descriptor::Operand_descriptors::
+                                       const_iterator> operand_descriptor_iter;
+                    if(instruction_properties_descriptor)
+                        operand_descriptor_iter =
+                            instruction_properties_descriptor->operand_descriptors.begin();
+                    for(auto &operand : instruction.explicit_operands)
+                    {
+                        write_instruction_operand_parse_code(
+                            state, operand, operand_descriptor_iter, instruction);
+                        if(operand_descriptor_iter)
+                        {
+                            if(*operand_descriptor_iter
+                               == instruction_properties_descriptor->operand_descriptors.end())
+                                throw Generate_error(
+                                    "instruction properties operand count mismatch: "
+                                    + get_instruction_name_for_diagnostics(
+                                          &extension_instruction_set, instruction.json_name));
+                            ++*operand_descriptor_iter;
+                        }
+                    }
+                    if(operand_descriptor_iter
+                       && *operand_descriptor_iter
+                              != instruction_properties_descriptor->operand_descriptors.end())
+                        throw Generate_error(
+                            "instruction properties operand count mismatch: "
+                            + get_instruction_name_for_diagnostics(&extension_instruction_set,
+                                                                   instruction.json_name));
+                    parser_class << "@_parser_callbacks." << instruction.cpp_parse_callback_name
+                                 << R"((std::move(instruction));
+    break;
+}
+)";
+                }
+                parser_class << R"(@_default:
+        throw Parser_error(word_index, instruction_start_index, "unknown extension instruction");
+    }
+    break;
+}
+)";
+            }
+            parser_class << R"(@_@_@_@_}
+                break;
+            }
+@+@+@+)";
+            for(auto &instruction : state.instruction_descriptor_list)
+            {
+                if(instruction.extension_instruction_set)
+                    continue;
+                if(instruction.json_name == op_ext_inst_json_name)
+                    continue;
+                parser_class << "case " << instruction.enumeration->cpp_name
+                             << "::" << instruction.enumerant->cpp_name << R"(:
+{
+    )" << instruction.cpp_struct_name
+                             << R"( instruction{};
+@+)";
+                assert(instruction.implied_operands.empty());
+                auto *instruction_properties_descriptor =
+                    state.get_instruction_properties_descriptor("", instruction.json_name);
+                util::optional<Instruction_properties_descriptor::Operand_descriptors::
+                                   const_iterator> operand_descriptor_iter;
+                if(instruction_properties_descriptor)
+                    operand_descriptor_iter =
+                        instruction_properties_descriptor->operand_descriptors.begin();
+                for(auto &operand : instruction.explicit_operands)
+                {
+                    write_instruction_operand_parse_code(
+                        state, operand, operand_descriptor_iter, instruction);
+                    if(operand_descriptor_iter)
+                    {
+                        if(*operand_descriptor_iter
+                           == instruction_properties_descriptor->operand_descriptors.end())
+                            throw Generate_error("instruction properties operand count mismatch: "
+                                                 + get_instruction_name_for_diagnostics(
+                                                       nullptr, instruction.json_name));
+                        ++*operand_descriptor_iter;
+                    }
+                }
+                if(operand_descriptor_iter
+                   && *operand_descriptor_iter
+                          != instruction_properties_descriptor->operand_descriptors.end())
+                    throw Generate_error(
+                        "instruction properties operand count mismatch: "
+                        + get_instruction_name_for_diagnostics(nullptr, instruction.json_name));
+                parser_class << "@_parser_callbacks." << instruction.cpp_parse_callback_name
+                             << R"((std::move(instruction));
+    break;
+}
+)";
+            }
+            parser_class << R"(@_@_@_default:
+                throw Parser_error(word_index, instruction_start_index, "unknown instruction");
+            }
+            if(word_index != instruction_end_index)
+                throw Parser_error(word_index, instruction_start_index, "instruction has extra words after end");
+        }
+    }
+
+public:
+    static constexpr Word max_id_bound() noexcept
+    {
+        return 0x1000'0000UL;
+    }
+    static void parse(Parser_callbacks &parser_callbacks,
+    ``````````````````const Word *shader_words,
+    ``````````````````std::size_t shader_size)
+    {
+        Parser(parser_callbacks, shader_words, shader_size).parse();
+    }
+};
+)";
+        }
+    };
+    struct Parser_cpp : public Source_file_base
+    {
+        explicit Parser_cpp(const util::filesystem::path &file_path, const Parser_h *header)
+            : Source_file_base(file_path, header)
+        {
+        }
+    };
+
+private:
+    const ast::Top_level &top_level;
+    Spirv_h spirv_h;
+    Spirv_cpp spirv_cpp;
+    Parser_h parser_h;
+    Parser_cpp parser_cpp;
+
+public:
+    State(const util::filesystem::path &output_directory, const ast::Top_level &top_level)
+        : top_level(top_level),
+          spirv_h(output_directory / "spirv.h"),
+          spirv_cpp(output_directory / "spirv.cpp", &spirv_h),
+          parser_h(output_directory / "parser.h"),
+          parser_cpp(output_directory / "parser.cpp", &parser_h)
+    {
+    }
+
+private:
+    static constexpr util::string_view op_enum_json_name = "Op"_sv;
+    static constexpr util::string_view extension_enum_json_name = "Extension"_sv;
+    static constexpr util::string_view capability_enum_json_name = "Capability"_sv;
+    static constexpr util::string_view extension_instruction_set_enum_json_name =
+        "Extension_instruction_set"_sv;
+    static constexpr util::string_view unknown_extension_instruction_set_enumerant_json_name =
+        "Unknown"_sv;
+    static constexpr util::string_view op_ext_inst_import_json_name = "OpExtInstImport"_sv;
+    static constexpr util::string_view op_ext_inst_json_name = "OpExtInst"_sv;
+    static constexpr util::string_view id_result_json_name = "IdResult"_sv;
+    static constexpr util::string_view id_result_type_json_name = "IdResultType"_sv;
+    static constexpr util::string_view id_ref_json_name = "IdRef"_sv;
+    struct Enum_parameter;
+    struct Enumerant_descriptor
+    {
+        std::uint32_t value;
+        std::string cpp_name;
+        std::string parameters_struct_cpp_name;
+        std::string parameters_variable_cpp_name;
+        std::string json_name;
+        ast::Capabilities capabilities;
+        ast::Extensions extensions;
+        std::vector<const Enum_parameter *> parameters;
+        static std::string make_cpp_name(util::string_view json_enumeration_name,
+                                         util::string_view json_enumerant_name)
+        {
+            using detail::name_from_words_all_lowercase;
+            bool starts_with_enumeration_name = false;
+            if(json_enumerant_name.substr(0, json_enumeration_name.size()) == json_enumeration_name)
+                starts_with_enumeration_name = true;
+            bool json_name_should_have_prefix = json_enumeration_name == op_enum_json_name;
+            if(json_name_should_have_prefix)
+            {
+                if(json_enumerant_name.substr(0, json_enumeration_name.size())
+                   != json_enumeration_name)
+                    return name_from_words_all_lowercase(
+                               json_enumeration_name, json_enumeration_name, json_enumerant_name)
+                        .to_string();
+                if(json_enumerant_name.substr(json_enumeration_name.size(),
+                                              json_enumeration_name.size())
+                   == json_enumeration_name)
+                    return name_from_words_all_lowercase(json_enumeration_name, json_enumerant_name)
+                        .to_string();
+                return name_from_words_all_lowercase(json_enumerant_name).to_string();
+            }
+            if(json_enumerant_name.empty())
+                throw Generate_error("json enumerant name can't be empty");
+            return name_from_words_all_lowercase(json_enumerant_name).to_string();
+        }
+        static std::string make_parameters_struct_cpp_name(util::string_view json_enumeration_name,
+                                                           util::string_view cpp_name)
+        {
+            using detail::name_from_words_initial_capital;
+            return name_from_words_initial_capital(json_enumeration_name, cpp_name, "parameters"_sv)
+                .to_string();
+        }
+        static std::string make_parameters_variable_cpp_name(util::string_view cpp_name)
+        {
+            using detail::name_from_words_all_lowercase;
+            return name_from_words_all_lowercase(cpp_name).to_string();
+        }
+        Enumerant_descriptor(std::uint32_t value,
+                             util::string_view json_enumeration_name,
+                             std::string json_name,
+                             ast::Capabilities capabilities,
+                             ast::Extensions extensions)
+            : value(value),
+              cpp_name(make_cpp_name(json_enumeration_name, json_name)),
+              parameters_struct_cpp_name(
+                  make_parameters_struct_cpp_name(json_enumeration_name, cpp_name)),
+              parameters_variable_cpp_name(make_parameters_variable_cpp_name(cpp_name)),
+              json_name(std::move(json_name)),
+              capabilities(std::move(capabilities)),
+              extensions(std::move(extensions)),
+              parameters()
+        {
+        }
+    };
+    struct Enumeration_descriptor
+    {
+        bool is_bitwise;
+        std::string cpp_name;
+        std::string json_name;
+        std::list<Enumerant_descriptor> enumerants;
+        typedef std::unordered_map<std::string, std::list<Enumerant_descriptor>::iterator>
+            Json_name_to_enumerant_map;
+        Json_name_to_enumerant_map json_name_to_enumerant_map;
+        static Json_name_to_enumerant_map make_json_name_to_enumerant_map(
+            std::list<Enumerant_descriptor> *enumerants)
+        {
+            Json_name_to_enumerant_map retval;
+            for(auto i = enumerants->begin(); i != enumerants->end(); ++i)
+                retval[i->json_name] = i;
+            return retval;
+        }
+        Enumeration_descriptor(bool is_bitwise,
+                               std::string json_name,
+                               std::list<Enumerant_descriptor> enumerants)
+            : is_bitwise(is_bitwise),
+              cpp_name(detail::name_from_words_initial_capital(json_name).to_string()),
+              json_name(std::move(json_name)),
+              enumerants(std::move(enumerants)),
+              json_name_to_enumerant_map(make_json_name_to_enumerant_map(&this->enumerants))
+        {
+        }
+    };
+
+private:
+    std::list<Enumeration_descriptor> enumerations_list;
+    std::unordered_map<std::string, std::list<Enumeration_descriptor>::const_iterator>
+        enumerations_map;
+    util::optional<std::list<Enumeration_descriptor>::const_iterator> capability_enumeration;
+    util::optional<std::list<Enumeration_descriptor>::const_iterator> extension_enumeration;
+    util::optional<std::list<Enumeration_descriptor>::const_iterator> op_enumeration;
+    util::optional<std::list<Enumeration_descriptor>::const_iterator>
+        extension_instruction_set_enumeration;
+    std::unordered_map<const ast::Extension_instruction_set *,
+                       std::list<Enumeration_descriptor>::const_iterator>
+        instruction_set_extension_op_enumeration_map;
+
+private:
+    std::list<Enumeration_descriptor>::const_iterator add_enumeration(
+        Enumeration_descriptor &&enumeration_descriptor)
+    {
+        auto name = enumeration_descriptor.json_name;
+        auto iter =
+            enumerations_list.insert(enumerations_list.end(), std::move(enumeration_descriptor));
+        if(!std::get<1>(enumerations_map.emplace(name, iter)))
+            throw Generate_error("duplicate enumeration: " + name);
+        return iter;
+    }
+    void fill_enumerations_helper(std::set<std::string> &extensions_set,
+                                  const ast::Operand_kinds::Operand_kind &ast_operand_kind)
+    {
+        auto *ast_enumerants =
+            util::get_if<ast::Operand_kinds::Operand_kind::Enumerants>(&ast_operand_kind.value);
+        if(ast_enumerants)
+        {
+            std::list<Enumerant_descriptor> enumerants;
+            for(auto &ast_enumerant : ast_enumerants->enumerants)
+            {
+                enumerants.push_back(Enumerant_descriptor(ast_enumerant.value,
+                                                          ast_operand_kind.kind,
+                                                          ast_enumerant.enumerant,
+                                                          ast_enumerant.capabilities,
+                                                          ast_enumerant.extensions));
+                for(auto &extension : ast_enumerant.extensions.extensions)
+                    extensions_set.insert(extension);
+            }
+            auto iter = add_enumeration(Enumeration_descriptor(
+                ast_operand_kind.category == ast::Operand_kinds::Operand_kind::Category::bit_enum,
+                ast_operand_kind.kind,
+                std::move(enumerants)));
+            if(ast_operand_kind.kind == capability_enum_json_name)
+            {
+                if(capability_enumeration)
+                    throw Generate_error("Too many " + std::string(capability_enum_json_name)
+                                         + " enums");
+                capability_enumeration = iter;
+            }
+        }
+    }
+    void fill_enumerations()
+    {
+        std::set<std::string> extensions_set;
+        for(auto &operand_kind : top_level.operand_kinds.operand_kinds)
+            fill_enumerations_helper(extensions_set, operand_kind);
+        std::list<Enumerant_descriptor> op_enumerants;
+        for(auto &instruction : top_level.instructions.instructions)
+        {
+            op_enumerants.push_back(Enumerant_descriptor(instruction.opcode,
+                                                         op_enum_json_name,
+                                                         instruction.opname,
+                                                         instruction.capabilities,
+                                                         instruction.extensions));
+            for(auto &extension : instruction.extensions.extensions)
+                extensions_set.insert(extension);
+        }
+        op_enumeration = add_enumeration(Enumeration_descriptor(
+            false, static_cast<std::string>(op_enum_json_name), std::move(op_enumerants)));
+        std::list<Enumerant_descriptor> extension_instruction_set_enumerants;
+        std::size_t extension_instruction_set_index = 0;
+        extension_instruction_set_enumerants.push_back(Enumerant_descriptor(
+            extension_instruction_set_index++,
+            extension_instruction_set_enum_json_name,
+            static_cast<std::string>(unknown_extension_instruction_set_enumerant_json_name),
+            {},
+            {}));
+        for(auto &instruction_set : top_level.extension_instruction_sets)
+        {
+            std::string json_enumeration_name =
+                std::string(op_enum_json_name) + " " + instruction_set.import_name;
+            std::list<Enumerant_descriptor> enumerants;
+            for(auto &instruction : instruction_set.instructions.instructions)
+            {
+                enumerants.push_back(Enumerant_descriptor(instruction.opcode,
+                                                          json_enumeration_name,
+                                                          instruction.opname,
+                                                          instruction.capabilities,
+                                                          instruction.extensions));
+                for(auto &extension : instruction.extensions.extensions)
+                    extensions_set.insert(extension);
+            }
+            auto iter = add_enumeration(
+                Enumeration_descriptor(false, json_enumeration_name, std::move(enumerants)));
+            instruction_set_extension_op_enumeration_map.emplace(&instruction_set, iter);
+            extension_instruction_set_enumerants.push_back(
+                Enumerant_descriptor(extension_instruction_set_index++,
+                                     extension_instruction_set_enum_json_name,
+                                     instruction_set.import_name,
+                                     {},
+                                     {}));
+        }
+        std::list<Enumerant_descriptor> extension_enumerants;
+        std::uint32_t extension_index = 0;
+        for(auto &extension : extensions_set)
+            extension_enumerants.push_back(Enumerant_descriptor(
+                extension_index++, extension_enum_json_name, extension, {}, {}));
+        extension_enumeration = add_enumeration(
+            Enumeration_descriptor(false,
+                                   static_cast<std::string>(extension_enum_json_name),
+                                   std::move(extension_enumerants)));
+        extension_instruction_set_enumeration = add_enumeration(Enumeration_descriptor(
+            false,
+            static_cast<std::string>(extension_instruction_set_enum_json_name),
+            std::move(extension_instruction_set_enumerants)));
+        if(!capability_enumeration)
+            throw Generate_error("missing " + std::string(capability_enum_json_name) + " enum");
+    }
+    static std::string instruction_set_version_name(const ast::Extension_instruction_set &v)
+    {
+        using detail::name_from_words_all_lowercase;
+        return name_from_words_all_lowercase("version"_sv, v.import_name).to_string();
+    }
+    static std::string instruction_set_revision_name(const ast::Extension_instruction_set &v)
+    {
+        using detail::name_from_words_all_lowercase;
+        return name_from_words_all_lowercase("revision"_sv, v.import_name).to_string();
+    }
+    const Enumerant_descriptor &get_capability(const std::string &capability) const
+    {
+        auto &enumerant_map = capability_enumeration.value()->json_name_to_enumerant_map;
+        auto iter = enumerant_map.find(capability);
+        if(iter == enumerant_map.end())
+            throw Generate_error("unknown capability: " + capability);
+        return *std::get<1>(*iter);
+    }
+    const Enumerant_descriptor &get_extension(const std::string &extension) const
+    {
+        auto &enumerant_map = extension_enumeration.value()->json_name_to_enumerant_map;
+        auto iter = enumerant_map.find(extension);
+        if(iter == enumerant_map.end())
+            throw Generate_error("unknown extension: " + extension);
+        return *std::get<1>(*iter);
+    }
+    std::list<Enumeration_descriptor>::const_iterator get_enumeration(
+        const std::string &json_name) const
+    {
+        auto iter = enumerations_map.find(json_name);
+        if(iter == enumerations_map.end())
+            throw Generate_error("unknown enum: " + json_name);
+        return std::get<1>(*iter);
+    }
+
+private:
+    struct Literal_type_descriptor
+    {
+        ast::Operand_kinds::Operand_kind::Literal_kind literal_kind;
+        std::string cpp_name;
+        static std::string get_cpp_name(ast::Operand_kinds::Operand_kind::Literal_kind literal_kind)
+        {
+            using detail::name_from_words_initial_capital;
+            return name_from_words_initial_capital(
+                       ast::Operand_kinds::Operand_kind::get_json_name_from_literal_kind(
+                           literal_kind))
+                .to_string();
+        }
+        explicit Literal_type_descriptor(
+            ast::Operand_kinds::Operand_kind::Literal_kind literal_kind)
+            : literal_kind(literal_kind), cpp_name(get_cpp_name(literal_kind))
+        {
+        }
+    };
+
+private:
+    util::Enum_map<ast::Operand_kinds::Operand_kind::Literal_kind, Literal_type_descriptor>
+        literal_type_descriptors;
+
+private:
+    void fill_literal_type_descriptors()
+    {
+        for(auto literal_kind :
+            util::Enum_traits<ast::Operand_kinds::Operand_kind::Literal_kind>::values)
+        {
+            literal_type_descriptors.emplace(literal_kind, Literal_type_descriptor(literal_kind));
+        }
+    }
+    static ast::Operand_kinds::Operand_kind::Literal_kind get_literal_kind(
+        util::string_view json_name)
+    {
+        auto retval = ast::Operand_kinds::Operand_kind::get_literal_kind_from_json_name(json_name);
+        if(!retval)
+            throw Generate_error("unknown literal kind: " + std::string(json_name));
+        return *retval;
+    }
+
+private:
+    struct Id_type_descriptor
+    {
+        std::string cpp_name;
+        std::string json_name;
+        static std::string get_cpp_name(util::string_view json_name)
+        {
+            using detail::name_from_words_initial_capital;
+            return name_from_words_initial_capital(json_name).to_string();
+        }
+        explicit Id_type_descriptor(std::string json_name)
+            : cpp_name(get_cpp_name(json_name)), json_name(std::move(json_name))
+        {
+        }
+    };
+
+private:
+    std::list<Id_type_descriptor> id_type_list;
+    std::unordered_map<std::string, std::list<Id_type_descriptor>::const_iterator> id_type_map;
+
+private:
+    std::list<Id_type_descriptor>::const_iterator add_id_type_descriptor(
+        Id_type_descriptor &&id_type_descriptor)
+    {
+        auto name = id_type_descriptor.json_name;
+        auto iter = id_type_list.insert(id_type_list.end(), std::move(id_type_descriptor));
+        if(!std::get<1>(id_type_map.emplace(name, iter)))
+            throw Generate_error("duplicate id type: " + name);
+        return iter;
+    }
+    void fill_id_type_descriptors()
+    {
+        for(auto &operand_kind : top_level.operand_kinds.operand_kinds)
+        {
+            if(operand_kind.category != ast::Operand_kinds::Operand_kind::Category::id)
+                continue;
+            add_id_type_descriptor(Id_type_descriptor(operand_kind.kind));
+        }
+    }
+    std::list<Id_type_descriptor>::const_iterator get_id_type(const std::string &json_name) const
+    {
+        auto iter = id_type_map.find(json_name);
+        if(iter == id_type_map.end())
+            throw Generate_error("unknown id type: " + json_name);
+        return std::get<1>(*iter);
+    }
+
+private:
+    struct Composite_type_descriptor
+    {
+        struct Base
+        {
+            std::string cpp_name;
+            std::string json_type;
+            explicit Base(std::string json_type, std::size_t index)
+                : cpp_name(
+                      detail::name_from_words_all_lowercase(
+                          "part"_sv, json::ast::Number_value::unsigned_integer_to_string(index + 1))
+                          .to_string()),
+                  json_type(std::move(json_type))
+            {
+            }
+        };
+        std::string cpp_name;
+        std::string json_name;
+        std::list<Base> bases;
+        explicit Composite_type_descriptor(std::string json_name, std::list<Base> bases)
+            : cpp_name(detail::name_from_words_initial_capital(json_name).to_string()),
+              json_name(std::move(json_name)),
+              bases(std::move(bases))
+        {
+        }
+    };
+
+private:
+    std::list<Composite_type_descriptor> composite_type_list;
+    std::unordered_map<std::string, std::list<Composite_type_descriptor>::const_iterator>
+        composite_type_map;
+
+private:
+    std::list<Composite_type_descriptor>::const_iterator add_composite_type_descriptor(
+        Composite_type_descriptor &&composite_type_descriptor)
+    {
+        auto name = composite_type_descriptor.json_name;
+        auto iter = composite_type_list.insert(composite_type_list.end(),
+                                               std::move(composite_type_descriptor));
+        if(!std::get<1>(composite_type_map.emplace(name, iter)))
+            throw Generate_error("duplicate composite type: " + name);
+        return iter;
+    }
+    void fill_composite_type_descriptors()
+    {
+        for(auto &operand_kind : top_level.operand_kinds.operand_kinds)
+        {
+            if(operand_kind.category != ast::Operand_kinds::Operand_kind::Category::composite)
+                continue;
+            std::list<Composite_type_descriptor::Base> bases;
+            std::size_t index = 0;
+            for(auto &base :
+                util::get<ast::Operand_kinds::Operand_kind::Bases>(operand_kind.value).values)
+                bases.push_back(Composite_type_descriptor::Base(base, index++));
+            add_composite_type_descriptor(
+                Composite_type_descriptor(operand_kind.kind, std::move(bases)));
+        }
+    }
+    std::list<Composite_type_descriptor>::const_iterator get_composite_type(
+        const std::string &json_name) const
+    {
+        auto iter = composite_type_map.find(json_name);
+        if(iter == composite_type_map.end())
+            throw Generate_error("unknown composite type: " + json_name);
+        return std::get<1>(*iter);
+    }
+
+private:
+    struct Enum_parameter
+    {
+        std::list<Enumerant_descriptor>::const_iterator enumerant;
+        std::string cpp_name;
+        std::string json_kind;
+        std::string json_name;
+        static std::string make_cpp_name(util::string_view json_kind, util::string_view json_name)
+        {
+            using detail::name_from_words_all_lowercase;
+            if(!json_name.empty())
+                return name_from_words_all_lowercase(json_name).to_string();
+            constexpr auto id_str = "Id"_sv;
+            if(json_kind.compare(0, id_str.size(), id_str) == 0 && id_str.size() < json_kind.size()
+               && json_kind[id_str.size()] >= 'A'
+               && json_kind[id_str.size()] <= 'Z')
+                return name_from_words_all_lowercase(json_kind.substr(id_str.size())).to_string();
+            return name_from_words_all_lowercase(json_kind).to_string();
+        }
+        explicit Enum_parameter(std::list<Enumerant_descriptor>::const_iterator enumerant,
+                                std::string json_kind,
+                                std::string json_name)
+            : enumerant(enumerant),
+              cpp_name(make_cpp_name(json_kind, json_name)),
+              json_kind(std::move(json_kind)),
+              json_name(std::move(json_name))
+        {
+        }
+    };
+    struct Operand_kind_descriptor
+    {
+        const ast::Operand_kinds::Operand_kind *operand_kind;
+        util::variant<util::monostate,
+                      std::list<Enumeration_descriptor>::const_iterator,
+                      std::list<Id_type_descriptor>::const_iterator,
+                      ast::Operand_kinds::Operand_kind::Literal_kind,
+                      std::list<Composite_type_descriptor>::const_iterator> value;
+        std::list<Enum_parameter> enum_parameters;
+        std::string make_cpp_name() const
+        {
+            std::string retval;
+            struct Visitor
+            {
+                std::string &retval;
+                const std::string &json_name;
+                void operator()(util::monostate)
+                {
+                    retval = detail::name_from_words_initial_capital(json_name).to_string();
+                }
+                void operator()(std::list<Enumeration_descriptor>::const_iterator iter)
+                {
+                    retval = iter->cpp_name;
+                }
+                void operator()(std::list<Id_type_descriptor>::const_iterator iter)
+                {
+                    retval = iter->cpp_name;
+                }
+                void operator()(ast::Operand_kinds::Operand_kind::Literal_kind literal_kind)
+                {
+                    retval = Literal_type_descriptor::get_cpp_name(literal_kind);
+                }
+                void operator()(std::list<Composite_type_descriptor>::const_iterator iter)
+                {
+                    retval = iter->cpp_name;
+                }
+            };
+            util::visit(Visitor{retval, operand_kind->kind}, value);
+            return retval;
+        }
+        std::string make_cpp_name_with_parameters() const
+        {
+            auto *iter = util::get_if<std::list<Enumeration_descriptor>::const_iterator>(&value);
+            if(iter && !enum_parameters.empty())
+                return detail::name_from_words_initial_capital(operand_kind->kind,
+                                                               "with parameters"_sv)
+                    .to_string();
+            return cpp_name;
+        }
+        std::string make_cpp_dump_function_name() const
+        {
+            return detail::name_from_words_all_lowercase("dump_operand"_sv, cpp_name).to_string();
+        }
+        std::string make_cpp_parse_function_name() const
+        {
+            return detail::name_from_words_all_lowercase("parse"_sv, cpp_name).to_string();
+        }
+        std::string cpp_name;
+        std::string cpp_name_with_parameters;
+        std::string cpp_dump_function_name;
+        std::string cpp_parse_function_name;
+        bool needs_integer_literal_size = false;
+        explicit Operand_kind_descriptor(const ast::Operand_kinds::Operand_kind *operand_kind)
+            : Operand_kind_descriptor(operand_kind, util::monostate{})
+        {
+        }
+        template <typename T>
+        Operand_kind_descriptor(const ast::Operand_kinds::Operand_kind *operand_kind,
+                                T arg,
+                                std::list<Enum_parameter> enum_parameters = {})
+            : operand_kind(operand_kind),
+              value(std::move(arg)),
+              enum_parameters(std::move(enum_parameters)),
+              cpp_name(make_cpp_name()),
+              cpp_name_with_parameters(make_cpp_name_with_parameters()),
+              cpp_dump_function_name(make_cpp_dump_function_name()),
+              cpp_parse_function_name(make_cpp_parse_function_name())
+        {
+        }
+    };
+
+private:
+    std::list<Operand_kind_descriptor> operand_kind_list;
+    std::unordered_map<std::string, std::list<Operand_kind_descriptor>::const_iterator>
+        operand_kind_map;
+
+private:
+    std::list<Operand_kind_descriptor>::const_iterator add_operand_kind(
+        Operand_kind_descriptor &&operand_kind_descriptor)
+    {
+        auto name = operand_kind_descriptor.operand_kind->kind;
+        auto iter =
+            operand_kind_list.insert(operand_kind_list.end(), std::move(operand_kind_descriptor));
+        if(!std::get<1>(operand_kind_map.emplace(name, iter)))
+            throw Generate_error("duplicate operand kind: " + name);
+        return iter;
+    }
+    std::list<Operand_kind_descriptor>::const_iterator get_operand_kind(
+        const std::string &json_name) const
+    {
+        auto iter = operand_kind_map.find(json_name);
+        if(iter == operand_kind_map.end())
+            throw Generate_error("unknown operand kind: " + json_name);
+        return std::get<1>(*iter);
+    }
+    /** returns true if operand_kind changed */
+    static bool update_operand_kind(
+        Operand_kind_descriptor &operand_kind,
+        const std::unordered_map<std::string, std::list<Operand_kind_descriptor>::const_iterator>
+            &operand_kind_map)
+    {
+        if(operand_kind.needs_integer_literal_size)
+            return false;
+        bool retval = false;
+        struct Visitor
+        {
+            Operand_kind_descriptor &operand_kind;
+            const std::unordered_map<std::string,
+                                     std::list<Operand_kind_descriptor>::const_iterator>
+                &operand_kind_map;
+            bool &retval;
+            void operator()(util::monostate)
+            {
+            }
+            void operator()(const std::list<Enumeration_descriptor>::const_iterator &)
+            {
+                // FIXME: verify that all LiteralIntegers in enum parameters are 32-bits
+            }
+            void operator()(const std::list<Id_type_descriptor>::const_iterator &)
+            {
+            }
+            void operator()(ast::Operand_kinds::Operand_kind::Literal_kind literal_kind)
+            {
+                if(literal_kind == ast::Operand_kinds::Operand_kind::Literal_kind::literal_integer)
+                {
+                    if(!operand_kind.needs_integer_literal_size)
+                        retval = true;
+                    operand_kind.needs_integer_literal_size = true;
+                }
+            }
+            void operator()(
+                const std::list<Composite_type_descriptor>::const_iterator &composite_iter)
+            {
+                for(auto &base : composite_iter->bases)
+                {
+                    auto iter = operand_kind_map.find(base.json_type);
+                    if(iter == operand_kind_map.end())
+                        throw Generate_error("unknown operand kind: " + base.json_type);
+                    if(std::get<1>(*iter)->needs_integer_literal_size)
+                    {
+                        if(!operand_kind.needs_integer_literal_size)
+                            retval = true;
+                        operand_kind.needs_integer_literal_size = true;
+                    }
+                }
+            }
+        };
+        util::visit(Visitor{operand_kind, operand_kind_map, retval}, operand_kind.value);
+        return retval;
+    }
+    void fill_operand_kinds()
+    {
+        for(auto &operand_kind : top_level.operand_kinds.operand_kinds)
+        {
+            switch(operand_kind.category)
             {
             case ast::Operand_kinds::Operand_kind::Category::bit_enum:
             case ast::Operand_kinds::Operand_kind::Category::value_enum:
             {
-                bool is_bit_enum =
-                    operand_kind->category == ast::Operand_kinds::Operand_kind::Category::bit_enum;
+                auto enumeration_iter = get_enumeration(operand_kind.kind);
                 auto &enumerants =
-                    util::get<ast::Operand_kinds::Operand_kind::Enumerants>(operand_kind->value);
-                auto unique_enumerants = get_unique_enumerants(enumerants.enumerants);
-                if(get_operand_has_any_parameters(state, *operand_kind))
+                    util::get<ast::Operand_kinds::Operand_kind::Enumerants>(operand_kind.value);
+                std::list<Enum_parameter> enum_parameters;
+                for(auto &enumerant : enumerants.enumerants)
                 {
-                    for(auto &enumerant : unique_enumerants)
+                    if(enumerant.parameters.empty())
+                        continue;
+                    auto enumerant_iter_iter =
+                        enumeration_iter->json_name_to_enumerant_map.find(enumerant.enumerant);
+                    if(enumerant_iter_iter == enumeration_iter->json_name_to_enumerant_map.end())
+                        throw Generate_error("unknown enumerant: " + enumerant.enumerant);
+                    auto enumerant_iter = std::get<1>(*enumerant_iter_iter);
+                    for(auto &parameter : enumerant.parameters.parameters)
                     {
-                        if(enumerant.parameters.empty())
-                            continue;
-                        auto struct_name = get_enumerant_parameters_struct_name(
-                            operand_kind->kind, enumerant.enumerant, false);
-                        state << "\n"
-                                 "struct "
-                              << struct_name << indent(true, R"(
-{
-`static constexpr )") << get_enum_name(*operand_kind)
-                              << indent(true, R"( get_enumerant() noexcept
-`{
-``return )") << get_enum_name(*operand_kind)
-                              << "::"
-                              << get_enumerant_name(operand_kind->kind, enumerant.enumerant, false)
-                              << indent(true, R"(;
-`}
-)");
-                        std::vector<std::string> member_types;
-                        std::vector<std::string> member_names;
-                        member_types.reserve(enumerant.parameters.parameters.size());
-                        member_names.reserve(enumerant.parameters.parameters.size());
-                        for(auto &parameter : enumerant.parameters.parameters)
-                        {
-                            member_types.push_back(
-                                get_operand_with_parameters_name(state, parameter.kind));
-                            member_names.push_back(get_member_name_from_parameter(parameter));
-                        }
-                        auto push_indent = state.pushed_indent();
-                        write_struct_nonstatic_members_and_constructors(
-                            state,
-                            struct_name,
-                            member_types.data(),
-                            member_names.data(),
-                            enumerant.parameters.parameters.size());
-                        push_indent.finish();
-                        state << "};\n";
-                    }
-                    if(is_bit_enum)
-                    {
-                        auto struct_name = get_operand_with_parameters_name(state, *operand_kind);
-                        state << indent(R"(
-struct )") << struct_name << indent(true, R"(
-{
-)");
-                        std::vector<std::string> member_types;
-                        std::vector<std::string> member_names;
-                        member_types.push_back(get_enum_name(*operand_kind));
-                        member_names.push_back("value");
-                        for(auto &enumerant : unique_enumerants)
-                        {
-                            if(enumerant.parameters.empty())
-                                continue;
-                            member_types.push_back(
-                                "util::optional<"
-                                + get_enumerant_parameters_struct_name(
-                                      operand_kind->kind, enumerant.enumerant, false)
-                                + ">");
-                            member_names.push_back(get_member_name_from_enumerant(enumerant));
-                        }
-                        auto push_indent = state.pushed_indent();
-                        write_struct_nonstatic_members_and_constructors(state,
-                                                                        struct_name,
-                                                                        member_types.data(),
-                                                                        member_names.data(),
-                                                                        member_types.size());
-                        push_indent.finish();
-                        state << "};\n";
-                    }
-                    else
-                    {
-                        auto struct_name = get_operand_with_parameters_name(state, *operand_kind);
-                        state << indent(R"(
-struct )") << struct_name << indent(true, R"(
-{
-`typedef util::variant<util::monostate)");
-                        for(auto &enumerant : unique_enumerants)
-                        {
-                            if(enumerant.parameters.empty())
-                                continue;
-                            state << ",\n" << indent(2)
-                                  << get_enumerant_parameters_struct_name(
-                                         operand_kind->kind, enumerant.enumerant, false);
-                        }
-                        state << indent(true, R"(> Parameters;
-)");
-                        auto push_indent = state.pushed_indent();
-                        constexpr std::size_t member_count = 2;
-                        std::string member_types[member_count] = {
-                            get_enum_name(*operand_kind), "Parameters",
-                        };
-                        std::string member_names[member_count] = {
-                            "value", "parameters",
-                        };
-                        write_struct_nonstatic_members_and_constructors(
-                            state, struct_name, member_types, member_names, member_count);
-                        push_indent.finish();
-                        state << "};\n";
+                        enumerant_iter->parameters.push_back(&*enum_parameters.emplace(
+                            enum_parameters.end(), enumerant_iter, parameter.kind, parameter.name));
                     }
                 }
-                break;
+                add_operand_kind(Operand_kind_descriptor(&operand_kind,
+                                                         enumerations_map.at(operand_kind.kind),
+                                                         std::move(enum_parameters)));
+                continue;
             }
-            case ast::Operand_kinds::Operand_kind::Category::composite:
             case ast::Operand_kinds::Operand_kind::Category::id:
+                add_operand_kind(
+                    Operand_kind_descriptor(&operand_kind, get_id_type(operand_kind.kind)));
+                continue;
             case ast::Operand_kinds::Operand_kind::Category::literal:
-                break;
+                add_operand_kind(
+                    Operand_kind_descriptor(&operand_kind, get_literal_kind(operand_kind.kind)));
+                continue;
+            case ast::Operand_kinds::Operand_kind::Category::composite:
+                add_operand_kind(
+                    Operand_kind_descriptor(&operand_kind, get_composite_type(operand_kind.kind)));
+                continue;
+            }
+            assert(false);
+        }
+        for(bool any_changes = true; any_changes;)
+        {
+            any_changes = false;
+            for(auto &operand_kind : operand_kind_list)
+            {
+                if(update_operand_kind(operand_kind, operand_kind_map))
+                    any_changes = true;
             }
         }
-        std::vector<const ast::Instructions::Instruction *> instructions;
-        instructions.reserve(top_level.instructions.instructions.size());
-        for(auto &instruction : top_level.instructions.instructions)
-            instructions.push_back(&instruction);
-        std::sort(
-            instructions.begin(),
-            instructions.end(),
-            [](const ast::Instructions::Instruction *a, const ast::Instructions::Instruction *b)
-            {
-                return a->opcode < b->opcode;
-            });
-        state << "\n"
-                 "enum class "
-              << op_enum_name << " : Word\n"
-                                 "{\n";
+    }
+
+private:
+    struct Operand_descriptor
+    {
+        typedef ast::Instructions::Instruction::Operands::Operand::Quantifier Quantifier;
+        std::string cpp_name;
+        std::string json_name;
+        std::string json_kind;
+        Quantifier quantifier;
+        static std::string make_cpp_name(util::string_view json_name, util::string_view json_kind)
         {
-            auto push_indent = state.pushed_indent();
-            for(auto &instruction : top_level.instructions.instructions)
-            {
-                state << indent << get_enumerant_name(op_enum_name, instruction.opname, true)
-                      << " = " << unsigned_dec_integer_literal(instruction.opcode) << ",\n";
-            }
+            using detail::name_from_words_all_lowercase;
+            if(!json_name.empty())
+                return name_from_words_all_lowercase(json_name).to_string();
+            constexpr auto id_str = "Id"_sv;
+            if(json_kind.compare(0, id_str.size(), id_str) == 0 && id_str.size() < json_kind.size()
+               && json_kind[id_str.size()] >= 'A'
+               && json_kind[id_str.size()] <= 'Z')
+                return name_from_words_all_lowercase(json_kind.substr(id_str.size())).to_string();
+            return name_from_words_all_lowercase(json_kind).to_string();
         }
-        state << "};\n";
-        state << "\n"
-                 "vulkan_cpu_util_generate_enum_traits("
-              << op_enum_name;
+        Operand_descriptor(std::string json_name, std::string json_kind, Quantifier quantifier)
+            : cpp_name(make_cpp_name(json_name, json_kind)),
+              json_name(std::move(json_name)),
+              json_kind(std::move(json_kind)),
+              quantifier(quantifier)
         {
-            auto push_indent = state.pushed_indent();
-            for(auto &instruction : top_level.instructions.instructions)
-                state << ",\n" << indent << op_enum_name
-                      << "::" << get_enumerant_name(op_enum_name, instruction.opname, true);
-            state << ");\n";
         }
-        state << "\n"
-                 "constexpr const char *get_enumerant_name("
-              << op_enum_name << " v) noexcept\n"
-                                 "{\n";
+    };
+    struct Instruction_descriptor
+    {
+        std::string cpp_struct_name;
+        std::string cpp_parse_callback_name;
+        std::list<Enumeration_descriptor>::const_iterator enumeration;
+        std::list<Enumerant_descriptor>::const_iterator enumerant;
+        const ast::Extension_instruction_set *extension_instruction_set;
+        std::string json_name;
+        std::list<Operand_descriptor> implied_operands;
+        std::list<Operand_descriptor> explicit_operands;
+        const Instruction_properties_descriptor *properties_descriptor;
+        static std::string make_cpp_struct_name(
+            const ast::Extension_instruction_set *extension_instruction_set,
+            util::string_view json_name)
         {
-            auto push_indent = state.pushed_indent();
-            state << indent(
-                "switch(v)\n"
-                "{\n");
-            for(auto &instruction : top_level.instructions.instructions)
-            {
-                state << indent("case ") << op_enum_name
-                      << "::" << get_enumerant_name(op_enum_name, instruction.opname, true)
-                      << indent(true,
-                                ":\n"
-                                "return \"")
-                      << instruction.opname << "\";\n";
-            }
-            state << indent(
-                "}\n"
-                "return \"\";\n");
+            if(extension_instruction_set)
+                return detail::name_from_words_initial_capital(
+                           extension_instruction_set->import_name, "op"_sv, json_name)
+                    .to_string();
+            return detail::name_from_words_initial_capital(json_name).to_string();
         }
-        state << "}\n"
-                 "\n"
-                 "constexpr util::Enum_set<"
-              << capability_enum_name << "> get_directly_required_capability_set(" << op_enum_name
-              << " v) noexcept\n"
-                 "{\n";
+        static std::string make_cpp_parse_callback_name(util::string_view cpp_struct_name)
         {
-            auto push_indent = state.pushed_indent();
-            state << indent(
-                "switch(v)\n"
-                "{\n");
-            for(auto &instruction : top_level.instructions.instructions)
-            {
-                state << indent("case ") << op_enum_name
-                      << "::" << get_enumerant_name(op_enum_name, instruction.opname, true)
-                      << indent(true,
-                                ":\n"
-                                "return ")
-                      << instruction.capabilities << ";\n";
-            }
-            state << indent(
-                "}\n"
-                "return {};\n");
+            return detail::name_from_words_all_lowercase("handle_instruction"_sv, cpp_struct_name)
+                .to_string();
         }
-        state << "}\n"
-                 "\n"
-                 "constexpr util::Enum_set<"
-              << extension_enum_name << "> get_directly_required_extension_set(" << op_enum_name
-              << " v) noexcept\n"
-                 "{\n";
+        explicit Instruction_descriptor(
+            std::list<Enumeration_descriptor>::const_iterator enumeration,
+            std::list<Enumerant_descriptor>::const_iterator enumerant,
+            const ast::Extension_instruction_set *extension_instruction_set,
+            std::string json_name,
+            std::list<Operand_descriptor> implied_operands,
+            std::list<Operand_descriptor> explicit_operands,
+            const Instruction_properties_descriptor *properties_descriptor)
+            : cpp_struct_name(make_cpp_struct_name(extension_instruction_set, json_name)),
+              cpp_parse_callback_name(make_cpp_parse_callback_name(cpp_struct_name)),
+              enumeration(enumeration),
+              enumerant(enumerant),
+              extension_instruction_set(extension_instruction_set),
+              json_name(std::move(json_name)),
+              implied_operands(std::move(implied_operands)),
+              explicit_operands(std::move(explicit_operands)),
+              properties_descriptor(properties_descriptor)
         {
-            auto push_indent = state.pushed_indent();
-            state << indent(
-                "switch(v)\n"
-                "{\n");
-            for(auto &instruction : top_level.instructions.instructions)
-            {
-                state << indent("case ") << op_enum_name
-                      << "::" << get_enumerant_name(op_enum_name, instruction.opname, true)
-                      << ":\n";
-                auto push_indent2 = state.pushed_indent();
-                state << indent("return ") << instruction.extensions << ";\n";
-            }
-            state << indent(
-                "}\n"
-                "return {};\n");
         }
-        state << "}\n";
-        for(auto &instruction : top_level.instructions.instructions)
+    };
+
+private:
+    std::list<Instruction_descriptor> instruction_descriptor_list;
+    std::unordered_map<const ast::Extension_instruction_set *,
+                       std::unordered_map<std::string,
+                                          std::list<Instruction_descriptor>::const_iterator>>
+        instruction_descriptor_map;
+    std::unordered_map<std::string,
+                       std::unordered_map<std::string, const Instruction_properties_descriptor *>>
+        instruction_properties_descriptors_map = make_instruction_properties_descriptors_map();
+
+private:
+    static std::unordered_map<std::string,
+                              std::unordered_map<std::string,
+                                                 const Instruction_properties_descriptor *>>
+        make_instruction_properties_descriptors_map()
+    {
+        std::unordered_map<std::string,
+                           std::unordered_map<std::string,
+                                              const Instruction_properties_descriptor *>> retval;
+        for(auto &i : Instruction_properties_descriptors::get())
         {
-            auto struct_name = get_enumerant_name(op_enum_name, instruction.opname, true);
-            state << "\n"
-                     "struct "
-                  << struct_name << "\n"
-                                    "{\n";
-            {
-                auto push_indent = state.pushed_indent();
-                state << indent("static constexpr ") << op_enum_name << " get_opcode() noexcept\n"
-                      << indent("{\n");
-                {
-                    auto push_indent2 = state.pushed_indent();
-                    state << indent("return ") << op_enum_name
-                          << "::" << get_enumerant_name(op_enum_name, instruction.opname, true)
-                          << ";\n";
-                }
-                state << indent("}\n");
-                std::vector<std::string> member_names;
-                std::vector<std::string> member_types;
-                member_names.reserve(instruction.operands.operands.size());
-                member_types.reserve(instruction.operands.operands.size());
-                for(auto &operand : instruction.operands.operands)
-                {
-                    std::string member_type;
-                    switch(operand.quantifier)
-                    {
-                    case ast::Instructions::Instruction::Operands::Operand::Quantifier::none:
-                    {
-                        member_type = get_operand_with_parameters_name(state, operand);
-                        break;
-                    }
-                    case ast::Instructions::Instruction::Operands::Operand::Quantifier::optional:
-                    {
-                        member_type = "util::optional<"
-                                      + get_operand_with_parameters_name(state, operand) + ">";
-                        break;
-                    }
-                    case ast::Instructions::Instruction::Operands::Operand::Quantifier::variable:
-                    {
-                        member_type =
-                            "std::vector<" + get_operand_with_parameters_name(state, operand) + ">";
-                        break;
-                    }
-                    }
-                    member_types.push_back(std::move(member_type));
-                    member_names.push_back(get_member_name_from_operand(operand));
-                }
-                write_struct_nonstatic_members_and_constructors(state,
-                                                                struct_name,
-                                                                member_types.data(),
-                                                                member_names.data(),
-                                                                member_types.size());
-            }
-            state << "};\n";
+            retval[std::string(i.extension_instruction_set_import_name)][std::string(
+                i.instruction_name)] = &i;
         }
-        write_namespaces_end(state, spirv_namespace_names);
-        write_file_guard_end(state);
+        return retval;
     }
-};
-
-struct Spirv_source_generator final : public Generator
-{
-    Spirv_source_generator() : Generator("spirv.cpp")
+    const Instruction_properties_descriptor *get_instruction_properties_descriptor(
+        const std::string &extension_instruction_set_import_name,
+        const std::string &instruction_name)
     {
+        auto iter1 =
+            instruction_properties_descriptors_map.find(extension_instruction_set_import_name);
+        if(iter1 == instruction_properties_descriptors_map.end())
+            return nullptr;
+        auto iter2 = std::get<1>(*iter1).find(instruction_name);
+        if(iter2 == std::get<1>(*iter1).end())
+            return nullptr;
+        return std::get<1>(*iter2);
     }
-    virtual void run(Generator_args &generator_args, const ast::Top_level &top_level) const override
+    static std::string get_instruction_name_for_diagnostics(
+        const ast::Extension_instruction_set *extension_instruction_set,
+        util::string_view json_name)
     {
-        Generator_state state(this, generator_args, top_level);
-        state.open_output_file();
-        write_file_comments(state, top_level.copyright);
-        state << "#include \"spirv.h\"\n";
+        std::string retval;
+        if(extension_instruction_set)
+            retval = extension_instruction_set->import_name;
+        else
+            retval = "core";
+        retval += ":";
+        retval += json_name;
+        return retval;
     }
-};
-
-struct Parser_header_generator final : public Generator
-{
-    Parser_header_generator() : Generator("parser.h")
+    std::list<Instruction_descriptor>::const_iterator add_instruction_descriptor(
+        Instruction_descriptor &&instruction_descriptor)
     {
+        auto name = instruction_descriptor.json_name;
+        auto extension_instruction_set = instruction_descriptor.extension_instruction_set;
+        auto iter = instruction_descriptor_list.insert(instruction_descriptor_list.end(),
+                                                       std::move(instruction_descriptor));
+        if(!std::get<1>(instruction_descriptor_map[extension_instruction_set].emplace(name, iter)))
+            throw Generate_error("duplicate instruction: " + get_instruction_name_for_diagnostics(
+                                                                 extension_instruction_set, name));
+        return iter;
     }
-    static std::string get_dump_operand_function_name(std::string kind)
+    std::list<Instruction_descriptor>::const_iterator get_instruction_descriptor(
+        const ast::Extension_instruction_set *extension_instruction_set,
+        const std::string &json_name)
     {
-        return "dump_operand_" + std::move(kind);
+        auto iter1 = instruction_descriptor_map.find(extension_instruction_set);
+        if(iter1 == instruction_descriptor_map.end())
+            throw Generate_error(
+                "unknown instruction: "
+                + get_instruction_name_for_diagnostics(extension_instruction_set, json_name));
+        auto iter2 = std::get<1>(*iter1).find(json_name);
+        if(iter2 == std::get<1>(*iter1).end())
+            throw Generate_error(
+                "unknown instruction: "
+                + get_instruction_name_for_diagnostics(extension_instruction_set, json_name));
+        return std::get<1>(*iter2);
     }
-    static std::string get_dump_operand_function_name(
-        const ast::Operand_kinds::Operand_kind &operand_kind)
+    std::string generate_guessed_instruction_properties_descriptor_string(
+        const ast::Extension_instruction_set *extension_instruction_set,
+        const ast::Instructions::Instruction &instruction) const
     {
-        return get_dump_operand_function_name(operand_kind.kind);
-    }
-    static std::string get_dump_operand_function_name(
-        const ast::Operand_kinds::Operand_kind::Enumerants::Enumerant::Parameters::Parameter
-            &parameter)
-    {
-        return get_dump_operand_function_name(parameter.kind);
-    }
-    static std::string get_parse_operand_function_name(std::string kind)
-    {
-        return "parse_operand_" + std::move(kind);
-    }
-    static std::string get_parse_operand_function_name(
-        const ast::Operand_kinds::Operand_kind &operand_kind)
-    {
-        return get_parse_operand_function_name(operand_kind.kind);
-    }
-    static std::string get_parse_operand_function_name(
-        const ast::Instructions::Instruction::Operands::Operand &operand)
-    {
-        return get_parse_operand_function_name(operand.kind);
-    }
-    static std::string get_parse_operand_function_name(
-        const ast::Operand_kinds::Operand_kind::Enumerants::Enumerant::Parameters::Parameter
-            &parameter)
-    {
-        return get_parse_operand_function_name(parameter.kind);
-    }
-    static std::string get_parse_instruction_function_name(std::string opname)
-    {
-        return "parse_instruction_" + get_enumerant_name(op_enum_name, opname, true);
-    }
-    virtual void run(Generator_args &generator_args, const ast::Top_level &top_level) const override
-    {
-        Generator_state state(this, generator_args, top_level);
-        state.open_output_file();
-        write_file_comments(state, top_level.copyright);
-        write_file_guard_start(state);
-        state << R"(#include "spirv.h"
-#include <memory>
-#include <ostream>
-#include "util/optional.h"
-#include "json/json.h"
-#include <vector>
-
-)";
-        write_namespaces_start(state, spirv_namespace_names);
-        state << indent(R"(struct Parse_error
-{
-`std::size_t word_index;
-`std::size_t instruction_word_index;
-`std::string message;
-`Parse_error(std::size_t word_index, std::size_t instruction_word_index, std::string message) noexcept
-``: word_index(word_index),
-``  instruction_word_index(instruction_word_index),
-``  message(std::move(message))
-`{
-`}
-`virtual ~Parse_error() = default;
-};
-
-)");
-        state << "struct Parse_semantics_generic\n"
-                 "{\n";
+        std::string retval;
+        retval += "{\""_sv;
+        if(extension_instruction_set)
+            retval += extension_instruction_set->import_name;
+        retval += "\"_sv, \"";
+        retval += instruction.opname;
+        retval += "\"_sv, {"_sv;
+        auto separator = ""_sv;
+        for(auto &operand : instruction.operands.operands)
         {
-            auto push_indent = state.pushed_indent();
-            state << indent(R"(virtual ~Parse_semantics_generic() = default;
-virtual std::unique_ptr<Parse_error> handle_error(std::size_t word_index, std::size_t instruction_word_index, std::string message) = 0;
-virtual void handle_spirv_version(unsigned major, unsigned minor) = 0;
-virtual void handle_generator_magic_number(Word value) = 0;
-virtual void handle_id_bound(Word id_bound) = 0;
-)");
-            for(auto &instruction : top_level.instructions.instructions)
-            {
-                auto struct_name = get_enumerant_name(op_enum_name, instruction.opname, true);
-                state << indent("virtual void handle_instruction(") << struct_name
-                      << " instruction) = 0;\n";
-            }
+            retval += separator;
+            separator = ", "_sv;
+            retval += '{';
+            auto operand_kind = get_operand_kind(operand.kind);
+            if(operand_kind->needs_integer_literal_size)
+                retval += "Integer_literal_size::always_32bits"_sv;
+            retval += '}';
         }
-        state << indent(R"(};
-
-struct Parse_dump final : public Parse_semantics_generic
-{
-`std::ostream &os;
-`explicit constexpr Parse_dump(std::ostream &os) noexcept : os(os)
-`{
-`}
-)");
-        {
-            auto push_indent = state.pushed_indent();
-            state << indent(
-                R"(virtual std::unique_ptr<Parse_error> handle_error(std::size_t word_index, std::size_t instruction_word_index, std::string message) override;
-virtual void handle_spirv_version(unsigned major, unsigned minor) override;
-virtual void handle_generator_magic_number(Word value) override;
-virtual void handle_id_bound(Word id_bound) override;
-)");
-            for(auto &instruction : top_level.instructions.instructions)
-            {
-                auto struct_name = get_enumerant_name(op_enum_name, instruction.opname, true);
-                state << indent("virtual void handle_instruction(") << struct_name
-                      << " instruction) override;\n";
-            }
-            for(auto &operand_kind : top_level.operand_kinds.operand_kinds)
-            {
-                auto dump_function_name = get_dump_operand_function_name(operand_kind);
-                state << indent("void ") << dump_function_name << "(const "
-                      << get_operand_with_parameters_name(state, operand_kind) << " &value);\n";
-                state << indent("void ") << dump_function_name << "(const util::optional<"
-                      << get_operand_with_parameters_name(state, operand_kind) << "> &value);\n";
-                state << indent("void ") << dump_function_name << "(const std::vector<"
-                      << get_operand_with_parameters_name(state, operand_kind) << "> &values);\n";
-            }
-        }
-        state << "};\n"
-                 "\n"
-                 "template <typename Semantics = Parse_semantics_generic>\n"
-                 "struct Parser\n"
-                 "{\n";
-        {
-            auto push_indent = state.pushed_indent();
-            for(auto &operand_kind : top_level.operand_kinds.operand_kinds)
-            {
-                auto parse_function_name = get_parse_operand_function_name(operand_kind);
-                state
-                    << indent(R"(static std::unique_ptr<Parse_error> )") << parse_function_name
-                    << indent(
-                           true,
-                           R"((const Word *words, std::size_t word_count, Semantics &semantics, std::size_t error_instruction_index, std::size_t &word_index, )")
-                    << get_operand_with_parameters_name(state, operand_kind) << indent(true,
-                                                                                       R"( &value)
-{
-`if(word_index >= word_count)
-``return semantics.handle_error(error_instruction_index + word_index, error_instruction_index, "instruction missing operand");
-)");
-                auto push_indent = state.pushed_indent();
-                switch(operand_kind.category)
-                {
-                case ast::Operand_kinds::Operand_kind::Category::bit_enum:
-                {
-                    auto enum_name = get_enum_name(operand_kind);
-                    if(get_operand_has_any_parameters(state, operand_kind))
-                    {
-                        state << indent(R"(value.value = static_cast<)") << enum_name
-                              << indent(true, R"(>(words[word_index++]);
-)");
-                        auto &enumerants = util::get<ast::Operand_kinds::Operand_kind::Enumerants>(
-                            operand_kind.value);
-                        for(auto &enumerant : enumerants.enumerants)
-                        {
-                            if(enumerant.parameters.empty())
-                                continue;
-                            auto enumerant_member_name = get_member_name_from_enumerant(enumerant);
-                            auto enumerant_name =
-                                get_enumerant_name(operand_kind.kind, enumerant.enumerant, false);
-                            state
-                                << indent(
-                                       R"(if((static_cast<Word>(value.value) & static_cast<Word>()")
-                                << enum_name << "::" << enumerant_name
-                                << indent(true, R"()) == static_cast<Word>()") << enum_name
-                                << "::" << enumerant_name << indent(true, R"())
-{
-`value.)") << enumerant_member_name
-                                << indent(true, R"(.emplace();
-)");
-                            bool first = true;
-                            for(auto &parameter : enumerant.parameters.parameters)
-                            {
-                                auto parameter_member_name =
-                                    get_member_name_from_parameter(parameter);
-                                auto parameter_parse_function =
-                                    get_parse_operand_function_name(parameter);
-                                state << indent(1);
-                                if(first)
-                                {
-                                    state << indent(true, "auto ");
-                                    first = false;
-                                }
-                                state << indent(true, "parse_error = ") << parameter_parse_function
-                                      << "(words, word_count, semantics, error_instruction_index, "
-                                         "word_index, value."
-                                      << enumerant_member_name << "->" << parameter_member_name
-                                      << indent(true, R"();
-`if(parse_error)
-``return parse_error;
-)");
-                            }
-                            state << indent(R"(}
-)");
-                        }
-                    }
-                    else
-                    {
-                        state << indent(R"(value = static_cast<)") << enum_name
-                              << indent(true, R"(>(words[word_index++]);
-)");
-                    }
-                    break;
-                }
-                case ast::Operand_kinds::Operand_kind::Category::value_enum:
-                {
-                    auto enum_name = get_enum_name(operand_kind);
-                    if(get_operand_has_any_parameters(state, operand_kind))
-                    {
-                        state << indent(R"(value.value = static_cast<)") << enum_name
-                              << indent(true, R"(>(words[word_index++]);
-switch(value.value)
-{
-)");
-                        auto &enumerants = util::get<ast::Operand_kinds::Operand_kind::Enumerants>(
-                            operand_kind.value);
-                        for(auto &enumerant : enumerants.enumerants)
-                        {
-                            auto enumerant_name =
-                                get_enumerant_name(operand_kind.kind, enumerant.enumerant, false);
-                            state << indent("case ") << enum_name << "::" << enumerant_name
-                                  << indent(true, R"(:
-)");
-                            if(enumerant.parameters.empty())
-                            {
-                                state << indent(R"(`break;
-)");
-                                continue;
-                            }
-                            auto enumerant_parameters_struct_name =
-                                get_enumerant_parameters_struct_name(
-                                    operand_kind.kind, enumerant.enumerant, false);
-                            state << indent(R"({
-`value.parameters.emplace<)") << enumerant_parameters_struct_name
-                                  << indent(true, R"(>();
-`auto &parameters = util::get<)") << enumerant_parameters_struct_name
-                                  << indent(true, R"(>(value.parameters);
-)");
-                            bool first = true;
-                            for(auto &parameter : enumerant.parameters.parameters)
-                            {
-                                auto parameter_member_name =
-                                    get_member_name_from_parameter(parameter);
-                                auto parameter_parse_function =
-                                    get_parse_operand_function_name(parameter);
-                                state << indent(1);
-                                if(first)
-                                {
-                                    state << indent(true, "auto ");
-                                    first = false;
-                                }
-                                state << indent(true, "parse_error = ") << parameter_parse_function
-                                      << "(words, word_count, semantics, error_instruction_index, "
-                                         "word_index, parameters."
-                                      << parameter_member_name << indent(true, R"();
-`if(parse_error)
-``return parse_error;
-)");
-                            }
-                            state << indent(R"(`break;
-}
-)");
-                        }
-                        state << indent(R"(default:
-`word_index--;
-`return semantics.handle_error(error_instruction_index + word_index, error_instruction_index, "invalid enum value");
-}
-)");
-                    }
-                    else
-                    {
-                        state << indent(R"(value = static_cast<)") << enum_name
-                              << indent(true, R"(>(words[word_index]);
-if(util::Enum_traits<)") << enum_name
-                              << indent(true, R"(>::find_value(value) == util::Enum_traits<)")
-                              << enum_name << indent(true, R"(>::npos)
-`return semantics.handle_error(error_instruction_index + word_index, error_instruction_index, "invalid enum value");
-word_index++;
-)");
-                    }
-                    break;
-                }
-                case ast::Operand_kinds::Operand_kind::Category::composite:
-                {
-                    auto &bases =
-                        util::get<ast::Operand_kinds::Operand_kind::Bases>(operand_kind.value);
-                    for(std::size_t i = 0; i < bases.values.size(); i++)
-                    {
-                        state << indent;
-                        if(i == 0)
-                            state << indent(true, "auto ");
-                        state << indent(true, "parse_error = ")
-                              << get_parse_operand_function_name(bases.values[i])
-                              << "(words, word_count, semantics, error_instruction_index, "
-                                 "word_index, value."
-                              << json::ast::Number_value::append_unsigned_integer_to_string(i + 1,
-                                                                                            "part_")
-                              << indent(true, R"();
-if(parse_error)
-`return parse_error;
-)");
-                    }
-                    break;
-                }
-                case ast::Operand_kinds::Operand_kind::Category::id:
-                {
-                    state << indent(R"(value = static_cast<Id>(words[word_index++]);
-)");
-                    break;
-                }
-                case ast::Operand_kinds::Operand_kind::Category::literal:
-                {
-                    auto literal_kind =
-                        ast::Operand_kinds::Operand_kind::get_literal_kind_from_json_name(
-                            operand_kind.kind);
-                    if(!literal_kind)
-                        throw Generate_error("bad literal kind");
-                    switch(*literal_kind)
-                    {
-                    case ast::Operand_kinds::Operand_kind::Literal_kind::literal_integer:
-                        // TODO: fix after determining if LiteralInteger can be multiple words
-                        state << indent(R"(value = words[word_index++];
-)");
-                        break;
-                    case ast::Operand_kinds::Operand_kind::Literal_kind::literal_string:
-                        state << indent(
-                            R"(value.clear();
-bool done = false;
-while(!done)
-{
-`if(word_index >= word_count)
-``return semantics.handle_error(error_instruction_index + word_index, error_instruction_index, "string missing terminating null");
-`Word word = words[word_index++];
-`for(std::size_t i = 0; i < 4; i++)
-`{
-``unsigned char ch = word & 0xFFU;
-``word >>= 8;
-``if(ch == '\0')
-``{
-```done = true;
-```if(word != 0)
-````return semantics.handle_error(error_instruction_index + word_index, error_instruction_index, "string has non-zero padding");
-``}
-``else
-``{
-```value += ch;
-``}
-`}
-}
-)");
-                        break;
-                    case ast::Operand_kinds::Operand_kind::Literal_kind::
-                        literal_context_dependent_number:
-                        state << indent(
-                            R"(static_assert(std::is_same<decltype(value), std::vector<Word> &>::value, "missing parse code for operand kind");
-value.clear();
-value.reserve(word_count - word_index);
-while(word_index < word_count)
-`value.push_back(words[word_index++]);
-)");
-                        break;
-                    case ast::Operand_kinds::Operand_kind::Literal_kind::literal_ext_inst_integer:
-                        state << indent(R"(value = words[word_index++];
-)");
-                        break;
-                    case ast::Operand_kinds::Operand_kind::Literal_kind::
-                        literal_spec_constant_op_integer:
-                        state << indent(R"(value = static_cast<)") << op_enum_name
-                              << indent(true, R"(>(words[word_index++]);
-)");
-                        break;
-                    }
-                    break;
-                }
-                }
-                push_indent.finish();
-                state << indent(R"(`return nullptr;
-}
-)");
-            }
-            for(auto &instruction : top_level.instructions.instructions)
-            {
-                auto struct_name = get_enumerant_name(op_enum_name, instruction.opname, true);
-                auto parse_function_name = get_parse_instruction_function_name(instruction.opname);
-                state
-                    << indent(R"(static std::unique_ptr<Parse_error> )") << parse_function_name
-                    << indent(
-                           true,
-                           R"((const Word *words, std::size_t word_count, Semantics &semantics, std::size_t error_instruction_index)
-{
-`std::size_t word_index = 1; // skip opcode
-)");
-                auto push_indent2 = state.pushed_indent();
-                state << indent << struct_name << " instruction;\n";
-                if(!instruction.operands.empty())
-                    state << indent("std::unique_ptr<Parse_error> parse_error;\n");
-                for(auto &operand : instruction.operands.operands)
-                {
-                    auto parse_operand_function_name = get_parse_operand_function_name(operand);
-                    auto member_name = get_member_name_from_operand(operand);
-                    switch(operand.quantifier)
-                    {
-                    case ast::Instructions::Instruction::Operands::Operand::Quantifier::none:
-                    {
-                        state
-                            << indent(R"(parse_error = )") << parse_operand_function_name
-                            << indent(
-                                   true,
-                                   R"((words, word_count, semantics, error_instruction_index, word_index, instruction.)")
-                            << member_name << indent(true, R"();
-if(parse_error)
-`return parse_error;
-)");
-                        break;
-                    }
-                    case ast::Instructions::Instruction::Operands::Operand::Quantifier::optional:
-                    {
-                        state
-                            << indent(R"(if(word_index < word_count)
-{
-`instruction.)") << member_name
-                            << indent(true, R"(.emplace();
-`parse_error = )") << parse_operand_function_name
-                            << indent(
-                                   true,
-                                   R"((words, word_count, semantics, error_instruction_index, word_index, *instruction.)")
-                            << member_name << indent(true, R"();
-`if(parse_error)
-``return parse_error;
-}
-)");
-                        break;
-                    }
-                    case ast::Instructions::Instruction::Operands::Operand::Quantifier::variable:
-                    {
-                        state
-                            << indent(R"(while(word_index < word_count)
-{
-`instruction.)") << member_name
-                            << indent(true, R"(.emplace_back();
-`parse_error = )") << parse_operand_function_name
-                            << indent(
-                                   true,
-                                   R"((words, word_count, semantics, error_instruction_index, word_index, instruction.)")
-                            << member_name << indent(true, R"(.back());
-`if(parse_error)
-``return parse_error;
-}
-)");
-                    }
-                    }
-                }
-                push_indent2.finish();
-                state << indent(R"(`if(word_index < word_count)
-``return semantics.handle_error(error_instruction_index + word_index, error_instruction_index, "extra words at end of instruction");
-`semantics.handle_instruction(std::move(instruction));
-`return nullptr;
-}
-)");
-            }
-            state << indent(
-                R"(static std::unique_ptr<Parse_error> parse_instruction(const Word *words, std::size_t word_count, Semantics &semantics, std::size_t error_instruction_index)
-{
-`Op op = static_cast<Op>(words[0] & 0xFFFFU);
-`switch(op)
-`{
-)");
-            for(auto &instruction : top_level.instructions.instructions)
-            {
-                auto push_indent2 = state.pushed_indent(2);
-                auto enumerant_name = get_enumerant_name(op_enum_name, instruction.opname, true);
-                auto parse_function_name = get_parse_instruction_function_name(instruction.opname);
-                state << indent("case ") << op_enum_name << "::" << enumerant_name
-                      << indent(true, R"(:
-`return )") << parse_function_name
-                      << indent(true, R"((words, word_count, semantics, error_instruction_index);
-)");
-            }
-            state << indent(R"(`}
-`return semantics.handle_error(error_instruction_index, error_instruction_index, json::ast::Number_value::append_unsigned_integer_to_string(static_cast<Word>(op), "unknown instruction: 0x", 0x10));
-}
-static std::unique_ptr<Parse_error> parse(const Word *words, std::size_t word_count, Semantics &semantics)
-{
-`std::size_t word_index = 0;
-`if(word_index >= word_count)
-``return semantics.handle_error(word_index, 0, "hit EOF when parsing magic number");
-`if(words[word_index] != magic_number)
-``return semantics.handle_error(word_index, 0, "invalid magic number");
-`word_index++;
-`if(word_index >= word_count)
-``return semantics.handle_error(word_index, 0, "hit EOF when parsing SPIR-V version");
-`if(words[word_index] & ~0xFFFF00UL)
-``return semantics.handle_error(word_index, 0, "invalid SPIR-V version");
-`auto input_major_version = words[word_index] >> 16;
-`auto input_minor_version = (words[word_index] >> 8) & 0xFFU;
-`semantics.handle_spirv_version(input_major_version, input_minor_version);
-`if(input_major_version != major_version || input_minor_version > minor_version)
-``return semantics.handle_error(word_index, 0, "SPIR-V version not supported");
-`word_index++;
-`if(word_index >= word_count)
-``return semantics.handle_error(word_index, 0, "hit EOF when parsing generator's magic number");
-`semantics.handle_generator_magic_number(words[word_index++]);
-`if(word_index >= word_count)
-``return semantics.handle_error(word_index, 0, "hit EOF when parsing id bound");
-`semantics.handle_id_bound(words[word_index++]);
-`if(word_index >= word_count)
-``return semantics.handle_error(word_index, 0, "hit EOF when parsing SPIR-V shader header");
-`if(words[word_index] != 0)
-``return semantics.handle_error(word_index, 0, "nonzero reserved word in SPIR-V shader header");
-`word_index++;
-`// now we've finished reading the shader header, the rest of the shader is just instructions
-`while(word_index < word_count)
-`{
-``auto instruction_word_count = words[word_index] >> 16;
-``if(instruction_word_count == 0)
-```return semantics.handle_error(word_index, word_index, "invalid instruction");
-``if(word_index + instruction_word_count > word_count)
-```return semantics.handle_error(word_index, word_index, "instruction longer than rest of shader");
-``auto parse_error = parse_instruction(words + word_index, instruction_word_count, semantics, word_index);
-``if(parse_error)
-```return parse_error;
-``word_index += instruction_word_count;
-`}
-`return nullptr;
-}
-)");
-        }
-        state << "};\n";
-        write_namespaces_end(state, spirv_namespace_names);
-        write_file_guard_end(state);
+        retval += "}},";
+        return retval;
     }
-};
-
-struct Parser_source_generator final : public Generator
-{
-    Parser_source_generator() : Generator("parser.cpp")
+    std::list<Operand_descriptor> make_instruction_implied_operands(bool is_extension)
     {
+        if(!is_extension)
+            return {};
+        std::list<Operand_descriptor> retval;
+        retval.push_back(Operand_descriptor(
+            "",
+            std::string(id_result_type_json_name),
+            ast::Instructions::Instruction::Operands::Operand::Quantifier::none));
+        retval.push_back(Operand_descriptor(
+            "",
+            std::string(id_result_json_name),
+            ast::Instructions::Instruction::Operands::Operand::Quantifier::none));
+        retval.push_back(Operand_descriptor(
+            "'Set'",
+            std::string(id_ref_json_name),
+            ast::Instructions::Instruction::Operands::Operand::Quantifier::none));
+        return retval;
     }
-    virtual void run(Generator_args &generator_args, const ast::Top_level &top_level) const override
+    void fill_instruction_descriptors(
+        const ast::Extension_instruction_set *extension_instruction_set,
+        const ast::Instructions &instructions)
     {
-        Generator_state state(this, generator_args, top_level);
-        state.open_output_file();
-        write_file_comments(state, top_level.copyright);
-        state << "#include \"parser.h\"\n"
-                 "#include <type_traits>\n"
-                 "\n";
-        write_namespaces_start(state, spirv_namespace_names);
-        state << indent(R"(namespace
-{
-/** instantiate Parser with Parse_semantics_generic to help catch bugs */
-[[gnu::unused]] auto parser_test(const Word *words, std::size_t word_count, Parse_semantics_generic &semantics)
-{
-`return Parser<>::parse(words, word_count, semantics);
-}
-}
-
-std::unique_ptr<Parse_error> Parse_dump::handle_error(std::size_t word_index, std::size_t instruction_word_index, std::string message)
-{
-`return std::unique_ptr<Parse_error>(new Parse_error(word_index, instruction_word_index, std::move(message)));
-}
-
-void Parse_dump::handle_spirv_version(unsigned major, unsigned minor)
-{
-`os << "SPIR-V version " << major << "." << minor << "\n";
-}
-
-void Parse_dump::handle_generator_magic_number(Word value)
-{
-`os << "generator magic number: " << json::ast::Number_value::append_unsigned_integer_to_string(value, "0x", 0x10) << "\n";
-}
-
-void Parse_dump::handle_id_bound(Word id_bound)
-{
-`os << "id bound: " << json::ast::Number_value::unsigned_integer_to_string(id_bound) << "\n";
-}
-)");
-        for(auto &operand_kind : top_level.operand_kinds.operand_kinds)
+        auto instruction_enumeration = this->op_enumeration.value();
+        if(extension_instruction_set)
         {
-            auto dump_function_name =
-                Parser_header_generator::get_dump_operand_function_name(operand_kind);
-            {
-                state << indent(R"(
-void Parse_dump::)") << dump_function_name
-                      << "(const " << get_operand_with_parameters_name(state, operand_kind)
-                      << R"( &value)
-{
-)";
-                auto push_indent = state.pushed_indent();
-                switch(operand_kind.category)
-                {
-                case ast::Operand_kinds::Operand_kind::Category::bit_enum:
-                {
-                    bool operand_has_any_parameters =
-                        get_operand_has_any_parameters(state, operand_kind);
-                    state << indent(R"(Word bits = static_cast<Word>(value)")
-                          << (operand_has_any_parameters ? ".value" : "") << indent(true, R"();
-bool first = true;
-)");
-                    auto enum_name = get_enum_name(operand_kind);
-                    auto &enumerants =
-                        util::get<ast::Operand_kinds::Operand_kind::Enumerants>(operand_kind.value);
-                    const ast::Operand_kinds::Operand_kind::Enumerants::Enumerant *zero_enumerant =
-                        nullptr;
-                    for(auto &enumerant : enumerants.enumerants)
-                    {
-                        if(enumerant.value == 0)
-                        {
-                            zero_enumerant = &enumerant;
-                            continue;
-                        }
-                        auto enumerant_name =
-                            get_enumerant_name(operand_kind.kind, enumerant.enumerant, false);
-                        auto scoped_enumerant_name = enum_name + "::" + enumerant_name;
-                        state << indent(R"(if((bits & static_cast<Word>()") << scoped_enumerant_name
-                              << indent(true, R"()) == static_cast<Word>()")
-                              << scoped_enumerant_name << indent(true, R"())
-{
-`bits &= ~static_cast<Word>()")
-                              << scoped_enumerant_name << indent(true, R"();
-`if(first)
-``first = false;
-`else
-``os << " | ";
-`os << get_enumerant_name()") << scoped_enumerant_name
-                              << indent(true, R"();
-)");
-                        if(!enumerant.parameters.empty())
-                        {
-                            auto enumerant_member_name = get_member_name_from_enumerant(enumerant);
-                            state << indent(R"(`os << "(";
-`if(value.)") << enumerant_member_name
-                                  << indent(true, R"()
-`{
-``auto &parameters = *value.)") << enumerant_member_name
-                                  << indent(true, R"(;
-)");
-                            bool first = true;
-                            for(auto &parameter : enumerant.parameters.parameters)
-                            {
-                                if(first)
-                                    first = false;
-                                else
-                                    state << indent(R"(``os << ", ";
-)");
-                                state << indent(2)
-                                      << Parser_header_generator::get_dump_operand_function_name(
-                                             parameter)
-                                      << "(parameters." << get_member_name_from_parameter(parameter)
-                                      << ");\n";
-                            }
-                            state << indent(R"a(`}
-`os << ")";
-)a");
-                        }
-                        state << indent(R"(}
-)");
-                    }
-                    std::string zero_enumerant_name_code;
-                    if(zero_enumerant)
-                    {
-                        zero_enumerant_name_code =
-                            "get_enumerant_name(" + enum_name + "::"
-                            + get_enumerant_name(
-                                  operand_kind.kind, zero_enumerant->enumerant, false)
-                            + ")";
-                    }
-                    else
-                    {
-                        zero_enumerant_name_code = "\"0\"";
-                    }
-                    state << indent(R"(if(bits != 0)
-{
-`if(!first)
-``os << " | ";
-`os << json::ast::Number_value::append_unsigned_integer_to_string(bits, "0x", 0x10);
-}
-else if(first)
-{
-`os << )") << zero_enumerant_name_code
-                          << indent(true, R"(;
-}
-)");
-                    break;
-                }
-                case ast::Operand_kinds::Operand_kind::Category::value_enum:
-                {
-                    auto enum_name = get_enum_name(operand_kind);
-                    if(get_operand_has_any_parameters(state, operand_kind))
-                    {
-                        state << indent(R"(switch(value.value)
-{
-)");
-                        auto &enumerants = util::get<ast::Operand_kinds::Operand_kind::Enumerants>(
-                            operand_kind.value);
-                        bool any_parameterless_enumerants = false;
-                        for(auto &enumerant : enumerants.enumerants)
-                        {
-                            if(!enumerant.parameters.empty())
-                                continue;
-                            any_parameterless_enumerants = true;
-                            state << indent("case ") << enum_name
-                                  << "::" << get_enumerant_name(
-                                                 operand_kind.kind, enumerant.enumerant, false)
-                                  << ":\n";
-                        }
-                        if(any_parameterless_enumerants)
-                        {
-                            state << indent(R"(`os << get_enumerant_name(value.value);
-`break;
-)");
-                        }
-                        for(auto &enumerant : enumerants.enumerants)
-                        {
-                            if(enumerant.parameters.empty())
-                                continue;
-                            auto enumerant_name =
-                                get_enumerant_name(operand_kind.kind, enumerant.enumerant, false);
-                            auto scoped_enumerant_name = enum_name + "::" + enumerant_name;
-                            auto enumerant_parameters_struct_name =
-                                get_enumerant_parameters_struct_name(
-                                    operand_kind.kind, enumerant.enumerant, false);
-                            state << indent("case ") << scoped_enumerant_name << indent(true, R"(:
-{
-`os << get_enumerant_name()") << scoped_enumerant_name
-                                  << indent(true, R"() << "(";
-`auto *parameters = util::get_if<)")
-                                  << enumerant_parameters_struct_name
-                                  << indent(true, R"(>(&value.parameters);
-`if(parameters)
-`{
-)");
-                            bool first = true;
-                            for(auto &parameter : enumerant.parameters.parameters)
-                            {
-                                if(first)
-                                    first = false;
-                                else
-                                    state << indent(R"(``os << ", ";
-)");
-                                state << indent(2)
-                                      << Parser_header_generator::get_dump_operand_function_name(
-                                             parameter)
-                                      << "(parameters->"
-                                      << get_member_name_from_parameter(parameter) << ");\n";
-                            }
-                            state << indent(R"a(`}
-`os << ")";
-`break;
-}
-)a");
-                        }
-                        state << indent(R"(default:
-`os << json::ast::Number_value::unsigned_integer_to_string(static_cast<Word>(value.value));
-}
-)");
-                    }
-                    else
-                    {
-                        state << indent(R"(if(util::Enum_traits<)") << enum_name
-                              << indent(true, R"(>::find_value(value) == util::Enum_traits<)")
-                              << enum_name << indent(true, R"(>::npos)
-`os << json::ast::Number_value::unsigned_integer_to_string(static_cast<Word>(value));
-else
-`os << get_enumerant_name(value);
-)");
-                    }
-                    break;
-                }
-                case ast::Operand_kinds::Operand_kind::Category::composite:
-                {
-                    auto &bases =
-                        util::get<ast::Operand_kinds::Operand_kind::Bases>(operand_kind.value);
-                    state << indent("os << \"{\";\n");
-                    for(std::size_t i = 0; i < bases.values.size(); i++)
-                    {
-                        if(i != 0)
-                        {
-                            state << indent("os << \", \";\n");
-                        }
-                        state << indent << Parser_header_generator::get_dump_operand_function_name(
-                                               bases.values[i])
-                              << "(value."
-                              << json::ast::Number_value::append_unsigned_integer_to_string(i + 1,
-                                                                                            "part_")
-                              << ");\n";
-                    }
-                    state << indent("os << \"}\";\n");
-                    break;
-                }
-                case ast::Operand_kinds::Operand_kind::Category::id:
-                {
-                    state << indent(
-                        R"(os << json::ast::Number_value::append_unsigned_integer_to_string(value, "#");
-)");
-                    break;
-                }
-                case ast::Operand_kinds::Operand_kind::Category::literal:
-                {
-                    auto literal_kind =
-                        ast::Operand_kinds::Operand_kind::get_literal_kind_from_json_name(
-                            operand_kind.kind);
-                    if(!literal_kind)
-                        throw Generate_error("bad literal kind");
-                    switch(*literal_kind)
-                    {
-                    case ast::Operand_kinds::Operand_kind::Literal_kind::literal_integer:
-                        state << indent(
-                            R"(os << json::ast::Number_value::append_unsigned_integer_to_string(value, "0x");
-)");
-                        break;
-                    case ast::Operand_kinds::Operand_kind::Literal_kind::literal_string:
-                        state << indent(
-                            R"(json::ast::String_value::write(os, value);
-)");
-                        break;
-                    case ast::Operand_kinds::Operand_kind::Literal_kind::
-                        literal_context_dependent_number:
-                        state << indent(
-                            R"(static_assert(std::is_same<decltype(value), const std::vector<Word> &>::value, "missing dump code for operand kind");
-auto separator = "";
-os << "{";
-for(Word word : value)
-{
-`os << separator;
-`separator = ", ";
-`os << json::ast::Number_value::append_unsigned_integer_to_string(word, "0x", 0x10, 8);
-}
-os << "}";
-)");
-                        break;
-                    case ast::Operand_kinds::Operand_kind::Literal_kind::literal_ext_inst_integer:
-                        state << indent(
-                            R"(os << json::ast::Number_value::append_unsigned_integer_to_string(value, "0x");
-)");
-                        break;
-                    case ast::Operand_kinds::Operand_kind::Literal_kind::
-                        literal_spec_constant_op_integer:
-                        state << indent(R"(if(util::Enum_traits<)") << op_enum_name
-                              << indent(true, R"(>::find_value(value) == util::Enum_traits<)")
-                              << op_enum_name << indent(true, R"(>::npos)
-`os << json::ast::Number_value::unsigned_integer_to_string(static_cast<Word>(value));
-else
-`os << get_enumerant_name(value);
-)");
-                        break;
-                    }
-                    break;
-                }
-                }
-                push_indent.finish();
-                state << indent("}\n");
-            }
-            state << indent(R"(
-void Parse_dump::)")
-                  << dump_function_name << "(const util::optional<"
-                  << get_operand_with_parameters_name(state, operand_kind)
-                  << indent(true, R"(> &value)
-{
-`if(value)
-)") << indent(2) << dump_function_name
-                  << indent(true, R"((*value);
-`else
-``os << "nullopt";
-}
-
-void Parse_dump::)")
-                  << dump_function_name << "(const std::vector<"
-                  << get_operand_with_parameters_name(state, operand_kind)
-                  << indent(true, R"(> &values)
-{
-`auto separator = "";
-`os << "{";
-`for(auto &value : values)
-`{
-``os << separator;
-``separator = ", ";
-)") << indent(2) << dump_function_name
-                  << indent(true, R"((value);
-`}
-`os << "}";
-}
-)");
+            auto iter =
+                instruction_set_extension_op_enumeration_map.find(extension_instruction_set);
+            if(iter == instruction_set_extension_op_enumeration_map.end())
+                throw Generate_error("unknown extension instruction set: "
+                                     + extension_instruction_set->import_name);
+            instruction_enumeration = std::get<1>(*iter);
         }
-        for(auto &instruction : top_level.instructions.instructions)
+        for(auto &instruction : instructions.instructions)
         {
-            auto struct_name = get_enumerant_name(op_enum_name, instruction.opname, true);
-            state << indent(
-                         "\n"
-                         "void Parse_dump::handle_instruction(")
-                  << struct_name << indent(true, R"( instruction)
-{
-`os << ")") << instruction.opname
-                  << indent(true, R"(\n";
-)");
+            auto enumerant_iter =
+                instruction_enumeration->json_name_to_enumerant_map.find(instruction.opname);
+            if(enumerant_iter == instruction_enumeration->json_name_to_enumerant_map.end())
+            {
+                std::string error_message = "unknown instruction: ";
+                if(extension_instruction_set)
+                {
+                    error_message += extension_instruction_set->import_name;
+                    error_message += " ";
+                }
+                error_message += instruction.opname;
+                throw Generate_error(error_message);
+            }
+            auto enumerant = std::get<1>(*enumerant_iter);
+            auto *instruction_properties_descriptor =
+                extension_instruction_set ?
+                    get_instruction_properties_descriptor(extension_instruction_set->import_name,
+                                                          instruction.opname) :
+                    get_instruction_properties_descriptor({}, instruction.opname);
+            auto implied_operands =
+                make_instruction_implied_operands(extension_instruction_set != nullptr);
+            std::list<Operand_descriptor> explicit_operands;
+            util::optional<Instruction_properties_descriptor::Operand_descriptors::const_iterator>
+                operand_properties_iter;
+            if(instruction_properties_descriptor)
+                operand_properties_iter =
+                    instruction_properties_descriptor->operand_descriptors.begin();
             for(auto &operand : instruction.operands.operands)
             {
-                auto push_indent = state.pushed_indent();
-                auto member_name = get_member_name_from_operand(operand);
-                state << indent("os << \"    ") << member_name << indent(true, R"(:";
-)") << indent << Parser_header_generator::get_dump_operand_function_name(operand.kind)
-                      << indent(true, R"((instruction.)") << member_name << indent(true, R"();
-os << "\n";
-)");
+                explicit_operands.push_back(
+                    Operand_descriptor(operand.name, operand.kind, operand.quantifier));
+                bool has_integer_literal_size = false;
+                if(operand_properties_iter)
+                {
+                    if(*operand_properties_iter
+                       == instruction_properties_descriptor->operand_descriptors.end())
+                        throw Generate_error("instruction properties operand count mismatch: "
+                                             + get_instruction_name_for_diagnostics(
+                                                   extension_instruction_set, instruction.opname));
+                    if((*operand_properties_iter)->integer_literal_size
+                       != Instruction_properties_descriptor::Operand_descriptor::
+                              Integer_literal_size::not_implemented)
+                        has_integer_literal_size = true;
+                    ++*operand_properties_iter;
+                }
+                auto operand_kind = get_operand_kind(operand.kind);
+                if(operand_kind->needs_integer_literal_size && !has_integer_literal_size)
+                {
+                    if(!instruction_properties_descriptor)
+                        throw Generate_error(
+                            "instruction has no Instruction_properties_descriptor: "
+                            + get_instruction_name_for_diagnostics(extension_instruction_set,
+                                                                   instruction.opname)
+                            + "\nNeeded because operand needs IntegerLiteral size\n"
+                            "instruction properties descriptor guess:\n"
+                            + generate_guessed_instruction_properties_descriptor_string(extension_instruction_set, instruction));
+                    throw Generate_error(
+                        "instruction operand properties has no Integer_literal_size: "
+                        + get_instruction_name_for_diagnostics(extension_instruction_set,
+                                                               instruction.opname));
+                }
             }
-            state << indent("}\n");
+            if(operand_properties_iter
+               && *operand_properties_iter
+                      != instruction_properties_descriptor->operand_descriptors.end())
+                throw Generate_error("instruction properties operand count mismatch: "
+                                     + get_instruction_name_for_diagnostics(
+                                           extension_instruction_set, instruction.opname));
+            add_instruction_descriptor(Instruction_descriptor(instruction_enumeration,
+                                                              enumerant,
+                                                              extension_instruction_set,
+                                                              instruction.opname,
+                                                              std::move(implied_operands),
+                                                              std::move(explicit_operands),
+                                                              instruction_properties_descriptor));
         }
-        write_namespaces_end(state, spirv_namespace_names);
+    }
+    void fill_instruction_descriptors()
+    {
+        fill_instruction_descriptors(nullptr, top_level.instructions);
+        for(auto &extension_instruction_set : top_level.extension_instruction_sets)
+            fill_instruction_descriptors(&extension_instruction_set,
+                                         extension_instruction_set.instructions);
+    }
+
+public:
+    void run()
+    {
+        fill_literal_type_descriptors();
+        fill_enumerations();
+        fill_id_type_descriptors();
+        fill_composite_type_descriptors();
+        fill_operand_kinds();
+        fill_instruction_descriptors();
+        for(auto *file :
+            std::initializer_list<Output_file_base *>{&spirv_h, &spirv_cpp, &parser_h, &parser_cpp})
+            file->fill_output(*this);
+        for(auto *file :
+            std::initializer_list<Output_file_base *>{&spirv_h, &spirv_cpp, &parser_h, &parser_cpp})
+            file->write_to_file();
     }
 };
 
-std::unique_ptr<Generator> Generators::make_spirv_header_generator()
+constexpr util::string_view Spirv_and_parser_generator::State::op_enum_json_name;
+constexpr util::string_view Spirv_and_parser_generator::State::extension_enum_json_name;
+constexpr util::string_view Spirv_and_parser_generator::State::capability_enum_json_name;
+constexpr util::string_view
+    Spirv_and_parser_generator::State::extension_instruction_set_enum_json_name;
+constexpr util::string_view
+    Spirv_and_parser_generator::State::unknown_extension_instruction_set_enumerant_json_name;
+constexpr util::string_view Spirv_and_parser_generator::State::op_ext_inst_import_json_name;
+constexpr util::string_view Spirv_and_parser_generator::State::op_ext_inst_json_name;
+constexpr util::string_view Spirv_and_parser_generator::State::id_result_json_name;
+constexpr util::string_view Spirv_and_parser_generator::State::id_result_type_json_name;
+constexpr util::string_view Spirv_and_parser_generator::State::id_ref_json_name;
+
+void Spirv_and_parser_generator::run(Generator_args &generator_args,
+                                     const ast::Top_level &top_level) const
 {
-    return std::unique_ptr<Generator>(new Spirv_header_generator);
+    State(generator_args.output_directory, top_level).run();
 }
 
-std::unique_ptr<Generator> Generators::make_spirv_source_generator()
+std::unique_ptr<Generator> Generators::make_spirv_and_parser_generator()
 {
-    return std::unique_ptr<Generator>(new Spirv_source_generator);
-}
-
-std::unique_ptr<Generator> Generators::make_parser_header_generator()
-{
-    return std::unique_ptr<Generator>(new Parser_header_generator);
-}
-
-std::unique_ptr<Generator> Generators::make_parser_source_generator()
-{
-    return std::unique_ptr<Generator>(new Parser_source_generator);
+    return std::unique_ptr<Generator>(new Spirv_and_parser_generator);
 }
 
 std::vector<std::unique_ptr<Generator>> Generators::make_all_generators()
 {
     std::unique_ptr<Generator> generators_array[] = {
-        make_spirv_header_generator(),
-        make_spirv_source_generator(),
-        make_parser_header_generator(),
-        make_parser_source_generator(),
+        make_spirv_and_parser_generator(),
     };
     // use array then move because you can't move out of an std::initializer_list
     std::vector<std::unique_ptr<Generator>> retval;

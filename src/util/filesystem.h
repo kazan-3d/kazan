@@ -581,6 +581,7 @@ public:
 
 private:
     typedef basic_string_view<Char_type> string_view_type;
+    typedef std::char_traits<Char_type> Char_traits_type;
     class Parts
     {
     private:
@@ -1003,7 +1004,10 @@ private:
                       parts.emplace_back();
                   parts[part_index].value.assign(value.data() + index_range.begin,
                                                  index_range.size());
+                  if(index_range.empty())
+                      part_kind = Path_part_kind::multiple_parts;
                   parts[part_index].kind = part_kind;
+                  parts[part_index].parts.clear();
                   change_separator(parts[part_index].value, generic_separator);
                   part_index++;
                   return true;
@@ -1630,9 +1634,9 @@ private:
                 a_char = generic_separator_char;
             if(b_char == preferred_separator)
                 b_char = generic_separator_char;
-            if(a_char < b_char)
+            if(Char_traits_type::lt(a_char, b_char))
                 return -1;
-            if(a_char > b_char)
+            if(Char_traits_type::lt(b_char, a_char))
                 return 1;
         }
         if(a.size() < b.size())
@@ -2018,7 +2022,10 @@ public:
                             retval.parts.emplace_back();
                         retval.parts[new_size].value.assign(retval.value.data() + index_range.begin,
                                                             index_range.size());
-                        retval.parts[new_size].kind = Path_part_kind::file_name;
+                        retval.parts[new_size].kind = index_range.empty() ?
+                                                          Path_part_kind::multiple_parts :
+                                                          Path_part_kind::file_name;
+                        retval.parts[new_size].parts.clear();
                         new_size++;
                         return true;
                     });
