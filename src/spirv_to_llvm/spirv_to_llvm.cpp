@@ -21,6 +21,7 @@
  *
  */
 #include "spirv_to_llvm.h"
+#include "util/variant.h"
 
 namespace vulkan_cpu
 {
@@ -30,20 +31,38 @@ using namespace spirv;
 
 struct Spirv_to_llvm::Implementation
 {
-    struct Id_state
+    struct Op_string_state
+    {
+        Literal_string value;
+    };
+    struct Op_ext_inst_import_state
     {
     };
+    struct Op_entry_point_state
+    {
+        Op_entry_point entry_point;
+        std::size_t instruction_start_index;
+    };
+
+public:
+    typedef util::variant<util::monostate, Op_string_state, Op_ext_inst_import_state> Id_state;
+
+public:
     std::vector<Id_state> id_states;
+    unsigned version_number_major = 0;
+    unsigned version_number_minor = 0;
+    Word generator_magic_number = 0;
+    util::Enum_set<Capability> enabled_capabilities;
+    ::LLVMContextRef context;
+    llvm_wrapper::Module module;
+    util::optional<Op_entry_point_state> entry_point_state;
+
+public:
     Id_state &get_id_state(Id id)
     {
         assert(id != 0 && id <= id_states.size());
         return id_states[id - 1];
     }
-    unsigned version_number_major = 0;
-    unsigned version_number_minor = 0;
-    Word generator_magic_number = 0;
-    ::LLVMContextRef context;
-    llvm_wrapper::Module module;
     explicit Implementation(const llvm_wrapper::Context &context) : context(context.get())
     {
     }
@@ -84,8 +103,8 @@ void Spirv_to_llvm::handle_instruction_op_undef(spirv::Op_undef instruction,
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_source_continued(spirv::Op_source_continued instruction,
@@ -94,8 +113,8 @@ void Spirv_to_llvm::handle_instruction_op_source_continued(spirv::Op_source_cont
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_source(spirv::Op_source instruction,
@@ -104,8 +123,8 @@ void Spirv_to_llvm::handle_instruction_op_source(spirv::Op_source instruction,
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_source_extension(spirv::Op_source_extension instruction,
@@ -114,8 +133,8 @@ void Spirv_to_llvm::handle_instruction_op_source_extension(spirv::Op_source_exte
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_name(spirv::Op_name instruction,
@@ -124,8 +143,8 @@ void Spirv_to_llvm::handle_instruction_op_name(spirv::Op_name instruction,
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_member_name(spirv::Op_member_name instruction,
@@ -134,18 +153,14 @@ void Spirv_to_llvm::handle_instruction_op_member_name(spirv::Op_member_name inst
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_string(spirv::Op_string instruction,
-                                                 std::size_t instruction_start_index)
+void Spirv_to_llvm::handle_instruction_op_string(
+    spirv::Op_string instruction, [[gnu::unused]] std::size_t instruction_start_index)
 {
-#warning finish
-    throw Parser_error(instruction_start_index,
-                       instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+    imp->get_id_state(instruction.result) = Implementation::Op_string_state{instruction.string};
 }
 
 void Spirv_to_llvm::handle_instruction_op_line(spirv::Op_line instruction,
@@ -154,8 +169,8 @@ void Spirv_to_llvm::handle_instruction_op_line(spirv::Op_line instruction,
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_extension(spirv::Op_extension instruction,
@@ -164,18 +179,24 @@ void Spirv_to_llvm::handle_instruction_op_extension(spirv::Op_extension instruct
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_ext_inst_import(spirv::Op_ext_inst_import instruction,
                                                           std::size_t instruction_start_index)
 {
-#warning finish
+    imp->get_id_state(instruction.result) = Implementation::Op_ext_inst_import_state{};
+    for(auto instruction_set : util::Enum_traits<Extension_instruction_set>::values)
+    {
+        if(instruction_set == Extension_instruction_set::unknown)
+            continue;
+        if(instruction.name == get_enumerant_name(instruction_set))
+            return;
+    }
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "unknown instruction set: \"" + std::string(instruction.name) + "\"");
 }
 
 void Spirv_to_llvm::handle_instruction_op_ext_inst(spirv::Op_ext_inst instruction,
@@ -184,28 +205,40 @@ void Spirv_to_llvm::handle_instruction_op_ext_inst(spirv::Op_ext_inst instructio
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_memory_model(spirv::Op_memory_model instruction,
                                                        std::size_t instruction_start_index)
 {
-#warning finish
-    throw Parser_error(instruction_start_index,
-                       instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+    if(instruction.addressing_model != Addressing_model::logical)
+        throw Parser_error(instruction_start_index,
+                           instruction_start_index,
+                           "unsupported addressing model: "
+                               + std::string(get_enumerant_name(instruction.addressing_model)));
+    switch(instruction.memory_model)
+    {
+    case Memory_model::simple:
+    case Memory_model::glsl450:
+        break;
+    default:
+        throw Parser_error(instruction_start_index,
+                           instruction_start_index,
+                           "unsupported memory model: "
+                               + std::string(get_enumerant_name(instruction.memory_model)));
+    }
 }
 
 void Spirv_to_llvm::handle_instruction_op_entry_point(spirv::Op_entry_point instruction,
                                                       std::size_t instruction_start_index)
 {
-#warning finish
-    throw Parser_error(instruction_start_index,
-                       instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+#warning finish implementing data structures for multiple entry points
+    if(imp->entry_point_state)
+        throw Parser_error(
+            instruction_start_index, instruction_start_index, "multiple entry points not implemented");
+    imp->entry_point_state =
+        Implementation::Op_entry_point_state{std::move(instruction), instruction_start_index};
 }
 
 void Spirv_to_llvm::handle_instruction_op_execution_mode(spirv::Op_execution_mode instruction,
@@ -214,18 +247,43 @@ void Spirv_to_llvm::handle_instruction_op_execution_mode(spirv::Op_execution_mod
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_capability(spirv::Op_capability instruction,
                                                      std::size_t instruction_start_index)
 {
-#warning finish
-    throw Parser_error(instruction_start_index,
-                       instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+    util::Enum_set<Capability> work_list{instruction.capability};
+    while(!work_list.empty())
+    {
+        auto capability = *work_list.begin();
+        work_list.erase(capability);
+        if(std::get<1>(imp->enabled_capabilities.insert(capability)))
+        {
+            auto additional_capabilities = spirv::get_directly_required_capabilities(capability);
+            work_list.insert(additional_capabilities.begin(), additional_capabilities.end());
+        }
+    }
+    constexpr util::Enum_set<Capability> implemented_capabilities{
+        Capability::matrix,
+        Capability::shader,
+        Capability::input_attachment,
+        Capability::sampled1d,
+        Capability::image1d,
+        Capability::sampled_buffer,
+        Capability::image_buffer,
+        Capability::image_query,
+        Capability::derivative_control,
+    };
+    for(auto capability : imp->enabled_capabilities)
+    {
+        if(implemented_capabilities.count(capability) == 0)
+            throw Parser_error(
+                instruction_start_index,
+                instruction_start_index,
+                "capability not implemented: " + std::string(get_enumerant_name(capability)));
+    }
 }
 
 void Spirv_to_llvm::handle_instruction_op_type_void(spirv::Op_type_void instruction,
@@ -234,8 +292,8 @@ void Spirv_to_llvm::handle_instruction_op_type_void(spirv::Op_type_void instruct
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_type_bool(spirv::Op_type_bool instruction,
@@ -244,8 +302,8 @@ void Spirv_to_llvm::handle_instruction_op_type_bool(spirv::Op_type_bool instruct
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_type_int(spirv::Op_type_int instruction,
@@ -254,8 +312,8 @@ void Spirv_to_llvm::handle_instruction_op_type_int(spirv::Op_type_int instructio
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_type_float(spirv::Op_type_float instruction,
@@ -264,8 +322,8 @@ void Spirv_to_llvm::handle_instruction_op_type_float(spirv::Op_type_float instru
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_type_vector(spirv::Op_type_vector instruction,
@@ -274,8 +332,8 @@ void Spirv_to_llvm::handle_instruction_op_type_vector(spirv::Op_type_vector inst
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_type_matrix(spirv::Op_type_matrix instruction,
@@ -284,8 +342,8 @@ void Spirv_to_llvm::handle_instruction_op_type_matrix(spirv::Op_type_matrix inst
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_type_image(spirv::Op_type_image instruction,
@@ -294,8 +352,8 @@ void Spirv_to_llvm::handle_instruction_op_type_image(spirv::Op_type_image instru
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_type_sampler(spirv::Op_type_sampler instruction,
@@ -304,8 +362,8 @@ void Spirv_to_llvm::handle_instruction_op_type_sampler(spirv::Op_type_sampler in
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_type_sampled_image(
@@ -314,8 +372,8 @@ void Spirv_to_llvm::handle_instruction_op_type_sampled_image(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_type_array(spirv::Op_type_array instruction,
@@ -324,8 +382,8 @@ void Spirv_to_llvm::handle_instruction_op_type_array(spirv::Op_type_array instru
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_type_runtime_array(
@@ -334,8 +392,8 @@ void Spirv_to_llvm::handle_instruction_op_type_runtime_array(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_type_struct(spirv::Op_type_struct instruction,
@@ -344,8 +402,8 @@ void Spirv_to_llvm::handle_instruction_op_type_struct(spirv::Op_type_struct inst
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_type_opaque(spirv::Op_type_opaque instruction,
@@ -354,8 +412,8 @@ void Spirv_to_llvm::handle_instruction_op_type_opaque(spirv::Op_type_opaque inst
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_type_pointer(spirv::Op_type_pointer instruction,
@@ -364,8 +422,8 @@ void Spirv_to_llvm::handle_instruction_op_type_pointer(spirv::Op_type_pointer in
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_type_function(spirv::Op_type_function instruction,
@@ -374,8 +432,8 @@ void Spirv_to_llvm::handle_instruction_op_type_function(spirv::Op_type_function 
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_type_event(spirv::Op_type_event instruction,
@@ -384,8 +442,8 @@ void Spirv_to_llvm::handle_instruction_op_type_event(spirv::Op_type_event instru
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_type_device_event(spirv::Op_type_device_event instruction,
@@ -394,8 +452,8 @@ void Spirv_to_llvm::handle_instruction_op_type_device_event(spirv::Op_type_devic
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_type_reserve_id(spirv::Op_type_reserve_id instruction,
@@ -404,8 +462,8 @@ void Spirv_to_llvm::handle_instruction_op_type_reserve_id(spirv::Op_type_reserve
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_type_queue(spirv::Op_type_queue instruction,
@@ -414,8 +472,8 @@ void Spirv_to_llvm::handle_instruction_op_type_queue(spirv::Op_type_queue instru
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_type_pipe(spirv::Op_type_pipe instruction,
@@ -424,8 +482,8 @@ void Spirv_to_llvm::handle_instruction_op_type_pipe(spirv::Op_type_pipe instruct
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_type_forward_pointer(
@@ -434,8 +492,8 @@ void Spirv_to_llvm::handle_instruction_op_type_forward_pointer(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_constant_true(spirv::Op_constant_true instruction,
@@ -444,8 +502,8 @@ void Spirv_to_llvm::handle_instruction_op_constant_true(spirv::Op_constant_true 
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_constant_false(spirv::Op_constant_false instruction,
@@ -454,8 +512,8 @@ void Spirv_to_llvm::handle_instruction_op_constant_false(spirv::Op_constant_fals
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_constant(spirv::Op_constant instruction,
@@ -464,8 +522,8 @@ void Spirv_to_llvm::handle_instruction_op_constant(spirv::Op_constant instructio
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_constant_composite(
@@ -474,8 +532,8 @@ void Spirv_to_llvm::handle_instruction_op_constant_composite(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_constant_sampler(spirv::Op_constant_sampler instruction,
@@ -484,8 +542,8 @@ void Spirv_to_llvm::handle_instruction_op_constant_sampler(spirv::Op_constant_sa
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_constant_null(spirv::Op_constant_null instruction,
@@ -494,8 +552,8 @@ void Spirv_to_llvm::handle_instruction_op_constant_null(spirv::Op_constant_null 
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_spec_constant_true(
@@ -504,8 +562,8 @@ void Spirv_to_llvm::handle_instruction_op_spec_constant_true(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_spec_constant_false(
@@ -514,8 +572,8 @@ void Spirv_to_llvm::handle_instruction_op_spec_constant_false(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_spec_constant(spirv::Op_spec_constant instruction,
@@ -524,8 +582,8 @@ void Spirv_to_llvm::handle_instruction_op_spec_constant(spirv::Op_spec_constant 
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_spec_constant_composite(
@@ -534,8 +592,8 @@ void Spirv_to_llvm::handle_instruction_op_spec_constant_composite(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_spec_constant_op(spirv::Op_spec_constant_op instruction,
@@ -544,8 +602,8 @@ void Spirv_to_llvm::handle_instruction_op_spec_constant_op(spirv::Op_spec_consta
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_function(spirv::Op_function instruction,
@@ -554,8 +612,8 @@ void Spirv_to_llvm::handle_instruction_op_function(spirv::Op_function instructio
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_function_parameter(
@@ -564,8 +622,8 @@ void Spirv_to_llvm::handle_instruction_op_function_parameter(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_function_end(spirv::Op_function_end instruction,
@@ -574,8 +632,8 @@ void Spirv_to_llvm::handle_instruction_op_function_end(spirv::Op_function_end in
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_function_call(spirv::Op_function_call instruction,
@@ -584,8 +642,8 @@ void Spirv_to_llvm::handle_instruction_op_function_call(spirv::Op_function_call 
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_variable(spirv::Op_variable instruction,
@@ -594,8 +652,8 @@ void Spirv_to_llvm::handle_instruction_op_variable(spirv::Op_variable instructio
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_image_texel_pointer(
@@ -604,8 +662,8 @@ void Spirv_to_llvm::handle_instruction_op_image_texel_pointer(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_load(spirv::Op_load instruction,
@@ -614,8 +672,8 @@ void Spirv_to_llvm::handle_instruction_op_load(spirv::Op_load instruction,
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_store(spirv::Op_store instruction,
@@ -624,8 +682,8 @@ void Spirv_to_llvm::handle_instruction_op_store(spirv::Op_store instruction,
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_copy_memory(spirv::Op_copy_memory instruction,
@@ -634,8 +692,8 @@ void Spirv_to_llvm::handle_instruction_op_copy_memory(spirv::Op_copy_memory inst
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_copy_memory_sized(spirv::Op_copy_memory_sized instruction,
@@ -644,8 +702,8 @@ void Spirv_to_llvm::handle_instruction_op_copy_memory_sized(spirv::Op_copy_memor
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_access_chain(spirv::Op_access_chain instruction,
@@ -654,8 +712,8 @@ void Spirv_to_llvm::handle_instruction_op_access_chain(spirv::Op_access_chain in
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_in_bounds_access_chain(
@@ -664,8 +722,8 @@ void Spirv_to_llvm::handle_instruction_op_in_bounds_access_chain(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_ptr_access_chain(spirv::Op_ptr_access_chain instruction,
@@ -674,8 +732,8 @@ void Spirv_to_llvm::handle_instruction_op_ptr_access_chain(spirv::Op_ptr_access_
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_array_length(spirv::Op_array_length instruction,
@@ -684,8 +742,8 @@ void Spirv_to_llvm::handle_instruction_op_array_length(spirv::Op_array_length in
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_generic_ptr_mem_semantics(
@@ -694,8 +752,8 @@ void Spirv_to_llvm::handle_instruction_op_generic_ptr_mem_semantics(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_in_bounds_ptr_access_chain(
@@ -704,8 +762,8 @@ void Spirv_to_llvm::handle_instruction_op_in_bounds_ptr_access_chain(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_decorate(spirv::Op_decorate instruction,
@@ -714,8 +772,8 @@ void Spirv_to_llvm::handle_instruction_op_decorate(spirv::Op_decorate instructio
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_member_decorate(spirv::Op_member_decorate instruction,
@@ -724,8 +782,8 @@ void Spirv_to_llvm::handle_instruction_op_member_decorate(spirv::Op_member_decor
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_decoration_group(spirv::Op_decoration_group instruction,
@@ -734,8 +792,8 @@ void Spirv_to_llvm::handle_instruction_op_decoration_group(spirv::Op_decoration_
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_group_decorate(spirv::Op_group_decorate instruction,
@@ -744,8 +802,8 @@ void Spirv_to_llvm::handle_instruction_op_group_decorate(spirv::Op_group_decorat
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_group_member_decorate(
@@ -754,8 +812,8 @@ void Spirv_to_llvm::handle_instruction_op_group_member_decorate(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_vector_extract_dynamic(
@@ -764,8 +822,8 @@ void Spirv_to_llvm::handle_instruction_op_vector_extract_dynamic(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_vector_insert_dynamic(
@@ -774,8 +832,8 @@ void Spirv_to_llvm::handle_instruction_op_vector_insert_dynamic(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_vector_shuffle(spirv::Op_vector_shuffle instruction,
@@ -784,8 +842,8 @@ void Spirv_to_llvm::handle_instruction_op_vector_shuffle(spirv::Op_vector_shuffl
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_composite_construct(
@@ -794,8 +852,8 @@ void Spirv_to_llvm::handle_instruction_op_composite_construct(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_composite_extract(spirv::Op_composite_extract instruction,
@@ -804,8 +862,8 @@ void Spirv_to_llvm::handle_instruction_op_composite_extract(spirv::Op_composite_
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_composite_insert(spirv::Op_composite_insert instruction,
@@ -814,8 +872,8 @@ void Spirv_to_llvm::handle_instruction_op_composite_insert(spirv::Op_composite_i
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_copy_object(spirv::Op_copy_object instruction,
@@ -824,8 +882,8 @@ void Spirv_to_llvm::handle_instruction_op_copy_object(spirv::Op_copy_object inst
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_transpose(spirv::Op_transpose instruction,
@@ -834,8 +892,8 @@ void Spirv_to_llvm::handle_instruction_op_transpose(spirv::Op_transpose instruct
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_sampled_image(spirv::Op_sampled_image instruction,
@@ -844,8 +902,8 @@ void Spirv_to_llvm::handle_instruction_op_sampled_image(spirv::Op_sampled_image 
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_image_sample_implicit_lod(
@@ -854,8 +912,8 @@ void Spirv_to_llvm::handle_instruction_op_image_sample_implicit_lod(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_image_sample_explicit_lod(
@@ -864,8 +922,8 @@ void Spirv_to_llvm::handle_instruction_op_image_sample_explicit_lod(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_image_sample_dref_implicit_lod(
@@ -874,8 +932,8 @@ void Spirv_to_llvm::handle_instruction_op_image_sample_dref_implicit_lod(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_image_sample_dref_explicit_lod(
@@ -884,8 +942,8 @@ void Spirv_to_llvm::handle_instruction_op_image_sample_dref_explicit_lod(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_image_sample_proj_implicit_lod(
@@ -894,8 +952,8 @@ void Spirv_to_llvm::handle_instruction_op_image_sample_proj_implicit_lod(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_image_sample_proj_explicit_lod(
@@ -904,8 +962,8 @@ void Spirv_to_llvm::handle_instruction_op_image_sample_proj_explicit_lod(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_image_sample_proj_dref_implicit_lod(
@@ -914,8 +972,8 @@ void Spirv_to_llvm::handle_instruction_op_image_sample_proj_dref_implicit_lod(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_image_sample_proj_dref_explicit_lod(
@@ -924,8 +982,8 @@ void Spirv_to_llvm::handle_instruction_op_image_sample_proj_dref_explicit_lod(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_image_fetch(spirv::Op_image_fetch instruction,
@@ -934,8 +992,8 @@ void Spirv_to_llvm::handle_instruction_op_image_fetch(spirv::Op_image_fetch inst
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_image_gather(spirv::Op_image_gather instruction,
@@ -944,8 +1002,8 @@ void Spirv_to_llvm::handle_instruction_op_image_gather(spirv::Op_image_gather in
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_image_dref_gather(spirv::Op_image_dref_gather instruction,
@@ -954,8 +1012,8 @@ void Spirv_to_llvm::handle_instruction_op_image_dref_gather(spirv::Op_image_dref
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_image_read(spirv::Op_image_read instruction,
@@ -964,8 +1022,8 @@ void Spirv_to_llvm::handle_instruction_op_image_read(spirv::Op_image_read instru
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_image_write(spirv::Op_image_write instruction,
@@ -974,8 +1032,8 @@ void Spirv_to_llvm::handle_instruction_op_image_write(spirv::Op_image_write inst
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_image(spirv::Op_image instruction,
@@ -984,8 +1042,8 @@ void Spirv_to_llvm::handle_instruction_op_image(spirv::Op_image instruction,
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_image_query_format(
@@ -994,8 +1052,8 @@ void Spirv_to_llvm::handle_instruction_op_image_query_format(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_image_query_order(spirv::Op_image_query_order instruction,
@@ -1004,8 +1062,8 @@ void Spirv_to_llvm::handle_instruction_op_image_query_order(spirv::Op_image_quer
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_image_query_size_lod(
@@ -1014,8 +1072,8 @@ void Spirv_to_llvm::handle_instruction_op_image_query_size_lod(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_image_query_size(spirv::Op_image_query_size instruction,
@@ -1024,8 +1082,8 @@ void Spirv_to_llvm::handle_instruction_op_image_query_size(spirv::Op_image_query
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_image_query_lod(spirv::Op_image_query_lod instruction,
@@ -1034,8 +1092,8 @@ void Spirv_to_llvm::handle_instruction_op_image_query_lod(spirv::Op_image_query_
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_image_query_levels(
@@ -1044,8 +1102,8 @@ void Spirv_to_llvm::handle_instruction_op_image_query_levels(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_image_query_samples(
@@ -1054,8 +1112,8 @@ void Spirv_to_llvm::handle_instruction_op_image_query_samples(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_convert_f_to_u(spirv::Op_convert_f_to_u instruction,
@@ -1064,8 +1122,8 @@ void Spirv_to_llvm::handle_instruction_op_convert_f_to_u(spirv::Op_convert_f_to_
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_convert_f_to_s(spirv::Op_convert_f_to_s instruction,
@@ -1074,8 +1132,8 @@ void Spirv_to_llvm::handle_instruction_op_convert_f_to_s(spirv::Op_convert_f_to_
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_convert_s_to_f(spirv::Op_convert_s_to_f instruction,
@@ -1084,8 +1142,8 @@ void Spirv_to_llvm::handle_instruction_op_convert_s_to_f(spirv::Op_convert_s_to_
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_convert_u_to_f(spirv::Op_convert_u_to_f instruction,
@@ -1094,8 +1152,8 @@ void Spirv_to_llvm::handle_instruction_op_convert_u_to_f(spirv::Op_convert_u_to_
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_u_convert(spirv::Op_u_convert instruction,
@@ -1104,8 +1162,8 @@ void Spirv_to_llvm::handle_instruction_op_u_convert(spirv::Op_u_convert instruct
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_s_convert(spirv::Op_s_convert instruction,
@@ -1114,8 +1172,8 @@ void Spirv_to_llvm::handle_instruction_op_s_convert(spirv::Op_s_convert instruct
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_f_convert(spirv::Op_f_convert instruction,
@@ -1124,8 +1182,8 @@ void Spirv_to_llvm::handle_instruction_op_f_convert(spirv::Op_f_convert instruct
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_quantize_to_f16(spirv::Op_quantize_to_f16 instruction,
@@ -1134,8 +1192,8 @@ void Spirv_to_llvm::handle_instruction_op_quantize_to_f16(spirv::Op_quantize_to_
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_convert_ptr_to_u(spirv::Op_convert_ptr_to_u instruction,
@@ -1144,8 +1202,8 @@ void Spirv_to_llvm::handle_instruction_op_convert_ptr_to_u(spirv::Op_convert_ptr
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_sat_convert_s_to_u(
@@ -1154,8 +1212,8 @@ void Spirv_to_llvm::handle_instruction_op_sat_convert_s_to_u(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_sat_convert_u_to_s(
@@ -1164,8 +1222,8 @@ void Spirv_to_llvm::handle_instruction_op_sat_convert_u_to_s(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_convert_u_to_ptr(spirv::Op_convert_u_to_ptr instruction,
@@ -1174,8 +1232,8 @@ void Spirv_to_llvm::handle_instruction_op_convert_u_to_ptr(spirv::Op_convert_u_t
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_ptr_cast_to_generic(
@@ -1184,8 +1242,8 @@ void Spirv_to_llvm::handle_instruction_op_ptr_cast_to_generic(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_generic_cast_to_ptr(
@@ -1194,8 +1252,8 @@ void Spirv_to_llvm::handle_instruction_op_generic_cast_to_ptr(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_generic_cast_to_ptr_explicit(
@@ -1204,8 +1262,8 @@ void Spirv_to_llvm::handle_instruction_op_generic_cast_to_ptr_explicit(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_bitcast(spirv::Op_bitcast instruction,
@@ -1214,8 +1272,8 @@ void Spirv_to_llvm::handle_instruction_op_bitcast(spirv::Op_bitcast instruction,
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_s_negate(spirv::Op_s_negate instruction,
@@ -1224,8 +1282,8 @@ void Spirv_to_llvm::handle_instruction_op_s_negate(spirv::Op_s_negate instructio
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_f_negate(spirv::Op_f_negate instruction,
@@ -1234,8 +1292,8 @@ void Spirv_to_llvm::handle_instruction_op_f_negate(spirv::Op_f_negate instructio
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_i_add(spirv::Op_i_add instruction,
@@ -1244,8 +1302,8 @@ void Spirv_to_llvm::handle_instruction_op_i_add(spirv::Op_i_add instruction,
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_f_add(spirv::Op_f_add instruction,
@@ -1254,8 +1312,8 @@ void Spirv_to_llvm::handle_instruction_op_f_add(spirv::Op_f_add instruction,
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_i_sub(spirv::Op_i_sub instruction,
@@ -1264,8 +1322,8 @@ void Spirv_to_llvm::handle_instruction_op_i_sub(spirv::Op_i_sub instruction,
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_f_sub(spirv::Op_f_sub instruction,
@@ -1274,8 +1332,8 @@ void Spirv_to_llvm::handle_instruction_op_f_sub(spirv::Op_f_sub instruction,
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_i_mul(spirv::Op_i_mul instruction,
@@ -1284,8 +1342,8 @@ void Spirv_to_llvm::handle_instruction_op_i_mul(spirv::Op_i_mul instruction,
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_f_mul(spirv::Op_f_mul instruction,
@@ -1294,8 +1352,8 @@ void Spirv_to_llvm::handle_instruction_op_f_mul(spirv::Op_f_mul instruction,
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_u_div(spirv::Op_u_div instruction,
@@ -1304,8 +1362,8 @@ void Spirv_to_llvm::handle_instruction_op_u_div(spirv::Op_u_div instruction,
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_s_div(spirv::Op_s_div instruction,
@@ -1314,8 +1372,8 @@ void Spirv_to_llvm::handle_instruction_op_s_div(spirv::Op_s_div instruction,
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_f_div(spirv::Op_f_div instruction,
@@ -1324,8 +1382,8 @@ void Spirv_to_llvm::handle_instruction_op_f_div(spirv::Op_f_div instruction,
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_u_mod(spirv::Op_u_mod instruction,
@@ -1334,8 +1392,8 @@ void Spirv_to_llvm::handle_instruction_op_u_mod(spirv::Op_u_mod instruction,
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_s_rem(spirv::Op_s_rem instruction,
@@ -1344,8 +1402,8 @@ void Spirv_to_llvm::handle_instruction_op_s_rem(spirv::Op_s_rem instruction,
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_s_mod(spirv::Op_s_mod instruction,
@@ -1354,8 +1412,8 @@ void Spirv_to_llvm::handle_instruction_op_s_mod(spirv::Op_s_mod instruction,
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_f_rem(spirv::Op_f_rem instruction,
@@ -1364,8 +1422,8 @@ void Spirv_to_llvm::handle_instruction_op_f_rem(spirv::Op_f_rem instruction,
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_f_mod(spirv::Op_f_mod instruction,
@@ -1374,8 +1432,8 @@ void Spirv_to_llvm::handle_instruction_op_f_mod(spirv::Op_f_mod instruction,
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_vector_times_scalar(
@@ -1384,8 +1442,8 @@ void Spirv_to_llvm::handle_instruction_op_vector_times_scalar(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_matrix_times_scalar(
@@ -1394,8 +1452,8 @@ void Spirv_to_llvm::handle_instruction_op_matrix_times_scalar(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_vector_times_matrix(
@@ -1404,8 +1462,8 @@ void Spirv_to_llvm::handle_instruction_op_vector_times_matrix(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_matrix_times_vector(
@@ -1414,8 +1472,8 @@ void Spirv_to_llvm::handle_instruction_op_matrix_times_vector(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_matrix_times_matrix(
@@ -1424,8 +1482,8 @@ void Spirv_to_llvm::handle_instruction_op_matrix_times_matrix(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_outer_product(spirv::Op_outer_product instruction,
@@ -1434,8 +1492,8 @@ void Spirv_to_llvm::handle_instruction_op_outer_product(spirv::Op_outer_product 
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_dot(spirv::Op_dot instruction,
@@ -1444,8 +1502,8 @@ void Spirv_to_llvm::handle_instruction_op_dot(spirv::Op_dot instruction,
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_i_add_carry(spirv::Op_i_add_carry instruction,
@@ -1454,8 +1512,8 @@ void Spirv_to_llvm::handle_instruction_op_i_add_carry(spirv::Op_i_add_carry inst
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_i_sub_borrow(spirv::Op_i_sub_borrow instruction,
@@ -1464,8 +1522,8 @@ void Spirv_to_llvm::handle_instruction_op_i_sub_borrow(spirv::Op_i_sub_borrow in
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_u_mul_extended(spirv::Op_u_mul_extended instruction,
@@ -1474,8 +1532,8 @@ void Spirv_to_llvm::handle_instruction_op_u_mul_extended(spirv::Op_u_mul_extende
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_s_mul_extended(spirv::Op_s_mul_extended instruction,
@@ -1484,8 +1542,8 @@ void Spirv_to_llvm::handle_instruction_op_s_mul_extended(spirv::Op_s_mul_extende
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_any(spirv::Op_any instruction,
@@ -1494,8 +1552,8 @@ void Spirv_to_llvm::handle_instruction_op_any(spirv::Op_any instruction,
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_all(spirv::Op_all instruction,
@@ -1504,8 +1562,8 @@ void Spirv_to_llvm::handle_instruction_op_all(spirv::Op_all instruction,
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_is_nan(spirv::Op_is_nan instruction,
@@ -1514,8 +1572,8 @@ void Spirv_to_llvm::handle_instruction_op_is_nan(spirv::Op_is_nan instruction,
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_is_inf(spirv::Op_is_inf instruction,
@@ -1524,8 +1582,8 @@ void Spirv_to_llvm::handle_instruction_op_is_inf(spirv::Op_is_inf instruction,
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_is_finite(spirv::Op_is_finite instruction,
@@ -1534,8 +1592,8 @@ void Spirv_to_llvm::handle_instruction_op_is_finite(spirv::Op_is_finite instruct
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_is_normal(spirv::Op_is_normal instruction,
@@ -1544,8 +1602,8 @@ void Spirv_to_llvm::handle_instruction_op_is_normal(spirv::Op_is_normal instruct
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_sign_bit_set(spirv::Op_sign_bit_set instruction,
@@ -1554,8 +1612,8 @@ void Spirv_to_llvm::handle_instruction_op_sign_bit_set(spirv::Op_sign_bit_set in
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_less_or_greater(spirv::Op_less_or_greater instruction,
@@ -1564,8 +1622,8 @@ void Spirv_to_llvm::handle_instruction_op_less_or_greater(spirv::Op_less_or_grea
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_ordered(spirv::Op_ordered instruction,
@@ -1574,8 +1632,8 @@ void Spirv_to_llvm::handle_instruction_op_ordered(spirv::Op_ordered instruction,
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_unordered(spirv::Op_unordered instruction,
@@ -1584,8 +1642,8 @@ void Spirv_to_llvm::handle_instruction_op_unordered(spirv::Op_unordered instruct
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_logical_equal(spirv::Op_logical_equal instruction,
@@ -1594,8 +1652,8 @@ void Spirv_to_llvm::handle_instruction_op_logical_equal(spirv::Op_logical_equal 
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_logical_not_equal(spirv::Op_logical_not_equal instruction,
@@ -1604,8 +1662,8 @@ void Spirv_to_llvm::handle_instruction_op_logical_not_equal(spirv::Op_logical_no
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_logical_or(spirv::Op_logical_or instruction,
@@ -1614,8 +1672,8 @@ void Spirv_to_llvm::handle_instruction_op_logical_or(spirv::Op_logical_or instru
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_logical_and(spirv::Op_logical_and instruction,
@@ -1624,8 +1682,8 @@ void Spirv_to_llvm::handle_instruction_op_logical_and(spirv::Op_logical_and inst
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_logical_not(spirv::Op_logical_not instruction,
@@ -1634,8 +1692,8 @@ void Spirv_to_llvm::handle_instruction_op_logical_not(spirv::Op_logical_not inst
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_select(spirv::Op_select instruction,
@@ -1644,8 +1702,8 @@ void Spirv_to_llvm::handle_instruction_op_select(spirv::Op_select instruction,
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_i_equal(spirv::Op_i_equal instruction,
@@ -1654,8 +1712,8 @@ void Spirv_to_llvm::handle_instruction_op_i_equal(spirv::Op_i_equal instruction,
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_i_not_equal(spirv::Op_i_not_equal instruction,
@@ -1664,8 +1722,8 @@ void Spirv_to_llvm::handle_instruction_op_i_not_equal(spirv::Op_i_not_equal inst
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_u_greater_than(spirv::Op_u_greater_than instruction,
@@ -1674,8 +1732,8 @@ void Spirv_to_llvm::handle_instruction_op_u_greater_than(spirv::Op_u_greater_tha
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_s_greater_than(spirv::Op_s_greater_than instruction,
@@ -1684,8 +1742,8 @@ void Spirv_to_llvm::handle_instruction_op_s_greater_than(spirv::Op_s_greater_tha
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_u_greater_than_equal(
@@ -1694,8 +1752,8 @@ void Spirv_to_llvm::handle_instruction_op_u_greater_than_equal(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_s_greater_than_equal(
@@ -1704,8 +1762,8 @@ void Spirv_to_llvm::handle_instruction_op_s_greater_than_equal(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_u_less_than(spirv::Op_u_less_than instruction,
@@ -1714,8 +1772,8 @@ void Spirv_to_llvm::handle_instruction_op_u_less_than(spirv::Op_u_less_than inst
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_s_less_than(spirv::Op_s_less_than instruction,
@@ -1724,8 +1782,8 @@ void Spirv_to_llvm::handle_instruction_op_s_less_than(spirv::Op_s_less_than inst
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_u_less_than_equal(spirv::Op_u_less_than_equal instruction,
@@ -1734,8 +1792,8 @@ void Spirv_to_llvm::handle_instruction_op_u_less_than_equal(spirv::Op_u_less_tha
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_s_less_than_equal(spirv::Op_s_less_than_equal instruction,
@@ -1744,8 +1802,8 @@ void Spirv_to_llvm::handle_instruction_op_s_less_than_equal(spirv::Op_s_less_tha
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_f_ord_equal(spirv::Op_f_ord_equal instruction,
@@ -1754,8 +1812,8 @@ void Spirv_to_llvm::handle_instruction_op_f_ord_equal(spirv::Op_f_ord_equal inst
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_f_unord_equal(spirv::Op_f_unord_equal instruction,
@@ -1764,8 +1822,8 @@ void Spirv_to_llvm::handle_instruction_op_f_unord_equal(spirv::Op_f_unord_equal 
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_f_ord_not_equal(spirv::Op_f_ord_not_equal instruction,
@@ -1774,8 +1832,8 @@ void Spirv_to_llvm::handle_instruction_op_f_ord_not_equal(spirv::Op_f_ord_not_eq
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_f_unord_not_equal(spirv::Op_f_unord_not_equal instruction,
@@ -1784,8 +1842,8 @@ void Spirv_to_llvm::handle_instruction_op_f_unord_not_equal(spirv::Op_f_unord_no
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_f_ord_less_than(spirv::Op_f_ord_less_than instruction,
@@ -1794,8 +1852,8 @@ void Spirv_to_llvm::handle_instruction_op_f_ord_less_than(spirv::Op_f_ord_less_t
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_f_unord_less_than(spirv::Op_f_unord_less_than instruction,
@@ -1804,8 +1862,8 @@ void Spirv_to_llvm::handle_instruction_op_f_unord_less_than(spirv::Op_f_unord_le
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_f_ord_greater_than(
@@ -1814,8 +1872,8 @@ void Spirv_to_llvm::handle_instruction_op_f_ord_greater_than(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_f_unord_greater_than(
@@ -1824,8 +1882,8 @@ void Spirv_to_llvm::handle_instruction_op_f_unord_greater_than(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_f_ord_less_than_equal(
@@ -1834,8 +1892,8 @@ void Spirv_to_llvm::handle_instruction_op_f_ord_less_than_equal(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_f_unord_less_than_equal(
@@ -1844,8 +1902,8 @@ void Spirv_to_llvm::handle_instruction_op_f_unord_less_than_equal(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_f_ord_greater_than_equal(
@@ -1854,8 +1912,8 @@ void Spirv_to_llvm::handle_instruction_op_f_ord_greater_than_equal(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_f_unord_greater_than_equal(
@@ -1864,8 +1922,8 @@ void Spirv_to_llvm::handle_instruction_op_f_unord_greater_than_equal(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_shift_right_logical(
@@ -1874,8 +1932,8 @@ void Spirv_to_llvm::handle_instruction_op_shift_right_logical(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_shift_right_arithmetic(
@@ -1884,8 +1942,8 @@ void Spirv_to_llvm::handle_instruction_op_shift_right_arithmetic(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_shift_left_logical(
@@ -1894,8 +1952,8 @@ void Spirv_to_llvm::handle_instruction_op_shift_left_logical(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_bitwise_or(spirv::Op_bitwise_or instruction,
@@ -1904,8 +1962,8 @@ void Spirv_to_llvm::handle_instruction_op_bitwise_or(spirv::Op_bitwise_or instru
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_bitwise_xor(spirv::Op_bitwise_xor instruction,
@@ -1914,8 +1972,8 @@ void Spirv_to_llvm::handle_instruction_op_bitwise_xor(spirv::Op_bitwise_xor inst
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_bitwise_and(spirv::Op_bitwise_and instruction,
@@ -1924,8 +1982,8 @@ void Spirv_to_llvm::handle_instruction_op_bitwise_and(spirv::Op_bitwise_and inst
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_not(spirv::Op_not instruction,
@@ -1934,8 +1992,8 @@ void Spirv_to_llvm::handle_instruction_op_not(spirv::Op_not instruction,
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_bit_field_insert(spirv::Op_bit_field_insert instruction,
@@ -1944,8 +2002,8 @@ void Spirv_to_llvm::handle_instruction_op_bit_field_insert(spirv::Op_bit_field_i
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_bit_field_s_extract(
@@ -1954,8 +2012,8 @@ void Spirv_to_llvm::handle_instruction_op_bit_field_s_extract(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_bit_field_u_extract(
@@ -1964,8 +2022,8 @@ void Spirv_to_llvm::handle_instruction_op_bit_field_u_extract(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_bit_reverse(spirv::Op_bit_reverse instruction,
@@ -1974,8 +2032,8 @@ void Spirv_to_llvm::handle_instruction_op_bit_reverse(spirv::Op_bit_reverse inst
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_bit_count(spirv::Op_bit_count instruction,
@@ -1984,8 +2042,8 @@ void Spirv_to_llvm::handle_instruction_op_bit_count(spirv::Op_bit_count instruct
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_d_pdx(spirv::Op_d_pdx instruction,
@@ -1994,8 +2052,8 @@ void Spirv_to_llvm::handle_instruction_op_d_pdx(spirv::Op_d_pdx instruction,
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_d_pdy(spirv::Op_d_pdy instruction,
@@ -2004,8 +2062,8 @@ void Spirv_to_llvm::handle_instruction_op_d_pdy(spirv::Op_d_pdy instruction,
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_fwidth(spirv::Op_fwidth instruction,
@@ -2014,8 +2072,8 @@ void Spirv_to_llvm::handle_instruction_op_fwidth(spirv::Op_fwidth instruction,
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_d_pdx_fine(spirv::Op_d_pdx_fine instruction,
@@ -2024,8 +2082,8 @@ void Spirv_to_llvm::handle_instruction_op_d_pdx_fine(spirv::Op_d_pdx_fine instru
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_d_pdy_fine(spirv::Op_d_pdy_fine instruction,
@@ -2034,8 +2092,8 @@ void Spirv_to_llvm::handle_instruction_op_d_pdy_fine(spirv::Op_d_pdy_fine instru
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_fwidth_fine(spirv::Op_fwidth_fine instruction,
@@ -2044,8 +2102,8 @@ void Spirv_to_llvm::handle_instruction_op_fwidth_fine(spirv::Op_fwidth_fine inst
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_d_pdx_coarse(spirv::Op_d_pdx_coarse instruction,
@@ -2054,8 +2112,8 @@ void Spirv_to_llvm::handle_instruction_op_d_pdx_coarse(spirv::Op_d_pdx_coarse in
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_d_pdy_coarse(spirv::Op_d_pdy_coarse instruction,
@@ -2064,8 +2122,8 @@ void Spirv_to_llvm::handle_instruction_op_d_pdy_coarse(spirv::Op_d_pdy_coarse in
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_fwidth_coarse(spirv::Op_fwidth_coarse instruction,
@@ -2074,8 +2132,8 @@ void Spirv_to_llvm::handle_instruction_op_fwidth_coarse(spirv::Op_fwidth_coarse 
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_emit_vertex(spirv::Op_emit_vertex instruction,
@@ -2084,8 +2142,8 @@ void Spirv_to_llvm::handle_instruction_op_emit_vertex(spirv::Op_emit_vertex inst
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_end_primitive(spirv::Op_end_primitive instruction,
@@ -2094,8 +2152,8 @@ void Spirv_to_llvm::handle_instruction_op_end_primitive(spirv::Op_end_primitive 
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_emit_stream_vertex(
@@ -2104,8 +2162,8 @@ void Spirv_to_llvm::handle_instruction_op_emit_stream_vertex(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_end_stream_primitive(
@@ -2114,8 +2172,8 @@ void Spirv_to_llvm::handle_instruction_op_end_stream_primitive(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_control_barrier(spirv::Op_control_barrier instruction,
@@ -2124,8 +2182,8 @@ void Spirv_to_llvm::handle_instruction_op_control_barrier(spirv::Op_control_barr
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_memory_barrier(spirv::Op_memory_barrier instruction,
@@ -2134,8 +2192,8 @@ void Spirv_to_llvm::handle_instruction_op_memory_barrier(spirv::Op_memory_barrie
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_atomic_load(spirv::Op_atomic_load instruction,
@@ -2144,8 +2202,8 @@ void Spirv_to_llvm::handle_instruction_op_atomic_load(spirv::Op_atomic_load inst
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_atomic_store(spirv::Op_atomic_store instruction,
@@ -2154,8 +2212,8 @@ void Spirv_to_llvm::handle_instruction_op_atomic_store(spirv::Op_atomic_store in
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_atomic_exchange(spirv::Op_atomic_exchange instruction,
@@ -2164,8 +2222,8 @@ void Spirv_to_llvm::handle_instruction_op_atomic_exchange(spirv::Op_atomic_excha
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_atomic_compare_exchange(
@@ -2174,8 +2232,8 @@ void Spirv_to_llvm::handle_instruction_op_atomic_compare_exchange(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_atomic_compare_exchange_weak(
@@ -2184,8 +2242,8 @@ void Spirv_to_llvm::handle_instruction_op_atomic_compare_exchange_weak(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_atomic_i_increment(
@@ -2194,8 +2252,8 @@ void Spirv_to_llvm::handle_instruction_op_atomic_i_increment(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_atomic_i_decrement(
@@ -2204,8 +2262,8 @@ void Spirv_to_llvm::handle_instruction_op_atomic_i_decrement(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_atomic_i_add(spirv::Op_atomic_i_add instruction,
@@ -2214,8 +2272,8 @@ void Spirv_to_llvm::handle_instruction_op_atomic_i_add(spirv::Op_atomic_i_add in
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_atomic_i_sub(spirv::Op_atomic_i_sub instruction,
@@ -2224,8 +2282,8 @@ void Spirv_to_llvm::handle_instruction_op_atomic_i_sub(spirv::Op_atomic_i_sub in
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_atomic_s_min(spirv::Op_atomic_s_min instruction,
@@ -2234,8 +2292,8 @@ void Spirv_to_llvm::handle_instruction_op_atomic_s_min(spirv::Op_atomic_s_min in
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_atomic_u_min(spirv::Op_atomic_u_min instruction,
@@ -2244,8 +2302,8 @@ void Spirv_to_llvm::handle_instruction_op_atomic_u_min(spirv::Op_atomic_u_min in
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_atomic_s_max(spirv::Op_atomic_s_max instruction,
@@ -2254,8 +2312,8 @@ void Spirv_to_llvm::handle_instruction_op_atomic_s_max(spirv::Op_atomic_s_max in
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_atomic_u_max(spirv::Op_atomic_u_max instruction,
@@ -2264,8 +2322,8 @@ void Spirv_to_llvm::handle_instruction_op_atomic_u_max(spirv::Op_atomic_u_max in
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_atomic_and(spirv::Op_atomic_and instruction,
@@ -2274,8 +2332,8 @@ void Spirv_to_llvm::handle_instruction_op_atomic_and(spirv::Op_atomic_and instru
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_atomic_or(spirv::Op_atomic_or instruction,
@@ -2284,8 +2342,8 @@ void Spirv_to_llvm::handle_instruction_op_atomic_or(spirv::Op_atomic_or instruct
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_atomic_xor(spirv::Op_atomic_xor instruction,
@@ -2294,8 +2352,8 @@ void Spirv_to_llvm::handle_instruction_op_atomic_xor(spirv::Op_atomic_xor instru
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_phi(spirv::Op_phi instruction,
@@ -2304,8 +2362,8 @@ void Spirv_to_llvm::handle_instruction_op_phi(spirv::Op_phi instruction,
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_loop_merge(spirv::Op_loop_merge instruction,
@@ -2314,8 +2372,8 @@ void Spirv_to_llvm::handle_instruction_op_loop_merge(spirv::Op_loop_merge instru
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_selection_merge(spirv::Op_selection_merge instruction,
@@ -2324,8 +2382,8 @@ void Spirv_to_llvm::handle_instruction_op_selection_merge(spirv::Op_selection_me
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_label(spirv::Op_label instruction,
@@ -2334,8 +2392,8 @@ void Spirv_to_llvm::handle_instruction_op_label(spirv::Op_label instruction,
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_branch(spirv::Op_branch instruction,
@@ -2344,8 +2402,8 @@ void Spirv_to_llvm::handle_instruction_op_branch(spirv::Op_branch instruction,
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_branch_conditional(
@@ -2354,8 +2412,8 @@ void Spirv_to_llvm::handle_instruction_op_branch_conditional(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_switch(spirv::Op_switch instruction,
@@ -2364,8 +2422,8 @@ void Spirv_to_llvm::handle_instruction_op_switch(spirv::Op_switch instruction,
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_kill(spirv::Op_kill instruction,
@@ -2374,8 +2432,8 @@ void Spirv_to_llvm::handle_instruction_op_kill(spirv::Op_kill instruction,
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_return(spirv::Op_return instruction,
@@ -2384,8 +2442,8 @@ void Spirv_to_llvm::handle_instruction_op_return(spirv::Op_return instruction,
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_return_value(spirv::Op_return_value instruction,
@@ -2394,8 +2452,8 @@ void Spirv_to_llvm::handle_instruction_op_return_value(spirv::Op_return_value in
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_unreachable(spirv::Op_unreachable instruction,
@@ -2404,8 +2462,8 @@ void Spirv_to_llvm::handle_instruction_op_unreachable(spirv::Op_unreachable inst
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_lifetime_start(spirv::Op_lifetime_start instruction,
@@ -2414,8 +2472,8 @@ void Spirv_to_llvm::handle_instruction_op_lifetime_start(spirv::Op_lifetime_star
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_lifetime_stop(spirv::Op_lifetime_stop instruction,
@@ -2424,8 +2482,8 @@ void Spirv_to_llvm::handle_instruction_op_lifetime_stop(spirv::Op_lifetime_stop 
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_group_async_copy(spirv::Op_group_async_copy instruction,
@@ -2434,8 +2492,8 @@ void Spirv_to_llvm::handle_instruction_op_group_async_copy(spirv::Op_group_async
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_group_wait_events(spirv::Op_group_wait_events instruction,
@@ -2444,8 +2502,8 @@ void Spirv_to_llvm::handle_instruction_op_group_wait_events(spirv::Op_group_wait
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_group_all(spirv::Op_group_all instruction,
@@ -2454,8 +2512,8 @@ void Spirv_to_llvm::handle_instruction_op_group_all(spirv::Op_group_all instruct
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_group_any(spirv::Op_group_any instruction,
@@ -2464,8 +2522,8 @@ void Spirv_to_llvm::handle_instruction_op_group_any(spirv::Op_group_any instruct
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_group_broadcast(spirv::Op_group_broadcast instruction,
@@ -2474,8 +2532,8 @@ void Spirv_to_llvm::handle_instruction_op_group_broadcast(spirv::Op_group_broadc
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_group_i_add(spirv::Op_group_i_add instruction,
@@ -2484,8 +2542,8 @@ void Spirv_to_llvm::handle_instruction_op_group_i_add(spirv::Op_group_i_add inst
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_group_f_add(spirv::Op_group_f_add instruction,
@@ -2494,8 +2552,8 @@ void Spirv_to_llvm::handle_instruction_op_group_f_add(spirv::Op_group_f_add inst
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_group_f_min(spirv::Op_group_f_min instruction,
@@ -2504,8 +2562,8 @@ void Spirv_to_llvm::handle_instruction_op_group_f_min(spirv::Op_group_f_min inst
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_group_u_min(spirv::Op_group_u_min instruction,
@@ -2514,8 +2572,8 @@ void Spirv_to_llvm::handle_instruction_op_group_u_min(spirv::Op_group_u_min inst
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_group_s_min(spirv::Op_group_s_min instruction,
@@ -2524,8 +2582,8 @@ void Spirv_to_llvm::handle_instruction_op_group_s_min(spirv::Op_group_s_min inst
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_group_f_max(spirv::Op_group_f_max instruction,
@@ -2534,8 +2592,8 @@ void Spirv_to_llvm::handle_instruction_op_group_f_max(spirv::Op_group_f_max inst
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_group_u_max(spirv::Op_group_u_max instruction,
@@ -2544,8 +2602,8 @@ void Spirv_to_llvm::handle_instruction_op_group_u_max(spirv::Op_group_u_max inst
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_group_s_max(spirv::Op_group_s_max instruction,
@@ -2554,8 +2612,8 @@ void Spirv_to_llvm::handle_instruction_op_group_s_max(spirv::Op_group_s_max inst
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_read_pipe(spirv::Op_read_pipe instruction,
@@ -2564,8 +2622,8 @@ void Spirv_to_llvm::handle_instruction_op_read_pipe(spirv::Op_read_pipe instruct
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_write_pipe(spirv::Op_write_pipe instruction,
@@ -2574,8 +2632,8 @@ void Spirv_to_llvm::handle_instruction_op_write_pipe(spirv::Op_write_pipe instru
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_reserved_read_pipe(
@@ -2584,8 +2642,8 @@ void Spirv_to_llvm::handle_instruction_op_reserved_read_pipe(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_reserved_write_pipe(
@@ -2594,8 +2652,8 @@ void Spirv_to_llvm::handle_instruction_op_reserved_write_pipe(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_reserve_read_pipe_packets(
@@ -2604,8 +2662,8 @@ void Spirv_to_llvm::handle_instruction_op_reserve_read_pipe_packets(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_reserve_write_pipe_packets(
@@ -2614,8 +2672,8 @@ void Spirv_to_llvm::handle_instruction_op_reserve_write_pipe_packets(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_commit_read_pipe(spirv::Op_commit_read_pipe instruction,
@@ -2624,8 +2682,8 @@ void Spirv_to_llvm::handle_instruction_op_commit_read_pipe(spirv::Op_commit_read
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_commit_write_pipe(spirv::Op_commit_write_pipe instruction,
@@ -2634,8 +2692,8 @@ void Spirv_to_llvm::handle_instruction_op_commit_write_pipe(spirv::Op_commit_wri
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_is_valid_reserve_id(
@@ -2644,8 +2702,8 @@ void Spirv_to_llvm::handle_instruction_op_is_valid_reserve_id(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_get_num_pipe_packets(
@@ -2654,8 +2712,8 @@ void Spirv_to_llvm::handle_instruction_op_get_num_pipe_packets(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_get_max_pipe_packets(
@@ -2664,8 +2722,8 @@ void Spirv_to_llvm::handle_instruction_op_get_max_pipe_packets(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_group_reserve_read_pipe_packets(
@@ -2674,8 +2732,8 @@ void Spirv_to_llvm::handle_instruction_op_group_reserve_read_pipe_packets(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_group_reserve_write_pipe_packets(
@@ -2684,8 +2742,8 @@ void Spirv_to_llvm::handle_instruction_op_group_reserve_write_pipe_packets(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_group_commit_read_pipe(
@@ -2694,8 +2752,8 @@ void Spirv_to_llvm::handle_instruction_op_group_commit_read_pipe(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_group_commit_write_pipe(
@@ -2704,8 +2762,8 @@ void Spirv_to_llvm::handle_instruction_op_group_commit_write_pipe(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_enqueue_marker(spirv::Op_enqueue_marker instruction,
@@ -2714,8 +2772,8 @@ void Spirv_to_llvm::handle_instruction_op_enqueue_marker(spirv::Op_enqueue_marke
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_enqueue_kernel(spirv::Op_enqueue_kernel instruction,
@@ -2724,8 +2782,8 @@ void Spirv_to_llvm::handle_instruction_op_enqueue_kernel(spirv::Op_enqueue_kerne
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_get_kernel_n_drange_sub_group_count(
@@ -2734,8 +2792,8 @@ void Spirv_to_llvm::handle_instruction_op_get_kernel_n_drange_sub_group_count(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_get_kernel_n_drange_max_sub_group_size(
@@ -2745,8 +2803,8 @@ void Spirv_to_llvm::handle_instruction_op_get_kernel_n_drange_max_sub_group_size
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_get_kernel_work_group_size(
@@ -2755,8 +2813,8 @@ void Spirv_to_llvm::handle_instruction_op_get_kernel_work_group_size(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_get_kernel_preferred_work_group_size_multiple(
@@ -2766,8 +2824,8 @@ void Spirv_to_llvm::handle_instruction_op_get_kernel_preferred_work_group_size_m
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_retain_event(spirv::Op_retain_event instruction,
@@ -2776,8 +2834,8 @@ void Spirv_to_llvm::handle_instruction_op_retain_event(spirv::Op_retain_event in
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_release_event(spirv::Op_release_event instruction,
@@ -2786,8 +2844,8 @@ void Spirv_to_llvm::handle_instruction_op_release_event(spirv::Op_release_event 
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_create_user_event(spirv::Op_create_user_event instruction,
@@ -2796,8 +2854,8 @@ void Spirv_to_llvm::handle_instruction_op_create_user_event(spirv::Op_create_use
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_is_valid_event(spirv::Op_is_valid_event instruction,
@@ -2806,8 +2864,8 @@ void Spirv_to_llvm::handle_instruction_op_is_valid_event(spirv::Op_is_valid_even
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_set_user_event_status(
@@ -2816,8 +2874,8 @@ void Spirv_to_llvm::handle_instruction_op_set_user_event_status(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_capture_event_profiling_info(
@@ -2826,8 +2884,8 @@ void Spirv_to_llvm::handle_instruction_op_capture_event_profiling_info(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_get_default_queue(spirv::Op_get_default_queue instruction,
@@ -2836,8 +2894,8 @@ void Spirv_to_llvm::handle_instruction_op_get_default_queue(spirv::Op_get_defaul
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_build_nd_range(spirv::Op_build_nd_range instruction,
@@ -2846,8 +2904,8 @@ void Spirv_to_llvm::handle_instruction_op_build_nd_range(spirv::Op_build_nd_rang
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_image_sparse_sample_implicit_lod(
@@ -2856,8 +2914,8 @@ void Spirv_to_llvm::handle_instruction_op_image_sparse_sample_implicit_lod(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_image_sparse_sample_explicit_lod(
@@ -2866,8 +2924,8 @@ void Spirv_to_llvm::handle_instruction_op_image_sparse_sample_explicit_lod(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_image_sparse_sample_dref_implicit_lod(
@@ -2877,8 +2935,8 @@ void Spirv_to_llvm::handle_instruction_op_image_sparse_sample_dref_implicit_lod(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_image_sparse_sample_dref_explicit_lod(
@@ -2888,8 +2946,8 @@ void Spirv_to_llvm::handle_instruction_op_image_sparse_sample_dref_explicit_lod(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_image_sparse_sample_proj_implicit_lod(
@@ -2899,8 +2957,8 @@ void Spirv_to_llvm::handle_instruction_op_image_sparse_sample_proj_implicit_lod(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_image_sparse_sample_proj_explicit_lod(
@@ -2910,8 +2968,8 @@ void Spirv_to_llvm::handle_instruction_op_image_sparse_sample_proj_explicit_lod(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_image_sparse_sample_proj_dref_implicit_lod(
@@ -2921,8 +2979,8 @@ void Spirv_to_llvm::handle_instruction_op_image_sparse_sample_proj_dref_implicit
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_image_sparse_sample_proj_dref_explicit_lod(
@@ -2932,8 +2990,8 @@ void Spirv_to_llvm::handle_instruction_op_image_sparse_sample_proj_dref_explicit
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_image_sparse_fetch(
@@ -2942,8 +3000,8 @@ void Spirv_to_llvm::handle_instruction_op_image_sparse_fetch(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_image_sparse_gather(
@@ -2952,8 +3010,8 @@ void Spirv_to_llvm::handle_instruction_op_image_sparse_gather(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_image_sparse_dref_gather(
@@ -2962,8 +3020,8 @@ void Spirv_to_llvm::handle_instruction_op_image_sparse_dref_gather(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_image_sparse_texels_resident(
@@ -2972,8 +3030,8 @@ void Spirv_to_llvm::handle_instruction_op_image_sparse_texels_resident(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_no_line(spirv::Op_no_line instruction,
@@ -2982,8 +3040,8 @@ void Spirv_to_llvm::handle_instruction_op_no_line(spirv::Op_no_line instruction,
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_atomic_flag_test_and_set(
@@ -2992,8 +3050,8 @@ void Spirv_to_llvm::handle_instruction_op_atomic_flag_test_and_set(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_atomic_flag_clear(spirv::Op_atomic_flag_clear instruction,
@@ -3002,8 +3060,8 @@ void Spirv_to_llvm::handle_instruction_op_atomic_flag_clear(spirv::Op_atomic_fla
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_image_sparse_read(spirv::Op_image_sparse_read instruction,
@@ -3012,8 +3070,8 @@ void Spirv_to_llvm::handle_instruction_op_image_sparse_read(spirv::Op_image_spar
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_size_of(spirv::Op_size_of instruction,
@@ -3022,8 +3080,8 @@ void Spirv_to_llvm::handle_instruction_op_size_of(spirv::Op_size_of instruction,
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_type_pipe_storage(spirv::Op_type_pipe_storage instruction,
@@ -3032,8 +3090,8 @@ void Spirv_to_llvm::handle_instruction_op_type_pipe_storage(spirv::Op_type_pipe_
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_constant_pipe_storage(
@@ -3042,8 +3100,8 @@ void Spirv_to_llvm::handle_instruction_op_constant_pipe_storage(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_create_pipe_from_pipe_storage(
@@ -3052,8 +3110,8 @@ void Spirv_to_llvm::handle_instruction_op_create_pipe_from_pipe_storage(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_get_kernel_local_size_for_subgroup_count(
@@ -3063,8 +3121,8 @@ void Spirv_to_llvm::handle_instruction_op_get_kernel_local_size_for_subgroup_cou
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_get_kernel_max_num_subgroups(
@@ -3073,8 +3131,8 @@ void Spirv_to_llvm::handle_instruction_op_get_kernel_max_num_subgroups(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_type_named_barrier(
@@ -3083,8 +3141,8 @@ void Spirv_to_llvm::handle_instruction_op_type_named_barrier(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_named_barrier_initialize(
@@ -3093,8 +3151,8 @@ void Spirv_to_llvm::handle_instruction_op_named_barrier_initialize(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_memory_named_barrier(
@@ -3103,8 +3161,8 @@ void Spirv_to_llvm::handle_instruction_op_memory_named_barrier(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_module_processed(spirv::Op_module_processed instruction,
@@ -3113,8 +3171,8 @@ void Spirv_to_llvm::handle_instruction_op_module_processed(spirv::Op_module_proc
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_execution_mode_id(spirv::Op_execution_mode_id instruction,
@@ -3123,8 +3181,8 @@ void Spirv_to_llvm::handle_instruction_op_execution_mode_id(spirv::Op_execution_
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_decorate_id(spirv::Op_decorate_id instruction,
@@ -3133,8 +3191,8 @@ void Spirv_to_llvm::handle_instruction_op_decorate_id(spirv::Op_decorate_id inst
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_subgroup_ballot_khr(
@@ -3143,8 +3201,8 @@ void Spirv_to_llvm::handle_instruction_op_subgroup_ballot_khr(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_subgroup_first_invocation_khr(
@@ -3153,8 +3211,8 @@ void Spirv_to_llvm::handle_instruction_op_subgroup_first_invocation_khr(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_subgroup_all_khr(spirv::Op_subgroup_all_khr instruction,
@@ -3163,8 +3221,8 @@ void Spirv_to_llvm::handle_instruction_op_subgroup_all_khr(spirv::Op_subgroup_al
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_subgroup_any_khr(spirv::Op_subgroup_any_khr instruction,
@@ -3173,8 +3231,8 @@ void Spirv_to_llvm::handle_instruction_op_subgroup_any_khr(spirv::Op_subgroup_an
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_subgroup_all_equal_khr(
@@ -3183,8 +3241,8 @@ void Spirv_to_llvm::handle_instruction_op_subgroup_all_equal_khr(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_op_subgroup_read_invocation_khr(
@@ -3193,8 +3251,8 @@ void Spirv_to_llvm::handle_instruction_op_subgroup_read_invocation_khr(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_acos(spirv::Open_cl_std_op_acos instruction,
@@ -3203,8 +3261,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_acos(spirv::Open_cl_std_op
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_acosh(spirv::Open_cl_std_op_acosh instruction,
@@ -3213,8 +3271,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_acosh(spirv::Open_cl_std_o
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_acospi(
@@ -3223,8 +3281,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_acospi(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_asin(spirv::Open_cl_std_op_asin instruction,
@@ -3233,8 +3291,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_asin(spirv::Open_cl_std_op
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_asinh(spirv::Open_cl_std_op_asinh instruction,
@@ -3243,8 +3301,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_asinh(spirv::Open_cl_std_o
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_asinpi(
@@ -3253,8 +3311,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_asinpi(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_atan(spirv::Open_cl_std_op_atan instruction,
@@ -3263,8 +3321,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_atan(spirv::Open_cl_std_op
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_atan2(spirv::Open_cl_std_op_atan2 instruction,
@@ -3273,8 +3331,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_atan2(spirv::Open_cl_std_o
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_atanh(spirv::Open_cl_std_op_atanh instruction,
@@ -3283,8 +3341,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_atanh(spirv::Open_cl_std_o
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_atanpi(
@@ -3293,8 +3351,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_atanpi(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_atan2pi(
@@ -3303,8 +3361,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_atan2pi(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_cbrt(spirv::Open_cl_std_op_cbrt instruction,
@@ -3313,8 +3371,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_cbrt(spirv::Open_cl_std_op
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_ceil(spirv::Open_cl_std_op_ceil instruction,
@@ -3323,8 +3381,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_ceil(spirv::Open_cl_std_op
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_copysign(
@@ -3333,8 +3391,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_copysign(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_cos(spirv::Open_cl_std_op_cos instruction,
@@ -3343,8 +3401,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_cos(spirv::Open_cl_std_op_
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_cosh(spirv::Open_cl_std_op_cosh instruction,
@@ -3353,8 +3411,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_cosh(spirv::Open_cl_std_op
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_cospi(spirv::Open_cl_std_op_cospi instruction,
@@ -3363,8 +3421,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_cospi(spirv::Open_cl_std_o
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_erfc(spirv::Open_cl_std_op_erfc instruction,
@@ -3373,8 +3431,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_erfc(spirv::Open_cl_std_op
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_erf(spirv::Open_cl_std_op_erf instruction,
@@ -3383,8 +3441,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_erf(spirv::Open_cl_std_op_
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_exp(spirv::Open_cl_std_op_exp instruction,
@@ -3393,8 +3451,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_exp(spirv::Open_cl_std_op_
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_exp2(spirv::Open_cl_std_op_exp2 instruction,
@@ -3403,8 +3461,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_exp2(spirv::Open_cl_std_op
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_exp10(spirv::Open_cl_std_op_exp10 instruction,
@@ -3413,8 +3471,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_exp10(spirv::Open_cl_std_o
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_expm1(spirv::Open_cl_std_op_expm1 instruction,
@@ -3423,8 +3481,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_expm1(spirv::Open_cl_std_o
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_fabs(spirv::Open_cl_std_op_fabs instruction,
@@ -3433,8 +3491,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_fabs(spirv::Open_cl_std_op
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_fdim(spirv::Open_cl_std_op_fdim instruction,
@@ -3443,8 +3501,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_fdim(spirv::Open_cl_std_op
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_floor(spirv::Open_cl_std_op_floor instruction,
@@ -3453,8 +3511,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_floor(spirv::Open_cl_std_o
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_fma(spirv::Open_cl_std_op_fma instruction,
@@ -3463,8 +3521,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_fma(spirv::Open_cl_std_op_
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_fmax(spirv::Open_cl_std_op_fmax instruction,
@@ -3473,8 +3531,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_fmax(spirv::Open_cl_std_op
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_fmin(spirv::Open_cl_std_op_fmin instruction,
@@ -3483,8 +3541,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_fmin(spirv::Open_cl_std_op
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_fmod(spirv::Open_cl_std_op_fmod instruction,
@@ -3493,8 +3551,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_fmod(spirv::Open_cl_std_op
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_fract(spirv::Open_cl_std_op_fract instruction,
@@ -3503,8 +3561,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_fract(spirv::Open_cl_std_o
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_frexp(spirv::Open_cl_std_op_frexp instruction,
@@ -3513,8 +3571,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_frexp(spirv::Open_cl_std_o
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_hypot(spirv::Open_cl_std_op_hypot instruction,
@@ -3523,8 +3581,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_hypot(spirv::Open_cl_std_o
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_ilogb(spirv::Open_cl_std_op_ilogb instruction,
@@ -3533,8 +3591,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_ilogb(spirv::Open_cl_std_o
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_ldexp(spirv::Open_cl_std_op_ldexp instruction,
@@ -3543,8 +3601,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_ldexp(spirv::Open_cl_std_o
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_lgamma(
@@ -3553,8 +3611,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_lgamma(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_lgamma_r(
@@ -3563,8 +3621,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_lgamma_r(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_log(spirv::Open_cl_std_op_log instruction,
@@ -3573,8 +3631,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_log(spirv::Open_cl_std_op_
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_log2(spirv::Open_cl_std_op_log2 instruction,
@@ -3583,8 +3641,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_log2(spirv::Open_cl_std_op
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_log10(spirv::Open_cl_std_op_log10 instruction,
@@ -3593,8 +3651,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_log10(spirv::Open_cl_std_o
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_log1p(spirv::Open_cl_std_op_log1p instruction,
@@ -3603,8 +3661,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_log1p(spirv::Open_cl_std_o
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_logb(spirv::Open_cl_std_op_logb instruction,
@@ -3613,8 +3671,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_logb(spirv::Open_cl_std_op
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_mad(spirv::Open_cl_std_op_mad instruction,
@@ -3623,8 +3681,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_mad(spirv::Open_cl_std_op_
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_maxmag(
@@ -3633,8 +3691,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_maxmag(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_minmag(
@@ -3643,8 +3701,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_minmag(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_modf(spirv::Open_cl_std_op_modf instruction,
@@ -3653,8 +3711,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_modf(spirv::Open_cl_std_op
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_nan(spirv::Open_cl_std_op_nan instruction,
@@ -3663,8 +3721,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_nan(spirv::Open_cl_std_op_
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_nextafter(
@@ -3673,8 +3731,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_nextafter(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_pow(spirv::Open_cl_std_op_pow instruction,
@@ -3683,8 +3741,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_pow(spirv::Open_cl_std_op_
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_pown(spirv::Open_cl_std_op_pown instruction,
@@ -3693,8 +3751,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_pown(spirv::Open_cl_std_op
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_powr(spirv::Open_cl_std_op_powr instruction,
@@ -3703,8 +3761,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_powr(spirv::Open_cl_std_op
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_remainder(
@@ -3713,8 +3771,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_remainder(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_remquo(
@@ -3723,8 +3781,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_remquo(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_rint(spirv::Open_cl_std_op_rint instruction,
@@ -3733,8 +3791,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_rint(spirv::Open_cl_std_op
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_rootn(spirv::Open_cl_std_op_rootn instruction,
@@ -3743,8 +3801,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_rootn(spirv::Open_cl_std_o
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_round(spirv::Open_cl_std_op_round instruction,
@@ -3753,8 +3811,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_round(spirv::Open_cl_std_o
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_rsqrt(spirv::Open_cl_std_op_rsqrt instruction,
@@ -3763,8 +3821,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_rsqrt(spirv::Open_cl_std_o
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_sin(spirv::Open_cl_std_op_sin instruction,
@@ -3773,8 +3831,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_sin(spirv::Open_cl_std_op_
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_sincos(
@@ -3783,8 +3841,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_sincos(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_sinh(spirv::Open_cl_std_op_sinh instruction,
@@ -3793,8 +3851,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_sinh(spirv::Open_cl_std_op
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_sinpi(spirv::Open_cl_std_op_sinpi instruction,
@@ -3803,8 +3861,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_sinpi(spirv::Open_cl_std_o
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_sqrt(spirv::Open_cl_std_op_sqrt instruction,
@@ -3813,8 +3871,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_sqrt(spirv::Open_cl_std_op
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_tan(spirv::Open_cl_std_op_tan instruction,
@@ -3823,8 +3881,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_tan(spirv::Open_cl_std_op_
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_tanh(spirv::Open_cl_std_op_tanh instruction,
@@ -3833,8 +3891,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_tanh(spirv::Open_cl_std_op
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_tanpi(spirv::Open_cl_std_op_tanpi instruction,
@@ -3843,8 +3901,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_tanpi(spirv::Open_cl_std_o
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_tgamma(
@@ -3853,8 +3911,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_tgamma(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_trunc(spirv::Open_cl_std_op_trunc instruction,
@@ -3863,8 +3921,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_trunc(spirv::Open_cl_std_o
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_half_cos(
@@ -3873,8 +3931,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_half_cos(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_half_divide(
@@ -3883,8 +3941,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_half_divide(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_half_exp(
@@ -3893,8 +3951,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_half_exp(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_half_exp2(
@@ -3903,8 +3961,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_half_exp2(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_half_exp10(
@@ -3913,8 +3971,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_half_exp10(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_half_log(
@@ -3923,8 +3981,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_half_log(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_half_log2(
@@ -3933,8 +3991,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_half_log2(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_half_log10(
@@ -3943,8 +4001,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_half_log10(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_half_powr(
@@ -3953,8 +4011,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_half_powr(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_half_recip(
@@ -3963,8 +4021,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_half_recip(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_half_rsqrt(
@@ -3973,8 +4031,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_half_rsqrt(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_half_sin(
@@ -3983,8 +4041,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_half_sin(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_half_sqrt(
@@ -3993,8 +4051,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_half_sqrt(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_half_tan(
@@ -4003,8 +4061,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_half_tan(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_native_cos(
@@ -4013,8 +4071,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_native_cos(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_native_divide(
@@ -4023,8 +4081,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_native_divide(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_native_exp(
@@ -4033,8 +4091,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_native_exp(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_native_exp2(
@@ -4043,8 +4101,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_native_exp2(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_native_exp10(
@@ -4053,8 +4111,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_native_exp10(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_native_log(
@@ -4063,8 +4121,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_native_log(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_native_log2(
@@ -4073,8 +4131,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_native_log2(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_native_log10(
@@ -4083,8 +4141,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_native_log10(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_native_powr(
@@ -4093,8 +4151,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_native_powr(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_native_recip(
@@ -4103,8 +4161,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_native_recip(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_native_rsqrt(
@@ -4113,8 +4171,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_native_rsqrt(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_native_sin(
@@ -4123,8 +4181,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_native_sin(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_native_sqrt(
@@ -4133,8 +4191,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_native_sqrt(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_native_tan(
@@ -4143,8 +4201,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_native_tan(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_s_abs(spirv::Open_cl_std_op_s_abs instruction,
@@ -4153,8 +4211,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_s_abs(spirv::Open_cl_std_o
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_s_abs_diff(
@@ -4163,8 +4221,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_s_abs_diff(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_s_add_sat(
@@ -4173,8 +4231,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_s_add_sat(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_u_add_sat(
@@ -4183,8 +4241,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_u_add_sat(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_s_hadd(
@@ -4193,8 +4251,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_s_hadd(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_u_hadd(
@@ -4203,8 +4261,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_u_hadd(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_s_rhadd(
@@ -4213,8 +4271,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_s_rhadd(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_u_rhadd(
@@ -4223,8 +4281,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_u_rhadd(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_s_clamp(
@@ -4233,8 +4291,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_s_clamp(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_u_clamp(
@@ -4243,8 +4301,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_u_clamp(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_clz(spirv::Open_cl_std_op_clz instruction,
@@ -4253,8 +4311,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_clz(spirv::Open_cl_std_op_
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_ctz(spirv::Open_cl_std_op_ctz instruction,
@@ -4263,8 +4321,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_ctz(spirv::Open_cl_std_op_
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_s_mad_hi(
@@ -4273,8 +4331,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_s_mad_hi(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_u_mad_sat(
@@ -4283,8 +4341,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_u_mad_sat(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_s_mad_sat(
@@ -4293,8 +4351,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_s_mad_sat(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_s_max(spirv::Open_cl_std_op_s_max instruction,
@@ -4303,8 +4361,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_s_max(spirv::Open_cl_std_o
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_u_max(spirv::Open_cl_std_op_u_max instruction,
@@ -4313,8 +4371,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_u_max(spirv::Open_cl_std_o
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_s_min(spirv::Open_cl_std_op_s_min instruction,
@@ -4323,8 +4381,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_s_min(spirv::Open_cl_std_o
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_u_min(spirv::Open_cl_std_op_u_min instruction,
@@ -4333,8 +4391,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_u_min(spirv::Open_cl_std_o
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_s_mul_hi(
@@ -4343,8 +4401,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_s_mul_hi(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_rotate(
@@ -4353,8 +4411,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_rotate(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_s_sub_sat(
@@ -4363,8 +4421,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_s_sub_sat(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_u_sub_sat(
@@ -4373,8 +4431,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_u_sub_sat(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_u_upsample(
@@ -4383,8 +4441,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_u_upsample(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_s_upsample(
@@ -4393,8 +4451,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_s_upsample(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_popcount(
@@ -4403,8 +4461,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_popcount(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_s_mad24(
@@ -4413,8 +4471,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_s_mad24(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_u_mad24(
@@ -4423,8 +4481,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_u_mad24(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_s_mul24(
@@ -4433,8 +4491,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_s_mul24(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_u_mul24(
@@ -4443,8 +4501,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_u_mul24(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_u_abs(spirv::Open_cl_std_op_u_abs instruction,
@@ -4453,8 +4511,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_u_abs(spirv::Open_cl_std_o
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_u_abs_diff(
@@ -4463,8 +4521,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_u_abs_diff(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_u_mul_hi(
@@ -4473,8 +4531,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_u_mul_hi(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_u_mad_hi(
@@ -4483,8 +4541,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_u_mad_hi(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_fclamp(
@@ -4493,8 +4551,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_fclamp(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_degrees(
@@ -4503,8 +4561,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_degrees(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_fmax_common(
@@ -4513,8 +4571,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_fmax_common(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_fmin_common(
@@ -4523,8 +4581,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_fmin_common(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_mix(spirv::Open_cl_std_op_mix instruction,
@@ -4533,8 +4591,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_mix(spirv::Open_cl_std_op_
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_radians(
@@ -4543,8 +4601,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_radians(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_step(spirv::Open_cl_std_op_step instruction,
@@ -4553,8 +4611,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_step(spirv::Open_cl_std_op
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_smoothstep(
@@ -4563,8 +4621,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_smoothstep(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_sign(spirv::Open_cl_std_op_sign instruction,
@@ -4573,8 +4631,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_sign(spirv::Open_cl_std_op
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_cross(spirv::Open_cl_std_op_cross instruction,
@@ -4583,8 +4641,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_cross(spirv::Open_cl_std_o
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_distance(
@@ -4593,8 +4651,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_distance(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_length(
@@ -4603,8 +4661,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_length(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_normalize(
@@ -4613,8 +4671,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_normalize(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_fast_distance(
@@ -4623,8 +4681,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_fast_distance(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_fast_length(
@@ -4633,8 +4691,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_fast_length(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_fast_normalize(
@@ -4643,8 +4701,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_fast_normalize(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_bitselect(
@@ -4653,8 +4711,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_bitselect(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_select(
@@ -4663,8 +4721,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_select(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_vloadn(
@@ -4673,8 +4731,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_vloadn(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_vstoren(
@@ -4683,8 +4741,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_vstoren(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_vload_half(
@@ -4693,8 +4751,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_vload_half(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_vload_halfn(
@@ -4703,8 +4761,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_vload_halfn(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_vstore_half(
@@ -4713,8 +4771,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_vstore_half(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_vstore_half_r(
@@ -4723,8 +4781,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_vstore_half_r(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_vstore_halfn(
@@ -4733,8 +4791,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_vstore_halfn(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_vstore_halfn_r(
@@ -4743,8 +4801,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_vstore_halfn_r(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_vloada_halfn(
@@ -4753,8 +4811,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_vloada_halfn(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_vstorea_halfn(
@@ -4763,8 +4821,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_vstorea_halfn(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_vstorea_halfn_r(
@@ -4773,8 +4831,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_vstorea_halfn_r(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_shuffle(
@@ -4783,8 +4841,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_shuffle(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_shuffle2(
@@ -4793,8 +4851,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_shuffle2(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_printf(
@@ -4803,8 +4861,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_printf(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_prefetch(
@@ -4813,8 +4871,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_prefetch(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_glsl_std_450_op_round(
@@ -4823,8 +4881,8 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_round(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_glsl_std_450_op_round_even(
@@ -4833,8 +4891,8 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_round_even(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_glsl_std_450_op_trunc(
@@ -4843,8 +4901,8 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_trunc(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_glsl_std_450_op_f_abs(
@@ -4853,8 +4911,8 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_f_abs(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_glsl_std_450_op_s_abs(
@@ -4863,8 +4921,8 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_s_abs(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_glsl_std_450_op_f_sign(
@@ -4873,8 +4931,8 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_f_sign(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_glsl_std_450_op_s_sign(
@@ -4883,8 +4941,8 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_s_sign(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_glsl_std_450_op_floor(
@@ -4893,8 +4951,8 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_floor(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_glsl_std_450_op_ceil(spirv::Glsl_std_450_op_ceil instruction,
@@ -4903,8 +4961,8 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_ceil(spirv::Glsl_std_450_
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_glsl_std_450_op_fract(
@@ -4913,8 +4971,8 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_fract(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_glsl_std_450_op_radians(
@@ -4923,8 +4981,8 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_radians(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_glsl_std_450_op_degrees(
@@ -4933,8 +4991,8 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_degrees(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_glsl_std_450_op_sin(spirv::Glsl_std_450_op_sin instruction,
@@ -4943,8 +5001,8 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_sin(spirv::Glsl_std_450_o
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_glsl_std_450_op_cos(spirv::Glsl_std_450_op_cos instruction,
@@ -4953,8 +5011,8 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_cos(spirv::Glsl_std_450_o
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_glsl_std_450_op_tan(spirv::Glsl_std_450_op_tan instruction,
@@ -4963,8 +5021,8 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_tan(spirv::Glsl_std_450_o
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_glsl_std_450_op_asin(spirv::Glsl_std_450_op_asin instruction,
@@ -4973,8 +5031,8 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_asin(spirv::Glsl_std_450_
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_glsl_std_450_op_acos(spirv::Glsl_std_450_op_acos instruction,
@@ -4983,8 +5041,8 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_acos(spirv::Glsl_std_450_
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_glsl_std_450_op_atan(spirv::Glsl_std_450_op_atan instruction,
@@ -4993,8 +5051,8 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_atan(spirv::Glsl_std_450_
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_glsl_std_450_op_sinh(spirv::Glsl_std_450_op_sinh instruction,
@@ -5003,8 +5061,8 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_sinh(spirv::Glsl_std_450_
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_glsl_std_450_op_cosh(spirv::Glsl_std_450_op_cosh instruction,
@@ -5013,8 +5071,8 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_cosh(spirv::Glsl_std_450_
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_glsl_std_450_op_tanh(spirv::Glsl_std_450_op_tanh instruction,
@@ -5023,8 +5081,8 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_tanh(spirv::Glsl_std_450_
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_glsl_std_450_op_asinh(
@@ -5033,8 +5091,8 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_asinh(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_glsl_std_450_op_acosh(
@@ -5043,8 +5101,8 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_acosh(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_glsl_std_450_op_atanh(
@@ -5053,8 +5111,8 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_atanh(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_glsl_std_450_op_atan2(
@@ -5063,8 +5121,8 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_atan2(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_glsl_std_450_op_pow(spirv::Glsl_std_450_op_pow instruction,
@@ -5073,8 +5131,8 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_pow(spirv::Glsl_std_450_o
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_glsl_std_450_op_exp(spirv::Glsl_std_450_op_exp instruction,
@@ -5083,8 +5141,8 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_exp(spirv::Glsl_std_450_o
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_glsl_std_450_op_log(spirv::Glsl_std_450_op_log instruction,
@@ -5093,8 +5151,8 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_log(spirv::Glsl_std_450_o
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_glsl_std_450_op_exp2(spirv::Glsl_std_450_op_exp2 instruction,
@@ -5103,8 +5161,8 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_exp2(spirv::Glsl_std_450_
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_glsl_std_450_op_log2(spirv::Glsl_std_450_op_log2 instruction,
@@ -5113,8 +5171,8 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_log2(spirv::Glsl_std_450_
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_glsl_std_450_op_sqrt(spirv::Glsl_std_450_op_sqrt instruction,
@@ -5123,8 +5181,8 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_sqrt(spirv::Glsl_std_450_
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_glsl_std_450_op_inverse_sqrt(
@@ -5133,8 +5191,8 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_inverse_sqrt(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_glsl_std_450_op_determinant(
@@ -5143,8 +5201,8 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_determinant(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_glsl_std_450_op_matrix_inverse(
@@ -5153,8 +5211,8 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_matrix_inverse(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_glsl_std_450_op_modf(spirv::Glsl_std_450_op_modf instruction,
@@ -5163,8 +5221,8 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_modf(spirv::Glsl_std_450_
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_glsl_std_450_op_modf_struct(
@@ -5173,8 +5231,8 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_modf_struct(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_glsl_std_450_op_f_min(
@@ -5183,8 +5241,8 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_f_min(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_glsl_std_450_op_u_min(
@@ -5193,8 +5251,8 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_u_min(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_glsl_std_450_op_s_min(
@@ -5203,8 +5261,8 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_s_min(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_glsl_std_450_op_f_max(
@@ -5213,8 +5271,8 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_f_max(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_glsl_std_450_op_u_max(
@@ -5223,8 +5281,8 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_u_max(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_glsl_std_450_op_s_max(
@@ -5233,8 +5291,8 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_s_max(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_glsl_std_450_op_f_clamp(
@@ -5243,8 +5301,8 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_f_clamp(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_glsl_std_450_op_u_clamp(
@@ -5253,8 +5311,8 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_u_clamp(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_glsl_std_450_op_s_clamp(
@@ -5263,8 +5321,8 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_s_clamp(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_glsl_std_450_op_f_mix(
@@ -5273,8 +5331,8 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_f_mix(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_glsl_std_450_op_i_mix(
@@ -5283,8 +5341,8 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_i_mix(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_glsl_std_450_op_step(spirv::Glsl_std_450_op_step instruction,
@@ -5293,8 +5351,8 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_step(spirv::Glsl_std_450_
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_glsl_std_450_op_smooth_step(
@@ -5303,8 +5361,8 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_smooth_step(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_glsl_std_450_op_fma(spirv::Glsl_std_450_op_fma instruction,
@@ -5313,8 +5371,8 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_fma(spirv::Glsl_std_450_o
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_glsl_std_450_op_frexp(
@@ -5323,8 +5381,8 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_frexp(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_glsl_std_450_op_frexp_struct(
@@ -5333,8 +5391,8 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_frexp_struct(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_glsl_std_450_op_ldexp(
@@ -5343,8 +5401,8 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_ldexp(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_glsl_std_450_op_pack_snorm4x8(
@@ -5353,8 +5411,8 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_pack_snorm4x8(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_glsl_std_450_op_pack_unorm4x8(
@@ -5363,8 +5421,8 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_pack_unorm4x8(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_glsl_std_450_op_pack_snorm2x16(
@@ -5373,8 +5431,8 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_pack_snorm2x16(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_glsl_std_450_op_pack_unorm2x16(
@@ -5383,8 +5441,8 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_pack_unorm2x16(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_glsl_std_450_op_pack_half2x16(
@@ -5393,8 +5451,8 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_pack_half2x16(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_glsl_std_450_op_pack_double2x32(
@@ -5403,8 +5461,8 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_pack_double2x32(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_glsl_std_450_op_unpack_snorm2x16(
@@ -5413,8 +5471,8 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_unpack_snorm2x16(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_glsl_std_450_op_unpack_unorm2x16(
@@ -5423,8 +5481,8 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_unpack_unorm2x16(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_glsl_std_450_op_unpack_half2x16(
@@ -5433,8 +5491,8 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_unpack_half2x16(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_glsl_std_450_op_unpack_snorm4x8(
@@ -5443,8 +5501,8 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_unpack_snorm4x8(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_glsl_std_450_op_unpack_unorm4x8(
@@ -5453,8 +5511,8 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_unpack_unorm4x8(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_glsl_std_450_op_unpack_double2x32(
@@ -5463,8 +5521,8 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_unpack_double2x32(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_glsl_std_450_op_length(
@@ -5473,8 +5531,8 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_length(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_glsl_std_450_op_distance(
@@ -5483,8 +5541,8 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_distance(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_glsl_std_450_op_cross(
@@ -5493,8 +5551,8 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_cross(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_glsl_std_450_op_normalize(
@@ -5503,8 +5561,8 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_normalize(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_glsl_std_450_op_face_forward(
@@ -5513,8 +5571,8 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_face_forward(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_glsl_std_450_op_reflect(
@@ -5523,8 +5581,8 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_reflect(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_glsl_std_450_op_refract(
@@ -5533,8 +5591,8 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_refract(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_glsl_std_450_op_find_i_lsb(
@@ -5543,8 +5601,8 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_find_i_lsb(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_glsl_std_450_op_find_s_msb(
@@ -5553,8 +5611,8 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_find_s_msb(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_glsl_std_450_op_find_u_msb(
@@ -5563,8 +5621,8 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_find_u_msb(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_glsl_std_450_op_interpolate_at_centroid(
@@ -5573,8 +5631,8 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_interpolate_at_centroid(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_glsl_std_450_op_interpolate_at_sample(
@@ -5583,8 +5641,8 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_interpolate_at_sample(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_glsl_std_450_op_interpolate_at_offset(
@@ -5593,8 +5651,8 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_interpolate_at_offset(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_glsl_std_450_op_n_min(
@@ -5603,8 +5661,8 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_n_min(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_glsl_std_450_op_n_max(
@@ -5613,8 +5671,8 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_n_max(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
 void Spirv_to_llvm::handle_instruction_glsl_std_450_op_n_clamp(
@@ -5623,8 +5681,8 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_n_clamp(
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
-                       std::string(get_enumerant_name(instruction.get_operation()))
-                           + ": instruction not implemented");
+                       "instruction not implemented: "
+                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 }
 }
