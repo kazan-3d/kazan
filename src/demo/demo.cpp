@@ -224,7 +224,7 @@ int test_main(int argc, char **argv)
             spirv::Dump_callbacks dump_callbacks;
             try
             {
-                spirv::Parser::parse(dump_callbacks, file->data(), file->size());
+                spirv::parse(dump_callbacks, file->data(), file->size());
             }
             catch(spirv::Parser_error &e)
             {
@@ -240,7 +240,7 @@ int test_main(int argc, char **argv)
             spirv_to_llvm::Spirv_to_llvm callbacks(llvm_context);
             try
             {
-                spirv::Parser::parse(callbacks, file->data(), file->size());
+                spirv::parse(callbacks, file->data(), file->size());
                 module = callbacks.finish();
             }
             catch(spirv::Parser_error &e)

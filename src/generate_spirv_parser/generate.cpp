@@ -1216,6 +1216,112 @@ constexpr util::Enum_set<)" << state.extension_enumeration.value()->cpp_name
                                  &Parser_h::dump_callbacks_class);
             register_output_part(Output_part::parser_class, &Parser_h::parser_class);
         }
+        virtual void fill_output(State &state) override
+        {
+            Header_file_base::fill_output(state);
+            write_local_include_path(state.spirv_h.file_path);
+            write_local_include_string("util/string_view.h"_sv);
+            write_system_include("sstream"_sv);
+            write_system_include("stdexcept"_sv);
+            parse_error_class << R"a(struct Parser_error : public std::runtime_error
+{
+    std::size_t error_index;
+    std::size_t instruction_start_index;
+    static std::string make_error_message(std::size_t error_index,
+    ``````````````````````````````````````std::size_t instruction_start_index,
+    ``````````````````````````````````````util::string_view message)
+    {
+        std::ostringstream ss;
+        ss << "parse error at 0x" << std::hex << std::uppercase << error_index;
+        if(instruction_start_index != 0)
+            ss << " (instruction starts at 0x" << instruction_start_index << ")";
+        ss << ": " << message;
+        return ss.str();
+    }
+    Parser_error(std::size_t error_index, std::size_t instruction_start_index, util::string_view message)
+        : runtime_error(make_error_message(error_index, instruction_start_index, message)),
+        ``error_index(error_index),
+        ``instruction_start_index(instruction_start_index)
+    {
+    }
+};
+)a";
+            parser_callbacks_class << R"(
+struct Parser_callbacks
+{
+    virtual ~Parser_callbacks() = default;
+    virtual void handle_header(unsigned version_number_major,
+    ```````````````````````````unsigned version_number_minor,
+    ```````````````````````````Word generator_magic_number,
+    ```````````````````````````Word id_bound,
+    ```````````````````````````Word instruction_schema) = 0;
+@+)";
+            dump_callbacks_class << R"(
+struct Dump_callbacks final : public Parser_callbacks
+{
+    std::ostringstream ss;
+    Dump_callbacks() : ss()
+    {
+        ss << std::uppercase;
+        ss.fill('0');
+    }
+    void write_indent(std::size_t indent_count)
+    {
+        ss << "            ";
+        for(std::size_t i = 0; i < indent_count; i++)
+            ss << "    ";
+    }
+    virtual void handle_header(unsigned version_number_major,
+    ```````````````````````````unsigned version_number_minor,
+    ```````````````````````````Word generator_magic_number,
+    ```````````````````````````Word id_bound,
+    ```````````````````````````Word instruction_schema) override;
+@+)";
+            for(auto &operand_kind : state.operand_kind_list)
+            {
+                dump_callbacks_class << "void " << operand_kind.cpp_dump_function_name << "(const "
+                                     << operand_kind.cpp_name_with_parameters
+                                     << R"( &operand, std::size_t indent_depth);
+)";
+            }
+            for(auto &instruction : state.instruction_descriptor_list)
+            {
+                parser_callbacks_class
+                    << "virtual void " << instruction.cpp_parse_callback_name << "("
+                    << instruction.cpp_struct_name
+                    << " instruction, std::size_t instruction_start_index) = 0;\n";
+                dump_callbacks_class
+                    << "virtual void " << instruction.cpp_parse_callback_name << "("
+                    << instruction.cpp_struct_name
+                    << R"( instruction, std::size_t instruction_start_index) override;
+)";
+            }
+            dump_callbacks_class << R"(@-};
+)";
+            parser_callbacks_class << R"(@-};
+)";
+            parser_class << R"(
+class Parser;
+
+void parse(Parser_callbacks &parser_callbacks,
+```````````const Word *shader_words,
+```````````std::size_t shader_size);
+)";
+        }
+    };
+    struct Parser_cpp : public Source_file_base
+    {
+        detail::Generated_output_stream dump_callbacks_class;
+        detail::Generated_output_stream parser_class;
+        explicit Parser_cpp(const util::filesystem::path &file_path, const Parser_h *header)
+            : Source_file_base(file_path, header),
+              dump_callbacks_class(file_path),
+              parser_class(file_path)
+        {
+            register_output_part(Output_part::dump_callbacks_class,
+                                 &Parser_cpp::dump_callbacks_class);
+            register_output_part(Output_part::parser_class, &Parser_cpp::parser_class);
+        }
         void write_instruction_operand_dump_code(State &state, Operand_descriptor &operand)
         {
             typedef Operand_descriptor::Quantifier Quantifier;
@@ -1313,80 +1419,33 @@ constexpr util::Enum_set<)" << state.extension_enumeration.value()->cpp_name
         }
         virtual void fill_output(State &state) override
         {
-            Header_file_base::fill_output(state);
-            write_local_include_path(state.spirv_h.file_path);
+            Source_file_base::fill_output(state);
             write_local_include_string("util/optional.h"_sv);
-            write_local_include_string("util/string_view.h"_sv);
             write_local_include_string("json/json.h"_sv);
-            write_system_include("sstream"_sv);
             write_system_include("vector"_sv);
             write_system_include("cassert"_sv);
             write_system_include("type_traits"_sv);
-            parse_error_class << R"a(struct Parser_error : public std::runtime_error
+            dump_callbacks_class
+                << R"(void Dump_callbacks::handle_header(unsigned version_number_major,
+```````````````````````````````````unsigned version_number_minor,
+```````````````````````````````````Word generator_magic_number,
+```````````````````````````````````Word id_bound,
+```````````````````````````````````Word instruction_schema)
 {
-    std::size_t error_index;
-    std::size_t instruction_start_index;
-    static std::string make_error_message(std::size_t error_index,
-    ``````````````````````````````````````std::size_t instruction_start_index,
-    ``````````````````````````````````````util::string_view message)
-    {
-        std::ostringstream ss;
-        ss << "parse error at 0x" << std::hex << std::uppercase << error_index;
-        if(instruction_start_index != 0)
-            ss << " (instruction starts at 0x" << instruction_start_index << ")";
-        ss << ": " << message;
-        return ss.str();
-    }
-    Parser_error(std::size_t error_index, std::size_t instruction_start_index, util::string_view message)
-        : runtime_error(make_error_message(error_index, instruction_start_index, message)),
-        ``error_index(error_index),
-        ``instruction_start_index(instruction_start_index)
-    {
-    }
-};
-)a";
-            parser_callbacks_class << R"(
-struct Parser_callbacks
-{
-    virtual ~Parser_callbacks() = default;
-    virtual void handle_header(unsigned version_number_major,
-    ```````````````````````````unsigned version_number_minor,
-    ```````````````````````````Word generator_magic_number,
-    ```````````````````````````Word id_bound,
-    ```````````````````````````Word instruction_schema) = 0;
-@+)";
-            dump_callbacks_class << R"(
-struct Dump_callbacks final : public Parser_callbacks
-{
-    std::ostringstream ss;
-    Dump_callbacks() : ss()
-    {
-        ss << std::uppercase;
-    }
-    void write_indent(std::size_t indent_count)
-    {
-        for(std::size_t i = 0; i < indent_count; i++)
-            ss << "    ";
-    }
-    virtual void handle_header(unsigned version_number_major,
-    ```````````````````````````unsigned version_number_minor,
-    ```````````````````````````Word generator_magic_number,
-    ```````````````````````````Word id_bound,
-    ```````````````````````````Word instruction_schema) override
-    {
-        ss << "SPIR-V Version: " << std::dec << version_number_major << '.' << version_number_minor << '\n';
-        ss << "Generator Magic Number: 0x" << std::hex << generator_magic_number << '\n';
-        ss << "Id Bound: " << std::dec << id_bound << '\n';
-        ss << "Instruction Schema (reserved): " << std::dec << instruction_schema << '\n';
-    }
-@+)";
+    ss << "SPIR-V Version: " << std::dec << version_number_major << '.' << version_number_minor << '\n';
+    ss << "Generator Magic Number: 0x" << std::hex << generator_magic_number << '\n';
+    ss << "Id Bound: " << std::dec << id_bound << '\n';
+    ss << "Instruction Schema (reserved): " << std::dec << instruction_schema << '\n';
+}
+)";
             typedef ast::Operand_kinds::Operand_kind::Category Category;
             typedef ast::Operand_kinds::Operand_kind::Literal_kind Literal_kind;
             for(auto &operand_kind : state.operand_kind_list)
             {
-                dump_callbacks_class << "void " << operand_kind.cpp_dump_function_name << "(const "
-                                     << operand_kind.cpp_name_with_parameters
-                                     << R"( &operand, std::size_t indent_depth)
+                dump_callbacks_class
+                    << "\nvoid Dump_callbacks::" << operand_kind.cpp_dump_function_name << "(const "
+                    << operand_kind.cpp_name_with_parameters
+                    << R"( &operand, std::size_t indent_depth)
 {
 @+)";
                 switch(operand_kind.operand_kind->category)
@@ -1598,14 +1657,14 @@ ss << ")" << operand_kind.operand_kind->kind
             }
             for(auto &instruction : state.instruction_descriptor_list)
             {
-                parser_callbacks_class << "virtual void " << instruction.cpp_parse_callback_name
-                                       << "(" << instruction.cpp_struct_name
-                                       << " instruction, std::size_t instruction_start_index) = 0;\n";
-                dump_callbacks_class << "virtual void " << instruction.cpp_parse_callback_name
-                                     << "(" << instruction.cpp_struct_name
-                                     << R"( instruction, std::size_t instruction_start_index) override
+                dump_callbacks_class
+                    << "\nvoid Dump_callbacks::" << instruction.cpp_parse_callback_name << "("
+                    << instruction.cpp_struct_name
+                    << R"( instruction, std::size_t instruction_start_index)
 {
-    ss << ")";
+    ss << "0x" << std::hex;
+    ss.width(8);
+    ss << instruction_start_index << ": )";
                 if(instruction.extension_instruction_set)
                     dump_callbacks_class << op_ext_inst_json_name;
                 else
@@ -1629,10 +1688,6 @@ ss << ")" << instruction.json_name << R"(\n";
                     write_instruction_operand_dump_code(state, operand);
                 dump_callbacks_class << "@-}\n";
             }
-            dump_callbacks_class << R"(@-};
-)";
-            parser_callbacks_class << R"(@-};
-)";
             parser_class << R"(
 class Parser final
 {
@@ -2300,14 +2355,14 @@ public:
         Parser(parser_callbacks, shader_words, shader_size).parse();
     }
 };
+
+void parse(Parser_callbacks &parser_callbacks,
+```````````const Word *shader_words,
+```````````std::size_t shader_size)
+{
+    Parser::parse(parser_callbacks, shader_words, shader_size);
+}
 )";
-        }
-    };
-    struct Parser_cpp : public Source_file_base
-    {
-        explicit Parser_cpp(const util::filesystem::path &file_path, const Parser_h *header)
-            : Source_file_base(file_path, header)
-        {
         }
     };
 
