@@ -70,6 +70,10 @@ public:
     {
         return value;
     }
+    operator T() const noexcept
+    {
+        return value;
+    }
     T release() noexcept
     {
         auto retval = value;
@@ -107,9 +111,9 @@ struct Module_deleter
 struct Module : public Wrapper<::LLVMModuleRef, Module_deleter>
 {
     using Wrapper::Wrapper;
-    static Module create(const char *id, const Context &context)
+    static Module create(const char *id, ::LLVMContextRef context)
     {
-        return Module(::LLVMModuleCreateWithNameInContext(id, context.get()));
+        return Module(::LLVMModuleCreateWithNameInContext(id, context));
     }
 };
 }

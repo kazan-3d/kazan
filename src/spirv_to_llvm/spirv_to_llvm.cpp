@@ -21,7 +21,8 @@
  *
  */
 #include "spirv_to_llvm.h"
-#include "util/variant.h"
+#include "util/optional.h"
+#include "util/enum.h"
 
 namespace vulkan_cpu
 {
@@ -29,8 +30,32 @@ namespace spirv_to_llvm
 {
 using namespace spirv;
 
-struct Spirv_to_llvm::Implementation
+void Struct_type_descriptor::complete_type(bool need_complete_structs)
 {
+#warning finish Struct_type_descriptor::complete_type
+    static_cast<void>(need_complete_structs);
+    throw Parser_error(0, 0, "not implemented: Struct_descriptor::complete_type");
+}
+
+namespace
+{
+enum class Stage
+{
+    calculate_types,
+    generate_code,
+};
+
+vulkan_cpu_util_generate_enum_traits(Stage, Stage::calculate_types, Stage::generate_code);
+
+static_assert(util::Enum_traits<Stage>::is_compact, "");
+}
+
+class Spirv_to_llvm : public Parser_callbacks
+{
+    Spirv_to_llvm(const Spirv_to_llvm &) = delete;
+    Spirv_to_llvm &operator=(const Spirv_to_llvm &) = delete;
+
+private:
     struct Op_string_state
     {
         Literal_string value;
@@ -42,43 +67,1248 @@ struct Spirv_to_llvm::Implementation
     {
         Op_entry_point entry_point;
         std::size_t instruction_start_index;
+        util::optional<Execution_mode_with_parameters> execution_mode;
+    };
+    struct Name
+    {
+        std::string name;
+    };
+    struct Id_state
+    {
+        util::optional<Op_string_state> op_string;
+        util::optional<Op_ext_inst_import_state> op_ext_inst_import;
+        util::optional<Name> name;
+        std::shared_ptr<Type_descriptor> type;
+        std::vector<Op_entry_point_state> op_entry_points;
+        std::vector<Decoration_with_parameters> decorations;
+        std::vector<Op_member_decorate> member_decorations;
+        std::vector<Op_member_name> member_names;
+        template <typename Fn>
+        void visit(Fn fn)
+        {
+            if(op_string)
+                fn(*op_string);
+            if(op_ext_inst_import)
+                fn(*op_ext_inst_import);
+            if(name)
+                fn(*name);
+            if(type)
+                fn(*type);
+            for(auto &i : op_entry_points)
+                fn(i);
+            for(auto &i : decorations)
+                fn(i);
+            for(auto &i : member_decorations)
+                fn(i);
+            for(auto &i : member_names)
+                fn(i);
+        }
+        Id_state() noexcept
+        {
+        }
     };
 
-public:
-    typedef util::variant<util::monostate, Op_string_state, Op_ext_inst_import_state> Id_state;
-
-public:
+private:
     std::vector<Id_state> id_states;
-    unsigned version_number_major = 0;
-    unsigned version_number_minor = 0;
-    Word generator_magic_number = 0;
+    unsigned input_version_number_major = 0;
+    unsigned input_version_number_minor = 0;
+    Word input_generator_magic_number = 0;
     util::Enum_set<Capability> enabled_capabilities;
     ::LLVMContextRef context;
     llvm_wrapper::Module module;
-    util::optional<Op_entry_point_state> entry_point_state;
+    std::shared_ptr<Struct_type_descriptor> io_struct;
+    std::array<std::shared_ptr<Type_descriptor>, 1> implicit_function_arguments;
+    Stage stage;
 
-public:
+private:
     Id_state &get_id_state(Id id)
     {
         assert(id != 0 && id <= id_states.size());
         return id_states[id - 1];
     }
-    explicit Implementation(const llvm_wrapper::Context &context) : context(context.get())
+    const std::shared_ptr<Type_descriptor> &get_type(Id id, std::size_t instruction_start_index)
     {
+        auto &state = get_id_state(id);
+        if(!state.type)
+            throw Parser_error(
+                instruction_start_index, instruction_start_index, "id is not a type");
+        return state.type;
     }
+
+public:
+    explicit Spirv_to_llvm(::LLVMContextRef context) : context(context), stage()
+    {
+        module = llvm_wrapper::Module::create("", context);
+        constexpr std::size_t no_instruction_index = 0;
+        io_struct =
+            std::make_shared<Struct_type_descriptor>(context, "Io_struct", no_instruction_index);
+        assert(implicit_function_arguments.size() == 1);
+        implicit_function_arguments[0] = io_struct;
+    }
+    Converted_module run(const Word *shader_words, std::size_t shader_size)
+    {
+        stage = Stage::calculate_types;
+        spirv::parse(*this, shader_words, shader_size);
+        for(auto &id_state : id_states)
+            if(id_state.type)
+                id_state.type->get_or_make_type(true);
+        for(auto &arg : implicit_function_arguments)
+            arg->get_or_make_type(true);
+#warning finish Spirv_to_llvm::run
+        stage = Stage::generate_code;
+        spirv::parse(*this, shader_words, shader_size);
+        std::vector<Converted_module::Entry_point> entry_points;
+        for(auto &id_state : id_states)
+        {
+            for(auto &entry_point : id_state.op_entry_points)
+            {
+                entry_points.push_back(
+                    Converted_module::Entry_point(std::string(entry_point.entry_point.name)));
+            }
+        }
+        Converted_module retval(std::move(module), std::move(entry_points), std::move(io_struct));
+        return retval;
+    }
+    virtual void handle_header(unsigned version_number_major,
+                               unsigned version_number_minor,
+                               Word generator_magic_number,
+                               Word id_bound,
+                               Word instruction_schema) override;
+    virtual void handle_instruction_op_nop(Op_nop instruction,
+                                           std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_undef(Op_undef instruction,
+                                             std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_source_continued(
+        Op_source_continued instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_source(Op_source instruction,
+                                              std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_source_extension(
+        Op_source_extension instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_name(Op_name instruction,
+                                            std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_member_name(Op_member_name instruction,
+                                                   std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_string(Op_string instruction,
+                                              std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_line(Op_line instruction,
+                                            std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_extension(Op_extension instruction,
+                                                 std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_ext_inst_import(
+        Op_ext_inst_import instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_ext_inst(Op_ext_inst instruction,
+                                                std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_memory_model(Op_memory_model instruction,
+                                                    std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_entry_point(Op_entry_point instruction,
+                                                   std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_execution_mode(Op_execution_mode instruction,
+                                                      std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_capability(Op_capability instruction,
+                                                  std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_type_void(Op_type_void instruction,
+                                                 std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_type_bool(Op_type_bool instruction,
+                                                 std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_type_int(Op_type_int instruction,
+                                                std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_type_float(Op_type_float instruction,
+                                                  std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_type_vector(Op_type_vector instruction,
+                                                   std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_type_matrix(Op_type_matrix instruction,
+                                                   std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_type_image(Op_type_image instruction,
+                                                  std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_type_sampler(Op_type_sampler instruction,
+                                                    std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_type_sampled_image(
+        Op_type_sampled_image instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_type_array(Op_type_array instruction,
+                                                  std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_type_runtime_array(
+        Op_type_runtime_array instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_type_struct(Op_type_struct instruction,
+                                                   std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_type_opaque(Op_type_opaque instruction,
+                                                   std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_type_pointer(Op_type_pointer instruction,
+                                                    std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_type_function(Op_type_function instruction,
+                                                     std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_type_event(Op_type_event instruction,
+                                                  std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_type_device_event(
+        Op_type_device_event instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_type_reserve_id(
+        Op_type_reserve_id instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_type_queue(Op_type_queue instruction,
+                                                  std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_type_pipe(Op_type_pipe instruction,
+                                                 std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_type_forward_pointer(
+        Op_type_forward_pointer instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_constant_true(Op_constant_true instruction,
+                                                     std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_constant_false(Op_constant_false instruction,
+                                                      std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_constant(Op_constant instruction,
+                                                std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_constant_composite(
+        Op_constant_composite instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_constant_sampler(
+        Op_constant_sampler instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_constant_null(Op_constant_null instruction,
+                                                     std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_spec_constant_true(
+        Op_spec_constant_true instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_spec_constant_false(
+        Op_spec_constant_false instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_spec_constant(Op_spec_constant instruction,
+                                                     std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_spec_constant_composite(
+        Op_spec_constant_composite instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_spec_constant_op(
+        Op_spec_constant_op instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_function(Op_function instruction,
+                                                std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_function_parameter(
+        Op_function_parameter instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_function_end(Op_function_end instruction,
+                                                    std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_function_call(Op_function_call instruction,
+                                                     std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_variable(Op_variable instruction,
+                                                std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_image_texel_pointer(
+        Op_image_texel_pointer instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_load(Op_load instruction,
+                                            std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_store(Op_store instruction,
+                                             std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_copy_memory(Op_copy_memory instruction,
+                                                   std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_copy_memory_sized(
+        Op_copy_memory_sized instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_access_chain(Op_access_chain instruction,
+                                                    std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_in_bounds_access_chain(
+        Op_in_bounds_access_chain instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_ptr_access_chain(
+        Op_ptr_access_chain instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_array_length(Op_array_length instruction,
+                                                    std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_generic_ptr_mem_semantics(
+        Op_generic_ptr_mem_semantics instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_in_bounds_ptr_access_chain(
+        Op_in_bounds_ptr_access_chain instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_decorate(Op_decorate instruction,
+                                                std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_member_decorate(
+        Op_member_decorate instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_decoration_group(
+        Op_decoration_group instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_group_decorate(Op_group_decorate instruction,
+                                                      std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_group_member_decorate(
+        Op_group_member_decorate instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_vector_extract_dynamic(
+        Op_vector_extract_dynamic instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_vector_insert_dynamic(
+        Op_vector_insert_dynamic instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_vector_shuffle(Op_vector_shuffle instruction,
+                                                      std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_composite_construct(
+        Op_composite_construct instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_composite_extract(
+        Op_composite_extract instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_composite_insert(
+        Op_composite_insert instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_copy_object(Op_copy_object instruction,
+                                                   std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_transpose(Op_transpose instruction,
+                                                 std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_sampled_image(Op_sampled_image instruction,
+                                                     std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_image_sample_implicit_lod(
+        Op_image_sample_implicit_lod instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_image_sample_explicit_lod(
+        Op_image_sample_explicit_lod instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_image_sample_dref_implicit_lod(
+        Op_image_sample_dref_implicit_lod instruction,
+        std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_image_sample_dref_explicit_lod(
+        Op_image_sample_dref_explicit_lod instruction,
+        std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_image_sample_proj_implicit_lod(
+        Op_image_sample_proj_implicit_lod instruction,
+        std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_image_sample_proj_explicit_lod(
+        Op_image_sample_proj_explicit_lod instruction,
+        std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_image_sample_proj_dref_implicit_lod(
+        Op_image_sample_proj_dref_implicit_lod instruction,
+        std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_image_sample_proj_dref_explicit_lod(
+        Op_image_sample_proj_dref_explicit_lod instruction,
+        std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_image_fetch(Op_image_fetch instruction,
+                                                   std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_image_gather(Op_image_gather instruction,
+                                                    std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_image_dref_gather(
+        Op_image_dref_gather instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_image_read(Op_image_read instruction,
+                                                  std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_image_write(Op_image_write instruction,
+                                                   std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_image(Op_image instruction,
+                                             std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_image_query_format(
+        Op_image_query_format instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_image_query_order(
+        Op_image_query_order instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_image_query_size_lod(
+        Op_image_query_size_lod instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_image_query_size(
+        Op_image_query_size instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_image_query_lod(
+        Op_image_query_lod instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_image_query_levels(
+        Op_image_query_levels instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_image_query_samples(
+        Op_image_query_samples instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_convert_f_to_u(Op_convert_f_to_u instruction,
+                                                      std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_convert_f_to_s(Op_convert_f_to_s instruction,
+                                                      std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_convert_s_to_f(Op_convert_s_to_f instruction,
+                                                      std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_convert_u_to_f(Op_convert_u_to_f instruction,
+                                                      std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_u_convert(Op_u_convert instruction,
+                                                 std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_s_convert(Op_s_convert instruction,
+                                                 std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_f_convert(Op_f_convert instruction,
+                                                 std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_quantize_to_f16(
+        Op_quantize_to_f16 instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_convert_ptr_to_u(
+        Op_convert_ptr_to_u instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_sat_convert_s_to_u(
+        Op_sat_convert_s_to_u instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_sat_convert_u_to_s(
+        Op_sat_convert_u_to_s instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_convert_u_to_ptr(
+        Op_convert_u_to_ptr instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_ptr_cast_to_generic(
+        Op_ptr_cast_to_generic instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_generic_cast_to_ptr(
+        Op_generic_cast_to_ptr instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_generic_cast_to_ptr_explicit(
+        Op_generic_cast_to_ptr_explicit instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_bitcast(Op_bitcast instruction,
+                                               std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_s_negate(Op_s_negate instruction,
+                                                std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_f_negate(Op_f_negate instruction,
+                                                std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_i_add(Op_i_add instruction,
+                                             std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_f_add(Op_f_add instruction,
+                                             std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_i_sub(Op_i_sub instruction,
+                                             std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_f_sub(Op_f_sub instruction,
+                                             std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_i_mul(Op_i_mul instruction,
+                                             std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_f_mul(Op_f_mul instruction,
+                                             std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_u_div(Op_u_div instruction,
+                                             std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_s_div(Op_s_div instruction,
+                                             std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_f_div(Op_f_div instruction,
+                                             std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_u_mod(Op_u_mod instruction,
+                                             std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_s_rem(Op_s_rem instruction,
+                                             std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_s_mod(Op_s_mod instruction,
+                                             std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_f_rem(Op_f_rem instruction,
+                                             std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_f_mod(Op_f_mod instruction,
+                                             std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_vector_times_scalar(
+        Op_vector_times_scalar instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_matrix_times_scalar(
+        Op_matrix_times_scalar instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_vector_times_matrix(
+        Op_vector_times_matrix instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_matrix_times_vector(
+        Op_matrix_times_vector instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_matrix_times_matrix(
+        Op_matrix_times_matrix instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_outer_product(Op_outer_product instruction,
+                                                     std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_dot(Op_dot instruction,
+                                           std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_i_add_carry(Op_i_add_carry instruction,
+                                                   std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_i_sub_borrow(Op_i_sub_borrow instruction,
+                                                    std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_u_mul_extended(Op_u_mul_extended instruction,
+                                                      std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_s_mul_extended(Op_s_mul_extended instruction,
+                                                      std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_any(Op_any instruction,
+                                           std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_all(Op_all instruction,
+                                           std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_is_nan(Op_is_nan instruction,
+                                              std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_is_inf(Op_is_inf instruction,
+                                              std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_is_finite(Op_is_finite instruction,
+                                                 std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_is_normal(Op_is_normal instruction,
+                                                 std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_sign_bit_set(Op_sign_bit_set instruction,
+                                                    std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_less_or_greater(
+        Op_less_or_greater instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_ordered(Op_ordered instruction,
+                                               std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_unordered(Op_unordered instruction,
+                                                 std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_logical_equal(Op_logical_equal instruction,
+                                                     std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_logical_not_equal(
+        Op_logical_not_equal instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_logical_or(Op_logical_or instruction,
+                                                  std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_logical_and(Op_logical_and instruction,
+                                                   std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_logical_not(Op_logical_not instruction,
+                                                   std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_select(Op_select instruction,
+                                              std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_i_equal(Op_i_equal instruction,
+                                               std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_i_not_equal(Op_i_not_equal instruction,
+                                                   std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_u_greater_than(Op_u_greater_than instruction,
+                                                      std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_s_greater_than(Op_s_greater_than instruction,
+                                                      std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_u_greater_than_equal(
+        Op_u_greater_than_equal instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_s_greater_than_equal(
+        Op_s_greater_than_equal instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_u_less_than(Op_u_less_than instruction,
+                                                   std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_s_less_than(Op_s_less_than instruction,
+                                                   std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_u_less_than_equal(
+        Op_u_less_than_equal instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_s_less_than_equal(
+        Op_s_less_than_equal instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_f_ord_equal(Op_f_ord_equal instruction,
+                                                   std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_f_unord_equal(Op_f_unord_equal instruction,
+                                                     std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_f_ord_not_equal(
+        Op_f_ord_not_equal instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_f_unord_not_equal(
+        Op_f_unord_not_equal instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_f_ord_less_than(
+        Op_f_ord_less_than instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_f_unord_less_than(
+        Op_f_unord_less_than instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_f_ord_greater_than(
+        Op_f_ord_greater_than instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_f_unord_greater_than(
+        Op_f_unord_greater_than instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_f_ord_less_than_equal(
+        Op_f_ord_less_than_equal instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_f_unord_less_than_equal(
+        Op_f_unord_less_than_equal instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_f_ord_greater_than_equal(
+        Op_f_ord_greater_than_equal instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_f_unord_greater_than_equal(
+        Op_f_unord_greater_than_equal instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_shift_right_logical(
+        Op_shift_right_logical instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_shift_right_arithmetic(
+        Op_shift_right_arithmetic instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_shift_left_logical(
+        Op_shift_left_logical instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_bitwise_or(Op_bitwise_or instruction,
+                                                  std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_bitwise_xor(Op_bitwise_xor instruction,
+                                                   std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_bitwise_and(Op_bitwise_and instruction,
+                                                   std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_not(Op_not instruction,
+                                           std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_bit_field_insert(
+        Op_bit_field_insert instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_bit_field_s_extract(
+        Op_bit_field_s_extract instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_bit_field_u_extract(
+        Op_bit_field_u_extract instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_bit_reverse(Op_bit_reverse instruction,
+                                                   std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_bit_count(Op_bit_count instruction,
+                                                 std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_d_pdx(Op_d_pdx instruction,
+                                             std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_d_pdy(Op_d_pdy instruction,
+                                             std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_fwidth(Op_fwidth instruction,
+                                              std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_d_pdx_fine(Op_d_pdx_fine instruction,
+                                                  std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_d_pdy_fine(Op_d_pdy_fine instruction,
+                                                  std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_fwidth_fine(Op_fwidth_fine instruction,
+                                                   std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_d_pdx_coarse(Op_d_pdx_coarse instruction,
+                                                    std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_d_pdy_coarse(Op_d_pdy_coarse instruction,
+                                                    std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_fwidth_coarse(Op_fwidth_coarse instruction,
+                                                     std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_emit_vertex(Op_emit_vertex instruction,
+                                                   std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_end_primitive(Op_end_primitive instruction,
+                                                     std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_emit_stream_vertex(
+        Op_emit_stream_vertex instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_end_stream_primitive(
+        Op_end_stream_primitive instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_control_barrier(
+        Op_control_barrier instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_memory_barrier(Op_memory_barrier instruction,
+                                                      std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_atomic_load(Op_atomic_load instruction,
+                                                   std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_atomic_store(Op_atomic_store instruction,
+                                                    std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_atomic_exchange(
+        Op_atomic_exchange instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_atomic_compare_exchange(
+        Op_atomic_compare_exchange instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_atomic_compare_exchange_weak(
+        Op_atomic_compare_exchange_weak instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_atomic_i_increment(
+        Op_atomic_i_increment instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_atomic_i_decrement(
+        Op_atomic_i_decrement instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_atomic_i_add(Op_atomic_i_add instruction,
+                                                    std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_atomic_i_sub(Op_atomic_i_sub instruction,
+                                                    std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_atomic_s_min(Op_atomic_s_min instruction,
+                                                    std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_atomic_u_min(Op_atomic_u_min instruction,
+                                                    std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_atomic_s_max(Op_atomic_s_max instruction,
+                                                    std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_atomic_u_max(Op_atomic_u_max instruction,
+                                                    std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_atomic_and(Op_atomic_and instruction,
+                                                  std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_atomic_or(Op_atomic_or instruction,
+                                                 std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_atomic_xor(Op_atomic_xor instruction,
+                                                  std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_phi(Op_phi instruction,
+                                           std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_loop_merge(Op_loop_merge instruction,
+                                                  std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_selection_merge(
+        Op_selection_merge instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_label(Op_label instruction,
+                                             std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_branch(Op_branch instruction,
+                                              std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_branch_conditional(
+        Op_branch_conditional instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_switch(Op_switch instruction,
+                                              std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_kill(Op_kill instruction,
+                                            std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_return(Op_return instruction,
+                                              std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_return_value(Op_return_value instruction,
+                                                    std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_unreachable(Op_unreachable instruction,
+                                                   std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_lifetime_start(Op_lifetime_start instruction,
+                                                      std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_lifetime_stop(Op_lifetime_stop instruction,
+                                                     std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_group_async_copy(
+        Op_group_async_copy instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_group_wait_events(
+        Op_group_wait_events instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_group_all(Op_group_all instruction,
+                                                 std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_group_any(Op_group_any instruction,
+                                                 std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_group_broadcast(
+        Op_group_broadcast instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_group_i_add(Op_group_i_add instruction,
+                                                   std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_group_f_add(Op_group_f_add instruction,
+                                                   std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_group_f_min(Op_group_f_min instruction,
+                                                   std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_group_u_min(Op_group_u_min instruction,
+                                                   std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_group_s_min(Op_group_s_min instruction,
+                                                   std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_group_f_max(Op_group_f_max instruction,
+                                                   std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_group_u_max(Op_group_u_max instruction,
+                                                   std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_group_s_max(Op_group_s_max instruction,
+                                                   std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_read_pipe(Op_read_pipe instruction,
+                                                 std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_write_pipe(Op_write_pipe instruction,
+                                                  std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_reserved_read_pipe(
+        Op_reserved_read_pipe instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_reserved_write_pipe(
+        Op_reserved_write_pipe instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_reserve_read_pipe_packets(
+        Op_reserve_read_pipe_packets instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_reserve_write_pipe_packets(
+        Op_reserve_write_pipe_packets instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_commit_read_pipe(
+        Op_commit_read_pipe instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_commit_write_pipe(
+        Op_commit_write_pipe instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_is_valid_reserve_id(
+        Op_is_valid_reserve_id instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_get_num_pipe_packets(
+        Op_get_num_pipe_packets instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_get_max_pipe_packets(
+        Op_get_max_pipe_packets instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_group_reserve_read_pipe_packets(
+        Op_group_reserve_read_pipe_packets instruction,
+        std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_group_reserve_write_pipe_packets(
+        Op_group_reserve_write_pipe_packets instruction,
+        std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_group_commit_read_pipe(
+        Op_group_commit_read_pipe instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_group_commit_write_pipe(
+        Op_group_commit_write_pipe instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_enqueue_marker(Op_enqueue_marker instruction,
+                                                      std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_enqueue_kernel(Op_enqueue_kernel instruction,
+                                                      std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_get_kernel_n_drange_sub_group_count(
+        Op_get_kernel_n_drange_sub_group_count instruction,
+        std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_get_kernel_n_drange_max_sub_group_size(
+        Op_get_kernel_n_drange_max_sub_group_size instruction,
+        std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_get_kernel_work_group_size(
+        Op_get_kernel_work_group_size instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_get_kernel_preferred_work_group_size_multiple(
+        Op_get_kernel_preferred_work_group_size_multiple instruction,
+        std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_retain_event(Op_retain_event instruction,
+                                                    std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_release_event(Op_release_event instruction,
+                                                     std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_create_user_event(
+        Op_create_user_event instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_is_valid_event(Op_is_valid_event instruction,
+                                                      std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_set_user_event_status(
+        Op_set_user_event_status instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_capture_event_profiling_info(
+        Op_capture_event_profiling_info instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_get_default_queue(
+        Op_get_default_queue instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_build_nd_range(Op_build_nd_range instruction,
+                                                      std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_image_sparse_sample_implicit_lod(
+        Op_image_sparse_sample_implicit_lod instruction,
+        std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_image_sparse_sample_explicit_lod(
+        Op_image_sparse_sample_explicit_lod instruction,
+        std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_image_sparse_sample_dref_implicit_lod(
+        Op_image_sparse_sample_dref_implicit_lod instruction,
+        std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_image_sparse_sample_dref_explicit_lod(
+        Op_image_sparse_sample_dref_explicit_lod instruction,
+        std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_image_sparse_sample_proj_implicit_lod(
+        Op_image_sparse_sample_proj_implicit_lod instruction,
+        std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_image_sparse_sample_proj_explicit_lod(
+        Op_image_sparse_sample_proj_explicit_lod instruction,
+        std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_image_sparse_sample_proj_dref_implicit_lod(
+        Op_image_sparse_sample_proj_dref_implicit_lod instruction,
+        std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_image_sparse_sample_proj_dref_explicit_lod(
+        Op_image_sparse_sample_proj_dref_explicit_lod instruction,
+        std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_image_sparse_fetch(
+        Op_image_sparse_fetch instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_image_sparse_gather(
+        Op_image_sparse_gather instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_image_sparse_dref_gather(
+        Op_image_sparse_dref_gather instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_image_sparse_texels_resident(
+        Op_image_sparse_texels_resident instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_no_line(Op_no_line instruction,
+                                               std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_atomic_flag_test_and_set(
+        Op_atomic_flag_test_and_set instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_atomic_flag_clear(
+        Op_atomic_flag_clear instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_image_sparse_read(
+        Op_image_sparse_read instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_size_of(Op_size_of instruction,
+                                               std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_type_pipe_storage(
+        Op_type_pipe_storage instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_constant_pipe_storage(
+        Op_constant_pipe_storage instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_create_pipe_from_pipe_storage(
+        Op_create_pipe_from_pipe_storage instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_get_kernel_local_size_for_subgroup_count(
+        Op_get_kernel_local_size_for_subgroup_count instruction,
+        std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_get_kernel_max_num_subgroups(
+        Op_get_kernel_max_num_subgroups instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_type_named_barrier(
+        Op_type_named_barrier instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_named_barrier_initialize(
+        Op_named_barrier_initialize instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_memory_named_barrier(
+        Op_memory_named_barrier instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_module_processed(
+        Op_module_processed instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_execution_mode_id(
+        Op_execution_mode_id instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_decorate_id(Op_decorate_id instruction,
+                                                   std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_subgroup_ballot_khr(
+        Op_subgroup_ballot_khr instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_subgroup_first_invocation_khr(
+        Op_subgroup_first_invocation_khr instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_subgroup_all_khr(
+        Op_subgroup_all_khr instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_subgroup_any_khr(
+        Op_subgroup_any_khr instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_subgroup_all_equal_khr(
+        Op_subgroup_all_equal_khr instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_op_subgroup_read_invocation_khr(
+        Op_subgroup_read_invocation_khr instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_acos(
+        Open_cl_std_op_acos instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_acosh(
+        Open_cl_std_op_acosh instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_acospi(
+        Open_cl_std_op_acospi instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_asin(
+        Open_cl_std_op_asin instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_asinh(
+        Open_cl_std_op_asinh instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_asinpi(
+        Open_cl_std_op_asinpi instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_atan(
+        Open_cl_std_op_atan instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_atan2(
+        Open_cl_std_op_atan2 instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_atanh(
+        Open_cl_std_op_atanh instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_atanpi(
+        Open_cl_std_op_atanpi instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_atan2pi(
+        Open_cl_std_op_atan2pi instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_cbrt(
+        Open_cl_std_op_cbrt instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_ceil(
+        Open_cl_std_op_ceil instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_copysign(
+        Open_cl_std_op_copysign instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_cos(
+        Open_cl_std_op_cos instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_cosh(
+        Open_cl_std_op_cosh instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_cospi(
+        Open_cl_std_op_cospi instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_erfc(
+        Open_cl_std_op_erfc instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_erf(
+        Open_cl_std_op_erf instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_exp(
+        Open_cl_std_op_exp instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_exp2(
+        Open_cl_std_op_exp2 instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_exp10(
+        Open_cl_std_op_exp10 instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_expm1(
+        Open_cl_std_op_expm1 instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_fabs(
+        Open_cl_std_op_fabs instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_fdim(
+        Open_cl_std_op_fdim instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_floor(
+        Open_cl_std_op_floor instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_fma(
+        Open_cl_std_op_fma instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_fmax(
+        Open_cl_std_op_fmax instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_fmin(
+        Open_cl_std_op_fmin instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_fmod(
+        Open_cl_std_op_fmod instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_fract(
+        Open_cl_std_op_fract instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_frexp(
+        Open_cl_std_op_frexp instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_hypot(
+        Open_cl_std_op_hypot instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_ilogb(
+        Open_cl_std_op_ilogb instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_ldexp(
+        Open_cl_std_op_ldexp instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_lgamma(
+        Open_cl_std_op_lgamma instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_lgamma_r(
+        Open_cl_std_op_lgamma_r instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_log(
+        Open_cl_std_op_log instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_log2(
+        Open_cl_std_op_log2 instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_log10(
+        Open_cl_std_op_log10 instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_log1p(
+        Open_cl_std_op_log1p instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_logb(
+        Open_cl_std_op_logb instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_mad(
+        Open_cl_std_op_mad instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_maxmag(
+        Open_cl_std_op_maxmag instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_minmag(
+        Open_cl_std_op_minmag instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_modf(
+        Open_cl_std_op_modf instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_nan(
+        Open_cl_std_op_nan instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_nextafter(
+        Open_cl_std_op_nextafter instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_pow(
+        Open_cl_std_op_pow instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_pown(
+        Open_cl_std_op_pown instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_powr(
+        Open_cl_std_op_powr instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_remainder(
+        Open_cl_std_op_remainder instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_remquo(
+        Open_cl_std_op_remquo instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_rint(
+        Open_cl_std_op_rint instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_rootn(
+        Open_cl_std_op_rootn instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_round(
+        Open_cl_std_op_round instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_rsqrt(
+        Open_cl_std_op_rsqrt instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_sin(
+        Open_cl_std_op_sin instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_sincos(
+        Open_cl_std_op_sincos instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_sinh(
+        Open_cl_std_op_sinh instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_sinpi(
+        Open_cl_std_op_sinpi instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_sqrt(
+        Open_cl_std_op_sqrt instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_tan(
+        Open_cl_std_op_tan instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_tanh(
+        Open_cl_std_op_tanh instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_tanpi(
+        Open_cl_std_op_tanpi instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_tgamma(
+        Open_cl_std_op_tgamma instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_trunc(
+        Open_cl_std_op_trunc instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_half_cos(
+        Open_cl_std_op_half_cos instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_half_divide(
+        Open_cl_std_op_half_divide instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_half_exp(
+        Open_cl_std_op_half_exp instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_half_exp2(
+        Open_cl_std_op_half_exp2 instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_half_exp10(
+        Open_cl_std_op_half_exp10 instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_half_log(
+        Open_cl_std_op_half_log instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_half_log2(
+        Open_cl_std_op_half_log2 instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_half_log10(
+        Open_cl_std_op_half_log10 instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_half_powr(
+        Open_cl_std_op_half_powr instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_half_recip(
+        Open_cl_std_op_half_recip instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_half_rsqrt(
+        Open_cl_std_op_half_rsqrt instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_half_sin(
+        Open_cl_std_op_half_sin instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_half_sqrt(
+        Open_cl_std_op_half_sqrt instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_half_tan(
+        Open_cl_std_op_half_tan instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_native_cos(
+        Open_cl_std_op_native_cos instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_native_divide(
+        Open_cl_std_op_native_divide instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_native_exp(
+        Open_cl_std_op_native_exp instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_native_exp2(
+        Open_cl_std_op_native_exp2 instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_native_exp10(
+        Open_cl_std_op_native_exp10 instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_native_log(
+        Open_cl_std_op_native_log instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_native_log2(
+        Open_cl_std_op_native_log2 instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_native_log10(
+        Open_cl_std_op_native_log10 instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_native_powr(
+        Open_cl_std_op_native_powr instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_native_recip(
+        Open_cl_std_op_native_recip instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_native_rsqrt(
+        Open_cl_std_op_native_rsqrt instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_native_sin(
+        Open_cl_std_op_native_sin instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_native_sqrt(
+        Open_cl_std_op_native_sqrt instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_native_tan(
+        Open_cl_std_op_native_tan instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_s_abs(
+        Open_cl_std_op_s_abs instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_s_abs_diff(
+        Open_cl_std_op_s_abs_diff instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_s_add_sat(
+        Open_cl_std_op_s_add_sat instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_u_add_sat(
+        Open_cl_std_op_u_add_sat instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_s_hadd(
+        Open_cl_std_op_s_hadd instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_u_hadd(
+        Open_cl_std_op_u_hadd instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_s_rhadd(
+        Open_cl_std_op_s_rhadd instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_u_rhadd(
+        Open_cl_std_op_u_rhadd instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_s_clamp(
+        Open_cl_std_op_s_clamp instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_u_clamp(
+        Open_cl_std_op_u_clamp instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_clz(
+        Open_cl_std_op_clz instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_ctz(
+        Open_cl_std_op_ctz instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_s_mad_hi(
+        Open_cl_std_op_s_mad_hi instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_u_mad_sat(
+        Open_cl_std_op_u_mad_sat instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_s_mad_sat(
+        Open_cl_std_op_s_mad_sat instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_s_max(
+        Open_cl_std_op_s_max instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_u_max(
+        Open_cl_std_op_u_max instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_s_min(
+        Open_cl_std_op_s_min instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_u_min(
+        Open_cl_std_op_u_min instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_s_mul_hi(
+        Open_cl_std_op_s_mul_hi instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_rotate(
+        Open_cl_std_op_rotate instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_s_sub_sat(
+        Open_cl_std_op_s_sub_sat instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_u_sub_sat(
+        Open_cl_std_op_u_sub_sat instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_u_upsample(
+        Open_cl_std_op_u_upsample instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_s_upsample(
+        Open_cl_std_op_s_upsample instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_popcount(
+        Open_cl_std_op_popcount instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_s_mad24(
+        Open_cl_std_op_s_mad24 instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_u_mad24(
+        Open_cl_std_op_u_mad24 instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_s_mul24(
+        Open_cl_std_op_s_mul24 instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_u_mul24(
+        Open_cl_std_op_u_mul24 instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_u_abs(
+        Open_cl_std_op_u_abs instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_u_abs_diff(
+        Open_cl_std_op_u_abs_diff instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_u_mul_hi(
+        Open_cl_std_op_u_mul_hi instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_u_mad_hi(
+        Open_cl_std_op_u_mad_hi instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_fclamp(
+        Open_cl_std_op_fclamp instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_degrees(
+        Open_cl_std_op_degrees instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_fmax_common(
+        Open_cl_std_op_fmax_common instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_fmin_common(
+        Open_cl_std_op_fmin_common instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_mix(
+        Open_cl_std_op_mix instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_radians(
+        Open_cl_std_op_radians instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_step(
+        Open_cl_std_op_step instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_smoothstep(
+        Open_cl_std_op_smoothstep instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_sign(
+        Open_cl_std_op_sign instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_cross(
+        Open_cl_std_op_cross instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_distance(
+        Open_cl_std_op_distance instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_length(
+        Open_cl_std_op_length instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_normalize(
+        Open_cl_std_op_normalize instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_fast_distance(
+        Open_cl_std_op_fast_distance instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_fast_length(
+        Open_cl_std_op_fast_length instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_fast_normalize(
+        Open_cl_std_op_fast_normalize instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_bitselect(
+        Open_cl_std_op_bitselect instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_select(
+        Open_cl_std_op_select instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_vloadn(
+        Open_cl_std_op_vloadn instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_vstoren(
+        Open_cl_std_op_vstoren instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_vload_half(
+        Open_cl_std_op_vload_half instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_vload_halfn(
+        Open_cl_std_op_vload_halfn instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_vstore_half(
+        Open_cl_std_op_vstore_half instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_vstore_half_r(
+        Open_cl_std_op_vstore_half_r instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_vstore_halfn(
+        Open_cl_std_op_vstore_halfn instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_vstore_halfn_r(
+        Open_cl_std_op_vstore_halfn_r instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_vloada_halfn(
+        Open_cl_std_op_vloada_halfn instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_vstorea_halfn(
+        Open_cl_std_op_vstorea_halfn instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_vstorea_halfn_r(
+        Open_cl_std_op_vstorea_halfn_r instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_shuffle(
+        Open_cl_std_op_shuffle instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_shuffle2(
+        Open_cl_std_op_shuffle2 instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_printf(
+        Open_cl_std_op_printf instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_open_cl_std_op_prefetch(
+        Open_cl_std_op_prefetch instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_glsl_std_450_op_round(
+        Glsl_std_450_op_round instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_glsl_std_450_op_round_even(
+        Glsl_std_450_op_round_even instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_glsl_std_450_op_trunc(
+        Glsl_std_450_op_trunc instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_glsl_std_450_op_f_abs(
+        Glsl_std_450_op_f_abs instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_glsl_std_450_op_s_abs(
+        Glsl_std_450_op_s_abs instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_glsl_std_450_op_f_sign(
+        Glsl_std_450_op_f_sign instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_glsl_std_450_op_s_sign(
+        Glsl_std_450_op_s_sign instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_glsl_std_450_op_floor(
+        Glsl_std_450_op_floor instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_glsl_std_450_op_ceil(
+        Glsl_std_450_op_ceil instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_glsl_std_450_op_fract(
+        Glsl_std_450_op_fract instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_glsl_std_450_op_radians(
+        Glsl_std_450_op_radians instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_glsl_std_450_op_degrees(
+        Glsl_std_450_op_degrees instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_glsl_std_450_op_sin(
+        Glsl_std_450_op_sin instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_glsl_std_450_op_cos(
+        Glsl_std_450_op_cos instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_glsl_std_450_op_tan(
+        Glsl_std_450_op_tan instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_glsl_std_450_op_asin(
+        Glsl_std_450_op_asin instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_glsl_std_450_op_acos(
+        Glsl_std_450_op_acos instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_glsl_std_450_op_atan(
+        Glsl_std_450_op_atan instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_glsl_std_450_op_sinh(
+        Glsl_std_450_op_sinh instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_glsl_std_450_op_cosh(
+        Glsl_std_450_op_cosh instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_glsl_std_450_op_tanh(
+        Glsl_std_450_op_tanh instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_glsl_std_450_op_asinh(
+        Glsl_std_450_op_asinh instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_glsl_std_450_op_acosh(
+        Glsl_std_450_op_acosh instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_glsl_std_450_op_atanh(
+        Glsl_std_450_op_atanh instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_glsl_std_450_op_atan2(
+        Glsl_std_450_op_atan2 instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_glsl_std_450_op_pow(
+        Glsl_std_450_op_pow instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_glsl_std_450_op_exp(
+        Glsl_std_450_op_exp instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_glsl_std_450_op_log(
+        Glsl_std_450_op_log instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_glsl_std_450_op_exp2(
+        Glsl_std_450_op_exp2 instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_glsl_std_450_op_log2(
+        Glsl_std_450_op_log2 instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_glsl_std_450_op_sqrt(
+        Glsl_std_450_op_sqrt instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_glsl_std_450_op_inverse_sqrt(
+        Glsl_std_450_op_inverse_sqrt instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_glsl_std_450_op_determinant(
+        Glsl_std_450_op_determinant instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_glsl_std_450_op_matrix_inverse(
+        Glsl_std_450_op_matrix_inverse instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_glsl_std_450_op_modf(
+        Glsl_std_450_op_modf instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_glsl_std_450_op_modf_struct(
+        Glsl_std_450_op_modf_struct instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_glsl_std_450_op_f_min(
+        Glsl_std_450_op_f_min instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_glsl_std_450_op_u_min(
+        Glsl_std_450_op_u_min instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_glsl_std_450_op_s_min(
+        Glsl_std_450_op_s_min instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_glsl_std_450_op_f_max(
+        Glsl_std_450_op_f_max instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_glsl_std_450_op_u_max(
+        Glsl_std_450_op_u_max instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_glsl_std_450_op_s_max(
+        Glsl_std_450_op_s_max instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_glsl_std_450_op_f_clamp(
+        Glsl_std_450_op_f_clamp instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_glsl_std_450_op_u_clamp(
+        Glsl_std_450_op_u_clamp instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_glsl_std_450_op_s_clamp(
+        Glsl_std_450_op_s_clamp instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_glsl_std_450_op_f_mix(
+        Glsl_std_450_op_f_mix instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_glsl_std_450_op_i_mix(
+        Glsl_std_450_op_i_mix instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_glsl_std_450_op_step(
+        Glsl_std_450_op_step instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_glsl_std_450_op_smooth_step(
+        Glsl_std_450_op_smooth_step instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_glsl_std_450_op_fma(
+        Glsl_std_450_op_fma instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_glsl_std_450_op_frexp(
+        Glsl_std_450_op_frexp instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_glsl_std_450_op_frexp_struct(
+        Glsl_std_450_op_frexp_struct instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_glsl_std_450_op_ldexp(
+        Glsl_std_450_op_ldexp instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_glsl_std_450_op_pack_snorm4x8(
+        Glsl_std_450_op_pack_snorm4x8 instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_glsl_std_450_op_pack_unorm4x8(
+        Glsl_std_450_op_pack_unorm4x8 instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_glsl_std_450_op_pack_snorm2x16(
+        Glsl_std_450_op_pack_snorm2x16 instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_glsl_std_450_op_pack_unorm2x16(
+        Glsl_std_450_op_pack_unorm2x16 instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_glsl_std_450_op_pack_half2x16(
+        Glsl_std_450_op_pack_half2x16 instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_glsl_std_450_op_pack_double2x32(
+        Glsl_std_450_op_pack_double2x32 instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_glsl_std_450_op_unpack_snorm2x16(
+        Glsl_std_450_op_unpack_snorm2x16 instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_glsl_std_450_op_unpack_unorm2x16(
+        Glsl_std_450_op_unpack_unorm2x16 instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_glsl_std_450_op_unpack_half2x16(
+        Glsl_std_450_op_unpack_half2x16 instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_glsl_std_450_op_unpack_snorm4x8(
+        Glsl_std_450_op_unpack_snorm4x8 instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_glsl_std_450_op_unpack_unorm4x8(
+        Glsl_std_450_op_unpack_unorm4x8 instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_glsl_std_450_op_unpack_double2x32(
+        Glsl_std_450_op_unpack_double2x32 instruction,
+        std::size_t instruction_start_index) override;
+    virtual void handle_instruction_glsl_std_450_op_length(
+        Glsl_std_450_op_length instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_glsl_std_450_op_distance(
+        Glsl_std_450_op_distance instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_glsl_std_450_op_cross(
+        Glsl_std_450_op_cross instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_glsl_std_450_op_normalize(
+        Glsl_std_450_op_normalize instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_glsl_std_450_op_face_forward(
+        Glsl_std_450_op_face_forward instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_glsl_std_450_op_reflect(
+        Glsl_std_450_op_reflect instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_glsl_std_450_op_refract(
+        Glsl_std_450_op_refract instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_glsl_std_450_op_find_i_lsb(
+        Glsl_std_450_op_find_i_lsb instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_glsl_std_450_op_find_s_msb(
+        Glsl_std_450_op_find_s_msb instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_glsl_std_450_op_find_u_msb(
+        Glsl_std_450_op_find_u_msb instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_glsl_std_450_op_interpolate_at_centroid(
+        Glsl_std_450_op_interpolate_at_centroid instruction,
+        std::size_t instruction_start_index) override;
+    virtual void handle_instruction_glsl_std_450_op_interpolate_at_sample(
+        Glsl_std_450_op_interpolate_at_sample instruction,
+        std::size_t instruction_start_index) override;
+    virtual void handle_instruction_glsl_std_450_op_interpolate_at_offset(
+        Glsl_std_450_op_interpolate_at_offset instruction,
+        std::size_t instruction_start_index) override;
+    virtual void handle_instruction_glsl_std_450_op_n_min(
+        Glsl_std_450_op_n_min instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_glsl_std_450_op_n_max(
+        Glsl_std_450_op_n_max instruction, std::size_t instruction_start_index) override;
+    virtual void handle_instruction_glsl_std_450_op_n_clamp(
+        Glsl_std_450_op_n_clamp instruction, std::size_t instruction_start_index) override;
 };
-
-Spirv_to_llvm::Spirv_to_llvm(const llvm_wrapper::Context &context)
-    : imp(std::make_shared<Implementation>(context))
-{
-}
-
-llvm_wrapper::Module Spirv_to_llvm::finish()
-{
-    auto retval = std::move(imp->module);
-    imp = nullptr;
-    return retval;
-}
 
 void Spirv_to_llvm::handle_header(unsigned version_number_major,
                                   unsigned version_number_minor,
@@ -86,18 +1316,21 @@ void Spirv_to_llvm::handle_header(unsigned version_number_major,
                                   Word id_bound,
                                   [[gnu::unused]] Word instruction_schema)
 {
-    imp->version_number_major = version_number_major;
-    imp->version_number_minor = version_number_minor;
-    imp->generator_magic_number = generator_magic_number;
-    imp->id_states.resize(id_bound - 1);
+    if(stage == util::Enum_traits<Stage>::values[0])
+    {
+        input_version_number_major = version_number_major;
+        input_version_number_minor = version_number_minor;
+        input_generator_magic_number = generator_magic_number;
+        id_states.resize(id_bound - 1);
+    }
 }
 
-void Spirv_to_llvm::handle_instruction_op_nop([[gnu::unused]] spirv::Op_nop instruction,
+void Spirv_to_llvm::handle_instruction_op_nop([[gnu::unused]] Op_nop instruction,
                                               [[gnu::unused]] std::size_t instruction_start_index)
 {
 }
 
-void Spirv_to_llvm::handle_instruction_op_undef(spirv::Op_undef instruction,
+void Spirv_to_llvm::handle_instruction_op_undef(Op_undef instruction,
                                                 std::size_t instruction_start_index)
 {
 #warning finish
@@ -107,63 +1340,54 @@ void Spirv_to_llvm::handle_instruction_op_undef(spirv::Op_undef instruction,
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_source_continued(spirv::Op_source_continued instruction,
-                                                           std::size_t instruction_start_index)
+void Spirv_to_llvm::handle_instruction_op_source_continued(
+    [[gnu::unused]] Op_source_continued instruction,
+    [[gnu::unused]] std::size_t instruction_start_index)
 {
-#warning finish
-    throw Parser_error(instruction_start_index,
-                       instruction_start_index,
-                       "instruction not implemented: "
-                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_source(spirv::Op_source instruction,
-                                                 std::size_t instruction_start_index)
+void Spirv_to_llvm::handle_instruction_op_source(
+    Op_source instruction, [[gnu::unused]] std::size_t instruction_start_index)
 {
-#warning finish
-    throw Parser_error(instruction_start_index,
-                       instruction_start_index,
-                       "instruction not implemented: "
-                           + std::string(get_enumerant_name(instruction.get_operation())));
+    if(stage == util::Enum_traits<Stage>::values[0] && instruction.file)
+    {
+        std::string filename(
+            get_id_state(*instruction.file).op_string.value_or(Op_string_state()).value);
+        ::LLVMSetModuleIdentifier(module, filename.data(), filename.size());
+    }
 }
 
-void Spirv_to_llvm::handle_instruction_op_source_extension(spirv::Op_source_extension instruction,
-                                                           std::size_t instruction_start_index)
+void Spirv_to_llvm::handle_instruction_op_source_extension(
+    [[gnu::unused]] Op_source_extension instruction,
+    [[gnu::unused]] std::size_t instruction_start_index)
 {
-#warning finish
-    throw Parser_error(instruction_start_index,
-                       instruction_start_index,
-                       "instruction not implemented: "
-                           + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_name(spirv::Op_name instruction,
-                                               std::size_t instruction_start_index)
+void Spirv_to_llvm::handle_instruction_op_name(Op_name instruction,
+                                               [[gnu::unused]] std::size_t instruction_start_index)
 {
-#warning finish
-    throw Parser_error(instruction_start_index,
-                       instruction_start_index,
-                       "instruction not implemented: "
-                           + std::string(get_enumerant_name(instruction.get_operation())));
+    if(stage == util::Enum_traits<Stage>::values[0])
+        get_id_state(instruction.target).name = Name{std::string(instruction.name)};
 }
 
-void Spirv_to_llvm::handle_instruction_op_member_name(spirv::Op_member_name instruction,
-                                                      std::size_t instruction_start_index)
+void Spirv_to_llvm::handle_instruction_op_member_name(
+    Op_member_name instruction, [[gnu::unused]] std::size_t instruction_start_index)
 {
-#warning finish
-    throw Parser_error(instruction_start_index,
-                       instruction_start_index,
-                       "instruction not implemented: "
-                           + std::string(get_enumerant_name(instruction.get_operation())));
+    if(stage == util::Enum_traits<Stage>::values[0])
+    {
+        auto &state = get_id_state(instruction.type);
+        state.member_names.push_back(std::move(instruction));
+    }
 }
 
 void Spirv_to_llvm::handle_instruction_op_string(
-    spirv::Op_string instruction, [[gnu::unused]] std::size_t instruction_start_index)
+    Op_string instruction, [[gnu::unused]] std::size_t instruction_start_index)
 {
-    imp->get_id_state(instruction.result) = Implementation::Op_string_state{instruction.string};
+    if(stage == util::Enum_traits<Stage>::values[0])
+        get_id_state(instruction.result).op_string = Op_string_state{instruction.string};
 }
 
-void Spirv_to_llvm::handle_instruction_op_line(spirv::Op_line instruction,
+void Spirv_to_llvm::handle_instruction_op_line(Op_line instruction,
                                                std::size_t instruction_start_index)
 {
 #warning finish
@@ -173,7 +1397,7 @@ void Spirv_to_llvm::handle_instruction_op_line(spirv::Op_line instruction,
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_extension(spirv::Op_extension instruction,
+void Spirv_to_llvm::handle_instruction_op_extension(Op_extension instruction,
                                                     std::size_t instruction_start_index)
 {
 #warning finish
@@ -183,23 +1407,26 @@ void Spirv_to_llvm::handle_instruction_op_extension(spirv::Op_extension instruct
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_ext_inst_import(spirv::Op_ext_inst_import instruction,
+void Spirv_to_llvm::handle_instruction_op_ext_inst_import(Op_ext_inst_import instruction,
                                                           std::size_t instruction_start_index)
 {
-    imp->get_id_state(instruction.result) = Implementation::Op_ext_inst_import_state{};
-    for(auto instruction_set : util::Enum_traits<Extension_instruction_set>::values)
+    if(stage == util::Enum_traits<Stage>::values[0])
     {
-        if(instruction_set == Extension_instruction_set::unknown)
-            continue;
-        if(instruction.name == get_enumerant_name(instruction_set))
-            return;
+        get_id_state(instruction.result).op_ext_inst_import = Op_ext_inst_import_state{};
+        for(auto instruction_set : util::Enum_traits<Extension_instruction_set>::values)
+        {
+            if(instruction_set == Extension_instruction_set::unknown)
+                continue;
+            if(instruction.name == get_enumerant_name(instruction_set))
+                return;
+        }
+        throw Parser_error(instruction_start_index,
+                           instruction_start_index,
+                           "unknown instruction set: \"" + std::string(instruction.name) + "\"");
     }
-    throw Parser_error(instruction_start_index,
-                       instruction_start_index,
-                       "unknown instruction set: \"" + std::string(instruction.name) + "\"");
 }
 
-void Spirv_to_llvm::handle_instruction_op_ext_inst(spirv::Op_ext_inst instruction,
+void Spirv_to_llvm::handle_instruction_op_ext_inst(Op_ext_inst instruction,
                                                    std::size_t instruction_start_index)
 {
 #warning finish
@@ -209,7 +1436,7 @@ void Spirv_to_llvm::handle_instruction_op_ext_inst(spirv::Op_ext_inst instructio
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_memory_model(spirv::Op_memory_model instruction,
+void Spirv_to_llvm::handle_instruction_op_memory_model(Op_memory_model instruction,
                                                        std::size_t instruction_start_index)
 {
     if(instruction.addressing_model != Addressing_model::logical)
@@ -230,63 +1457,88 @@ void Spirv_to_llvm::handle_instruction_op_memory_model(spirv::Op_memory_model in
     }
 }
 
-void Spirv_to_llvm::handle_instruction_op_entry_point(spirv::Op_entry_point instruction,
+void Spirv_to_llvm::handle_instruction_op_entry_point(Op_entry_point instruction,
                                                       std::size_t instruction_start_index)
 {
-#warning finish implementing data structures for multiple entry points
-    if(imp->entry_point_state)
-        throw Parser_error(
-            instruction_start_index, instruction_start_index, "multiple entry points not implemented");
-    imp->entry_point_state =
-        Implementation::Op_entry_point_state{std::move(instruction), instruction_start_index};
+    if(stage == util::Enum_traits<Stage>::values[0])
+    {
+        auto &state = get_id_state(instruction.entry_point);
+        state.op_entry_points.push_back(
+            Op_entry_point_state{std::move(instruction), instruction_start_index});
+    }
 }
 
-void Spirv_to_llvm::handle_instruction_op_execution_mode(spirv::Op_execution_mode instruction,
+void Spirv_to_llvm::handle_instruction_op_execution_mode(Op_execution_mode instruction,
                                                          std::size_t instruction_start_index)
 {
-#warning finish
-    throw Parser_error(instruction_start_index,
-                       instruction_start_index,
-                       "instruction not implemented: "
-                           + std::string(get_enumerant_name(instruction.get_operation())));
+    if(stage == util::Enum_traits<Stage>::values[0])
+    {
+        auto &state = get_id_state(instruction.entry_point);
+        if(state.op_entry_points.empty())
+            throw Parser_error(instruction_start_index,
+                               instruction_start_index,
+                               "entry point not defined in OpExecutionMode");
+        if(state.op_entry_points.back().execution_mode)
+            throw Parser_error(
+                instruction_start_index, instruction_start_index, "execution mode already set");
+        state.op_entry_points.back().execution_mode = std::move(instruction.mode);
+    }
 }
 
-void Spirv_to_llvm::handle_instruction_op_capability(spirv::Op_capability instruction,
+void Spirv_to_llvm::handle_instruction_op_capability(Op_capability instruction,
                                                      std::size_t instruction_start_index)
 {
-    util::Enum_set<Capability> work_list{instruction.capability};
-    while(!work_list.empty())
+    if(stage == util::Enum_traits<Stage>::values[0])
     {
-        auto capability = *work_list.begin();
-        work_list.erase(capability);
-        if(std::get<1>(imp->enabled_capabilities.insert(capability)))
+        util::Enum_set<Capability> work_list{instruction.capability};
+        while(!work_list.empty())
         {
-            auto additional_capabilities = spirv::get_directly_required_capabilities(capability);
-            work_list.insert(additional_capabilities.begin(), additional_capabilities.end());
+            auto capability = *work_list.begin();
+            work_list.erase(capability);
+            if(std::get<1>(enabled_capabilities.insert(capability)))
+            {
+                auto additional_capabilities = get_directly_required_capabilities(capability);
+                work_list.insert(additional_capabilities.begin(), additional_capabilities.end());
+            }
+        }
+        constexpr util::Enum_set<Capability> implemented_capabilities{
+            Capability::matrix,
+            Capability::shader,
+            Capability::input_attachment,
+            Capability::sampled1d,
+            Capability::image1d,
+            Capability::sampled_buffer,
+            Capability::image_buffer,
+            Capability::image_query,
+            Capability::derivative_control,
+            Capability::int64,
+        };
+        for(auto capability : enabled_capabilities)
+        {
+            if(implemented_capabilities.count(capability) == 0)
+                throw Parser_error(
+                    instruction_start_index,
+                    instruction_start_index,
+                    "capability not implemented: " + std::string(get_enumerant_name(capability)));
         }
     }
-    constexpr util::Enum_set<Capability> implemented_capabilities{
-        Capability::matrix,
-        Capability::shader,
-        Capability::input_attachment,
-        Capability::sampled1d,
-        Capability::image1d,
-        Capability::sampled_buffer,
-        Capability::image_buffer,
-        Capability::image_query,
-        Capability::derivative_control,
-    };
-    for(auto capability : imp->enabled_capabilities)
+}
+
+void Spirv_to_llvm::handle_instruction_op_type_void(
+    Op_type_void instruction, [[gnu::unused]] std::size_t instruction_start_index)
+{
+    switch(stage)
     {
-        if(implemented_capabilities.count(capability) == 0)
-            throw Parser_error(
-                instruction_start_index,
-                instruction_start_index,
-                "capability not implemented: " + std::string(get_enumerant_name(capability)));
+    case Stage::calculate_types:
+        get_id_state(instruction.result).type =
+            std::make_shared<Simple_type_descriptor>(::LLVMVoidTypeInContext(context));
+        break;
+    case Stage::generate_code:
+        break;
     }
 }
 
-void Spirv_to_llvm::handle_instruction_op_type_void(spirv::Op_type_void instruction,
+void Spirv_to_llvm::handle_instruction_op_type_bool(Op_type_bool instruction,
                                                     std::size_t instruction_start_index)
 {
 #warning finish
@@ -296,27 +1548,106 @@ void Spirv_to_llvm::handle_instruction_op_type_void(spirv::Op_type_void instruct
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_type_bool(spirv::Op_type_bool instruction,
-                                                    std::size_t instruction_start_index)
-{
-#warning finish
-    throw Parser_error(instruction_start_index,
-                       instruction_start_index,
-                       "instruction not implemented: "
-                           + std::string(get_enumerant_name(instruction.get_operation())));
-}
-
-void Spirv_to_llvm::handle_instruction_op_type_int(spirv::Op_type_int instruction,
+void Spirv_to_llvm::handle_instruction_op_type_int(Op_type_int instruction,
                                                    std::size_t instruction_start_index)
 {
-#warning finish
-    throw Parser_error(instruction_start_index,
-                       instruction_start_index,
-                       "instruction not implemented: "
-                           + std::string(get_enumerant_name(instruction.get_operation())));
+    switch(stage)
+    {
+    case Stage::calculate_types:
+    {
+        auto &state = get_id_state(instruction.result);
+        switch(instruction.width)
+        {
+        case 8:
+        case 16:
+        case 32:
+        case 64:
+            state.type = std::make_shared<Simple_type_descriptor>(
+                ::LLVMIntTypeInContext(context, instruction.width));
+            break;
+        default:
+            throw Parser_error(
+                instruction_start_index, instruction_start_index, "invalid int width");
+        }
+        break;
+    }
+    case Stage::generate_code:
+        break;
+    }
 }
 
-void Spirv_to_llvm::handle_instruction_op_type_float(spirv::Op_type_float instruction,
+void Spirv_to_llvm::handle_instruction_op_type_float(Op_type_float instruction,
+                                                     std::size_t instruction_start_index)
+{
+    switch(stage)
+    {
+    case Stage::calculate_types:
+    {
+        auto &state = get_id_state(instruction.result);
+        switch(instruction.width)
+        {
+        case 16:
+            state.type = std::make_shared<Simple_type_descriptor>(::LLVMHalfTypeInContext(context));
+            break;
+        case 32:
+            state.type =
+                std::make_shared<Simple_type_descriptor>(::LLVMFloatTypeInContext(context));
+            break;
+        case 64:
+            state.type =
+                std::make_shared<Simple_type_descriptor>(::LLVMDoubleTypeInContext(context));
+            break;
+        default:
+            throw Parser_error(
+                instruction_start_index, instruction_start_index, "invalid float width");
+        }
+        break;
+    }
+    case Stage::generate_code:
+        break;
+    }
+}
+
+void Spirv_to_llvm::handle_instruction_op_type_vector(Op_type_vector instruction,
+                                                      std::size_t instruction_start_index)
+{
+    switch(stage)
+    {
+    case Stage::calculate_types:
+        get_id_state(instruction.result)
+            .type = std::make_shared<Simple_type_descriptor>(::LLVMVectorType(
+            get_type(instruction.component_type, instruction_start_index)->get_or_make_type(false),
+            instruction.component_count));
+        break;
+    case Stage::generate_code:
+        break;
+    }
+}
+
+void Spirv_to_llvm::handle_instruction_op_type_matrix(Op_type_matrix instruction,
+                                                      std::size_t instruction_start_index)
+{
+    switch(stage)
+    {
+    case Stage::calculate_types:
+    {
+        auto column_type =
+            get_type(instruction.column_type, instruction_start_index)->get_or_make_type(false);
+        if(::LLVMGetTypeKind(column_type) != LLVMVectorTypeKind)
+            throw Parser_error(instruction_start_index,
+                               instruction_start_index,
+                               "column type must be a vector type");
+        get_id_state(instruction.result).type = std::make_shared<Simple_type_descriptor>(
+            ::LLVMVectorType(::LLVMGetElementType(column_type),
+                             instruction.column_count * ::LLVMGetVectorSize(column_type)));
+        break;
+    }
+    case Stage::generate_code:
+        break;
+    }
+}
+
+void Spirv_to_llvm::handle_instruction_op_type_image(Op_type_image instruction,
                                                      std::size_t instruction_start_index)
 {
 #warning finish
@@ -326,37 +1657,7 @@ void Spirv_to_llvm::handle_instruction_op_type_float(spirv::Op_type_float instru
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_type_vector(spirv::Op_type_vector instruction,
-                                                      std::size_t instruction_start_index)
-{
-#warning finish
-    throw Parser_error(instruction_start_index,
-                       instruction_start_index,
-                       "instruction not implemented: "
-                           + std::string(get_enumerant_name(instruction.get_operation())));
-}
-
-void Spirv_to_llvm::handle_instruction_op_type_matrix(spirv::Op_type_matrix instruction,
-                                                      std::size_t instruction_start_index)
-{
-#warning finish
-    throw Parser_error(instruction_start_index,
-                       instruction_start_index,
-                       "instruction not implemented: "
-                           + std::string(get_enumerant_name(instruction.get_operation())));
-}
-
-void Spirv_to_llvm::handle_instruction_op_type_image(spirv::Op_type_image instruction,
-                                                     std::size_t instruction_start_index)
-{
-#warning finish
-    throw Parser_error(instruction_start_index,
-                       instruction_start_index,
-                       "instruction not implemented: "
-                           + std::string(get_enumerant_name(instruction.get_operation())));
-}
-
-void Spirv_to_llvm::handle_instruction_op_type_sampler(spirv::Op_type_sampler instruction,
+void Spirv_to_llvm::handle_instruction_op_type_sampler(Op_type_sampler instruction,
                                                        std::size_t instruction_start_index)
 {
 #warning finish
@@ -366,8 +1667,8 @@ void Spirv_to_llvm::handle_instruction_op_type_sampler(spirv::Op_type_sampler in
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_type_sampled_image(
-    spirv::Op_type_sampled_image instruction, std::size_t instruction_start_index)
+void Spirv_to_llvm::handle_instruction_op_type_sampled_image(Op_type_sampled_image instruction,
+                                                             std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -376,7 +1677,7 @@ void Spirv_to_llvm::handle_instruction_op_type_sampled_image(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_type_array(spirv::Op_type_array instruction,
+void Spirv_to_llvm::handle_instruction_op_type_array(Op_type_array instruction,
                                                      std::size_t instruction_start_index)
 {
 #warning finish
@@ -386,8 +1687,8 @@ void Spirv_to_llvm::handle_instruction_op_type_array(spirv::Op_type_array instru
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_type_runtime_array(
-    spirv::Op_type_runtime_array instruction, std::size_t instruction_start_index)
+void Spirv_to_llvm::handle_instruction_op_type_runtime_array(Op_type_runtime_array instruction,
+                                                             std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -396,7 +1697,41 @@ void Spirv_to_llvm::handle_instruction_op_type_runtime_array(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_type_struct(spirv::Op_type_struct instruction,
+void Spirv_to_llvm::handle_instruction_op_type_struct(Op_type_struct instruction,
+                                                      std::size_t instruction_start_index)
+{
+    switch(stage)
+    {
+    case Stage::calculate_types:
+    {
+        auto &state = get_id_state(instruction.result);
+        std::vector<Struct_type_descriptor::Member> members;
+        members.reserve(instruction.member_0_type_member_1_type.size());
+        for(auto &member_id : instruction.member_0_type_member_1_type)
+            members.push_back(
+                Struct_type_descriptor::Member({}, get_type(member_id, instruction_start_index)));
+        for(auto &decoration : state.member_decorations)
+        {
+            if(decoration.member >= members.size())
+                throw Parser_error(instruction_start_index,
+                                   instruction_start_index,
+                                   "member decoration's member index is out of range");
+            auto &member = members[decoration.member];
+            member.decorations.push_back(decoration.decoration);
+        }
+        state.type =
+            std::make_shared<Struct_type_descriptor>(context,
+                                                     state.name.value_or(Name{}).name.c_str(),
+                                                     instruction_start_index,
+                                                     std::move(members));
+        break;
+    }
+    case Stage::generate_code:
+        break;
+    }
+}
+
+void Spirv_to_llvm::handle_instruction_op_type_opaque(Op_type_opaque instruction,
                                                       std::size_t instruction_start_index)
 {
 #warning finish
@@ -406,37 +1741,66 @@ void Spirv_to_llvm::handle_instruction_op_type_struct(spirv::Op_type_struct inst
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_type_opaque(spirv::Op_type_opaque instruction,
-                                                      std::size_t instruction_start_index)
-{
-#warning finish
-    throw Parser_error(instruction_start_index,
-                       instruction_start_index,
-                       "instruction not implemented: "
-                           + std::string(get_enumerant_name(instruction.get_operation())));
-}
-
-void Spirv_to_llvm::handle_instruction_op_type_pointer(spirv::Op_type_pointer instruction,
+void Spirv_to_llvm::handle_instruction_op_type_pointer(Op_type_pointer instruction,
                                                        std::size_t instruction_start_index)
 {
-#warning finish
-    throw Parser_error(instruction_start_index,
-                       instruction_start_index,
-                       "instruction not implemented: "
-                           + std::string(get_enumerant_name(instruction.get_operation())));
+    switch(stage)
+    {
+    case Stage::calculate_types:
+    {
+        auto &state = get_id_state(instruction.result);
+        if(!state.type)
+        {
+            state.type = std::make_shared<Pointer_type_descriptor>(
+                get_type(instruction.type, instruction_start_index), instruction_start_index);
+        }
+        else if(auto *pointer_type = dynamic_cast<Pointer_type_descriptor *>(state.type.get()))
+        {
+            if(pointer_type->get_base_type())
+                throw Parser_error(instruction_start_index,
+                                   instruction_start_index,
+                                   "result type is not a pointer forward declaration");
+            pointer_type->set_base_type(get_type(instruction.type, instruction_start_index));
+        }
+        else
+        {
+            throw Parser_error(instruction_start_index,
+                               instruction_start_index,
+                               "result type is not a pointer forward declaration");
+        }
+        break;
+    }
+    case Stage::generate_code:
+        break;
+    }
 }
 
-void Spirv_to_llvm::handle_instruction_op_type_function(spirv::Op_type_function instruction,
+void Spirv_to_llvm::handle_instruction_op_type_function(Op_type_function instruction,
                                                         std::size_t instruction_start_index)
 {
-#warning finish
-    throw Parser_error(instruction_start_index,
-                       instruction_start_index,
-                       "instruction not implemented: "
-                           + std::string(get_enumerant_name(instruction.get_operation())));
+    switch(stage)
+    {
+    case Stage::calculate_types:
+    {
+        std::vector<std::shared_ptr<Type_descriptor>> args;
+        args.reserve(implicit_function_arguments.size()
+                     + instruction.parameter_0_type_parameter_1_type.size());
+        for(auto &arg : implicit_function_arguments)
+            args.push_back(arg);
+        for(Id_ref type : instruction.parameter_0_type_parameter_1_type)
+            args.push_back(get_type(type, instruction_start_index));
+        get_id_state(instruction.result).type = std::make_shared<Function_type_descriptor>(
+            get_type(instruction.return_type, instruction_start_index),
+            std::move(args),
+            instruction_start_index);
+        break;
+    }
+    case Stage::generate_code:
+        break;
+    }
 }
 
-void Spirv_to_llvm::handle_instruction_op_type_event(spirv::Op_type_event instruction,
+void Spirv_to_llvm::handle_instruction_op_type_event(Op_type_event instruction,
                                                      std::size_t instruction_start_index)
 {
 #warning finish
@@ -446,7 +1810,7 @@ void Spirv_to_llvm::handle_instruction_op_type_event(spirv::Op_type_event instru
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_type_device_event(spirv::Op_type_device_event instruction,
+void Spirv_to_llvm::handle_instruction_op_type_device_event(Op_type_device_event instruction,
                                                             std::size_t instruction_start_index)
 {
 #warning finish
@@ -456,7 +1820,7 @@ void Spirv_to_llvm::handle_instruction_op_type_device_event(spirv::Op_type_devic
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_type_reserve_id(spirv::Op_type_reserve_id instruction,
+void Spirv_to_llvm::handle_instruction_op_type_reserve_id(Op_type_reserve_id instruction,
                                                           std::size_t instruction_start_index)
 {
 #warning finish
@@ -466,7 +1830,7 @@ void Spirv_to_llvm::handle_instruction_op_type_reserve_id(spirv::Op_type_reserve
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_type_queue(spirv::Op_type_queue instruction,
+void Spirv_to_llvm::handle_instruction_op_type_queue(Op_type_queue instruction,
                                                      std::size_t instruction_start_index)
 {
 #warning finish
@@ -476,7 +1840,7 @@ void Spirv_to_llvm::handle_instruction_op_type_queue(spirv::Op_type_queue instru
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_type_pipe(spirv::Op_type_pipe instruction,
+void Spirv_to_llvm::handle_instruction_op_type_pipe(Op_type_pipe instruction,
                                                     std::size_t instruction_start_index)
 {
 #warning finish
@@ -486,8 +1850,8 @@ void Spirv_to_llvm::handle_instruction_op_type_pipe(spirv::Op_type_pipe instruct
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_type_forward_pointer(
-    spirv::Op_type_forward_pointer instruction, std::size_t instruction_start_index)
+void Spirv_to_llvm::handle_instruction_op_type_forward_pointer(Op_type_forward_pointer instruction,
+                                                               std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -496,7 +1860,7 @@ void Spirv_to_llvm::handle_instruction_op_type_forward_pointer(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_constant_true(spirv::Op_constant_true instruction,
+void Spirv_to_llvm::handle_instruction_op_constant_true(Op_constant_true instruction,
                                                         std::size_t instruction_start_index)
 {
 #warning finish
@@ -506,7 +1870,7 @@ void Spirv_to_llvm::handle_instruction_op_constant_true(spirv::Op_constant_true 
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_constant_false(spirv::Op_constant_false instruction,
+void Spirv_to_llvm::handle_instruction_op_constant_false(Op_constant_false instruction,
                                                          std::size_t instruction_start_index)
 {
 #warning finish
@@ -516,7 +1880,7 @@ void Spirv_to_llvm::handle_instruction_op_constant_false(spirv::Op_constant_fals
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_constant(spirv::Op_constant instruction,
+void Spirv_to_llvm::handle_instruction_op_constant(Op_constant instruction,
                                                    std::size_t instruction_start_index)
 {
 #warning finish
@@ -526,8 +1890,8 @@ void Spirv_to_llvm::handle_instruction_op_constant(spirv::Op_constant instructio
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_constant_composite(
-    spirv::Op_constant_composite instruction, std::size_t instruction_start_index)
+void Spirv_to_llvm::handle_instruction_op_constant_composite(Op_constant_composite instruction,
+                                                             std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -536,7 +1900,7 @@ void Spirv_to_llvm::handle_instruction_op_constant_composite(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_constant_sampler(spirv::Op_constant_sampler instruction,
+void Spirv_to_llvm::handle_instruction_op_constant_sampler(Op_constant_sampler instruction,
                                                            std::size_t instruction_start_index)
 {
 #warning finish
@@ -546,7 +1910,7 @@ void Spirv_to_llvm::handle_instruction_op_constant_sampler(spirv::Op_constant_sa
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_constant_null(spirv::Op_constant_null instruction,
+void Spirv_to_llvm::handle_instruction_op_constant_null(Op_constant_null instruction,
                                                         std::size_t instruction_start_index)
 {
 #warning finish
@@ -556,8 +1920,8 @@ void Spirv_to_llvm::handle_instruction_op_constant_null(spirv::Op_constant_null 
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_spec_constant_true(
-    spirv::Op_spec_constant_true instruction, std::size_t instruction_start_index)
+void Spirv_to_llvm::handle_instruction_op_spec_constant_true(Op_spec_constant_true instruction,
+                                                             std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -566,8 +1930,8 @@ void Spirv_to_llvm::handle_instruction_op_spec_constant_true(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_spec_constant_false(
-    spirv::Op_spec_constant_false instruction, std::size_t instruction_start_index)
+void Spirv_to_llvm::handle_instruction_op_spec_constant_false(Op_spec_constant_false instruction,
+                                                              std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -576,7 +1940,7 @@ void Spirv_to_llvm::handle_instruction_op_spec_constant_false(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_spec_constant(spirv::Op_spec_constant instruction,
+void Spirv_to_llvm::handle_instruction_op_spec_constant(Op_spec_constant instruction,
                                                         std::size_t instruction_start_index)
 {
 #warning finish
@@ -587,7 +1951,7 @@ void Spirv_to_llvm::handle_instruction_op_spec_constant(spirv::Op_spec_constant 
 }
 
 void Spirv_to_llvm::handle_instruction_op_spec_constant_composite(
-    spirv::Op_spec_constant_composite instruction, std::size_t instruction_start_index)
+    Op_spec_constant_composite instruction, std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -596,7 +1960,7 @@ void Spirv_to_llvm::handle_instruction_op_spec_constant_composite(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_spec_constant_op(spirv::Op_spec_constant_op instruction,
+void Spirv_to_llvm::handle_instruction_op_spec_constant_op(Op_spec_constant_op instruction,
                                                            std::size_t instruction_start_index)
 {
 #warning finish
@@ -606,7 +1970,7 @@ void Spirv_to_llvm::handle_instruction_op_spec_constant_op(spirv::Op_spec_consta
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_function(spirv::Op_function instruction,
+void Spirv_to_llvm::handle_instruction_op_function(Op_function instruction,
                                                    std::size_t instruction_start_index)
 {
 #warning finish
@@ -616,8 +1980,8 @@ void Spirv_to_llvm::handle_instruction_op_function(spirv::Op_function instructio
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_function_parameter(
-    spirv::Op_function_parameter instruction, std::size_t instruction_start_index)
+void Spirv_to_llvm::handle_instruction_op_function_parameter(Op_function_parameter instruction,
+                                                             std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -626,7 +1990,7 @@ void Spirv_to_llvm::handle_instruction_op_function_parameter(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_function_end(spirv::Op_function_end instruction,
+void Spirv_to_llvm::handle_instruction_op_function_end(Op_function_end instruction,
                                                        std::size_t instruction_start_index)
 {
 #warning finish
@@ -636,7 +2000,7 @@ void Spirv_to_llvm::handle_instruction_op_function_end(spirv::Op_function_end in
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_function_call(spirv::Op_function_call instruction,
+void Spirv_to_llvm::handle_instruction_op_function_call(Op_function_call instruction,
                                                         std::size_t instruction_start_index)
 {
 #warning finish
@@ -646,7 +2010,7 @@ void Spirv_to_llvm::handle_instruction_op_function_call(spirv::Op_function_call 
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_variable(spirv::Op_variable instruction,
+void Spirv_to_llvm::handle_instruction_op_variable(Op_variable instruction,
                                                    std::size_t instruction_start_index)
 {
 #warning finish
@@ -656,8 +2020,8 @@ void Spirv_to_llvm::handle_instruction_op_variable(spirv::Op_variable instructio
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_image_texel_pointer(
-    spirv::Op_image_texel_pointer instruction, std::size_t instruction_start_index)
+void Spirv_to_llvm::handle_instruction_op_image_texel_pointer(Op_image_texel_pointer instruction,
+                                                              std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -666,7 +2030,7 @@ void Spirv_to_llvm::handle_instruction_op_image_texel_pointer(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_load(spirv::Op_load instruction,
+void Spirv_to_llvm::handle_instruction_op_load(Op_load instruction,
                                                std::size_t instruction_start_index)
 {
 #warning finish
@@ -676,7 +2040,7 @@ void Spirv_to_llvm::handle_instruction_op_load(spirv::Op_load instruction,
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_store(spirv::Op_store instruction,
+void Spirv_to_llvm::handle_instruction_op_store(Op_store instruction,
                                                 std::size_t instruction_start_index)
 {
 #warning finish
@@ -686,7 +2050,7 @@ void Spirv_to_llvm::handle_instruction_op_store(spirv::Op_store instruction,
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_copy_memory(spirv::Op_copy_memory instruction,
+void Spirv_to_llvm::handle_instruction_op_copy_memory(Op_copy_memory instruction,
                                                       std::size_t instruction_start_index)
 {
 #warning finish
@@ -696,7 +2060,7 @@ void Spirv_to_llvm::handle_instruction_op_copy_memory(spirv::Op_copy_memory inst
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_copy_memory_sized(spirv::Op_copy_memory_sized instruction,
+void Spirv_to_llvm::handle_instruction_op_copy_memory_sized(Op_copy_memory_sized instruction,
                                                             std::size_t instruction_start_index)
 {
 #warning finish
@@ -706,7 +2070,7 @@ void Spirv_to_llvm::handle_instruction_op_copy_memory_sized(spirv::Op_copy_memor
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_access_chain(spirv::Op_access_chain instruction,
+void Spirv_to_llvm::handle_instruction_op_access_chain(Op_access_chain instruction,
                                                        std::size_t instruction_start_index)
 {
 #warning finish
@@ -717,7 +2081,7 @@ void Spirv_to_llvm::handle_instruction_op_access_chain(spirv::Op_access_chain in
 }
 
 void Spirv_to_llvm::handle_instruction_op_in_bounds_access_chain(
-    spirv::Op_in_bounds_access_chain instruction, std::size_t instruction_start_index)
+    Op_in_bounds_access_chain instruction, std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -726,7 +2090,7 @@ void Spirv_to_llvm::handle_instruction_op_in_bounds_access_chain(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_ptr_access_chain(spirv::Op_ptr_access_chain instruction,
+void Spirv_to_llvm::handle_instruction_op_ptr_access_chain(Op_ptr_access_chain instruction,
                                                            std::size_t instruction_start_index)
 {
 #warning finish
@@ -736,7 +2100,7 @@ void Spirv_to_llvm::handle_instruction_op_ptr_access_chain(spirv::Op_ptr_access_
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_array_length(spirv::Op_array_length instruction,
+void Spirv_to_llvm::handle_instruction_op_array_length(Op_array_length instruction,
                                                        std::size_t instruction_start_index)
 {
 #warning finish
@@ -747,7 +2111,7 @@ void Spirv_to_llvm::handle_instruction_op_array_length(spirv::Op_array_length in
 }
 
 void Spirv_to_llvm::handle_instruction_op_generic_ptr_mem_semantics(
-    spirv::Op_generic_ptr_mem_semantics instruction, std::size_t instruction_start_index)
+    Op_generic_ptr_mem_semantics instruction, std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -757,7 +2121,7 @@ void Spirv_to_llvm::handle_instruction_op_generic_ptr_mem_semantics(
 }
 
 void Spirv_to_llvm::handle_instruction_op_in_bounds_ptr_access_chain(
-    spirv::Op_in_bounds_ptr_access_chain instruction, std::size_t instruction_start_index)
+    Op_in_bounds_ptr_access_chain instruction, std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -766,27 +2130,20 @@ void Spirv_to_llvm::handle_instruction_op_in_bounds_ptr_access_chain(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_decorate(spirv::Op_decorate instruction,
-                                                   std::size_t instruction_start_index)
+void Spirv_to_llvm::handle_instruction_op_decorate(
+    Op_decorate instruction, [[gnu::unused]] std::size_t instruction_start_index)
 {
-#warning finish
-    throw Parser_error(instruction_start_index,
-                       instruction_start_index,
-                       "instruction not implemented: "
-                           + std::string(get_enumerant_name(instruction.get_operation())));
+    get_id_state(instruction.target).decorations.push_back(std::move(instruction.decoration));
 }
 
-void Spirv_to_llvm::handle_instruction_op_member_decorate(spirv::Op_member_decorate instruction,
-                                                          std::size_t instruction_start_index)
+void Spirv_to_llvm::handle_instruction_op_member_decorate(
+    Op_member_decorate instruction, [[gnu::unused]] std::size_t instruction_start_index)
 {
-#warning finish
-    throw Parser_error(instruction_start_index,
-                       instruction_start_index,
-                       "instruction not implemented: "
-                           + std::string(get_enumerant_name(instruction.get_operation())));
+    auto &state = get_id_state(instruction.structure_type);
+    state.member_decorations.push_back(std::move(instruction));
 }
 
-void Spirv_to_llvm::handle_instruction_op_decoration_group(spirv::Op_decoration_group instruction,
+void Spirv_to_llvm::handle_instruction_op_decoration_group(Op_decoration_group instruction,
                                                            std::size_t instruction_start_index)
 {
 #warning finish
@@ -796,7 +2153,7 @@ void Spirv_to_llvm::handle_instruction_op_decoration_group(spirv::Op_decoration_
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_group_decorate(spirv::Op_group_decorate instruction,
+void Spirv_to_llvm::handle_instruction_op_group_decorate(Op_group_decorate instruction,
                                                          std::size_t instruction_start_index)
 {
 #warning finish
@@ -807,7 +2164,7 @@ void Spirv_to_llvm::handle_instruction_op_group_decorate(spirv::Op_group_decorat
 }
 
 void Spirv_to_llvm::handle_instruction_op_group_member_decorate(
-    spirv::Op_group_member_decorate instruction, std::size_t instruction_start_index)
+    Op_group_member_decorate instruction, std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -817,7 +2174,7 @@ void Spirv_to_llvm::handle_instruction_op_group_member_decorate(
 }
 
 void Spirv_to_llvm::handle_instruction_op_vector_extract_dynamic(
-    spirv::Op_vector_extract_dynamic instruction, std::size_t instruction_start_index)
+    Op_vector_extract_dynamic instruction, std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -827,7 +2184,7 @@ void Spirv_to_llvm::handle_instruction_op_vector_extract_dynamic(
 }
 
 void Spirv_to_llvm::handle_instruction_op_vector_insert_dynamic(
-    spirv::Op_vector_insert_dynamic instruction, std::size_t instruction_start_index)
+    Op_vector_insert_dynamic instruction, std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -836,7 +2193,7 @@ void Spirv_to_llvm::handle_instruction_op_vector_insert_dynamic(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_vector_shuffle(spirv::Op_vector_shuffle instruction,
+void Spirv_to_llvm::handle_instruction_op_vector_shuffle(Op_vector_shuffle instruction,
                                                          std::size_t instruction_start_index)
 {
 #warning finish
@@ -846,8 +2203,8 @@ void Spirv_to_llvm::handle_instruction_op_vector_shuffle(spirv::Op_vector_shuffl
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_composite_construct(
-    spirv::Op_composite_construct instruction, std::size_t instruction_start_index)
+void Spirv_to_llvm::handle_instruction_op_composite_construct(Op_composite_construct instruction,
+                                                              std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -856,7 +2213,7 @@ void Spirv_to_llvm::handle_instruction_op_composite_construct(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_composite_extract(spirv::Op_composite_extract instruction,
+void Spirv_to_llvm::handle_instruction_op_composite_extract(Op_composite_extract instruction,
                                                             std::size_t instruction_start_index)
 {
 #warning finish
@@ -866,7 +2223,7 @@ void Spirv_to_llvm::handle_instruction_op_composite_extract(spirv::Op_composite_
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_composite_insert(spirv::Op_composite_insert instruction,
+void Spirv_to_llvm::handle_instruction_op_composite_insert(Op_composite_insert instruction,
                                                            std::size_t instruction_start_index)
 {
 #warning finish
@@ -876,7 +2233,7 @@ void Spirv_to_llvm::handle_instruction_op_composite_insert(spirv::Op_composite_i
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_copy_object(spirv::Op_copy_object instruction,
+void Spirv_to_llvm::handle_instruction_op_copy_object(Op_copy_object instruction,
                                                       std::size_t instruction_start_index)
 {
 #warning finish
@@ -886,7 +2243,7 @@ void Spirv_to_llvm::handle_instruction_op_copy_object(spirv::Op_copy_object inst
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_transpose(spirv::Op_transpose instruction,
+void Spirv_to_llvm::handle_instruction_op_transpose(Op_transpose instruction,
                                                     std::size_t instruction_start_index)
 {
 #warning finish
@@ -896,7 +2253,7 @@ void Spirv_to_llvm::handle_instruction_op_transpose(spirv::Op_transpose instruct
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_sampled_image(spirv::Op_sampled_image instruction,
+void Spirv_to_llvm::handle_instruction_op_sampled_image(Op_sampled_image instruction,
                                                         std::size_t instruction_start_index)
 {
 #warning finish
@@ -907,7 +2264,7 @@ void Spirv_to_llvm::handle_instruction_op_sampled_image(spirv::Op_sampled_image 
 }
 
 void Spirv_to_llvm::handle_instruction_op_image_sample_implicit_lod(
-    spirv::Op_image_sample_implicit_lod instruction, std::size_t instruction_start_index)
+    Op_image_sample_implicit_lod instruction, std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -917,7 +2274,7 @@ void Spirv_to_llvm::handle_instruction_op_image_sample_implicit_lod(
 }
 
 void Spirv_to_llvm::handle_instruction_op_image_sample_explicit_lod(
-    spirv::Op_image_sample_explicit_lod instruction, std::size_t instruction_start_index)
+    Op_image_sample_explicit_lod instruction, std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -927,7 +2284,7 @@ void Spirv_to_llvm::handle_instruction_op_image_sample_explicit_lod(
 }
 
 void Spirv_to_llvm::handle_instruction_op_image_sample_dref_implicit_lod(
-    spirv::Op_image_sample_dref_implicit_lod instruction, std::size_t instruction_start_index)
+    Op_image_sample_dref_implicit_lod instruction, std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -937,7 +2294,7 @@ void Spirv_to_llvm::handle_instruction_op_image_sample_dref_implicit_lod(
 }
 
 void Spirv_to_llvm::handle_instruction_op_image_sample_dref_explicit_lod(
-    spirv::Op_image_sample_dref_explicit_lod instruction, std::size_t instruction_start_index)
+    Op_image_sample_dref_explicit_lod instruction, std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -947,7 +2304,7 @@ void Spirv_to_llvm::handle_instruction_op_image_sample_dref_explicit_lod(
 }
 
 void Spirv_to_llvm::handle_instruction_op_image_sample_proj_implicit_lod(
-    spirv::Op_image_sample_proj_implicit_lod instruction, std::size_t instruction_start_index)
+    Op_image_sample_proj_implicit_lod instruction, std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -957,7 +2314,7 @@ void Spirv_to_llvm::handle_instruction_op_image_sample_proj_implicit_lod(
 }
 
 void Spirv_to_llvm::handle_instruction_op_image_sample_proj_explicit_lod(
-    spirv::Op_image_sample_proj_explicit_lod instruction, std::size_t instruction_start_index)
+    Op_image_sample_proj_explicit_lod instruction, std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -967,7 +2324,7 @@ void Spirv_to_llvm::handle_instruction_op_image_sample_proj_explicit_lod(
 }
 
 void Spirv_to_llvm::handle_instruction_op_image_sample_proj_dref_implicit_lod(
-    spirv::Op_image_sample_proj_dref_implicit_lod instruction, std::size_t instruction_start_index)
+    Op_image_sample_proj_dref_implicit_lod instruction, std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -977,7 +2334,7 @@ void Spirv_to_llvm::handle_instruction_op_image_sample_proj_dref_implicit_lod(
 }
 
 void Spirv_to_llvm::handle_instruction_op_image_sample_proj_dref_explicit_lod(
-    spirv::Op_image_sample_proj_dref_explicit_lod instruction, std::size_t instruction_start_index)
+    Op_image_sample_proj_dref_explicit_lod instruction, std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -986,7 +2343,7 @@ void Spirv_to_llvm::handle_instruction_op_image_sample_proj_dref_explicit_lod(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_image_fetch(spirv::Op_image_fetch instruction,
+void Spirv_to_llvm::handle_instruction_op_image_fetch(Op_image_fetch instruction,
                                                       std::size_t instruction_start_index)
 {
 #warning finish
@@ -996,7 +2353,7 @@ void Spirv_to_llvm::handle_instruction_op_image_fetch(spirv::Op_image_fetch inst
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_image_gather(spirv::Op_image_gather instruction,
+void Spirv_to_llvm::handle_instruction_op_image_gather(Op_image_gather instruction,
                                                        std::size_t instruction_start_index)
 {
 #warning finish
@@ -1006,7 +2363,7 @@ void Spirv_to_llvm::handle_instruction_op_image_gather(spirv::Op_image_gather in
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_image_dref_gather(spirv::Op_image_dref_gather instruction,
+void Spirv_to_llvm::handle_instruction_op_image_dref_gather(Op_image_dref_gather instruction,
                                                             std::size_t instruction_start_index)
 {
 #warning finish
@@ -1016,7 +2373,7 @@ void Spirv_to_llvm::handle_instruction_op_image_dref_gather(spirv::Op_image_dref
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_image_read(spirv::Op_image_read instruction,
+void Spirv_to_llvm::handle_instruction_op_image_read(Op_image_read instruction,
                                                      std::size_t instruction_start_index)
 {
 #warning finish
@@ -1026,7 +2383,7 @@ void Spirv_to_llvm::handle_instruction_op_image_read(spirv::Op_image_read instru
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_image_write(spirv::Op_image_write instruction,
+void Spirv_to_llvm::handle_instruction_op_image_write(Op_image_write instruction,
                                                       std::size_t instruction_start_index)
 {
 #warning finish
@@ -1036,7 +2393,7 @@ void Spirv_to_llvm::handle_instruction_op_image_write(spirv::Op_image_write inst
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_image(spirv::Op_image instruction,
+void Spirv_to_llvm::handle_instruction_op_image(Op_image instruction,
                                                 std::size_t instruction_start_index)
 {
 #warning finish
@@ -1046,8 +2403,8 @@ void Spirv_to_llvm::handle_instruction_op_image(spirv::Op_image instruction,
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_image_query_format(
-    spirv::Op_image_query_format instruction, std::size_t instruction_start_index)
+void Spirv_to_llvm::handle_instruction_op_image_query_format(Op_image_query_format instruction,
+                                                             std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -1056,7 +2413,7 @@ void Spirv_to_llvm::handle_instruction_op_image_query_format(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_image_query_order(spirv::Op_image_query_order instruction,
+void Spirv_to_llvm::handle_instruction_op_image_query_order(Op_image_query_order instruction,
                                                             std::size_t instruction_start_index)
 {
 #warning finish
@@ -1066,8 +2423,8 @@ void Spirv_to_llvm::handle_instruction_op_image_query_order(spirv::Op_image_quer
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_image_query_size_lod(
-    spirv::Op_image_query_size_lod instruction, std::size_t instruction_start_index)
+void Spirv_to_llvm::handle_instruction_op_image_query_size_lod(Op_image_query_size_lod instruction,
+                                                               std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -1076,7 +2433,7 @@ void Spirv_to_llvm::handle_instruction_op_image_query_size_lod(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_image_query_size(spirv::Op_image_query_size instruction,
+void Spirv_to_llvm::handle_instruction_op_image_query_size(Op_image_query_size instruction,
                                                            std::size_t instruction_start_index)
 {
 #warning finish
@@ -1086,7 +2443,7 @@ void Spirv_to_llvm::handle_instruction_op_image_query_size(spirv::Op_image_query
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_image_query_lod(spirv::Op_image_query_lod instruction,
+void Spirv_to_llvm::handle_instruction_op_image_query_lod(Op_image_query_lod instruction,
                                                           std::size_t instruction_start_index)
 {
 #warning finish
@@ -1096,8 +2453,8 @@ void Spirv_to_llvm::handle_instruction_op_image_query_lod(spirv::Op_image_query_
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_image_query_levels(
-    spirv::Op_image_query_levels instruction, std::size_t instruction_start_index)
+void Spirv_to_llvm::handle_instruction_op_image_query_levels(Op_image_query_levels instruction,
+                                                             std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -1106,8 +2463,8 @@ void Spirv_to_llvm::handle_instruction_op_image_query_levels(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_image_query_samples(
-    spirv::Op_image_query_samples instruction, std::size_t instruction_start_index)
+void Spirv_to_llvm::handle_instruction_op_image_query_samples(Op_image_query_samples instruction,
+                                                              std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -1116,7 +2473,7 @@ void Spirv_to_llvm::handle_instruction_op_image_query_samples(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_convert_f_to_u(spirv::Op_convert_f_to_u instruction,
+void Spirv_to_llvm::handle_instruction_op_convert_f_to_u(Op_convert_f_to_u instruction,
                                                          std::size_t instruction_start_index)
 {
 #warning finish
@@ -1126,7 +2483,7 @@ void Spirv_to_llvm::handle_instruction_op_convert_f_to_u(spirv::Op_convert_f_to_
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_convert_f_to_s(spirv::Op_convert_f_to_s instruction,
+void Spirv_to_llvm::handle_instruction_op_convert_f_to_s(Op_convert_f_to_s instruction,
                                                          std::size_t instruction_start_index)
 {
 #warning finish
@@ -1136,7 +2493,7 @@ void Spirv_to_llvm::handle_instruction_op_convert_f_to_s(spirv::Op_convert_f_to_
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_convert_s_to_f(spirv::Op_convert_s_to_f instruction,
+void Spirv_to_llvm::handle_instruction_op_convert_s_to_f(Op_convert_s_to_f instruction,
                                                          std::size_t instruction_start_index)
 {
 #warning finish
@@ -1146,7 +2503,7 @@ void Spirv_to_llvm::handle_instruction_op_convert_s_to_f(spirv::Op_convert_s_to_
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_convert_u_to_f(spirv::Op_convert_u_to_f instruction,
+void Spirv_to_llvm::handle_instruction_op_convert_u_to_f(Op_convert_u_to_f instruction,
                                                          std::size_t instruction_start_index)
 {
 #warning finish
@@ -1156,7 +2513,7 @@ void Spirv_to_llvm::handle_instruction_op_convert_u_to_f(spirv::Op_convert_u_to_
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_u_convert(spirv::Op_u_convert instruction,
+void Spirv_to_llvm::handle_instruction_op_u_convert(Op_u_convert instruction,
                                                     std::size_t instruction_start_index)
 {
 #warning finish
@@ -1166,7 +2523,7 @@ void Spirv_to_llvm::handle_instruction_op_u_convert(spirv::Op_u_convert instruct
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_s_convert(spirv::Op_s_convert instruction,
+void Spirv_to_llvm::handle_instruction_op_s_convert(Op_s_convert instruction,
                                                     std::size_t instruction_start_index)
 {
 #warning finish
@@ -1176,7 +2533,7 @@ void Spirv_to_llvm::handle_instruction_op_s_convert(spirv::Op_s_convert instruct
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_f_convert(spirv::Op_f_convert instruction,
+void Spirv_to_llvm::handle_instruction_op_f_convert(Op_f_convert instruction,
                                                     std::size_t instruction_start_index)
 {
 #warning finish
@@ -1186,7 +2543,7 @@ void Spirv_to_llvm::handle_instruction_op_f_convert(spirv::Op_f_convert instruct
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_quantize_to_f16(spirv::Op_quantize_to_f16 instruction,
+void Spirv_to_llvm::handle_instruction_op_quantize_to_f16(Op_quantize_to_f16 instruction,
                                                           std::size_t instruction_start_index)
 {
 #warning finish
@@ -1196,7 +2553,7 @@ void Spirv_to_llvm::handle_instruction_op_quantize_to_f16(spirv::Op_quantize_to_
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_convert_ptr_to_u(spirv::Op_convert_ptr_to_u instruction,
+void Spirv_to_llvm::handle_instruction_op_convert_ptr_to_u(Op_convert_ptr_to_u instruction,
                                                            std::size_t instruction_start_index)
 {
 #warning finish
@@ -1206,8 +2563,8 @@ void Spirv_to_llvm::handle_instruction_op_convert_ptr_to_u(spirv::Op_convert_ptr
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_sat_convert_s_to_u(
-    spirv::Op_sat_convert_s_to_u instruction, std::size_t instruction_start_index)
+void Spirv_to_llvm::handle_instruction_op_sat_convert_s_to_u(Op_sat_convert_s_to_u instruction,
+                                                             std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -1216,8 +2573,8 @@ void Spirv_to_llvm::handle_instruction_op_sat_convert_s_to_u(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_sat_convert_u_to_s(
-    spirv::Op_sat_convert_u_to_s instruction, std::size_t instruction_start_index)
+void Spirv_to_llvm::handle_instruction_op_sat_convert_u_to_s(Op_sat_convert_u_to_s instruction,
+                                                             std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -1226,7 +2583,7 @@ void Spirv_to_llvm::handle_instruction_op_sat_convert_u_to_s(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_convert_u_to_ptr(spirv::Op_convert_u_to_ptr instruction,
+void Spirv_to_llvm::handle_instruction_op_convert_u_to_ptr(Op_convert_u_to_ptr instruction,
                                                            std::size_t instruction_start_index)
 {
 #warning finish
@@ -1236,8 +2593,8 @@ void Spirv_to_llvm::handle_instruction_op_convert_u_to_ptr(spirv::Op_convert_u_t
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_ptr_cast_to_generic(
-    spirv::Op_ptr_cast_to_generic instruction, std::size_t instruction_start_index)
+void Spirv_to_llvm::handle_instruction_op_ptr_cast_to_generic(Op_ptr_cast_to_generic instruction,
+                                                              std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -1246,8 +2603,8 @@ void Spirv_to_llvm::handle_instruction_op_ptr_cast_to_generic(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_generic_cast_to_ptr(
-    spirv::Op_generic_cast_to_ptr instruction, std::size_t instruction_start_index)
+void Spirv_to_llvm::handle_instruction_op_generic_cast_to_ptr(Op_generic_cast_to_ptr instruction,
+                                                              std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -1257,7 +2614,7 @@ void Spirv_to_llvm::handle_instruction_op_generic_cast_to_ptr(
 }
 
 void Spirv_to_llvm::handle_instruction_op_generic_cast_to_ptr_explicit(
-    spirv::Op_generic_cast_to_ptr_explicit instruction, std::size_t instruction_start_index)
+    Op_generic_cast_to_ptr_explicit instruction, std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -1266,7 +2623,7 @@ void Spirv_to_llvm::handle_instruction_op_generic_cast_to_ptr_explicit(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_bitcast(spirv::Op_bitcast instruction,
+void Spirv_to_llvm::handle_instruction_op_bitcast(Op_bitcast instruction,
                                                   std::size_t instruction_start_index)
 {
 #warning finish
@@ -1276,7 +2633,7 @@ void Spirv_to_llvm::handle_instruction_op_bitcast(spirv::Op_bitcast instruction,
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_s_negate(spirv::Op_s_negate instruction,
+void Spirv_to_llvm::handle_instruction_op_s_negate(Op_s_negate instruction,
                                                    std::size_t instruction_start_index)
 {
 #warning finish
@@ -1286,7 +2643,7 @@ void Spirv_to_llvm::handle_instruction_op_s_negate(spirv::Op_s_negate instructio
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_f_negate(spirv::Op_f_negate instruction,
+void Spirv_to_llvm::handle_instruction_op_f_negate(Op_f_negate instruction,
                                                    std::size_t instruction_start_index)
 {
 #warning finish
@@ -1296,7 +2653,7 @@ void Spirv_to_llvm::handle_instruction_op_f_negate(spirv::Op_f_negate instructio
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_i_add(spirv::Op_i_add instruction,
+void Spirv_to_llvm::handle_instruction_op_i_add(Op_i_add instruction,
                                                 std::size_t instruction_start_index)
 {
 #warning finish
@@ -1306,7 +2663,7 @@ void Spirv_to_llvm::handle_instruction_op_i_add(spirv::Op_i_add instruction,
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_f_add(spirv::Op_f_add instruction,
+void Spirv_to_llvm::handle_instruction_op_f_add(Op_f_add instruction,
                                                 std::size_t instruction_start_index)
 {
 #warning finish
@@ -1316,7 +2673,7 @@ void Spirv_to_llvm::handle_instruction_op_f_add(spirv::Op_f_add instruction,
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_i_sub(spirv::Op_i_sub instruction,
+void Spirv_to_llvm::handle_instruction_op_i_sub(Op_i_sub instruction,
                                                 std::size_t instruction_start_index)
 {
 #warning finish
@@ -1326,7 +2683,7 @@ void Spirv_to_llvm::handle_instruction_op_i_sub(spirv::Op_i_sub instruction,
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_f_sub(spirv::Op_f_sub instruction,
+void Spirv_to_llvm::handle_instruction_op_f_sub(Op_f_sub instruction,
                                                 std::size_t instruction_start_index)
 {
 #warning finish
@@ -1336,7 +2693,7 @@ void Spirv_to_llvm::handle_instruction_op_f_sub(spirv::Op_f_sub instruction,
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_i_mul(spirv::Op_i_mul instruction,
+void Spirv_to_llvm::handle_instruction_op_i_mul(Op_i_mul instruction,
                                                 std::size_t instruction_start_index)
 {
 #warning finish
@@ -1346,7 +2703,7 @@ void Spirv_to_llvm::handle_instruction_op_i_mul(spirv::Op_i_mul instruction,
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_f_mul(spirv::Op_f_mul instruction,
+void Spirv_to_llvm::handle_instruction_op_f_mul(Op_f_mul instruction,
                                                 std::size_t instruction_start_index)
 {
 #warning finish
@@ -1356,7 +2713,7 @@ void Spirv_to_llvm::handle_instruction_op_f_mul(spirv::Op_f_mul instruction,
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_u_div(spirv::Op_u_div instruction,
+void Spirv_to_llvm::handle_instruction_op_u_div(Op_u_div instruction,
                                                 std::size_t instruction_start_index)
 {
 #warning finish
@@ -1366,7 +2723,7 @@ void Spirv_to_llvm::handle_instruction_op_u_div(spirv::Op_u_div instruction,
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_s_div(spirv::Op_s_div instruction,
+void Spirv_to_llvm::handle_instruction_op_s_div(Op_s_div instruction,
                                                 std::size_t instruction_start_index)
 {
 #warning finish
@@ -1376,7 +2733,7 @@ void Spirv_to_llvm::handle_instruction_op_s_div(spirv::Op_s_div instruction,
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_f_div(spirv::Op_f_div instruction,
+void Spirv_to_llvm::handle_instruction_op_f_div(Op_f_div instruction,
                                                 std::size_t instruction_start_index)
 {
 #warning finish
@@ -1386,7 +2743,7 @@ void Spirv_to_llvm::handle_instruction_op_f_div(spirv::Op_f_div instruction,
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_u_mod(spirv::Op_u_mod instruction,
+void Spirv_to_llvm::handle_instruction_op_u_mod(Op_u_mod instruction,
                                                 std::size_t instruction_start_index)
 {
 #warning finish
@@ -1396,7 +2753,7 @@ void Spirv_to_llvm::handle_instruction_op_u_mod(spirv::Op_u_mod instruction,
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_s_rem(spirv::Op_s_rem instruction,
+void Spirv_to_llvm::handle_instruction_op_s_rem(Op_s_rem instruction,
                                                 std::size_t instruction_start_index)
 {
 #warning finish
@@ -1406,7 +2763,7 @@ void Spirv_to_llvm::handle_instruction_op_s_rem(spirv::Op_s_rem instruction,
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_s_mod(spirv::Op_s_mod instruction,
+void Spirv_to_llvm::handle_instruction_op_s_mod(Op_s_mod instruction,
                                                 std::size_t instruction_start_index)
 {
 #warning finish
@@ -1416,7 +2773,7 @@ void Spirv_to_llvm::handle_instruction_op_s_mod(spirv::Op_s_mod instruction,
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_f_rem(spirv::Op_f_rem instruction,
+void Spirv_to_llvm::handle_instruction_op_f_rem(Op_f_rem instruction,
                                                 std::size_t instruction_start_index)
 {
 #warning finish
@@ -1426,7 +2783,7 @@ void Spirv_to_llvm::handle_instruction_op_f_rem(spirv::Op_f_rem instruction,
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_f_mod(spirv::Op_f_mod instruction,
+void Spirv_to_llvm::handle_instruction_op_f_mod(Op_f_mod instruction,
                                                 std::size_t instruction_start_index)
 {
 #warning finish
@@ -1436,8 +2793,8 @@ void Spirv_to_llvm::handle_instruction_op_f_mod(spirv::Op_f_mod instruction,
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_vector_times_scalar(
-    spirv::Op_vector_times_scalar instruction, std::size_t instruction_start_index)
+void Spirv_to_llvm::handle_instruction_op_vector_times_scalar(Op_vector_times_scalar instruction,
+                                                              std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -1446,8 +2803,8 @@ void Spirv_to_llvm::handle_instruction_op_vector_times_scalar(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_matrix_times_scalar(
-    spirv::Op_matrix_times_scalar instruction, std::size_t instruction_start_index)
+void Spirv_to_llvm::handle_instruction_op_matrix_times_scalar(Op_matrix_times_scalar instruction,
+                                                              std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -1456,8 +2813,8 @@ void Spirv_to_llvm::handle_instruction_op_matrix_times_scalar(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_vector_times_matrix(
-    spirv::Op_vector_times_matrix instruction, std::size_t instruction_start_index)
+void Spirv_to_llvm::handle_instruction_op_vector_times_matrix(Op_vector_times_matrix instruction,
+                                                              std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -1466,8 +2823,8 @@ void Spirv_to_llvm::handle_instruction_op_vector_times_matrix(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_matrix_times_vector(
-    spirv::Op_matrix_times_vector instruction, std::size_t instruction_start_index)
+void Spirv_to_llvm::handle_instruction_op_matrix_times_vector(Op_matrix_times_vector instruction,
+                                                              std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -1476,8 +2833,8 @@ void Spirv_to_llvm::handle_instruction_op_matrix_times_vector(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_matrix_times_matrix(
-    spirv::Op_matrix_times_matrix instruction, std::size_t instruction_start_index)
+void Spirv_to_llvm::handle_instruction_op_matrix_times_matrix(Op_matrix_times_matrix instruction,
+                                                              std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -1486,7 +2843,7 @@ void Spirv_to_llvm::handle_instruction_op_matrix_times_matrix(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_outer_product(spirv::Op_outer_product instruction,
+void Spirv_to_llvm::handle_instruction_op_outer_product(Op_outer_product instruction,
                                                         std::size_t instruction_start_index)
 {
 #warning finish
@@ -1496,7 +2853,7 @@ void Spirv_to_llvm::handle_instruction_op_outer_product(spirv::Op_outer_product 
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_dot(spirv::Op_dot instruction,
+void Spirv_to_llvm::handle_instruction_op_dot(Op_dot instruction,
                                               std::size_t instruction_start_index)
 {
 #warning finish
@@ -1506,7 +2863,7 @@ void Spirv_to_llvm::handle_instruction_op_dot(spirv::Op_dot instruction,
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_i_add_carry(spirv::Op_i_add_carry instruction,
+void Spirv_to_llvm::handle_instruction_op_i_add_carry(Op_i_add_carry instruction,
                                                       std::size_t instruction_start_index)
 {
 #warning finish
@@ -1516,7 +2873,7 @@ void Spirv_to_llvm::handle_instruction_op_i_add_carry(spirv::Op_i_add_carry inst
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_i_sub_borrow(spirv::Op_i_sub_borrow instruction,
+void Spirv_to_llvm::handle_instruction_op_i_sub_borrow(Op_i_sub_borrow instruction,
                                                        std::size_t instruction_start_index)
 {
 #warning finish
@@ -1526,7 +2883,7 @@ void Spirv_to_llvm::handle_instruction_op_i_sub_borrow(spirv::Op_i_sub_borrow in
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_u_mul_extended(spirv::Op_u_mul_extended instruction,
+void Spirv_to_llvm::handle_instruction_op_u_mul_extended(Op_u_mul_extended instruction,
                                                          std::size_t instruction_start_index)
 {
 #warning finish
@@ -1536,7 +2893,7 @@ void Spirv_to_llvm::handle_instruction_op_u_mul_extended(spirv::Op_u_mul_extende
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_s_mul_extended(spirv::Op_s_mul_extended instruction,
+void Spirv_to_llvm::handle_instruction_op_s_mul_extended(Op_s_mul_extended instruction,
                                                          std::size_t instruction_start_index)
 {
 #warning finish
@@ -1546,7 +2903,7 @@ void Spirv_to_llvm::handle_instruction_op_s_mul_extended(spirv::Op_s_mul_extende
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_any(spirv::Op_any instruction,
+void Spirv_to_llvm::handle_instruction_op_any(Op_any instruction,
                                               std::size_t instruction_start_index)
 {
 #warning finish
@@ -1556,7 +2913,7 @@ void Spirv_to_llvm::handle_instruction_op_any(spirv::Op_any instruction,
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_all(spirv::Op_all instruction,
+void Spirv_to_llvm::handle_instruction_op_all(Op_all instruction,
                                               std::size_t instruction_start_index)
 {
 #warning finish
@@ -1566,7 +2923,7 @@ void Spirv_to_llvm::handle_instruction_op_all(spirv::Op_all instruction,
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_is_nan(spirv::Op_is_nan instruction,
+void Spirv_to_llvm::handle_instruction_op_is_nan(Op_is_nan instruction,
                                                  std::size_t instruction_start_index)
 {
 #warning finish
@@ -1576,7 +2933,7 @@ void Spirv_to_llvm::handle_instruction_op_is_nan(spirv::Op_is_nan instruction,
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_is_inf(spirv::Op_is_inf instruction,
+void Spirv_to_llvm::handle_instruction_op_is_inf(Op_is_inf instruction,
                                                  std::size_t instruction_start_index)
 {
 #warning finish
@@ -1586,7 +2943,7 @@ void Spirv_to_llvm::handle_instruction_op_is_inf(spirv::Op_is_inf instruction,
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_is_finite(spirv::Op_is_finite instruction,
+void Spirv_to_llvm::handle_instruction_op_is_finite(Op_is_finite instruction,
                                                     std::size_t instruction_start_index)
 {
 #warning finish
@@ -1596,7 +2953,7 @@ void Spirv_to_llvm::handle_instruction_op_is_finite(spirv::Op_is_finite instruct
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_is_normal(spirv::Op_is_normal instruction,
+void Spirv_to_llvm::handle_instruction_op_is_normal(Op_is_normal instruction,
                                                     std::size_t instruction_start_index)
 {
 #warning finish
@@ -1606,7 +2963,7 @@ void Spirv_to_llvm::handle_instruction_op_is_normal(spirv::Op_is_normal instruct
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_sign_bit_set(spirv::Op_sign_bit_set instruction,
+void Spirv_to_llvm::handle_instruction_op_sign_bit_set(Op_sign_bit_set instruction,
                                                        std::size_t instruction_start_index)
 {
 #warning finish
@@ -1616,7 +2973,7 @@ void Spirv_to_llvm::handle_instruction_op_sign_bit_set(spirv::Op_sign_bit_set in
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_less_or_greater(spirv::Op_less_or_greater instruction,
+void Spirv_to_llvm::handle_instruction_op_less_or_greater(Op_less_or_greater instruction,
                                                           std::size_t instruction_start_index)
 {
 #warning finish
@@ -1626,7 +2983,7 @@ void Spirv_to_llvm::handle_instruction_op_less_or_greater(spirv::Op_less_or_grea
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_ordered(spirv::Op_ordered instruction,
+void Spirv_to_llvm::handle_instruction_op_ordered(Op_ordered instruction,
                                                   std::size_t instruction_start_index)
 {
 #warning finish
@@ -1636,7 +2993,7 @@ void Spirv_to_llvm::handle_instruction_op_ordered(spirv::Op_ordered instruction,
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_unordered(spirv::Op_unordered instruction,
+void Spirv_to_llvm::handle_instruction_op_unordered(Op_unordered instruction,
                                                     std::size_t instruction_start_index)
 {
 #warning finish
@@ -1646,7 +3003,7 @@ void Spirv_to_llvm::handle_instruction_op_unordered(spirv::Op_unordered instruct
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_logical_equal(spirv::Op_logical_equal instruction,
+void Spirv_to_llvm::handle_instruction_op_logical_equal(Op_logical_equal instruction,
                                                         std::size_t instruction_start_index)
 {
 #warning finish
@@ -1656,7 +3013,7 @@ void Spirv_to_llvm::handle_instruction_op_logical_equal(spirv::Op_logical_equal 
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_logical_not_equal(spirv::Op_logical_not_equal instruction,
+void Spirv_to_llvm::handle_instruction_op_logical_not_equal(Op_logical_not_equal instruction,
                                                             std::size_t instruction_start_index)
 {
 #warning finish
@@ -1666,7 +3023,7 @@ void Spirv_to_llvm::handle_instruction_op_logical_not_equal(spirv::Op_logical_no
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_logical_or(spirv::Op_logical_or instruction,
+void Spirv_to_llvm::handle_instruction_op_logical_or(Op_logical_or instruction,
                                                      std::size_t instruction_start_index)
 {
 #warning finish
@@ -1676,7 +3033,7 @@ void Spirv_to_llvm::handle_instruction_op_logical_or(spirv::Op_logical_or instru
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_logical_and(spirv::Op_logical_and instruction,
+void Spirv_to_llvm::handle_instruction_op_logical_and(Op_logical_and instruction,
                                                       std::size_t instruction_start_index)
 {
 #warning finish
@@ -1686,7 +3043,7 @@ void Spirv_to_llvm::handle_instruction_op_logical_and(spirv::Op_logical_and inst
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_logical_not(spirv::Op_logical_not instruction,
+void Spirv_to_llvm::handle_instruction_op_logical_not(Op_logical_not instruction,
                                                       std::size_t instruction_start_index)
 {
 #warning finish
@@ -1696,7 +3053,7 @@ void Spirv_to_llvm::handle_instruction_op_logical_not(spirv::Op_logical_not inst
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_select(spirv::Op_select instruction,
+void Spirv_to_llvm::handle_instruction_op_select(Op_select instruction,
                                                  std::size_t instruction_start_index)
 {
 #warning finish
@@ -1706,7 +3063,7 @@ void Spirv_to_llvm::handle_instruction_op_select(spirv::Op_select instruction,
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_i_equal(spirv::Op_i_equal instruction,
+void Spirv_to_llvm::handle_instruction_op_i_equal(Op_i_equal instruction,
                                                   std::size_t instruction_start_index)
 {
 #warning finish
@@ -1716,7 +3073,7 @@ void Spirv_to_llvm::handle_instruction_op_i_equal(spirv::Op_i_equal instruction,
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_i_not_equal(spirv::Op_i_not_equal instruction,
+void Spirv_to_llvm::handle_instruction_op_i_not_equal(Op_i_not_equal instruction,
                                                       std::size_t instruction_start_index)
 {
 #warning finish
@@ -1726,7 +3083,7 @@ void Spirv_to_llvm::handle_instruction_op_i_not_equal(spirv::Op_i_not_equal inst
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_u_greater_than(spirv::Op_u_greater_than instruction,
+void Spirv_to_llvm::handle_instruction_op_u_greater_than(Op_u_greater_than instruction,
                                                          std::size_t instruction_start_index)
 {
 #warning finish
@@ -1736,7 +3093,7 @@ void Spirv_to_llvm::handle_instruction_op_u_greater_than(spirv::Op_u_greater_tha
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_s_greater_than(spirv::Op_s_greater_than instruction,
+void Spirv_to_llvm::handle_instruction_op_s_greater_than(Op_s_greater_than instruction,
                                                          std::size_t instruction_start_index)
 {
 #warning finish
@@ -1746,8 +3103,8 @@ void Spirv_to_llvm::handle_instruction_op_s_greater_than(spirv::Op_s_greater_tha
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_u_greater_than_equal(
-    spirv::Op_u_greater_than_equal instruction, std::size_t instruction_start_index)
+void Spirv_to_llvm::handle_instruction_op_u_greater_than_equal(Op_u_greater_than_equal instruction,
+                                                               std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -1756,8 +3113,8 @@ void Spirv_to_llvm::handle_instruction_op_u_greater_than_equal(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_s_greater_than_equal(
-    spirv::Op_s_greater_than_equal instruction, std::size_t instruction_start_index)
+void Spirv_to_llvm::handle_instruction_op_s_greater_than_equal(Op_s_greater_than_equal instruction,
+                                                               std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -1766,7 +3123,7 @@ void Spirv_to_llvm::handle_instruction_op_s_greater_than_equal(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_u_less_than(spirv::Op_u_less_than instruction,
+void Spirv_to_llvm::handle_instruction_op_u_less_than(Op_u_less_than instruction,
                                                       std::size_t instruction_start_index)
 {
 #warning finish
@@ -1776,7 +3133,7 @@ void Spirv_to_llvm::handle_instruction_op_u_less_than(spirv::Op_u_less_than inst
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_s_less_than(spirv::Op_s_less_than instruction,
+void Spirv_to_llvm::handle_instruction_op_s_less_than(Op_s_less_than instruction,
                                                       std::size_t instruction_start_index)
 {
 #warning finish
@@ -1786,7 +3143,7 @@ void Spirv_to_llvm::handle_instruction_op_s_less_than(spirv::Op_s_less_than inst
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_u_less_than_equal(spirv::Op_u_less_than_equal instruction,
+void Spirv_to_llvm::handle_instruction_op_u_less_than_equal(Op_u_less_than_equal instruction,
                                                             std::size_t instruction_start_index)
 {
 #warning finish
@@ -1796,7 +3153,7 @@ void Spirv_to_llvm::handle_instruction_op_u_less_than_equal(spirv::Op_u_less_tha
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_s_less_than_equal(spirv::Op_s_less_than_equal instruction,
+void Spirv_to_llvm::handle_instruction_op_s_less_than_equal(Op_s_less_than_equal instruction,
                                                             std::size_t instruction_start_index)
 {
 #warning finish
@@ -1806,7 +3163,7 @@ void Spirv_to_llvm::handle_instruction_op_s_less_than_equal(spirv::Op_s_less_tha
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_f_ord_equal(spirv::Op_f_ord_equal instruction,
+void Spirv_to_llvm::handle_instruction_op_f_ord_equal(Op_f_ord_equal instruction,
                                                       std::size_t instruction_start_index)
 {
 #warning finish
@@ -1816,7 +3173,7 @@ void Spirv_to_llvm::handle_instruction_op_f_ord_equal(spirv::Op_f_ord_equal inst
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_f_unord_equal(spirv::Op_f_unord_equal instruction,
+void Spirv_to_llvm::handle_instruction_op_f_unord_equal(Op_f_unord_equal instruction,
                                                         std::size_t instruction_start_index)
 {
 #warning finish
@@ -1826,7 +3183,7 @@ void Spirv_to_llvm::handle_instruction_op_f_unord_equal(spirv::Op_f_unord_equal 
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_f_ord_not_equal(spirv::Op_f_ord_not_equal instruction,
+void Spirv_to_llvm::handle_instruction_op_f_ord_not_equal(Op_f_ord_not_equal instruction,
                                                           std::size_t instruction_start_index)
 {
 #warning finish
@@ -1836,7 +3193,7 @@ void Spirv_to_llvm::handle_instruction_op_f_ord_not_equal(spirv::Op_f_ord_not_eq
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_f_unord_not_equal(spirv::Op_f_unord_not_equal instruction,
+void Spirv_to_llvm::handle_instruction_op_f_unord_not_equal(Op_f_unord_not_equal instruction,
                                                             std::size_t instruction_start_index)
 {
 #warning finish
@@ -1846,7 +3203,7 @@ void Spirv_to_llvm::handle_instruction_op_f_unord_not_equal(spirv::Op_f_unord_no
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_f_ord_less_than(spirv::Op_f_ord_less_than instruction,
+void Spirv_to_llvm::handle_instruction_op_f_ord_less_than(Op_f_ord_less_than instruction,
                                                           std::size_t instruction_start_index)
 {
 #warning finish
@@ -1856,7 +3213,7 @@ void Spirv_to_llvm::handle_instruction_op_f_ord_less_than(spirv::Op_f_ord_less_t
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_f_unord_less_than(spirv::Op_f_unord_less_than instruction,
+void Spirv_to_llvm::handle_instruction_op_f_unord_less_than(Op_f_unord_less_than instruction,
                                                             std::size_t instruction_start_index)
 {
 #warning finish
@@ -1866,8 +3223,8 @@ void Spirv_to_llvm::handle_instruction_op_f_unord_less_than(spirv::Op_f_unord_le
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_f_ord_greater_than(
-    spirv::Op_f_ord_greater_than instruction, std::size_t instruction_start_index)
+void Spirv_to_llvm::handle_instruction_op_f_ord_greater_than(Op_f_ord_greater_than instruction,
+                                                             std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -1876,8 +3233,8 @@ void Spirv_to_llvm::handle_instruction_op_f_ord_greater_than(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_f_unord_greater_than(
-    spirv::Op_f_unord_greater_than instruction, std::size_t instruction_start_index)
+void Spirv_to_llvm::handle_instruction_op_f_unord_greater_than(Op_f_unord_greater_than instruction,
+                                                               std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -1887,7 +3244,7 @@ void Spirv_to_llvm::handle_instruction_op_f_unord_greater_than(
 }
 
 void Spirv_to_llvm::handle_instruction_op_f_ord_less_than_equal(
-    spirv::Op_f_ord_less_than_equal instruction, std::size_t instruction_start_index)
+    Op_f_ord_less_than_equal instruction, std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -1897,7 +3254,7 @@ void Spirv_to_llvm::handle_instruction_op_f_ord_less_than_equal(
 }
 
 void Spirv_to_llvm::handle_instruction_op_f_unord_less_than_equal(
-    spirv::Op_f_unord_less_than_equal instruction, std::size_t instruction_start_index)
+    Op_f_unord_less_than_equal instruction, std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -1907,7 +3264,7 @@ void Spirv_to_llvm::handle_instruction_op_f_unord_less_than_equal(
 }
 
 void Spirv_to_llvm::handle_instruction_op_f_ord_greater_than_equal(
-    spirv::Op_f_ord_greater_than_equal instruction, std::size_t instruction_start_index)
+    Op_f_ord_greater_than_equal instruction, std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -1917,7 +3274,7 @@ void Spirv_to_llvm::handle_instruction_op_f_ord_greater_than_equal(
 }
 
 void Spirv_to_llvm::handle_instruction_op_f_unord_greater_than_equal(
-    spirv::Op_f_unord_greater_than_equal instruction, std::size_t instruction_start_index)
+    Op_f_unord_greater_than_equal instruction, std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -1926,8 +3283,8 @@ void Spirv_to_llvm::handle_instruction_op_f_unord_greater_than_equal(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_shift_right_logical(
-    spirv::Op_shift_right_logical instruction, std::size_t instruction_start_index)
+void Spirv_to_llvm::handle_instruction_op_shift_right_logical(Op_shift_right_logical instruction,
+                                                              std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -1937,7 +3294,7 @@ void Spirv_to_llvm::handle_instruction_op_shift_right_logical(
 }
 
 void Spirv_to_llvm::handle_instruction_op_shift_right_arithmetic(
-    spirv::Op_shift_right_arithmetic instruction, std::size_t instruction_start_index)
+    Op_shift_right_arithmetic instruction, std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -1946,8 +3303,8 @@ void Spirv_to_llvm::handle_instruction_op_shift_right_arithmetic(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_shift_left_logical(
-    spirv::Op_shift_left_logical instruction, std::size_t instruction_start_index)
+void Spirv_to_llvm::handle_instruction_op_shift_left_logical(Op_shift_left_logical instruction,
+                                                             std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -1956,7 +3313,7 @@ void Spirv_to_llvm::handle_instruction_op_shift_left_logical(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_bitwise_or(spirv::Op_bitwise_or instruction,
+void Spirv_to_llvm::handle_instruction_op_bitwise_or(Op_bitwise_or instruction,
                                                      std::size_t instruction_start_index)
 {
 #warning finish
@@ -1966,7 +3323,7 @@ void Spirv_to_llvm::handle_instruction_op_bitwise_or(spirv::Op_bitwise_or instru
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_bitwise_xor(spirv::Op_bitwise_xor instruction,
+void Spirv_to_llvm::handle_instruction_op_bitwise_xor(Op_bitwise_xor instruction,
                                                       std::size_t instruction_start_index)
 {
 #warning finish
@@ -1976,7 +3333,7 @@ void Spirv_to_llvm::handle_instruction_op_bitwise_xor(spirv::Op_bitwise_xor inst
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_bitwise_and(spirv::Op_bitwise_and instruction,
+void Spirv_to_llvm::handle_instruction_op_bitwise_and(Op_bitwise_and instruction,
                                                       std::size_t instruction_start_index)
 {
 #warning finish
@@ -1986,7 +3343,7 @@ void Spirv_to_llvm::handle_instruction_op_bitwise_and(spirv::Op_bitwise_and inst
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_not(spirv::Op_not instruction,
+void Spirv_to_llvm::handle_instruction_op_not(Op_not instruction,
                                               std::size_t instruction_start_index)
 {
 #warning finish
@@ -1996,7 +3353,7 @@ void Spirv_to_llvm::handle_instruction_op_not(spirv::Op_not instruction,
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_bit_field_insert(spirv::Op_bit_field_insert instruction,
+void Spirv_to_llvm::handle_instruction_op_bit_field_insert(Op_bit_field_insert instruction,
                                                            std::size_t instruction_start_index)
 {
 #warning finish
@@ -2006,8 +3363,8 @@ void Spirv_to_llvm::handle_instruction_op_bit_field_insert(spirv::Op_bit_field_i
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_bit_field_s_extract(
-    spirv::Op_bit_field_s_extract instruction, std::size_t instruction_start_index)
+void Spirv_to_llvm::handle_instruction_op_bit_field_s_extract(Op_bit_field_s_extract instruction,
+                                                              std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -2016,8 +3373,8 @@ void Spirv_to_llvm::handle_instruction_op_bit_field_s_extract(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_bit_field_u_extract(
-    spirv::Op_bit_field_u_extract instruction, std::size_t instruction_start_index)
+void Spirv_to_llvm::handle_instruction_op_bit_field_u_extract(Op_bit_field_u_extract instruction,
+                                                              std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -2026,7 +3383,7 @@ void Spirv_to_llvm::handle_instruction_op_bit_field_u_extract(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_bit_reverse(spirv::Op_bit_reverse instruction,
+void Spirv_to_llvm::handle_instruction_op_bit_reverse(Op_bit_reverse instruction,
                                                       std::size_t instruction_start_index)
 {
 #warning finish
@@ -2036,7 +3393,7 @@ void Spirv_to_llvm::handle_instruction_op_bit_reverse(spirv::Op_bit_reverse inst
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_bit_count(spirv::Op_bit_count instruction,
+void Spirv_to_llvm::handle_instruction_op_bit_count(Op_bit_count instruction,
                                                     std::size_t instruction_start_index)
 {
 #warning finish
@@ -2046,7 +3403,7 @@ void Spirv_to_llvm::handle_instruction_op_bit_count(spirv::Op_bit_count instruct
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_d_pdx(spirv::Op_d_pdx instruction,
+void Spirv_to_llvm::handle_instruction_op_d_pdx(Op_d_pdx instruction,
                                                 std::size_t instruction_start_index)
 {
 #warning finish
@@ -2056,7 +3413,7 @@ void Spirv_to_llvm::handle_instruction_op_d_pdx(spirv::Op_d_pdx instruction,
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_d_pdy(spirv::Op_d_pdy instruction,
+void Spirv_to_llvm::handle_instruction_op_d_pdy(Op_d_pdy instruction,
                                                 std::size_t instruction_start_index)
 {
 #warning finish
@@ -2066,7 +3423,7 @@ void Spirv_to_llvm::handle_instruction_op_d_pdy(spirv::Op_d_pdy instruction,
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_fwidth(spirv::Op_fwidth instruction,
+void Spirv_to_llvm::handle_instruction_op_fwidth(Op_fwidth instruction,
                                                  std::size_t instruction_start_index)
 {
 #warning finish
@@ -2076,7 +3433,7 @@ void Spirv_to_llvm::handle_instruction_op_fwidth(spirv::Op_fwidth instruction,
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_d_pdx_fine(spirv::Op_d_pdx_fine instruction,
+void Spirv_to_llvm::handle_instruction_op_d_pdx_fine(Op_d_pdx_fine instruction,
                                                      std::size_t instruction_start_index)
 {
 #warning finish
@@ -2086,7 +3443,7 @@ void Spirv_to_llvm::handle_instruction_op_d_pdx_fine(spirv::Op_d_pdx_fine instru
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_d_pdy_fine(spirv::Op_d_pdy_fine instruction,
+void Spirv_to_llvm::handle_instruction_op_d_pdy_fine(Op_d_pdy_fine instruction,
                                                      std::size_t instruction_start_index)
 {
 #warning finish
@@ -2096,7 +3453,7 @@ void Spirv_to_llvm::handle_instruction_op_d_pdy_fine(spirv::Op_d_pdy_fine instru
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_fwidth_fine(spirv::Op_fwidth_fine instruction,
+void Spirv_to_llvm::handle_instruction_op_fwidth_fine(Op_fwidth_fine instruction,
                                                       std::size_t instruction_start_index)
 {
 #warning finish
@@ -2106,7 +3463,7 @@ void Spirv_to_llvm::handle_instruction_op_fwidth_fine(spirv::Op_fwidth_fine inst
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_d_pdx_coarse(spirv::Op_d_pdx_coarse instruction,
+void Spirv_to_llvm::handle_instruction_op_d_pdx_coarse(Op_d_pdx_coarse instruction,
                                                        std::size_t instruction_start_index)
 {
 #warning finish
@@ -2116,7 +3473,7 @@ void Spirv_to_llvm::handle_instruction_op_d_pdx_coarse(spirv::Op_d_pdx_coarse in
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_d_pdy_coarse(spirv::Op_d_pdy_coarse instruction,
+void Spirv_to_llvm::handle_instruction_op_d_pdy_coarse(Op_d_pdy_coarse instruction,
                                                        std::size_t instruction_start_index)
 {
 #warning finish
@@ -2126,7 +3483,7 @@ void Spirv_to_llvm::handle_instruction_op_d_pdy_coarse(spirv::Op_d_pdy_coarse in
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_fwidth_coarse(spirv::Op_fwidth_coarse instruction,
+void Spirv_to_llvm::handle_instruction_op_fwidth_coarse(Op_fwidth_coarse instruction,
                                                         std::size_t instruction_start_index)
 {
 #warning finish
@@ -2136,7 +3493,7 @@ void Spirv_to_llvm::handle_instruction_op_fwidth_coarse(spirv::Op_fwidth_coarse 
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_emit_vertex(spirv::Op_emit_vertex instruction,
+void Spirv_to_llvm::handle_instruction_op_emit_vertex(Op_emit_vertex instruction,
                                                       std::size_t instruction_start_index)
 {
 #warning finish
@@ -2146,7 +3503,7 @@ void Spirv_to_llvm::handle_instruction_op_emit_vertex(spirv::Op_emit_vertex inst
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_end_primitive(spirv::Op_end_primitive instruction,
+void Spirv_to_llvm::handle_instruction_op_end_primitive(Op_end_primitive instruction,
                                                         std::size_t instruction_start_index)
 {
 #warning finish
@@ -2156,8 +3513,8 @@ void Spirv_to_llvm::handle_instruction_op_end_primitive(spirv::Op_end_primitive 
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_emit_stream_vertex(
-    spirv::Op_emit_stream_vertex instruction, std::size_t instruction_start_index)
+void Spirv_to_llvm::handle_instruction_op_emit_stream_vertex(Op_emit_stream_vertex instruction,
+                                                             std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -2166,8 +3523,8 @@ void Spirv_to_llvm::handle_instruction_op_emit_stream_vertex(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_end_stream_primitive(
-    spirv::Op_end_stream_primitive instruction, std::size_t instruction_start_index)
+void Spirv_to_llvm::handle_instruction_op_end_stream_primitive(Op_end_stream_primitive instruction,
+                                                               std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -2176,7 +3533,7 @@ void Spirv_to_llvm::handle_instruction_op_end_stream_primitive(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_control_barrier(spirv::Op_control_barrier instruction,
+void Spirv_to_llvm::handle_instruction_op_control_barrier(Op_control_barrier instruction,
                                                           std::size_t instruction_start_index)
 {
 #warning finish
@@ -2186,7 +3543,7 @@ void Spirv_to_llvm::handle_instruction_op_control_barrier(spirv::Op_control_barr
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_memory_barrier(spirv::Op_memory_barrier instruction,
+void Spirv_to_llvm::handle_instruction_op_memory_barrier(Op_memory_barrier instruction,
                                                          std::size_t instruction_start_index)
 {
 #warning finish
@@ -2196,7 +3553,7 @@ void Spirv_to_llvm::handle_instruction_op_memory_barrier(spirv::Op_memory_barrie
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_atomic_load(spirv::Op_atomic_load instruction,
+void Spirv_to_llvm::handle_instruction_op_atomic_load(Op_atomic_load instruction,
                                                       std::size_t instruction_start_index)
 {
 #warning finish
@@ -2206,7 +3563,7 @@ void Spirv_to_llvm::handle_instruction_op_atomic_load(spirv::Op_atomic_load inst
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_atomic_store(spirv::Op_atomic_store instruction,
+void Spirv_to_llvm::handle_instruction_op_atomic_store(Op_atomic_store instruction,
                                                        std::size_t instruction_start_index)
 {
 #warning finish
@@ -2216,7 +3573,7 @@ void Spirv_to_llvm::handle_instruction_op_atomic_store(spirv::Op_atomic_store in
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_atomic_exchange(spirv::Op_atomic_exchange instruction,
+void Spirv_to_llvm::handle_instruction_op_atomic_exchange(Op_atomic_exchange instruction,
                                                           std::size_t instruction_start_index)
 {
 #warning finish
@@ -2227,7 +3584,7 @@ void Spirv_to_llvm::handle_instruction_op_atomic_exchange(spirv::Op_atomic_excha
 }
 
 void Spirv_to_llvm::handle_instruction_op_atomic_compare_exchange(
-    spirv::Op_atomic_compare_exchange instruction, std::size_t instruction_start_index)
+    Op_atomic_compare_exchange instruction, std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -2237,7 +3594,7 @@ void Spirv_to_llvm::handle_instruction_op_atomic_compare_exchange(
 }
 
 void Spirv_to_llvm::handle_instruction_op_atomic_compare_exchange_weak(
-    spirv::Op_atomic_compare_exchange_weak instruction, std::size_t instruction_start_index)
+    Op_atomic_compare_exchange_weak instruction, std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -2246,8 +3603,8 @@ void Spirv_to_llvm::handle_instruction_op_atomic_compare_exchange_weak(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_atomic_i_increment(
-    spirv::Op_atomic_i_increment instruction, std::size_t instruction_start_index)
+void Spirv_to_llvm::handle_instruction_op_atomic_i_increment(Op_atomic_i_increment instruction,
+                                                             std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -2256,8 +3613,8 @@ void Spirv_to_llvm::handle_instruction_op_atomic_i_increment(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_atomic_i_decrement(
-    spirv::Op_atomic_i_decrement instruction, std::size_t instruction_start_index)
+void Spirv_to_llvm::handle_instruction_op_atomic_i_decrement(Op_atomic_i_decrement instruction,
+                                                             std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -2266,7 +3623,7 @@ void Spirv_to_llvm::handle_instruction_op_atomic_i_decrement(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_atomic_i_add(spirv::Op_atomic_i_add instruction,
+void Spirv_to_llvm::handle_instruction_op_atomic_i_add(Op_atomic_i_add instruction,
                                                        std::size_t instruction_start_index)
 {
 #warning finish
@@ -2276,7 +3633,7 @@ void Spirv_to_llvm::handle_instruction_op_atomic_i_add(spirv::Op_atomic_i_add in
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_atomic_i_sub(spirv::Op_atomic_i_sub instruction,
+void Spirv_to_llvm::handle_instruction_op_atomic_i_sub(Op_atomic_i_sub instruction,
                                                        std::size_t instruction_start_index)
 {
 #warning finish
@@ -2286,7 +3643,7 @@ void Spirv_to_llvm::handle_instruction_op_atomic_i_sub(spirv::Op_atomic_i_sub in
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_atomic_s_min(spirv::Op_atomic_s_min instruction,
+void Spirv_to_llvm::handle_instruction_op_atomic_s_min(Op_atomic_s_min instruction,
                                                        std::size_t instruction_start_index)
 {
 #warning finish
@@ -2296,7 +3653,7 @@ void Spirv_to_llvm::handle_instruction_op_atomic_s_min(spirv::Op_atomic_s_min in
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_atomic_u_min(spirv::Op_atomic_u_min instruction,
+void Spirv_to_llvm::handle_instruction_op_atomic_u_min(Op_atomic_u_min instruction,
                                                        std::size_t instruction_start_index)
 {
 #warning finish
@@ -2306,7 +3663,7 @@ void Spirv_to_llvm::handle_instruction_op_atomic_u_min(spirv::Op_atomic_u_min in
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_atomic_s_max(spirv::Op_atomic_s_max instruction,
+void Spirv_to_llvm::handle_instruction_op_atomic_s_max(Op_atomic_s_max instruction,
                                                        std::size_t instruction_start_index)
 {
 #warning finish
@@ -2316,7 +3673,7 @@ void Spirv_to_llvm::handle_instruction_op_atomic_s_max(spirv::Op_atomic_s_max in
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_atomic_u_max(spirv::Op_atomic_u_max instruction,
+void Spirv_to_llvm::handle_instruction_op_atomic_u_max(Op_atomic_u_max instruction,
                                                        std::size_t instruction_start_index)
 {
 #warning finish
@@ -2326,7 +3683,7 @@ void Spirv_to_llvm::handle_instruction_op_atomic_u_max(spirv::Op_atomic_u_max in
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_atomic_and(spirv::Op_atomic_and instruction,
+void Spirv_to_llvm::handle_instruction_op_atomic_and(Op_atomic_and instruction,
                                                      std::size_t instruction_start_index)
 {
 #warning finish
@@ -2336,7 +3693,7 @@ void Spirv_to_llvm::handle_instruction_op_atomic_and(spirv::Op_atomic_and instru
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_atomic_or(spirv::Op_atomic_or instruction,
+void Spirv_to_llvm::handle_instruction_op_atomic_or(Op_atomic_or instruction,
                                                     std::size_t instruction_start_index)
 {
 #warning finish
@@ -2346,7 +3703,7 @@ void Spirv_to_llvm::handle_instruction_op_atomic_or(spirv::Op_atomic_or instruct
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_atomic_xor(spirv::Op_atomic_xor instruction,
+void Spirv_to_llvm::handle_instruction_op_atomic_xor(Op_atomic_xor instruction,
                                                      std::size_t instruction_start_index)
 {
 #warning finish
@@ -2356,7 +3713,7 @@ void Spirv_to_llvm::handle_instruction_op_atomic_xor(spirv::Op_atomic_xor instru
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_phi(spirv::Op_phi instruction,
+void Spirv_to_llvm::handle_instruction_op_phi(Op_phi instruction,
                                               std::size_t instruction_start_index)
 {
 #warning finish
@@ -2366,7 +3723,7 @@ void Spirv_to_llvm::handle_instruction_op_phi(spirv::Op_phi instruction,
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_loop_merge(spirv::Op_loop_merge instruction,
+void Spirv_to_llvm::handle_instruction_op_loop_merge(Op_loop_merge instruction,
                                                      std::size_t instruction_start_index)
 {
 #warning finish
@@ -2376,7 +3733,7 @@ void Spirv_to_llvm::handle_instruction_op_loop_merge(spirv::Op_loop_merge instru
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_selection_merge(spirv::Op_selection_merge instruction,
+void Spirv_to_llvm::handle_instruction_op_selection_merge(Op_selection_merge instruction,
                                                           std::size_t instruction_start_index)
 {
 #warning finish
@@ -2386,7 +3743,7 @@ void Spirv_to_llvm::handle_instruction_op_selection_merge(spirv::Op_selection_me
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_label(spirv::Op_label instruction,
+void Spirv_to_llvm::handle_instruction_op_label(Op_label instruction,
                                                 std::size_t instruction_start_index)
 {
 #warning finish
@@ -2396,7 +3753,7 @@ void Spirv_to_llvm::handle_instruction_op_label(spirv::Op_label instruction,
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_branch(spirv::Op_branch instruction,
+void Spirv_to_llvm::handle_instruction_op_branch(Op_branch instruction,
                                                  std::size_t instruction_start_index)
 {
 #warning finish
@@ -2406,8 +3763,8 @@ void Spirv_to_llvm::handle_instruction_op_branch(spirv::Op_branch instruction,
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_branch_conditional(
-    spirv::Op_branch_conditional instruction, std::size_t instruction_start_index)
+void Spirv_to_llvm::handle_instruction_op_branch_conditional(Op_branch_conditional instruction,
+                                                             std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -2416,7 +3773,7 @@ void Spirv_to_llvm::handle_instruction_op_branch_conditional(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_switch(spirv::Op_switch instruction,
+void Spirv_to_llvm::handle_instruction_op_switch(Op_switch instruction,
                                                  std::size_t instruction_start_index)
 {
 #warning finish
@@ -2426,7 +3783,7 @@ void Spirv_to_llvm::handle_instruction_op_switch(spirv::Op_switch instruction,
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_kill(spirv::Op_kill instruction,
+void Spirv_to_llvm::handle_instruction_op_kill(Op_kill instruction,
                                                std::size_t instruction_start_index)
 {
 #warning finish
@@ -2436,7 +3793,7 @@ void Spirv_to_llvm::handle_instruction_op_kill(spirv::Op_kill instruction,
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_return(spirv::Op_return instruction,
+void Spirv_to_llvm::handle_instruction_op_return(Op_return instruction,
                                                  std::size_t instruction_start_index)
 {
 #warning finish
@@ -2446,7 +3803,7 @@ void Spirv_to_llvm::handle_instruction_op_return(spirv::Op_return instruction,
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_return_value(spirv::Op_return_value instruction,
+void Spirv_to_llvm::handle_instruction_op_return_value(Op_return_value instruction,
                                                        std::size_t instruction_start_index)
 {
 #warning finish
@@ -2456,7 +3813,7 @@ void Spirv_to_llvm::handle_instruction_op_return_value(spirv::Op_return_value in
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_unreachable(spirv::Op_unreachable instruction,
+void Spirv_to_llvm::handle_instruction_op_unreachable(Op_unreachable instruction,
                                                       std::size_t instruction_start_index)
 {
 #warning finish
@@ -2466,7 +3823,7 @@ void Spirv_to_llvm::handle_instruction_op_unreachable(spirv::Op_unreachable inst
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_lifetime_start(spirv::Op_lifetime_start instruction,
+void Spirv_to_llvm::handle_instruction_op_lifetime_start(Op_lifetime_start instruction,
                                                          std::size_t instruction_start_index)
 {
 #warning finish
@@ -2476,7 +3833,7 @@ void Spirv_to_llvm::handle_instruction_op_lifetime_start(spirv::Op_lifetime_star
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_lifetime_stop(spirv::Op_lifetime_stop instruction,
+void Spirv_to_llvm::handle_instruction_op_lifetime_stop(Op_lifetime_stop instruction,
                                                         std::size_t instruction_start_index)
 {
 #warning finish
@@ -2486,7 +3843,7 @@ void Spirv_to_llvm::handle_instruction_op_lifetime_stop(spirv::Op_lifetime_stop 
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_group_async_copy(spirv::Op_group_async_copy instruction,
+void Spirv_to_llvm::handle_instruction_op_group_async_copy(Op_group_async_copy instruction,
                                                            std::size_t instruction_start_index)
 {
 #warning finish
@@ -2496,7 +3853,7 @@ void Spirv_to_llvm::handle_instruction_op_group_async_copy(spirv::Op_group_async
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_group_wait_events(spirv::Op_group_wait_events instruction,
+void Spirv_to_llvm::handle_instruction_op_group_wait_events(Op_group_wait_events instruction,
                                                             std::size_t instruction_start_index)
 {
 #warning finish
@@ -2506,7 +3863,7 @@ void Spirv_to_llvm::handle_instruction_op_group_wait_events(spirv::Op_group_wait
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_group_all(spirv::Op_group_all instruction,
+void Spirv_to_llvm::handle_instruction_op_group_all(Op_group_all instruction,
                                                     std::size_t instruction_start_index)
 {
 #warning finish
@@ -2516,7 +3873,7 @@ void Spirv_to_llvm::handle_instruction_op_group_all(spirv::Op_group_all instruct
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_group_any(spirv::Op_group_any instruction,
+void Spirv_to_llvm::handle_instruction_op_group_any(Op_group_any instruction,
                                                     std::size_t instruction_start_index)
 {
 #warning finish
@@ -2526,7 +3883,7 @@ void Spirv_to_llvm::handle_instruction_op_group_any(spirv::Op_group_any instruct
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_group_broadcast(spirv::Op_group_broadcast instruction,
+void Spirv_to_llvm::handle_instruction_op_group_broadcast(Op_group_broadcast instruction,
                                                           std::size_t instruction_start_index)
 {
 #warning finish
@@ -2536,7 +3893,7 @@ void Spirv_to_llvm::handle_instruction_op_group_broadcast(spirv::Op_group_broadc
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_group_i_add(spirv::Op_group_i_add instruction,
+void Spirv_to_llvm::handle_instruction_op_group_i_add(Op_group_i_add instruction,
                                                       std::size_t instruction_start_index)
 {
 #warning finish
@@ -2546,7 +3903,7 @@ void Spirv_to_llvm::handle_instruction_op_group_i_add(spirv::Op_group_i_add inst
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_group_f_add(spirv::Op_group_f_add instruction,
+void Spirv_to_llvm::handle_instruction_op_group_f_add(Op_group_f_add instruction,
                                                       std::size_t instruction_start_index)
 {
 #warning finish
@@ -2556,7 +3913,7 @@ void Spirv_to_llvm::handle_instruction_op_group_f_add(spirv::Op_group_f_add inst
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_group_f_min(spirv::Op_group_f_min instruction,
+void Spirv_to_llvm::handle_instruction_op_group_f_min(Op_group_f_min instruction,
                                                       std::size_t instruction_start_index)
 {
 #warning finish
@@ -2566,7 +3923,7 @@ void Spirv_to_llvm::handle_instruction_op_group_f_min(spirv::Op_group_f_min inst
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_group_u_min(spirv::Op_group_u_min instruction,
+void Spirv_to_llvm::handle_instruction_op_group_u_min(Op_group_u_min instruction,
                                                       std::size_t instruction_start_index)
 {
 #warning finish
@@ -2576,7 +3933,7 @@ void Spirv_to_llvm::handle_instruction_op_group_u_min(spirv::Op_group_u_min inst
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_group_s_min(spirv::Op_group_s_min instruction,
+void Spirv_to_llvm::handle_instruction_op_group_s_min(Op_group_s_min instruction,
                                                       std::size_t instruction_start_index)
 {
 #warning finish
@@ -2586,7 +3943,7 @@ void Spirv_to_llvm::handle_instruction_op_group_s_min(spirv::Op_group_s_min inst
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_group_f_max(spirv::Op_group_f_max instruction,
+void Spirv_to_llvm::handle_instruction_op_group_f_max(Op_group_f_max instruction,
                                                       std::size_t instruction_start_index)
 {
 #warning finish
@@ -2596,7 +3953,7 @@ void Spirv_to_llvm::handle_instruction_op_group_f_max(spirv::Op_group_f_max inst
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_group_u_max(spirv::Op_group_u_max instruction,
+void Spirv_to_llvm::handle_instruction_op_group_u_max(Op_group_u_max instruction,
                                                       std::size_t instruction_start_index)
 {
 #warning finish
@@ -2606,7 +3963,7 @@ void Spirv_to_llvm::handle_instruction_op_group_u_max(spirv::Op_group_u_max inst
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_group_s_max(spirv::Op_group_s_max instruction,
+void Spirv_to_llvm::handle_instruction_op_group_s_max(Op_group_s_max instruction,
                                                       std::size_t instruction_start_index)
 {
 #warning finish
@@ -2616,7 +3973,7 @@ void Spirv_to_llvm::handle_instruction_op_group_s_max(spirv::Op_group_s_max inst
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_read_pipe(spirv::Op_read_pipe instruction,
+void Spirv_to_llvm::handle_instruction_op_read_pipe(Op_read_pipe instruction,
                                                     std::size_t instruction_start_index)
 {
 #warning finish
@@ -2626,7 +3983,7 @@ void Spirv_to_llvm::handle_instruction_op_read_pipe(spirv::Op_read_pipe instruct
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_write_pipe(spirv::Op_write_pipe instruction,
+void Spirv_to_llvm::handle_instruction_op_write_pipe(Op_write_pipe instruction,
                                                      std::size_t instruction_start_index)
 {
 #warning finish
@@ -2636,8 +3993,8 @@ void Spirv_to_llvm::handle_instruction_op_write_pipe(spirv::Op_write_pipe instru
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_reserved_read_pipe(
-    spirv::Op_reserved_read_pipe instruction, std::size_t instruction_start_index)
+void Spirv_to_llvm::handle_instruction_op_reserved_read_pipe(Op_reserved_read_pipe instruction,
+                                                             std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -2646,8 +4003,8 @@ void Spirv_to_llvm::handle_instruction_op_reserved_read_pipe(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_reserved_write_pipe(
-    spirv::Op_reserved_write_pipe instruction, std::size_t instruction_start_index)
+void Spirv_to_llvm::handle_instruction_op_reserved_write_pipe(Op_reserved_write_pipe instruction,
+                                                              std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -2657,7 +4014,7 @@ void Spirv_to_llvm::handle_instruction_op_reserved_write_pipe(
 }
 
 void Spirv_to_llvm::handle_instruction_op_reserve_read_pipe_packets(
-    spirv::Op_reserve_read_pipe_packets instruction, std::size_t instruction_start_index)
+    Op_reserve_read_pipe_packets instruction, std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -2667,7 +4024,7 @@ void Spirv_to_llvm::handle_instruction_op_reserve_read_pipe_packets(
 }
 
 void Spirv_to_llvm::handle_instruction_op_reserve_write_pipe_packets(
-    spirv::Op_reserve_write_pipe_packets instruction, std::size_t instruction_start_index)
+    Op_reserve_write_pipe_packets instruction, std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -2676,7 +4033,7 @@ void Spirv_to_llvm::handle_instruction_op_reserve_write_pipe_packets(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_commit_read_pipe(spirv::Op_commit_read_pipe instruction,
+void Spirv_to_llvm::handle_instruction_op_commit_read_pipe(Op_commit_read_pipe instruction,
                                                            std::size_t instruction_start_index)
 {
 #warning finish
@@ -2686,7 +4043,7 @@ void Spirv_to_llvm::handle_instruction_op_commit_read_pipe(spirv::Op_commit_read
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_commit_write_pipe(spirv::Op_commit_write_pipe instruction,
+void Spirv_to_llvm::handle_instruction_op_commit_write_pipe(Op_commit_write_pipe instruction,
                                                             std::size_t instruction_start_index)
 {
 #warning finish
@@ -2696,8 +4053,8 @@ void Spirv_to_llvm::handle_instruction_op_commit_write_pipe(spirv::Op_commit_wri
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_is_valid_reserve_id(
-    spirv::Op_is_valid_reserve_id instruction, std::size_t instruction_start_index)
+void Spirv_to_llvm::handle_instruction_op_is_valid_reserve_id(Op_is_valid_reserve_id instruction,
+                                                              std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -2706,8 +4063,8 @@ void Spirv_to_llvm::handle_instruction_op_is_valid_reserve_id(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_get_num_pipe_packets(
-    spirv::Op_get_num_pipe_packets instruction, std::size_t instruction_start_index)
+void Spirv_to_llvm::handle_instruction_op_get_num_pipe_packets(Op_get_num_pipe_packets instruction,
+                                                               std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -2716,8 +4073,8 @@ void Spirv_to_llvm::handle_instruction_op_get_num_pipe_packets(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_get_max_pipe_packets(
-    spirv::Op_get_max_pipe_packets instruction, std::size_t instruction_start_index)
+void Spirv_to_llvm::handle_instruction_op_get_max_pipe_packets(Op_get_max_pipe_packets instruction,
+                                                               std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -2727,7 +4084,7 @@ void Spirv_to_llvm::handle_instruction_op_get_max_pipe_packets(
 }
 
 void Spirv_to_llvm::handle_instruction_op_group_reserve_read_pipe_packets(
-    spirv::Op_group_reserve_read_pipe_packets instruction, std::size_t instruction_start_index)
+    Op_group_reserve_read_pipe_packets instruction, std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -2737,7 +4094,7 @@ void Spirv_to_llvm::handle_instruction_op_group_reserve_read_pipe_packets(
 }
 
 void Spirv_to_llvm::handle_instruction_op_group_reserve_write_pipe_packets(
-    spirv::Op_group_reserve_write_pipe_packets instruction, std::size_t instruction_start_index)
+    Op_group_reserve_write_pipe_packets instruction, std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -2747,7 +4104,7 @@ void Spirv_to_llvm::handle_instruction_op_group_reserve_write_pipe_packets(
 }
 
 void Spirv_to_llvm::handle_instruction_op_group_commit_read_pipe(
-    spirv::Op_group_commit_read_pipe instruction, std::size_t instruction_start_index)
+    Op_group_commit_read_pipe instruction, std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -2757,7 +4114,7 @@ void Spirv_to_llvm::handle_instruction_op_group_commit_read_pipe(
 }
 
 void Spirv_to_llvm::handle_instruction_op_group_commit_write_pipe(
-    spirv::Op_group_commit_write_pipe instruction, std::size_t instruction_start_index)
+    Op_group_commit_write_pipe instruction, std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -2766,7 +4123,7 @@ void Spirv_to_llvm::handle_instruction_op_group_commit_write_pipe(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_enqueue_marker(spirv::Op_enqueue_marker instruction,
+void Spirv_to_llvm::handle_instruction_op_enqueue_marker(Op_enqueue_marker instruction,
                                                          std::size_t instruction_start_index)
 {
 #warning finish
@@ -2776,7 +4133,7 @@ void Spirv_to_llvm::handle_instruction_op_enqueue_marker(spirv::Op_enqueue_marke
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_enqueue_kernel(spirv::Op_enqueue_kernel instruction,
+void Spirv_to_llvm::handle_instruction_op_enqueue_kernel(Op_enqueue_kernel instruction,
                                                          std::size_t instruction_start_index)
 {
 #warning finish
@@ -2787,7 +4144,7 @@ void Spirv_to_llvm::handle_instruction_op_enqueue_kernel(spirv::Op_enqueue_kerne
 }
 
 void Spirv_to_llvm::handle_instruction_op_get_kernel_n_drange_sub_group_count(
-    spirv::Op_get_kernel_n_drange_sub_group_count instruction, std::size_t instruction_start_index)
+    Op_get_kernel_n_drange_sub_group_count instruction, std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -2797,8 +4154,7 @@ void Spirv_to_llvm::handle_instruction_op_get_kernel_n_drange_sub_group_count(
 }
 
 void Spirv_to_llvm::handle_instruction_op_get_kernel_n_drange_max_sub_group_size(
-    spirv::Op_get_kernel_n_drange_max_sub_group_size instruction,
-    std::size_t instruction_start_index)
+    Op_get_kernel_n_drange_max_sub_group_size instruction, std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -2808,7 +4164,7 @@ void Spirv_to_llvm::handle_instruction_op_get_kernel_n_drange_max_sub_group_size
 }
 
 void Spirv_to_llvm::handle_instruction_op_get_kernel_work_group_size(
-    spirv::Op_get_kernel_work_group_size instruction, std::size_t instruction_start_index)
+    Op_get_kernel_work_group_size instruction, std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -2818,7 +4174,7 @@ void Spirv_to_llvm::handle_instruction_op_get_kernel_work_group_size(
 }
 
 void Spirv_to_llvm::handle_instruction_op_get_kernel_preferred_work_group_size_multiple(
-    spirv::Op_get_kernel_preferred_work_group_size_multiple instruction,
+    Op_get_kernel_preferred_work_group_size_multiple instruction,
     std::size_t instruction_start_index)
 {
 #warning finish
@@ -2828,7 +4184,7 @@ void Spirv_to_llvm::handle_instruction_op_get_kernel_preferred_work_group_size_m
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_retain_event(spirv::Op_retain_event instruction,
+void Spirv_to_llvm::handle_instruction_op_retain_event(Op_retain_event instruction,
                                                        std::size_t instruction_start_index)
 {
 #warning finish
@@ -2838,7 +4194,7 @@ void Spirv_to_llvm::handle_instruction_op_retain_event(spirv::Op_retain_event in
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_release_event(spirv::Op_release_event instruction,
+void Spirv_to_llvm::handle_instruction_op_release_event(Op_release_event instruction,
                                                         std::size_t instruction_start_index)
 {
 #warning finish
@@ -2848,7 +4204,7 @@ void Spirv_to_llvm::handle_instruction_op_release_event(spirv::Op_release_event 
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_create_user_event(spirv::Op_create_user_event instruction,
+void Spirv_to_llvm::handle_instruction_op_create_user_event(Op_create_user_event instruction,
                                                             std::size_t instruction_start_index)
 {
 #warning finish
@@ -2858,7 +4214,7 @@ void Spirv_to_llvm::handle_instruction_op_create_user_event(spirv::Op_create_use
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_is_valid_event(spirv::Op_is_valid_event instruction,
+void Spirv_to_llvm::handle_instruction_op_is_valid_event(Op_is_valid_event instruction,
                                                          std::size_t instruction_start_index)
 {
 #warning finish
@@ -2869,7 +4225,7 @@ void Spirv_to_llvm::handle_instruction_op_is_valid_event(spirv::Op_is_valid_even
 }
 
 void Spirv_to_llvm::handle_instruction_op_set_user_event_status(
-    spirv::Op_set_user_event_status instruction, std::size_t instruction_start_index)
+    Op_set_user_event_status instruction, std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -2879,7 +4235,7 @@ void Spirv_to_llvm::handle_instruction_op_set_user_event_status(
 }
 
 void Spirv_to_llvm::handle_instruction_op_capture_event_profiling_info(
-    spirv::Op_capture_event_profiling_info instruction, std::size_t instruction_start_index)
+    Op_capture_event_profiling_info instruction, std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -2888,7 +4244,7 @@ void Spirv_to_llvm::handle_instruction_op_capture_event_profiling_info(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_get_default_queue(spirv::Op_get_default_queue instruction,
+void Spirv_to_llvm::handle_instruction_op_get_default_queue(Op_get_default_queue instruction,
                                                             std::size_t instruction_start_index)
 {
 #warning finish
@@ -2898,7 +4254,7 @@ void Spirv_to_llvm::handle_instruction_op_get_default_queue(spirv::Op_get_defaul
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_build_nd_range(spirv::Op_build_nd_range instruction,
+void Spirv_to_llvm::handle_instruction_op_build_nd_range(Op_build_nd_range instruction,
                                                          std::size_t instruction_start_index)
 {
 #warning finish
@@ -2909,7 +4265,7 @@ void Spirv_to_llvm::handle_instruction_op_build_nd_range(spirv::Op_build_nd_rang
 }
 
 void Spirv_to_llvm::handle_instruction_op_image_sparse_sample_implicit_lod(
-    spirv::Op_image_sparse_sample_implicit_lod instruction, std::size_t instruction_start_index)
+    Op_image_sparse_sample_implicit_lod instruction, std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -2919,7 +4275,7 @@ void Spirv_to_llvm::handle_instruction_op_image_sparse_sample_implicit_lod(
 }
 
 void Spirv_to_llvm::handle_instruction_op_image_sparse_sample_explicit_lod(
-    spirv::Op_image_sparse_sample_explicit_lod instruction, std::size_t instruction_start_index)
+    Op_image_sparse_sample_explicit_lod instruction, std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -2929,8 +4285,7 @@ void Spirv_to_llvm::handle_instruction_op_image_sparse_sample_explicit_lod(
 }
 
 void Spirv_to_llvm::handle_instruction_op_image_sparse_sample_dref_implicit_lod(
-    spirv::Op_image_sparse_sample_dref_implicit_lod instruction,
-    std::size_t instruction_start_index)
+    Op_image_sparse_sample_dref_implicit_lod instruction, std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -2940,8 +4295,7 @@ void Spirv_to_llvm::handle_instruction_op_image_sparse_sample_dref_implicit_lod(
 }
 
 void Spirv_to_llvm::handle_instruction_op_image_sparse_sample_dref_explicit_lod(
-    spirv::Op_image_sparse_sample_dref_explicit_lod instruction,
-    std::size_t instruction_start_index)
+    Op_image_sparse_sample_dref_explicit_lod instruction, std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -2951,8 +4305,7 @@ void Spirv_to_llvm::handle_instruction_op_image_sparse_sample_dref_explicit_lod(
 }
 
 void Spirv_to_llvm::handle_instruction_op_image_sparse_sample_proj_implicit_lod(
-    spirv::Op_image_sparse_sample_proj_implicit_lod instruction,
-    std::size_t instruction_start_index)
+    Op_image_sparse_sample_proj_implicit_lod instruction, std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -2962,8 +4315,7 @@ void Spirv_to_llvm::handle_instruction_op_image_sparse_sample_proj_implicit_lod(
 }
 
 void Spirv_to_llvm::handle_instruction_op_image_sparse_sample_proj_explicit_lod(
-    spirv::Op_image_sparse_sample_proj_explicit_lod instruction,
-    std::size_t instruction_start_index)
+    Op_image_sparse_sample_proj_explicit_lod instruction, std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -2973,8 +4325,7 @@ void Spirv_to_llvm::handle_instruction_op_image_sparse_sample_proj_explicit_lod(
 }
 
 void Spirv_to_llvm::handle_instruction_op_image_sparse_sample_proj_dref_implicit_lod(
-    spirv::Op_image_sparse_sample_proj_dref_implicit_lod instruction,
-    std::size_t instruction_start_index)
+    Op_image_sparse_sample_proj_dref_implicit_lod instruction, std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -2984,8 +4335,7 @@ void Spirv_to_llvm::handle_instruction_op_image_sparse_sample_proj_dref_implicit
 }
 
 void Spirv_to_llvm::handle_instruction_op_image_sparse_sample_proj_dref_explicit_lod(
-    spirv::Op_image_sparse_sample_proj_dref_explicit_lod instruction,
-    std::size_t instruction_start_index)
+    Op_image_sparse_sample_proj_dref_explicit_lod instruction, std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -2994,8 +4344,8 @@ void Spirv_to_llvm::handle_instruction_op_image_sparse_sample_proj_dref_explicit
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_image_sparse_fetch(
-    spirv::Op_image_sparse_fetch instruction, std::size_t instruction_start_index)
+void Spirv_to_llvm::handle_instruction_op_image_sparse_fetch(Op_image_sparse_fetch instruction,
+                                                             std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -3004,8 +4354,8 @@ void Spirv_to_llvm::handle_instruction_op_image_sparse_fetch(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_image_sparse_gather(
-    spirv::Op_image_sparse_gather instruction, std::size_t instruction_start_index)
+void Spirv_to_llvm::handle_instruction_op_image_sparse_gather(Op_image_sparse_gather instruction,
+                                                              std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -3015,7 +4365,7 @@ void Spirv_to_llvm::handle_instruction_op_image_sparse_gather(
 }
 
 void Spirv_to_llvm::handle_instruction_op_image_sparse_dref_gather(
-    spirv::Op_image_sparse_dref_gather instruction, std::size_t instruction_start_index)
+    Op_image_sparse_dref_gather instruction, std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -3025,7 +4375,7 @@ void Spirv_to_llvm::handle_instruction_op_image_sparse_dref_gather(
 }
 
 void Spirv_to_llvm::handle_instruction_op_image_sparse_texels_resident(
-    spirv::Op_image_sparse_texels_resident instruction, std::size_t instruction_start_index)
+    Op_image_sparse_texels_resident instruction, std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -3034,7 +4384,7 @@ void Spirv_to_llvm::handle_instruction_op_image_sparse_texels_resident(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_no_line(spirv::Op_no_line instruction,
+void Spirv_to_llvm::handle_instruction_op_no_line(Op_no_line instruction,
                                                   std::size_t instruction_start_index)
 {
 #warning finish
@@ -3045,7 +4395,7 @@ void Spirv_to_llvm::handle_instruction_op_no_line(spirv::Op_no_line instruction,
 }
 
 void Spirv_to_llvm::handle_instruction_op_atomic_flag_test_and_set(
-    spirv::Op_atomic_flag_test_and_set instruction, std::size_t instruction_start_index)
+    Op_atomic_flag_test_and_set instruction, std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -3054,7 +4404,7 @@ void Spirv_to_llvm::handle_instruction_op_atomic_flag_test_and_set(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_atomic_flag_clear(spirv::Op_atomic_flag_clear instruction,
+void Spirv_to_llvm::handle_instruction_op_atomic_flag_clear(Op_atomic_flag_clear instruction,
                                                             std::size_t instruction_start_index)
 {
 #warning finish
@@ -3064,7 +4414,7 @@ void Spirv_to_llvm::handle_instruction_op_atomic_flag_clear(spirv::Op_atomic_fla
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_image_sparse_read(spirv::Op_image_sparse_read instruction,
+void Spirv_to_llvm::handle_instruction_op_image_sparse_read(Op_image_sparse_read instruction,
                                                             std::size_t instruction_start_index)
 {
 #warning finish
@@ -3074,7 +4424,7 @@ void Spirv_to_llvm::handle_instruction_op_image_sparse_read(spirv::Op_image_spar
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_size_of(spirv::Op_size_of instruction,
+void Spirv_to_llvm::handle_instruction_op_size_of(Op_size_of instruction,
                                                   std::size_t instruction_start_index)
 {
 #warning finish
@@ -3084,7 +4434,7 @@ void Spirv_to_llvm::handle_instruction_op_size_of(spirv::Op_size_of instruction,
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_type_pipe_storage(spirv::Op_type_pipe_storage instruction,
+void Spirv_to_llvm::handle_instruction_op_type_pipe_storage(Op_type_pipe_storage instruction,
                                                             std::size_t instruction_start_index)
 {
 #warning finish
@@ -3095,7 +4445,7 @@ void Spirv_to_llvm::handle_instruction_op_type_pipe_storage(spirv::Op_type_pipe_
 }
 
 void Spirv_to_llvm::handle_instruction_op_constant_pipe_storage(
-    spirv::Op_constant_pipe_storage instruction, std::size_t instruction_start_index)
+    Op_constant_pipe_storage instruction, std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -3105,7 +4455,7 @@ void Spirv_to_llvm::handle_instruction_op_constant_pipe_storage(
 }
 
 void Spirv_to_llvm::handle_instruction_op_create_pipe_from_pipe_storage(
-    spirv::Op_create_pipe_from_pipe_storage instruction, std::size_t instruction_start_index)
+    Op_create_pipe_from_pipe_storage instruction, std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -3115,8 +4465,7 @@ void Spirv_to_llvm::handle_instruction_op_create_pipe_from_pipe_storage(
 }
 
 void Spirv_to_llvm::handle_instruction_op_get_kernel_local_size_for_subgroup_count(
-    spirv::Op_get_kernel_local_size_for_subgroup_count instruction,
-    std::size_t instruction_start_index)
+    Op_get_kernel_local_size_for_subgroup_count instruction, std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -3126,7 +4475,7 @@ void Spirv_to_llvm::handle_instruction_op_get_kernel_local_size_for_subgroup_cou
 }
 
 void Spirv_to_llvm::handle_instruction_op_get_kernel_max_num_subgroups(
-    spirv::Op_get_kernel_max_num_subgroups instruction, std::size_t instruction_start_index)
+    Op_get_kernel_max_num_subgroups instruction, std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -3135,8 +4484,8 @@ void Spirv_to_llvm::handle_instruction_op_get_kernel_max_num_subgroups(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_type_named_barrier(
-    spirv::Op_type_named_barrier instruction, std::size_t instruction_start_index)
+void Spirv_to_llvm::handle_instruction_op_type_named_barrier(Op_type_named_barrier instruction,
+                                                             std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -3146,7 +4495,7 @@ void Spirv_to_llvm::handle_instruction_op_type_named_barrier(
 }
 
 void Spirv_to_llvm::handle_instruction_op_named_barrier_initialize(
-    spirv::Op_named_barrier_initialize instruction, std::size_t instruction_start_index)
+    Op_named_barrier_initialize instruction, std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -3155,8 +4504,8 @@ void Spirv_to_llvm::handle_instruction_op_named_barrier_initialize(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_memory_named_barrier(
-    spirv::Op_memory_named_barrier instruction, std::size_t instruction_start_index)
+void Spirv_to_llvm::handle_instruction_op_memory_named_barrier(Op_memory_named_barrier instruction,
+                                                               std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -3165,7 +4514,7 @@ void Spirv_to_llvm::handle_instruction_op_memory_named_barrier(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_module_processed(spirv::Op_module_processed instruction,
+void Spirv_to_llvm::handle_instruction_op_module_processed(Op_module_processed instruction,
                                                            std::size_t instruction_start_index)
 {
 #warning finish
@@ -3175,7 +4524,7 @@ void Spirv_to_llvm::handle_instruction_op_module_processed(spirv::Op_module_proc
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_execution_mode_id(spirv::Op_execution_mode_id instruction,
+void Spirv_to_llvm::handle_instruction_op_execution_mode_id(Op_execution_mode_id instruction,
                                                             std::size_t instruction_start_index)
 {
 #warning finish
@@ -3185,7 +4534,7 @@ void Spirv_to_llvm::handle_instruction_op_execution_mode_id(spirv::Op_execution_
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_decorate_id(spirv::Op_decorate_id instruction,
+void Spirv_to_llvm::handle_instruction_op_decorate_id(Op_decorate_id instruction,
                                                       std::size_t instruction_start_index)
 {
 #warning finish
@@ -3195,8 +4544,8 @@ void Spirv_to_llvm::handle_instruction_op_decorate_id(spirv::Op_decorate_id inst
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_subgroup_ballot_khr(
-    spirv::Op_subgroup_ballot_khr instruction, std::size_t instruction_start_index)
+void Spirv_to_llvm::handle_instruction_op_subgroup_ballot_khr(Op_subgroup_ballot_khr instruction,
+                                                              std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -3206,7 +4555,7 @@ void Spirv_to_llvm::handle_instruction_op_subgroup_ballot_khr(
 }
 
 void Spirv_to_llvm::handle_instruction_op_subgroup_first_invocation_khr(
-    spirv::Op_subgroup_first_invocation_khr instruction, std::size_t instruction_start_index)
+    Op_subgroup_first_invocation_khr instruction, std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -3215,7 +4564,7 @@ void Spirv_to_llvm::handle_instruction_op_subgroup_first_invocation_khr(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_subgroup_all_khr(spirv::Op_subgroup_all_khr instruction,
+void Spirv_to_llvm::handle_instruction_op_subgroup_all_khr(Op_subgroup_all_khr instruction,
                                                            std::size_t instruction_start_index)
 {
 #warning finish
@@ -3225,7 +4574,7 @@ void Spirv_to_llvm::handle_instruction_op_subgroup_all_khr(spirv::Op_subgroup_al
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_op_subgroup_any_khr(spirv::Op_subgroup_any_khr instruction,
+void Spirv_to_llvm::handle_instruction_op_subgroup_any_khr(Op_subgroup_any_khr instruction,
                                                            std::size_t instruction_start_index)
 {
 #warning finish
@@ -3236,7 +4585,7 @@ void Spirv_to_llvm::handle_instruction_op_subgroup_any_khr(spirv::Op_subgroup_an
 }
 
 void Spirv_to_llvm::handle_instruction_op_subgroup_all_equal_khr(
-    spirv::Op_subgroup_all_equal_khr instruction, std::size_t instruction_start_index)
+    Op_subgroup_all_equal_khr instruction, std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -3246,7 +4595,7 @@ void Spirv_to_llvm::handle_instruction_op_subgroup_all_equal_khr(
 }
 
 void Spirv_to_llvm::handle_instruction_op_subgroup_read_invocation_khr(
-    spirv::Op_subgroup_read_invocation_khr instruction, std::size_t instruction_start_index)
+    Op_subgroup_read_invocation_khr instruction, std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -3255,7 +4604,7 @@ void Spirv_to_llvm::handle_instruction_op_subgroup_read_invocation_khr(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_open_cl_std_op_acos(spirv::Open_cl_std_op_acos instruction,
+void Spirv_to_llvm::handle_instruction_open_cl_std_op_acos(Open_cl_std_op_acos instruction,
                                                            std::size_t instruction_start_index)
 {
 #warning finish
@@ -3265,7 +4614,7 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_acos(spirv::Open_cl_std_op
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_open_cl_std_op_acosh(spirv::Open_cl_std_op_acosh instruction,
+void Spirv_to_llvm::handle_instruction_open_cl_std_op_acosh(Open_cl_std_op_acosh instruction,
                                                             std::size_t instruction_start_index)
 {
 #warning finish
@@ -3275,8 +4624,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_acosh(spirv::Open_cl_std_o
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_open_cl_std_op_acospi(
-    spirv::Open_cl_std_op_acospi instruction, std::size_t instruction_start_index)
+void Spirv_to_llvm::handle_instruction_open_cl_std_op_acospi(Open_cl_std_op_acospi instruction,
+                                                             std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -3285,7 +4634,7 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_acospi(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_open_cl_std_op_asin(spirv::Open_cl_std_op_asin instruction,
+void Spirv_to_llvm::handle_instruction_open_cl_std_op_asin(Open_cl_std_op_asin instruction,
                                                            std::size_t instruction_start_index)
 {
 #warning finish
@@ -3295,7 +4644,7 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_asin(spirv::Open_cl_std_op
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_open_cl_std_op_asinh(spirv::Open_cl_std_op_asinh instruction,
+void Spirv_to_llvm::handle_instruction_open_cl_std_op_asinh(Open_cl_std_op_asinh instruction,
                                                             std::size_t instruction_start_index)
 {
 #warning finish
@@ -3305,8 +4654,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_asinh(spirv::Open_cl_std_o
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_open_cl_std_op_asinpi(
-    spirv::Open_cl_std_op_asinpi instruction, std::size_t instruction_start_index)
+void Spirv_to_llvm::handle_instruction_open_cl_std_op_asinpi(Open_cl_std_op_asinpi instruction,
+                                                             std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -3315,7 +4664,7 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_asinpi(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_open_cl_std_op_atan(spirv::Open_cl_std_op_atan instruction,
+void Spirv_to_llvm::handle_instruction_open_cl_std_op_atan(Open_cl_std_op_atan instruction,
                                                            std::size_t instruction_start_index)
 {
 #warning finish
@@ -3325,7 +4674,7 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_atan(spirv::Open_cl_std_op
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_open_cl_std_op_atan2(spirv::Open_cl_std_op_atan2 instruction,
+void Spirv_to_llvm::handle_instruction_open_cl_std_op_atan2(Open_cl_std_op_atan2 instruction,
                                                             std::size_t instruction_start_index)
 {
 #warning finish
@@ -3335,7 +4684,7 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_atan2(spirv::Open_cl_std_o
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_open_cl_std_op_atanh(spirv::Open_cl_std_op_atanh instruction,
+void Spirv_to_llvm::handle_instruction_open_cl_std_op_atanh(Open_cl_std_op_atanh instruction,
                                                             std::size_t instruction_start_index)
 {
 #warning finish
@@ -3345,8 +4694,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_atanh(spirv::Open_cl_std_o
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_open_cl_std_op_atanpi(
-    spirv::Open_cl_std_op_atanpi instruction, std::size_t instruction_start_index)
+void Spirv_to_llvm::handle_instruction_open_cl_std_op_atanpi(Open_cl_std_op_atanpi instruction,
+                                                             std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -3355,8 +4704,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_atanpi(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_open_cl_std_op_atan2pi(
-    spirv::Open_cl_std_op_atan2pi instruction, std::size_t instruction_start_index)
+void Spirv_to_llvm::handle_instruction_open_cl_std_op_atan2pi(Open_cl_std_op_atan2pi instruction,
+                                                              std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -3365,7 +4714,7 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_atan2pi(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_open_cl_std_op_cbrt(spirv::Open_cl_std_op_cbrt instruction,
+void Spirv_to_llvm::handle_instruction_open_cl_std_op_cbrt(Open_cl_std_op_cbrt instruction,
                                                            std::size_t instruction_start_index)
 {
 #warning finish
@@ -3375,7 +4724,7 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_cbrt(spirv::Open_cl_std_op
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_open_cl_std_op_ceil(spirv::Open_cl_std_op_ceil instruction,
+void Spirv_to_llvm::handle_instruction_open_cl_std_op_ceil(Open_cl_std_op_ceil instruction,
                                                            std::size_t instruction_start_index)
 {
 #warning finish
@@ -3385,8 +4734,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_ceil(spirv::Open_cl_std_op
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_open_cl_std_op_copysign(
-    spirv::Open_cl_std_op_copysign instruction, std::size_t instruction_start_index)
+void Spirv_to_llvm::handle_instruction_open_cl_std_op_copysign(Open_cl_std_op_copysign instruction,
+                                                               std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -3395,7 +4744,7 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_copysign(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_open_cl_std_op_cos(spirv::Open_cl_std_op_cos instruction,
+void Spirv_to_llvm::handle_instruction_open_cl_std_op_cos(Open_cl_std_op_cos instruction,
                                                           std::size_t instruction_start_index)
 {
 #warning finish
@@ -3405,7 +4754,7 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_cos(spirv::Open_cl_std_op_
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_open_cl_std_op_cosh(spirv::Open_cl_std_op_cosh instruction,
+void Spirv_to_llvm::handle_instruction_open_cl_std_op_cosh(Open_cl_std_op_cosh instruction,
                                                            std::size_t instruction_start_index)
 {
 #warning finish
@@ -3415,7 +4764,7 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_cosh(spirv::Open_cl_std_op
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_open_cl_std_op_cospi(spirv::Open_cl_std_op_cospi instruction,
+void Spirv_to_llvm::handle_instruction_open_cl_std_op_cospi(Open_cl_std_op_cospi instruction,
                                                             std::size_t instruction_start_index)
 {
 #warning finish
@@ -3425,7 +4774,7 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_cospi(spirv::Open_cl_std_o
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_open_cl_std_op_erfc(spirv::Open_cl_std_op_erfc instruction,
+void Spirv_to_llvm::handle_instruction_open_cl_std_op_erfc(Open_cl_std_op_erfc instruction,
                                                            std::size_t instruction_start_index)
 {
 #warning finish
@@ -3435,7 +4784,7 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_erfc(spirv::Open_cl_std_op
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_open_cl_std_op_erf(spirv::Open_cl_std_op_erf instruction,
+void Spirv_to_llvm::handle_instruction_open_cl_std_op_erf(Open_cl_std_op_erf instruction,
                                                           std::size_t instruction_start_index)
 {
 #warning finish
@@ -3445,7 +4794,7 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_erf(spirv::Open_cl_std_op_
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_open_cl_std_op_exp(spirv::Open_cl_std_op_exp instruction,
+void Spirv_to_llvm::handle_instruction_open_cl_std_op_exp(Open_cl_std_op_exp instruction,
                                                           std::size_t instruction_start_index)
 {
 #warning finish
@@ -3455,7 +4804,7 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_exp(spirv::Open_cl_std_op_
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_open_cl_std_op_exp2(spirv::Open_cl_std_op_exp2 instruction,
+void Spirv_to_llvm::handle_instruction_open_cl_std_op_exp2(Open_cl_std_op_exp2 instruction,
                                                            std::size_t instruction_start_index)
 {
 #warning finish
@@ -3465,7 +4814,7 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_exp2(spirv::Open_cl_std_op
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_open_cl_std_op_exp10(spirv::Open_cl_std_op_exp10 instruction,
+void Spirv_to_llvm::handle_instruction_open_cl_std_op_exp10(Open_cl_std_op_exp10 instruction,
                                                             std::size_t instruction_start_index)
 {
 #warning finish
@@ -3475,7 +4824,7 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_exp10(spirv::Open_cl_std_o
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_open_cl_std_op_expm1(spirv::Open_cl_std_op_expm1 instruction,
+void Spirv_to_llvm::handle_instruction_open_cl_std_op_expm1(Open_cl_std_op_expm1 instruction,
                                                             std::size_t instruction_start_index)
 {
 #warning finish
@@ -3485,7 +4834,7 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_expm1(spirv::Open_cl_std_o
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_open_cl_std_op_fabs(spirv::Open_cl_std_op_fabs instruction,
+void Spirv_to_llvm::handle_instruction_open_cl_std_op_fabs(Open_cl_std_op_fabs instruction,
                                                            std::size_t instruction_start_index)
 {
 #warning finish
@@ -3495,7 +4844,7 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_fabs(spirv::Open_cl_std_op
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_open_cl_std_op_fdim(spirv::Open_cl_std_op_fdim instruction,
+void Spirv_to_llvm::handle_instruction_open_cl_std_op_fdim(Open_cl_std_op_fdim instruction,
                                                            std::size_t instruction_start_index)
 {
 #warning finish
@@ -3505,7 +4854,7 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_fdim(spirv::Open_cl_std_op
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_open_cl_std_op_floor(spirv::Open_cl_std_op_floor instruction,
+void Spirv_to_llvm::handle_instruction_open_cl_std_op_floor(Open_cl_std_op_floor instruction,
                                                             std::size_t instruction_start_index)
 {
 #warning finish
@@ -3515,7 +4864,7 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_floor(spirv::Open_cl_std_o
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_open_cl_std_op_fma(spirv::Open_cl_std_op_fma instruction,
+void Spirv_to_llvm::handle_instruction_open_cl_std_op_fma(Open_cl_std_op_fma instruction,
                                                           std::size_t instruction_start_index)
 {
 #warning finish
@@ -3525,7 +4874,7 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_fma(spirv::Open_cl_std_op_
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_open_cl_std_op_fmax(spirv::Open_cl_std_op_fmax instruction,
+void Spirv_to_llvm::handle_instruction_open_cl_std_op_fmax(Open_cl_std_op_fmax instruction,
                                                            std::size_t instruction_start_index)
 {
 #warning finish
@@ -3535,7 +4884,7 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_fmax(spirv::Open_cl_std_op
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_open_cl_std_op_fmin(spirv::Open_cl_std_op_fmin instruction,
+void Spirv_to_llvm::handle_instruction_open_cl_std_op_fmin(Open_cl_std_op_fmin instruction,
                                                            std::size_t instruction_start_index)
 {
 #warning finish
@@ -3545,7 +4894,7 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_fmin(spirv::Open_cl_std_op
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_open_cl_std_op_fmod(spirv::Open_cl_std_op_fmod instruction,
+void Spirv_to_llvm::handle_instruction_open_cl_std_op_fmod(Open_cl_std_op_fmod instruction,
                                                            std::size_t instruction_start_index)
 {
 #warning finish
@@ -3555,7 +4904,7 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_fmod(spirv::Open_cl_std_op
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_open_cl_std_op_fract(spirv::Open_cl_std_op_fract instruction,
+void Spirv_to_llvm::handle_instruction_open_cl_std_op_fract(Open_cl_std_op_fract instruction,
                                                             std::size_t instruction_start_index)
 {
 #warning finish
@@ -3565,7 +4914,7 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_fract(spirv::Open_cl_std_o
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_open_cl_std_op_frexp(spirv::Open_cl_std_op_frexp instruction,
+void Spirv_to_llvm::handle_instruction_open_cl_std_op_frexp(Open_cl_std_op_frexp instruction,
                                                             std::size_t instruction_start_index)
 {
 #warning finish
@@ -3575,7 +4924,7 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_frexp(spirv::Open_cl_std_o
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_open_cl_std_op_hypot(spirv::Open_cl_std_op_hypot instruction,
+void Spirv_to_llvm::handle_instruction_open_cl_std_op_hypot(Open_cl_std_op_hypot instruction,
                                                             std::size_t instruction_start_index)
 {
 #warning finish
@@ -3585,7 +4934,7 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_hypot(spirv::Open_cl_std_o
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_open_cl_std_op_ilogb(spirv::Open_cl_std_op_ilogb instruction,
+void Spirv_to_llvm::handle_instruction_open_cl_std_op_ilogb(Open_cl_std_op_ilogb instruction,
                                                             std::size_t instruction_start_index)
 {
 #warning finish
@@ -3595,7 +4944,7 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_ilogb(spirv::Open_cl_std_o
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_open_cl_std_op_ldexp(spirv::Open_cl_std_op_ldexp instruction,
+void Spirv_to_llvm::handle_instruction_open_cl_std_op_ldexp(Open_cl_std_op_ldexp instruction,
                                                             std::size_t instruction_start_index)
 {
 #warning finish
@@ -3605,8 +4954,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_ldexp(spirv::Open_cl_std_o
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_open_cl_std_op_lgamma(
-    spirv::Open_cl_std_op_lgamma instruction, std::size_t instruction_start_index)
+void Spirv_to_llvm::handle_instruction_open_cl_std_op_lgamma(Open_cl_std_op_lgamma instruction,
+                                                             std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -3615,8 +4964,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_lgamma(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_open_cl_std_op_lgamma_r(
-    spirv::Open_cl_std_op_lgamma_r instruction, std::size_t instruction_start_index)
+void Spirv_to_llvm::handle_instruction_open_cl_std_op_lgamma_r(Open_cl_std_op_lgamma_r instruction,
+                                                               std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -3625,7 +4974,7 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_lgamma_r(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_open_cl_std_op_log(spirv::Open_cl_std_op_log instruction,
+void Spirv_to_llvm::handle_instruction_open_cl_std_op_log(Open_cl_std_op_log instruction,
                                                           std::size_t instruction_start_index)
 {
 #warning finish
@@ -3635,7 +4984,7 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_log(spirv::Open_cl_std_op_
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_open_cl_std_op_log2(spirv::Open_cl_std_op_log2 instruction,
+void Spirv_to_llvm::handle_instruction_open_cl_std_op_log2(Open_cl_std_op_log2 instruction,
                                                            std::size_t instruction_start_index)
 {
 #warning finish
@@ -3645,7 +4994,7 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_log2(spirv::Open_cl_std_op
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_open_cl_std_op_log10(spirv::Open_cl_std_op_log10 instruction,
+void Spirv_to_llvm::handle_instruction_open_cl_std_op_log10(Open_cl_std_op_log10 instruction,
                                                             std::size_t instruction_start_index)
 {
 #warning finish
@@ -3655,7 +5004,7 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_log10(spirv::Open_cl_std_o
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_open_cl_std_op_log1p(spirv::Open_cl_std_op_log1p instruction,
+void Spirv_to_llvm::handle_instruction_open_cl_std_op_log1p(Open_cl_std_op_log1p instruction,
                                                             std::size_t instruction_start_index)
 {
 #warning finish
@@ -3665,7 +5014,7 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_log1p(spirv::Open_cl_std_o
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_open_cl_std_op_logb(spirv::Open_cl_std_op_logb instruction,
+void Spirv_to_llvm::handle_instruction_open_cl_std_op_logb(Open_cl_std_op_logb instruction,
                                                            std::size_t instruction_start_index)
 {
 #warning finish
@@ -3675,7 +5024,7 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_logb(spirv::Open_cl_std_op
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_open_cl_std_op_mad(spirv::Open_cl_std_op_mad instruction,
+void Spirv_to_llvm::handle_instruction_open_cl_std_op_mad(Open_cl_std_op_mad instruction,
                                                           std::size_t instruction_start_index)
 {
 #warning finish
@@ -3685,8 +5034,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_mad(spirv::Open_cl_std_op_
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_open_cl_std_op_maxmag(
-    spirv::Open_cl_std_op_maxmag instruction, std::size_t instruction_start_index)
+void Spirv_to_llvm::handle_instruction_open_cl_std_op_maxmag(Open_cl_std_op_maxmag instruction,
+                                                             std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -3695,8 +5044,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_maxmag(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_open_cl_std_op_minmag(
-    spirv::Open_cl_std_op_minmag instruction, std::size_t instruction_start_index)
+void Spirv_to_llvm::handle_instruction_open_cl_std_op_minmag(Open_cl_std_op_minmag instruction,
+                                                             std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -3705,7 +5054,7 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_minmag(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_open_cl_std_op_modf(spirv::Open_cl_std_op_modf instruction,
+void Spirv_to_llvm::handle_instruction_open_cl_std_op_modf(Open_cl_std_op_modf instruction,
                                                            std::size_t instruction_start_index)
 {
 #warning finish
@@ -3715,7 +5064,7 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_modf(spirv::Open_cl_std_op
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_open_cl_std_op_nan(spirv::Open_cl_std_op_nan instruction,
+void Spirv_to_llvm::handle_instruction_open_cl_std_op_nan(Open_cl_std_op_nan instruction,
                                                           std::size_t instruction_start_index)
 {
 #warning finish
@@ -3726,7 +5075,7 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_nan(spirv::Open_cl_std_op_
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_nextafter(
-    spirv::Open_cl_std_op_nextafter instruction, std::size_t instruction_start_index)
+    Open_cl_std_op_nextafter instruction, std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -3735,7 +5084,7 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_nextafter(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_open_cl_std_op_pow(spirv::Open_cl_std_op_pow instruction,
+void Spirv_to_llvm::handle_instruction_open_cl_std_op_pow(Open_cl_std_op_pow instruction,
                                                           std::size_t instruction_start_index)
 {
 #warning finish
@@ -3745,7 +5094,7 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_pow(spirv::Open_cl_std_op_
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_open_cl_std_op_pown(spirv::Open_cl_std_op_pown instruction,
+void Spirv_to_llvm::handle_instruction_open_cl_std_op_pown(Open_cl_std_op_pown instruction,
                                                            std::size_t instruction_start_index)
 {
 #warning finish
@@ -3755,7 +5104,7 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_pown(spirv::Open_cl_std_op
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_open_cl_std_op_powr(spirv::Open_cl_std_op_powr instruction,
+void Spirv_to_llvm::handle_instruction_open_cl_std_op_powr(Open_cl_std_op_powr instruction,
                                                            std::size_t instruction_start_index)
 {
 #warning finish
@@ -3766,7 +5115,7 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_powr(spirv::Open_cl_std_op
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_remainder(
-    spirv::Open_cl_std_op_remainder instruction, std::size_t instruction_start_index)
+    Open_cl_std_op_remainder instruction, std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -3775,8 +5124,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_remainder(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_open_cl_std_op_remquo(
-    spirv::Open_cl_std_op_remquo instruction, std::size_t instruction_start_index)
+void Spirv_to_llvm::handle_instruction_open_cl_std_op_remquo(Open_cl_std_op_remquo instruction,
+                                                             std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -3785,7 +5134,7 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_remquo(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_open_cl_std_op_rint(spirv::Open_cl_std_op_rint instruction,
+void Spirv_to_llvm::handle_instruction_open_cl_std_op_rint(Open_cl_std_op_rint instruction,
                                                            std::size_t instruction_start_index)
 {
 #warning finish
@@ -3795,7 +5144,7 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_rint(spirv::Open_cl_std_op
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_open_cl_std_op_rootn(spirv::Open_cl_std_op_rootn instruction,
+void Spirv_to_llvm::handle_instruction_open_cl_std_op_rootn(Open_cl_std_op_rootn instruction,
                                                             std::size_t instruction_start_index)
 {
 #warning finish
@@ -3805,7 +5154,7 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_rootn(spirv::Open_cl_std_o
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_open_cl_std_op_round(spirv::Open_cl_std_op_round instruction,
+void Spirv_to_llvm::handle_instruction_open_cl_std_op_round(Open_cl_std_op_round instruction,
                                                             std::size_t instruction_start_index)
 {
 #warning finish
@@ -3815,7 +5164,7 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_round(spirv::Open_cl_std_o
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_open_cl_std_op_rsqrt(spirv::Open_cl_std_op_rsqrt instruction,
+void Spirv_to_llvm::handle_instruction_open_cl_std_op_rsqrt(Open_cl_std_op_rsqrt instruction,
                                                             std::size_t instruction_start_index)
 {
 #warning finish
@@ -3825,7 +5174,7 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_rsqrt(spirv::Open_cl_std_o
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_open_cl_std_op_sin(spirv::Open_cl_std_op_sin instruction,
+void Spirv_to_llvm::handle_instruction_open_cl_std_op_sin(Open_cl_std_op_sin instruction,
                                                           std::size_t instruction_start_index)
 {
 #warning finish
@@ -3835,8 +5184,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_sin(spirv::Open_cl_std_op_
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_open_cl_std_op_sincos(
-    spirv::Open_cl_std_op_sincos instruction, std::size_t instruction_start_index)
+void Spirv_to_llvm::handle_instruction_open_cl_std_op_sincos(Open_cl_std_op_sincos instruction,
+                                                             std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -3845,7 +5194,7 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_sincos(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_open_cl_std_op_sinh(spirv::Open_cl_std_op_sinh instruction,
+void Spirv_to_llvm::handle_instruction_open_cl_std_op_sinh(Open_cl_std_op_sinh instruction,
                                                            std::size_t instruction_start_index)
 {
 #warning finish
@@ -3855,7 +5204,7 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_sinh(spirv::Open_cl_std_op
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_open_cl_std_op_sinpi(spirv::Open_cl_std_op_sinpi instruction,
+void Spirv_to_llvm::handle_instruction_open_cl_std_op_sinpi(Open_cl_std_op_sinpi instruction,
                                                             std::size_t instruction_start_index)
 {
 #warning finish
@@ -3865,7 +5214,7 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_sinpi(spirv::Open_cl_std_o
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_open_cl_std_op_sqrt(spirv::Open_cl_std_op_sqrt instruction,
+void Spirv_to_llvm::handle_instruction_open_cl_std_op_sqrt(Open_cl_std_op_sqrt instruction,
                                                            std::size_t instruction_start_index)
 {
 #warning finish
@@ -3875,7 +5224,7 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_sqrt(spirv::Open_cl_std_op
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_open_cl_std_op_tan(spirv::Open_cl_std_op_tan instruction,
+void Spirv_to_llvm::handle_instruction_open_cl_std_op_tan(Open_cl_std_op_tan instruction,
                                                           std::size_t instruction_start_index)
 {
 #warning finish
@@ -3885,7 +5234,7 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_tan(spirv::Open_cl_std_op_
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_open_cl_std_op_tanh(spirv::Open_cl_std_op_tanh instruction,
+void Spirv_to_llvm::handle_instruction_open_cl_std_op_tanh(Open_cl_std_op_tanh instruction,
                                                            std::size_t instruction_start_index)
 {
 #warning finish
@@ -3895,7 +5244,7 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_tanh(spirv::Open_cl_std_op
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_open_cl_std_op_tanpi(spirv::Open_cl_std_op_tanpi instruction,
+void Spirv_to_llvm::handle_instruction_open_cl_std_op_tanpi(Open_cl_std_op_tanpi instruction,
                                                             std::size_t instruction_start_index)
 {
 #warning finish
@@ -3905,8 +5254,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_tanpi(spirv::Open_cl_std_o
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_open_cl_std_op_tgamma(
-    spirv::Open_cl_std_op_tgamma instruction, std::size_t instruction_start_index)
+void Spirv_to_llvm::handle_instruction_open_cl_std_op_tgamma(Open_cl_std_op_tgamma instruction,
+                                                             std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -3915,7 +5264,7 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_tgamma(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_open_cl_std_op_trunc(spirv::Open_cl_std_op_trunc instruction,
+void Spirv_to_llvm::handle_instruction_open_cl_std_op_trunc(Open_cl_std_op_trunc instruction,
                                                             std::size_t instruction_start_index)
 {
 #warning finish
@@ -3925,8 +5274,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_trunc(spirv::Open_cl_std_o
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_open_cl_std_op_half_cos(
-    spirv::Open_cl_std_op_half_cos instruction, std::size_t instruction_start_index)
+void Spirv_to_llvm::handle_instruction_open_cl_std_op_half_cos(Open_cl_std_op_half_cos instruction,
+                                                               std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -3936,7 +5285,7 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_half_cos(
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_half_divide(
-    spirv::Open_cl_std_op_half_divide instruction, std::size_t instruction_start_index)
+    Open_cl_std_op_half_divide instruction, std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -3945,8 +5294,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_half_divide(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_open_cl_std_op_half_exp(
-    spirv::Open_cl_std_op_half_exp instruction, std::size_t instruction_start_index)
+void Spirv_to_llvm::handle_instruction_open_cl_std_op_half_exp(Open_cl_std_op_half_exp instruction,
+                                                               std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -3956,7 +5305,7 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_half_exp(
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_half_exp2(
-    spirv::Open_cl_std_op_half_exp2 instruction, std::size_t instruction_start_index)
+    Open_cl_std_op_half_exp2 instruction, std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -3966,7 +5315,7 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_half_exp2(
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_half_exp10(
-    spirv::Open_cl_std_op_half_exp10 instruction, std::size_t instruction_start_index)
+    Open_cl_std_op_half_exp10 instruction, std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -3975,8 +5324,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_half_exp10(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_open_cl_std_op_half_log(
-    spirv::Open_cl_std_op_half_log instruction, std::size_t instruction_start_index)
+void Spirv_to_llvm::handle_instruction_open_cl_std_op_half_log(Open_cl_std_op_half_log instruction,
+                                                               std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -3986,7 +5335,7 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_half_log(
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_half_log2(
-    spirv::Open_cl_std_op_half_log2 instruction, std::size_t instruction_start_index)
+    Open_cl_std_op_half_log2 instruction, std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -3996,7 +5345,7 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_half_log2(
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_half_log10(
-    spirv::Open_cl_std_op_half_log10 instruction, std::size_t instruction_start_index)
+    Open_cl_std_op_half_log10 instruction, std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -4006,7 +5355,7 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_half_log10(
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_half_powr(
-    spirv::Open_cl_std_op_half_powr instruction, std::size_t instruction_start_index)
+    Open_cl_std_op_half_powr instruction, std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -4016,7 +5365,7 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_half_powr(
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_half_recip(
-    spirv::Open_cl_std_op_half_recip instruction, std::size_t instruction_start_index)
+    Open_cl_std_op_half_recip instruction, std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -4026,7 +5375,7 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_half_recip(
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_half_rsqrt(
-    spirv::Open_cl_std_op_half_rsqrt instruction, std::size_t instruction_start_index)
+    Open_cl_std_op_half_rsqrt instruction, std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -4035,8 +5384,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_half_rsqrt(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_open_cl_std_op_half_sin(
-    spirv::Open_cl_std_op_half_sin instruction, std::size_t instruction_start_index)
+void Spirv_to_llvm::handle_instruction_open_cl_std_op_half_sin(Open_cl_std_op_half_sin instruction,
+                                                               std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -4046,7 +5395,7 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_half_sin(
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_half_sqrt(
-    spirv::Open_cl_std_op_half_sqrt instruction, std::size_t instruction_start_index)
+    Open_cl_std_op_half_sqrt instruction, std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -4055,8 +5404,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_half_sqrt(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_open_cl_std_op_half_tan(
-    spirv::Open_cl_std_op_half_tan instruction, std::size_t instruction_start_index)
+void Spirv_to_llvm::handle_instruction_open_cl_std_op_half_tan(Open_cl_std_op_half_tan instruction,
+                                                               std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -4066,7 +5415,7 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_half_tan(
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_native_cos(
-    spirv::Open_cl_std_op_native_cos instruction, std::size_t instruction_start_index)
+    Open_cl_std_op_native_cos instruction, std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -4076,7 +5425,7 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_native_cos(
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_native_divide(
-    spirv::Open_cl_std_op_native_divide instruction, std::size_t instruction_start_index)
+    Open_cl_std_op_native_divide instruction, std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -4086,7 +5435,7 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_native_divide(
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_native_exp(
-    spirv::Open_cl_std_op_native_exp instruction, std::size_t instruction_start_index)
+    Open_cl_std_op_native_exp instruction, std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -4096,7 +5445,7 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_native_exp(
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_native_exp2(
-    spirv::Open_cl_std_op_native_exp2 instruction, std::size_t instruction_start_index)
+    Open_cl_std_op_native_exp2 instruction, std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -4106,7 +5455,7 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_native_exp2(
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_native_exp10(
-    spirv::Open_cl_std_op_native_exp10 instruction, std::size_t instruction_start_index)
+    Open_cl_std_op_native_exp10 instruction, std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -4116,7 +5465,7 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_native_exp10(
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_native_log(
-    spirv::Open_cl_std_op_native_log instruction, std::size_t instruction_start_index)
+    Open_cl_std_op_native_log instruction, std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -4126,7 +5475,7 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_native_log(
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_native_log2(
-    spirv::Open_cl_std_op_native_log2 instruction, std::size_t instruction_start_index)
+    Open_cl_std_op_native_log2 instruction, std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -4136,7 +5485,7 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_native_log2(
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_native_log10(
-    spirv::Open_cl_std_op_native_log10 instruction, std::size_t instruction_start_index)
+    Open_cl_std_op_native_log10 instruction, std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -4146,7 +5495,7 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_native_log10(
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_native_powr(
-    spirv::Open_cl_std_op_native_powr instruction, std::size_t instruction_start_index)
+    Open_cl_std_op_native_powr instruction, std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -4156,7 +5505,7 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_native_powr(
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_native_recip(
-    spirv::Open_cl_std_op_native_recip instruction, std::size_t instruction_start_index)
+    Open_cl_std_op_native_recip instruction, std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -4166,7 +5515,7 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_native_recip(
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_native_rsqrt(
-    spirv::Open_cl_std_op_native_rsqrt instruction, std::size_t instruction_start_index)
+    Open_cl_std_op_native_rsqrt instruction, std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -4176,7 +5525,7 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_native_rsqrt(
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_native_sin(
-    spirv::Open_cl_std_op_native_sin instruction, std::size_t instruction_start_index)
+    Open_cl_std_op_native_sin instruction, std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -4186,7 +5535,7 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_native_sin(
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_native_sqrt(
-    spirv::Open_cl_std_op_native_sqrt instruction, std::size_t instruction_start_index)
+    Open_cl_std_op_native_sqrt instruction, std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -4196,7 +5545,7 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_native_sqrt(
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_native_tan(
-    spirv::Open_cl_std_op_native_tan instruction, std::size_t instruction_start_index)
+    Open_cl_std_op_native_tan instruction, std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -4205,7 +5554,7 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_native_tan(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_open_cl_std_op_s_abs(spirv::Open_cl_std_op_s_abs instruction,
+void Spirv_to_llvm::handle_instruction_open_cl_std_op_s_abs(Open_cl_std_op_s_abs instruction,
                                                             std::size_t instruction_start_index)
 {
 #warning finish
@@ -4216,7 +5565,7 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_s_abs(spirv::Open_cl_std_o
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_s_abs_diff(
-    spirv::Open_cl_std_op_s_abs_diff instruction, std::size_t instruction_start_index)
+    Open_cl_std_op_s_abs_diff instruction, std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -4226,7 +5575,7 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_s_abs_diff(
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_s_add_sat(
-    spirv::Open_cl_std_op_s_add_sat instruction, std::size_t instruction_start_index)
+    Open_cl_std_op_s_add_sat instruction, std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -4236,7 +5585,7 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_s_add_sat(
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_u_add_sat(
-    spirv::Open_cl_std_op_u_add_sat instruction, std::size_t instruction_start_index)
+    Open_cl_std_op_u_add_sat instruction, std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -4245,8 +5594,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_u_add_sat(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_open_cl_std_op_s_hadd(
-    spirv::Open_cl_std_op_s_hadd instruction, std::size_t instruction_start_index)
+void Spirv_to_llvm::handle_instruction_open_cl_std_op_s_hadd(Open_cl_std_op_s_hadd instruction,
+                                                             std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -4255,8 +5604,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_s_hadd(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_open_cl_std_op_u_hadd(
-    spirv::Open_cl_std_op_u_hadd instruction, std::size_t instruction_start_index)
+void Spirv_to_llvm::handle_instruction_open_cl_std_op_u_hadd(Open_cl_std_op_u_hadd instruction,
+                                                             std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -4265,8 +5614,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_u_hadd(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_open_cl_std_op_s_rhadd(
-    spirv::Open_cl_std_op_s_rhadd instruction, std::size_t instruction_start_index)
+void Spirv_to_llvm::handle_instruction_open_cl_std_op_s_rhadd(Open_cl_std_op_s_rhadd instruction,
+                                                              std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -4275,8 +5624,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_s_rhadd(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_open_cl_std_op_u_rhadd(
-    spirv::Open_cl_std_op_u_rhadd instruction, std::size_t instruction_start_index)
+void Spirv_to_llvm::handle_instruction_open_cl_std_op_u_rhadd(Open_cl_std_op_u_rhadd instruction,
+                                                              std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -4285,8 +5634,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_u_rhadd(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_open_cl_std_op_s_clamp(
-    spirv::Open_cl_std_op_s_clamp instruction, std::size_t instruction_start_index)
+void Spirv_to_llvm::handle_instruction_open_cl_std_op_s_clamp(Open_cl_std_op_s_clamp instruction,
+                                                              std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -4295,8 +5644,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_s_clamp(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_open_cl_std_op_u_clamp(
-    spirv::Open_cl_std_op_u_clamp instruction, std::size_t instruction_start_index)
+void Spirv_to_llvm::handle_instruction_open_cl_std_op_u_clamp(Open_cl_std_op_u_clamp instruction,
+                                                              std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -4305,7 +5654,7 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_u_clamp(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_open_cl_std_op_clz(spirv::Open_cl_std_op_clz instruction,
+void Spirv_to_llvm::handle_instruction_open_cl_std_op_clz(Open_cl_std_op_clz instruction,
                                                           std::size_t instruction_start_index)
 {
 #warning finish
@@ -4315,7 +5664,7 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_clz(spirv::Open_cl_std_op_
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_open_cl_std_op_ctz(spirv::Open_cl_std_op_ctz instruction,
+void Spirv_to_llvm::handle_instruction_open_cl_std_op_ctz(Open_cl_std_op_ctz instruction,
                                                           std::size_t instruction_start_index)
 {
 #warning finish
@@ -4325,8 +5674,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_ctz(spirv::Open_cl_std_op_
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_open_cl_std_op_s_mad_hi(
-    spirv::Open_cl_std_op_s_mad_hi instruction, std::size_t instruction_start_index)
+void Spirv_to_llvm::handle_instruction_open_cl_std_op_s_mad_hi(Open_cl_std_op_s_mad_hi instruction,
+                                                               std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -4336,7 +5685,7 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_s_mad_hi(
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_u_mad_sat(
-    spirv::Open_cl_std_op_u_mad_sat instruction, std::size_t instruction_start_index)
+    Open_cl_std_op_u_mad_sat instruction, std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -4346,7 +5695,7 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_u_mad_sat(
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_s_mad_sat(
-    spirv::Open_cl_std_op_s_mad_sat instruction, std::size_t instruction_start_index)
+    Open_cl_std_op_s_mad_sat instruction, std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -4355,7 +5704,7 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_s_mad_sat(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_open_cl_std_op_s_max(spirv::Open_cl_std_op_s_max instruction,
+void Spirv_to_llvm::handle_instruction_open_cl_std_op_s_max(Open_cl_std_op_s_max instruction,
                                                             std::size_t instruction_start_index)
 {
 #warning finish
@@ -4365,7 +5714,7 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_s_max(spirv::Open_cl_std_o
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_open_cl_std_op_u_max(spirv::Open_cl_std_op_u_max instruction,
+void Spirv_to_llvm::handle_instruction_open_cl_std_op_u_max(Open_cl_std_op_u_max instruction,
                                                             std::size_t instruction_start_index)
 {
 #warning finish
@@ -4375,7 +5724,7 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_u_max(spirv::Open_cl_std_o
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_open_cl_std_op_s_min(spirv::Open_cl_std_op_s_min instruction,
+void Spirv_to_llvm::handle_instruction_open_cl_std_op_s_min(Open_cl_std_op_s_min instruction,
                                                             std::size_t instruction_start_index)
 {
 #warning finish
@@ -4385,7 +5734,7 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_s_min(spirv::Open_cl_std_o
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_open_cl_std_op_u_min(spirv::Open_cl_std_op_u_min instruction,
+void Spirv_to_llvm::handle_instruction_open_cl_std_op_u_min(Open_cl_std_op_u_min instruction,
                                                             std::size_t instruction_start_index)
 {
 #warning finish
@@ -4395,8 +5744,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_u_min(spirv::Open_cl_std_o
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_open_cl_std_op_s_mul_hi(
-    spirv::Open_cl_std_op_s_mul_hi instruction, std::size_t instruction_start_index)
+void Spirv_to_llvm::handle_instruction_open_cl_std_op_s_mul_hi(Open_cl_std_op_s_mul_hi instruction,
+                                                               std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -4405,8 +5754,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_s_mul_hi(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_open_cl_std_op_rotate(
-    spirv::Open_cl_std_op_rotate instruction, std::size_t instruction_start_index)
+void Spirv_to_llvm::handle_instruction_open_cl_std_op_rotate(Open_cl_std_op_rotate instruction,
+                                                             std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -4416,7 +5765,7 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_rotate(
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_s_sub_sat(
-    spirv::Open_cl_std_op_s_sub_sat instruction, std::size_t instruction_start_index)
+    Open_cl_std_op_s_sub_sat instruction, std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -4426,7 +5775,7 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_s_sub_sat(
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_u_sub_sat(
-    spirv::Open_cl_std_op_u_sub_sat instruction, std::size_t instruction_start_index)
+    Open_cl_std_op_u_sub_sat instruction, std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -4436,7 +5785,7 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_u_sub_sat(
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_u_upsample(
-    spirv::Open_cl_std_op_u_upsample instruction, std::size_t instruction_start_index)
+    Open_cl_std_op_u_upsample instruction, std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -4446,7 +5795,7 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_u_upsample(
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_s_upsample(
-    spirv::Open_cl_std_op_s_upsample instruction, std::size_t instruction_start_index)
+    Open_cl_std_op_s_upsample instruction, std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -4455,8 +5804,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_s_upsample(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_open_cl_std_op_popcount(
-    spirv::Open_cl_std_op_popcount instruction, std::size_t instruction_start_index)
+void Spirv_to_llvm::handle_instruction_open_cl_std_op_popcount(Open_cl_std_op_popcount instruction,
+                                                               std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -4465,8 +5814,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_popcount(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_open_cl_std_op_s_mad24(
-    spirv::Open_cl_std_op_s_mad24 instruction, std::size_t instruction_start_index)
+void Spirv_to_llvm::handle_instruction_open_cl_std_op_s_mad24(Open_cl_std_op_s_mad24 instruction,
+                                                              std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -4475,8 +5824,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_s_mad24(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_open_cl_std_op_u_mad24(
-    spirv::Open_cl_std_op_u_mad24 instruction, std::size_t instruction_start_index)
+void Spirv_to_llvm::handle_instruction_open_cl_std_op_u_mad24(Open_cl_std_op_u_mad24 instruction,
+                                                              std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -4485,8 +5834,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_u_mad24(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_open_cl_std_op_s_mul24(
-    spirv::Open_cl_std_op_s_mul24 instruction, std::size_t instruction_start_index)
+void Spirv_to_llvm::handle_instruction_open_cl_std_op_s_mul24(Open_cl_std_op_s_mul24 instruction,
+                                                              std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -4495,8 +5844,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_s_mul24(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_open_cl_std_op_u_mul24(
-    spirv::Open_cl_std_op_u_mul24 instruction, std::size_t instruction_start_index)
+void Spirv_to_llvm::handle_instruction_open_cl_std_op_u_mul24(Open_cl_std_op_u_mul24 instruction,
+                                                              std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -4505,7 +5854,7 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_u_mul24(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_open_cl_std_op_u_abs(spirv::Open_cl_std_op_u_abs instruction,
+void Spirv_to_llvm::handle_instruction_open_cl_std_op_u_abs(Open_cl_std_op_u_abs instruction,
                                                             std::size_t instruction_start_index)
 {
 #warning finish
@@ -4516,7 +5865,7 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_u_abs(spirv::Open_cl_std_o
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_u_abs_diff(
-    spirv::Open_cl_std_op_u_abs_diff instruction, std::size_t instruction_start_index)
+    Open_cl_std_op_u_abs_diff instruction, std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -4525,8 +5874,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_u_abs_diff(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_open_cl_std_op_u_mul_hi(
-    spirv::Open_cl_std_op_u_mul_hi instruction, std::size_t instruction_start_index)
+void Spirv_to_llvm::handle_instruction_open_cl_std_op_u_mul_hi(Open_cl_std_op_u_mul_hi instruction,
+                                                               std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -4535,8 +5884,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_u_mul_hi(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_open_cl_std_op_u_mad_hi(
-    spirv::Open_cl_std_op_u_mad_hi instruction, std::size_t instruction_start_index)
+void Spirv_to_llvm::handle_instruction_open_cl_std_op_u_mad_hi(Open_cl_std_op_u_mad_hi instruction,
+                                                               std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -4545,8 +5894,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_u_mad_hi(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_open_cl_std_op_fclamp(
-    spirv::Open_cl_std_op_fclamp instruction, std::size_t instruction_start_index)
+void Spirv_to_llvm::handle_instruction_open_cl_std_op_fclamp(Open_cl_std_op_fclamp instruction,
+                                                             std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -4555,8 +5904,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_fclamp(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_open_cl_std_op_degrees(
-    spirv::Open_cl_std_op_degrees instruction, std::size_t instruction_start_index)
+void Spirv_to_llvm::handle_instruction_open_cl_std_op_degrees(Open_cl_std_op_degrees instruction,
+                                                              std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -4566,7 +5915,7 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_degrees(
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_fmax_common(
-    spirv::Open_cl_std_op_fmax_common instruction, std::size_t instruction_start_index)
+    Open_cl_std_op_fmax_common instruction, std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -4576,7 +5925,7 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_fmax_common(
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_fmin_common(
-    spirv::Open_cl_std_op_fmin_common instruction, std::size_t instruction_start_index)
+    Open_cl_std_op_fmin_common instruction, std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -4585,7 +5934,7 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_fmin_common(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_open_cl_std_op_mix(spirv::Open_cl_std_op_mix instruction,
+void Spirv_to_llvm::handle_instruction_open_cl_std_op_mix(Open_cl_std_op_mix instruction,
                                                           std::size_t instruction_start_index)
 {
 #warning finish
@@ -4595,8 +5944,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_mix(spirv::Open_cl_std_op_
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_open_cl_std_op_radians(
-    spirv::Open_cl_std_op_radians instruction, std::size_t instruction_start_index)
+void Spirv_to_llvm::handle_instruction_open_cl_std_op_radians(Open_cl_std_op_radians instruction,
+                                                              std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -4605,7 +5954,7 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_radians(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_open_cl_std_op_step(spirv::Open_cl_std_op_step instruction,
+void Spirv_to_llvm::handle_instruction_open_cl_std_op_step(Open_cl_std_op_step instruction,
                                                            std::size_t instruction_start_index)
 {
 #warning finish
@@ -4616,7 +5965,7 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_step(spirv::Open_cl_std_op
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_smoothstep(
-    spirv::Open_cl_std_op_smoothstep instruction, std::size_t instruction_start_index)
+    Open_cl_std_op_smoothstep instruction, std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -4625,7 +5974,7 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_smoothstep(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_open_cl_std_op_sign(spirv::Open_cl_std_op_sign instruction,
+void Spirv_to_llvm::handle_instruction_open_cl_std_op_sign(Open_cl_std_op_sign instruction,
                                                            std::size_t instruction_start_index)
 {
 #warning finish
@@ -4635,7 +5984,7 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_sign(spirv::Open_cl_std_op
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_open_cl_std_op_cross(spirv::Open_cl_std_op_cross instruction,
+void Spirv_to_llvm::handle_instruction_open_cl_std_op_cross(Open_cl_std_op_cross instruction,
                                                             std::size_t instruction_start_index)
 {
 #warning finish
@@ -4645,8 +5994,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_cross(spirv::Open_cl_std_o
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_open_cl_std_op_distance(
-    spirv::Open_cl_std_op_distance instruction, std::size_t instruction_start_index)
+void Spirv_to_llvm::handle_instruction_open_cl_std_op_distance(Open_cl_std_op_distance instruction,
+                                                               std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -4655,8 +6004,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_distance(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_open_cl_std_op_length(
-    spirv::Open_cl_std_op_length instruction, std::size_t instruction_start_index)
+void Spirv_to_llvm::handle_instruction_open_cl_std_op_length(Open_cl_std_op_length instruction,
+                                                             std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -4666,7 +6015,7 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_length(
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_normalize(
-    spirv::Open_cl_std_op_normalize instruction, std::size_t instruction_start_index)
+    Open_cl_std_op_normalize instruction, std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -4676,7 +6025,7 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_normalize(
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_fast_distance(
-    spirv::Open_cl_std_op_fast_distance instruction, std::size_t instruction_start_index)
+    Open_cl_std_op_fast_distance instruction, std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -4686,7 +6035,7 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_fast_distance(
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_fast_length(
-    spirv::Open_cl_std_op_fast_length instruction, std::size_t instruction_start_index)
+    Open_cl_std_op_fast_length instruction, std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -4696,7 +6045,7 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_fast_length(
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_fast_normalize(
-    spirv::Open_cl_std_op_fast_normalize instruction, std::size_t instruction_start_index)
+    Open_cl_std_op_fast_normalize instruction, std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -4706,7 +6055,7 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_fast_normalize(
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_bitselect(
-    spirv::Open_cl_std_op_bitselect instruction, std::size_t instruction_start_index)
+    Open_cl_std_op_bitselect instruction, std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -4715,8 +6064,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_bitselect(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_open_cl_std_op_select(
-    spirv::Open_cl_std_op_select instruction, std::size_t instruction_start_index)
+void Spirv_to_llvm::handle_instruction_open_cl_std_op_select(Open_cl_std_op_select instruction,
+                                                             std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -4725,8 +6074,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_select(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_open_cl_std_op_vloadn(
-    spirv::Open_cl_std_op_vloadn instruction, std::size_t instruction_start_index)
+void Spirv_to_llvm::handle_instruction_open_cl_std_op_vloadn(Open_cl_std_op_vloadn instruction,
+                                                             std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -4735,8 +6084,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_vloadn(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_open_cl_std_op_vstoren(
-    spirv::Open_cl_std_op_vstoren instruction, std::size_t instruction_start_index)
+void Spirv_to_llvm::handle_instruction_open_cl_std_op_vstoren(Open_cl_std_op_vstoren instruction,
+                                                              std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -4746,7 +6095,7 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_vstoren(
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_vload_half(
-    spirv::Open_cl_std_op_vload_half instruction, std::size_t instruction_start_index)
+    Open_cl_std_op_vload_half instruction, std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -4756,7 +6105,7 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_vload_half(
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_vload_halfn(
-    spirv::Open_cl_std_op_vload_halfn instruction, std::size_t instruction_start_index)
+    Open_cl_std_op_vload_halfn instruction, std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -4766,7 +6115,7 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_vload_halfn(
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_vstore_half(
-    spirv::Open_cl_std_op_vstore_half instruction, std::size_t instruction_start_index)
+    Open_cl_std_op_vstore_half instruction, std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -4776,7 +6125,7 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_vstore_half(
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_vstore_half_r(
-    spirv::Open_cl_std_op_vstore_half_r instruction, std::size_t instruction_start_index)
+    Open_cl_std_op_vstore_half_r instruction, std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -4786,7 +6135,7 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_vstore_half_r(
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_vstore_halfn(
-    spirv::Open_cl_std_op_vstore_halfn instruction, std::size_t instruction_start_index)
+    Open_cl_std_op_vstore_halfn instruction, std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -4796,7 +6145,7 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_vstore_halfn(
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_vstore_halfn_r(
-    spirv::Open_cl_std_op_vstore_halfn_r instruction, std::size_t instruction_start_index)
+    Open_cl_std_op_vstore_halfn_r instruction, std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -4806,7 +6155,7 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_vstore_halfn_r(
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_vloada_halfn(
-    spirv::Open_cl_std_op_vloada_halfn instruction, std::size_t instruction_start_index)
+    Open_cl_std_op_vloada_halfn instruction, std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -4816,7 +6165,7 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_vloada_halfn(
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_vstorea_halfn(
-    spirv::Open_cl_std_op_vstorea_halfn instruction, std::size_t instruction_start_index)
+    Open_cl_std_op_vstorea_halfn instruction, std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -4826,7 +6175,7 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_vstorea_halfn(
 }
 
 void Spirv_to_llvm::handle_instruction_open_cl_std_op_vstorea_halfn_r(
-    spirv::Open_cl_std_op_vstorea_halfn_r instruction, std::size_t instruction_start_index)
+    Open_cl_std_op_vstorea_halfn_r instruction, std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -4835,8 +6184,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_vstorea_halfn_r(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_open_cl_std_op_shuffle(
-    spirv::Open_cl_std_op_shuffle instruction, std::size_t instruction_start_index)
+void Spirv_to_llvm::handle_instruction_open_cl_std_op_shuffle(Open_cl_std_op_shuffle instruction,
+                                                              std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -4845,8 +6194,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_shuffle(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_open_cl_std_op_shuffle2(
-    spirv::Open_cl_std_op_shuffle2 instruction, std::size_t instruction_start_index)
+void Spirv_to_llvm::handle_instruction_open_cl_std_op_shuffle2(Open_cl_std_op_shuffle2 instruction,
+                                                               std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -4855,8 +6204,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_shuffle2(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_open_cl_std_op_printf(
-    spirv::Open_cl_std_op_printf instruction, std::size_t instruction_start_index)
+void Spirv_to_llvm::handle_instruction_open_cl_std_op_printf(Open_cl_std_op_printf instruction,
+                                                             std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -4865,8 +6214,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_printf(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_open_cl_std_op_prefetch(
-    spirv::Open_cl_std_op_prefetch instruction, std::size_t instruction_start_index)
+void Spirv_to_llvm::handle_instruction_open_cl_std_op_prefetch(Open_cl_std_op_prefetch instruction,
+                                                               std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -4875,8 +6224,8 @@ void Spirv_to_llvm::handle_instruction_open_cl_std_op_prefetch(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_glsl_std_450_op_round(
-    spirv::Glsl_std_450_op_round instruction, std::size_t instruction_start_index)
+void Spirv_to_llvm::handle_instruction_glsl_std_450_op_round(Glsl_std_450_op_round instruction,
+                                                             std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -4886,7 +6235,7 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_round(
 }
 
 void Spirv_to_llvm::handle_instruction_glsl_std_450_op_round_even(
-    spirv::Glsl_std_450_op_round_even instruction, std::size_t instruction_start_index)
+    Glsl_std_450_op_round_even instruction, std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -4895,8 +6244,8 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_round_even(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_glsl_std_450_op_trunc(
-    spirv::Glsl_std_450_op_trunc instruction, std::size_t instruction_start_index)
+void Spirv_to_llvm::handle_instruction_glsl_std_450_op_trunc(Glsl_std_450_op_trunc instruction,
+                                                             std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -4905,8 +6254,8 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_trunc(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_glsl_std_450_op_f_abs(
-    spirv::Glsl_std_450_op_f_abs instruction, std::size_t instruction_start_index)
+void Spirv_to_llvm::handle_instruction_glsl_std_450_op_f_abs(Glsl_std_450_op_f_abs instruction,
+                                                             std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -4915,8 +6264,8 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_f_abs(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_glsl_std_450_op_s_abs(
-    spirv::Glsl_std_450_op_s_abs instruction, std::size_t instruction_start_index)
+void Spirv_to_llvm::handle_instruction_glsl_std_450_op_s_abs(Glsl_std_450_op_s_abs instruction,
+                                                             std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -4925,8 +6274,8 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_s_abs(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_glsl_std_450_op_f_sign(
-    spirv::Glsl_std_450_op_f_sign instruction, std::size_t instruction_start_index)
+void Spirv_to_llvm::handle_instruction_glsl_std_450_op_f_sign(Glsl_std_450_op_f_sign instruction,
+                                                              std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -4935,8 +6284,8 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_f_sign(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_glsl_std_450_op_s_sign(
-    spirv::Glsl_std_450_op_s_sign instruction, std::size_t instruction_start_index)
+void Spirv_to_llvm::handle_instruction_glsl_std_450_op_s_sign(Glsl_std_450_op_s_sign instruction,
+                                                              std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -4945,8 +6294,8 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_s_sign(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_glsl_std_450_op_floor(
-    spirv::Glsl_std_450_op_floor instruction, std::size_t instruction_start_index)
+void Spirv_to_llvm::handle_instruction_glsl_std_450_op_floor(Glsl_std_450_op_floor instruction,
+                                                             std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -4955,7 +6304,7 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_floor(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_glsl_std_450_op_ceil(spirv::Glsl_std_450_op_ceil instruction,
+void Spirv_to_llvm::handle_instruction_glsl_std_450_op_ceil(Glsl_std_450_op_ceil instruction,
                                                             std::size_t instruction_start_index)
 {
 #warning finish
@@ -4965,8 +6314,8 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_ceil(spirv::Glsl_std_450_
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_glsl_std_450_op_fract(
-    spirv::Glsl_std_450_op_fract instruction, std::size_t instruction_start_index)
+void Spirv_to_llvm::handle_instruction_glsl_std_450_op_fract(Glsl_std_450_op_fract instruction,
+                                                             std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -4975,8 +6324,8 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_fract(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_glsl_std_450_op_radians(
-    spirv::Glsl_std_450_op_radians instruction, std::size_t instruction_start_index)
+void Spirv_to_llvm::handle_instruction_glsl_std_450_op_radians(Glsl_std_450_op_radians instruction,
+                                                               std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -4985,8 +6334,8 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_radians(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_glsl_std_450_op_degrees(
-    spirv::Glsl_std_450_op_degrees instruction, std::size_t instruction_start_index)
+void Spirv_to_llvm::handle_instruction_glsl_std_450_op_degrees(Glsl_std_450_op_degrees instruction,
+                                                               std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -4995,7 +6344,7 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_degrees(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_glsl_std_450_op_sin(spirv::Glsl_std_450_op_sin instruction,
+void Spirv_to_llvm::handle_instruction_glsl_std_450_op_sin(Glsl_std_450_op_sin instruction,
                                                            std::size_t instruction_start_index)
 {
 #warning finish
@@ -5005,7 +6354,7 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_sin(spirv::Glsl_std_450_o
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_glsl_std_450_op_cos(spirv::Glsl_std_450_op_cos instruction,
+void Spirv_to_llvm::handle_instruction_glsl_std_450_op_cos(Glsl_std_450_op_cos instruction,
                                                            std::size_t instruction_start_index)
 {
 #warning finish
@@ -5015,7 +6364,7 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_cos(spirv::Glsl_std_450_o
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_glsl_std_450_op_tan(spirv::Glsl_std_450_op_tan instruction,
+void Spirv_to_llvm::handle_instruction_glsl_std_450_op_tan(Glsl_std_450_op_tan instruction,
                                                            std::size_t instruction_start_index)
 {
 #warning finish
@@ -5025,7 +6374,7 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_tan(spirv::Glsl_std_450_o
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_glsl_std_450_op_asin(spirv::Glsl_std_450_op_asin instruction,
+void Spirv_to_llvm::handle_instruction_glsl_std_450_op_asin(Glsl_std_450_op_asin instruction,
                                                             std::size_t instruction_start_index)
 {
 #warning finish
@@ -5035,7 +6384,7 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_asin(spirv::Glsl_std_450_
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_glsl_std_450_op_acos(spirv::Glsl_std_450_op_acos instruction,
+void Spirv_to_llvm::handle_instruction_glsl_std_450_op_acos(Glsl_std_450_op_acos instruction,
                                                             std::size_t instruction_start_index)
 {
 #warning finish
@@ -5045,7 +6394,7 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_acos(spirv::Glsl_std_450_
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_glsl_std_450_op_atan(spirv::Glsl_std_450_op_atan instruction,
+void Spirv_to_llvm::handle_instruction_glsl_std_450_op_atan(Glsl_std_450_op_atan instruction,
                                                             std::size_t instruction_start_index)
 {
 #warning finish
@@ -5055,7 +6404,7 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_atan(spirv::Glsl_std_450_
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_glsl_std_450_op_sinh(spirv::Glsl_std_450_op_sinh instruction,
+void Spirv_to_llvm::handle_instruction_glsl_std_450_op_sinh(Glsl_std_450_op_sinh instruction,
                                                             std::size_t instruction_start_index)
 {
 #warning finish
@@ -5065,7 +6414,7 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_sinh(spirv::Glsl_std_450_
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_glsl_std_450_op_cosh(spirv::Glsl_std_450_op_cosh instruction,
+void Spirv_to_llvm::handle_instruction_glsl_std_450_op_cosh(Glsl_std_450_op_cosh instruction,
                                                             std::size_t instruction_start_index)
 {
 #warning finish
@@ -5075,7 +6424,7 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_cosh(spirv::Glsl_std_450_
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_glsl_std_450_op_tanh(spirv::Glsl_std_450_op_tanh instruction,
+void Spirv_to_llvm::handle_instruction_glsl_std_450_op_tanh(Glsl_std_450_op_tanh instruction,
                                                             std::size_t instruction_start_index)
 {
 #warning finish
@@ -5085,8 +6434,8 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_tanh(spirv::Glsl_std_450_
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_glsl_std_450_op_asinh(
-    spirv::Glsl_std_450_op_asinh instruction, std::size_t instruction_start_index)
+void Spirv_to_llvm::handle_instruction_glsl_std_450_op_asinh(Glsl_std_450_op_asinh instruction,
+                                                             std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -5095,8 +6444,8 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_asinh(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_glsl_std_450_op_acosh(
-    spirv::Glsl_std_450_op_acosh instruction, std::size_t instruction_start_index)
+void Spirv_to_llvm::handle_instruction_glsl_std_450_op_acosh(Glsl_std_450_op_acosh instruction,
+                                                             std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -5105,8 +6454,8 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_acosh(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_glsl_std_450_op_atanh(
-    spirv::Glsl_std_450_op_atanh instruction, std::size_t instruction_start_index)
+void Spirv_to_llvm::handle_instruction_glsl_std_450_op_atanh(Glsl_std_450_op_atanh instruction,
+                                                             std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -5115,8 +6464,8 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_atanh(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_glsl_std_450_op_atan2(
-    spirv::Glsl_std_450_op_atan2 instruction, std::size_t instruction_start_index)
+void Spirv_to_llvm::handle_instruction_glsl_std_450_op_atan2(Glsl_std_450_op_atan2 instruction,
+                                                             std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -5125,7 +6474,7 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_atan2(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_glsl_std_450_op_pow(spirv::Glsl_std_450_op_pow instruction,
+void Spirv_to_llvm::handle_instruction_glsl_std_450_op_pow(Glsl_std_450_op_pow instruction,
                                                            std::size_t instruction_start_index)
 {
 #warning finish
@@ -5135,7 +6484,7 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_pow(spirv::Glsl_std_450_o
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_glsl_std_450_op_exp(spirv::Glsl_std_450_op_exp instruction,
+void Spirv_to_llvm::handle_instruction_glsl_std_450_op_exp(Glsl_std_450_op_exp instruction,
                                                            std::size_t instruction_start_index)
 {
 #warning finish
@@ -5145,7 +6494,7 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_exp(spirv::Glsl_std_450_o
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_glsl_std_450_op_log(spirv::Glsl_std_450_op_log instruction,
+void Spirv_to_llvm::handle_instruction_glsl_std_450_op_log(Glsl_std_450_op_log instruction,
                                                            std::size_t instruction_start_index)
 {
 #warning finish
@@ -5155,7 +6504,7 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_log(spirv::Glsl_std_450_o
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_glsl_std_450_op_exp2(spirv::Glsl_std_450_op_exp2 instruction,
+void Spirv_to_llvm::handle_instruction_glsl_std_450_op_exp2(Glsl_std_450_op_exp2 instruction,
                                                             std::size_t instruction_start_index)
 {
 #warning finish
@@ -5165,7 +6514,7 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_exp2(spirv::Glsl_std_450_
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_glsl_std_450_op_log2(spirv::Glsl_std_450_op_log2 instruction,
+void Spirv_to_llvm::handle_instruction_glsl_std_450_op_log2(Glsl_std_450_op_log2 instruction,
                                                             std::size_t instruction_start_index)
 {
 #warning finish
@@ -5175,7 +6524,7 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_log2(spirv::Glsl_std_450_
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_glsl_std_450_op_sqrt(spirv::Glsl_std_450_op_sqrt instruction,
+void Spirv_to_llvm::handle_instruction_glsl_std_450_op_sqrt(Glsl_std_450_op_sqrt instruction,
                                                             std::size_t instruction_start_index)
 {
 #warning finish
@@ -5186,7 +6535,7 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_sqrt(spirv::Glsl_std_450_
 }
 
 void Spirv_to_llvm::handle_instruction_glsl_std_450_op_inverse_sqrt(
-    spirv::Glsl_std_450_op_inverse_sqrt instruction, std::size_t instruction_start_index)
+    Glsl_std_450_op_inverse_sqrt instruction, std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -5196,7 +6545,7 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_inverse_sqrt(
 }
 
 void Spirv_to_llvm::handle_instruction_glsl_std_450_op_determinant(
-    spirv::Glsl_std_450_op_determinant instruction, std::size_t instruction_start_index)
+    Glsl_std_450_op_determinant instruction, std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -5206,7 +6555,7 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_determinant(
 }
 
 void Spirv_to_llvm::handle_instruction_glsl_std_450_op_matrix_inverse(
-    spirv::Glsl_std_450_op_matrix_inverse instruction, std::size_t instruction_start_index)
+    Glsl_std_450_op_matrix_inverse instruction, std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -5215,7 +6564,7 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_matrix_inverse(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_glsl_std_450_op_modf(spirv::Glsl_std_450_op_modf instruction,
+void Spirv_to_llvm::handle_instruction_glsl_std_450_op_modf(Glsl_std_450_op_modf instruction,
                                                             std::size_t instruction_start_index)
 {
 #warning finish
@@ -5226,7 +6575,7 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_modf(spirv::Glsl_std_450_
 }
 
 void Spirv_to_llvm::handle_instruction_glsl_std_450_op_modf_struct(
-    spirv::Glsl_std_450_op_modf_struct instruction, std::size_t instruction_start_index)
+    Glsl_std_450_op_modf_struct instruction, std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -5235,8 +6584,8 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_modf_struct(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_glsl_std_450_op_f_min(
-    spirv::Glsl_std_450_op_f_min instruction, std::size_t instruction_start_index)
+void Spirv_to_llvm::handle_instruction_glsl_std_450_op_f_min(Glsl_std_450_op_f_min instruction,
+                                                             std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -5245,8 +6594,8 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_f_min(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_glsl_std_450_op_u_min(
-    spirv::Glsl_std_450_op_u_min instruction, std::size_t instruction_start_index)
+void Spirv_to_llvm::handle_instruction_glsl_std_450_op_u_min(Glsl_std_450_op_u_min instruction,
+                                                             std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -5255,8 +6604,8 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_u_min(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_glsl_std_450_op_s_min(
-    spirv::Glsl_std_450_op_s_min instruction, std::size_t instruction_start_index)
+void Spirv_to_llvm::handle_instruction_glsl_std_450_op_s_min(Glsl_std_450_op_s_min instruction,
+                                                             std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -5265,8 +6614,8 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_s_min(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_glsl_std_450_op_f_max(
-    spirv::Glsl_std_450_op_f_max instruction, std::size_t instruction_start_index)
+void Spirv_to_llvm::handle_instruction_glsl_std_450_op_f_max(Glsl_std_450_op_f_max instruction,
+                                                             std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -5275,8 +6624,8 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_f_max(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_glsl_std_450_op_u_max(
-    spirv::Glsl_std_450_op_u_max instruction, std::size_t instruction_start_index)
+void Spirv_to_llvm::handle_instruction_glsl_std_450_op_u_max(Glsl_std_450_op_u_max instruction,
+                                                             std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -5285,8 +6634,8 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_u_max(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_glsl_std_450_op_s_max(
-    spirv::Glsl_std_450_op_s_max instruction, std::size_t instruction_start_index)
+void Spirv_to_llvm::handle_instruction_glsl_std_450_op_s_max(Glsl_std_450_op_s_max instruction,
+                                                             std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -5295,8 +6644,8 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_s_max(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_glsl_std_450_op_f_clamp(
-    spirv::Glsl_std_450_op_f_clamp instruction, std::size_t instruction_start_index)
+void Spirv_to_llvm::handle_instruction_glsl_std_450_op_f_clamp(Glsl_std_450_op_f_clamp instruction,
+                                                               std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -5305,8 +6654,8 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_f_clamp(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_glsl_std_450_op_u_clamp(
-    spirv::Glsl_std_450_op_u_clamp instruction, std::size_t instruction_start_index)
+void Spirv_to_llvm::handle_instruction_glsl_std_450_op_u_clamp(Glsl_std_450_op_u_clamp instruction,
+                                                               std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -5315,8 +6664,8 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_u_clamp(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_glsl_std_450_op_s_clamp(
-    spirv::Glsl_std_450_op_s_clamp instruction, std::size_t instruction_start_index)
+void Spirv_to_llvm::handle_instruction_glsl_std_450_op_s_clamp(Glsl_std_450_op_s_clamp instruction,
+                                                               std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -5325,8 +6674,8 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_s_clamp(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_glsl_std_450_op_f_mix(
-    spirv::Glsl_std_450_op_f_mix instruction, std::size_t instruction_start_index)
+void Spirv_to_llvm::handle_instruction_glsl_std_450_op_f_mix(Glsl_std_450_op_f_mix instruction,
+                                                             std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -5335,8 +6684,8 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_f_mix(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_glsl_std_450_op_i_mix(
-    spirv::Glsl_std_450_op_i_mix instruction, std::size_t instruction_start_index)
+void Spirv_to_llvm::handle_instruction_glsl_std_450_op_i_mix(Glsl_std_450_op_i_mix instruction,
+                                                             std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -5345,7 +6694,7 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_i_mix(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_glsl_std_450_op_step(spirv::Glsl_std_450_op_step instruction,
+void Spirv_to_llvm::handle_instruction_glsl_std_450_op_step(Glsl_std_450_op_step instruction,
                                                             std::size_t instruction_start_index)
 {
 #warning finish
@@ -5356,7 +6705,7 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_step(spirv::Glsl_std_450_
 }
 
 void Spirv_to_llvm::handle_instruction_glsl_std_450_op_smooth_step(
-    spirv::Glsl_std_450_op_smooth_step instruction, std::size_t instruction_start_index)
+    Glsl_std_450_op_smooth_step instruction, std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -5365,7 +6714,7 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_smooth_step(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_glsl_std_450_op_fma(spirv::Glsl_std_450_op_fma instruction,
+void Spirv_to_llvm::handle_instruction_glsl_std_450_op_fma(Glsl_std_450_op_fma instruction,
                                                            std::size_t instruction_start_index)
 {
 #warning finish
@@ -5375,8 +6724,8 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_fma(spirv::Glsl_std_450_o
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_glsl_std_450_op_frexp(
-    spirv::Glsl_std_450_op_frexp instruction, std::size_t instruction_start_index)
+void Spirv_to_llvm::handle_instruction_glsl_std_450_op_frexp(Glsl_std_450_op_frexp instruction,
+                                                             std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -5386,7 +6735,7 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_frexp(
 }
 
 void Spirv_to_llvm::handle_instruction_glsl_std_450_op_frexp_struct(
-    spirv::Glsl_std_450_op_frexp_struct instruction, std::size_t instruction_start_index)
+    Glsl_std_450_op_frexp_struct instruction, std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -5395,8 +6744,8 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_frexp_struct(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_glsl_std_450_op_ldexp(
-    spirv::Glsl_std_450_op_ldexp instruction, std::size_t instruction_start_index)
+void Spirv_to_llvm::handle_instruction_glsl_std_450_op_ldexp(Glsl_std_450_op_ldexp instruction,
+                                                             std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -5406,7 +6755,7 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_ldexp(
 }
 
 void Spirv_to_llvm::handle_instruction_glsl_std_450_op_pack_snorm4x8(
-    spirv::Glsl_std_450_op_pack_snorm4x8 instruction, std::size_t instruction_start_index)
+    Glsl_std_450_op_pack_snorm4x8 instruction, std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -5416,7 +6765,7 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_pack_snorm4x8(
 }
 
 void Spirv_to_llvm::handle_instruction_glsl_std_450_op_pack_unorm4x8(
-    spirv::Glsl_std_450_op_pack_unorm4x8 instruction, std::size_t instruction_start_index)
+    Glsl_std_450_op_pack_unorm4x8 instruction, std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -5426,7 +6775,7 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_pack_unorm4x8(
 }
 
 void Spirv_to_llvm::handle_instruction_glsl_std_450_op_pack_snorm2x16(
-    spirv::Glsl_std_450_op_pack_snorm2x16 instruction, std::size_t instruction_start_index)
+    Glsl_std_450_op_pack_snorm2x16 instruction, std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -5436,7 +6785,7 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_pack_snorm2x16(
 }
 
 void Spirv_to_llvm::handle_instruction_glsl_std_450_op_pack_unorm2x16(
-    spirv::Glsl_std_450_op_pack_unorm2x16 instruction, std::size_t instruction_start_index)
+    Glsl_std_450_op_pack_unorm2x16 instruction, std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -5446,7 +6795,7 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_pack_unorm2x16(
 }
 
 void Spirv_to_llvm::handle_instruction_glsl_std_450_op_pack_half2x16(
-    spirv::Glsl_std_450_op_pack_half2x16 instruction, std::size_t instruction_start_index)
+    Glsl_std_450_op_pack_half2x16 instruction, std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -5456,7 +6805,7 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_pack_half2x16(
 }
 
 void Spirv_to_llvm::handle_instruction_glsl_std_450_op_pack_double2x32(
-    spirv::Glsl_std_450_op_pack_double2x32 instruction, std::size_t instruction_start_index)
+    Glsl_std_450_op_pack_double2x32 instruction, std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -5466,7 +6815,7 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_pack_double2x32(
 }
 
 void Spirv_to_llvm::handle_instruction_glsl_std_450_op_unpack_snorm2x16(
-    spirv::Glsl_std_450_op_unpack_snorm2x16 instruction, std::size_t instruction_start_index)
+    Glsl_std_450_op_unpack_snorm2x16 instruction, std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -5476,7 +6825,7 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_unpack_snorm2x16(
 }
 
 void Spirv_to_llvm::handle_instruction_glsl_std_450_op_unpack_unorm2x16(
-    spirv::Glsl_std_450_op_unpack_unorm2x16 instruction, std::size_t instruction_start_index)
+    Glsl_std_450_op_unpack_unorm2x16 instruction, std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -5486,7 +6835,7 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_unpack_unorm2x16(
 }
 
 void Spirv_to_llvm::handle_instruction_glsl_std_450_op_unpack_half2x16(
-    spirv::Glsl_std_450_op_unpack_half2x16 instruction, std::size_t instruction_start_index)
+    Glsl_std_450_op_unpack_half2x16 instruction, std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -5496,7 +6845,7 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_unpack_half2x16(
 }
 
 void Spirv_to_llvm::handle_instruction_glsl_std_450_op_unpack_snorm4x8(
-    spirv::Glsl_std_450_op_unpack_snorm4x8 instruction, std::size_t instruction_start_index)
+    Glsl_std_450_op_unpack_snorm4x8 instruction, std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -5506,7 +6855,7 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_unpack_snorm4x8(
 }
 
 void Spirv_to_llvm::handle_instruction_glsl_std_450_op_unpack_unorm4x8(
-    spirv::Glsl_std_450_op_unpack_unorm4x8 instruction, std::size_t instruction_start_index)
+    Glsl_std_450_op_unpack_unorm4x8 instruction, std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -5516,7 +6865,7 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_unpack_unorm4x8(
 }
 
 void Spirv_to_llvm::handle_instruction_glsl_std_450_op_unpack_double2x32(
-    spirv::Glsl_std_450_op_unpack_double2x32 instruction, std::size_t instruction_start_index)
+    Glsl_std_450_op_unpack_double2x32 instruction, std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -5525,8 +6874,8 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_unpack_double2x32(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_glsl_std_450_op_length(
-    spirv::Glsl_std_450_op_length instruction, std::size_t instruction_start_index)
+void Spirv_to_llvm::handle_instruction_glsl_std_450_op_length(Glsl_std_450_op_length instruction,
+                                                              std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -5536,7 +6885,7 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_length(
 }
 
 void Spirv_to_llvm::handle_instruction_glsl_std_450_op_distance(
-    spirv::Glsl_std_450_op_distance instruction, std::size_t instruction_start_index)
+    Glsl_std_450_op_distance instruction, std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -5545,8 +6894,8 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_distance(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_glsl_std_450_op_cross(
-    spirv::Glsl_std_450_op_cross instruction, std::size_t instruction_start_index)
+void Spirv_to_llvm::handle_instruction_glsl_std_450_op_cross(Glsl_std_450_op_cross instruction,
+                                                             std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -5556,7 +6905,7 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_cross(
 }
 
 void Spirv_to_llvm::handle_instruction_glsl_std_450_op_normalize(
-    spirv::Glsl_std_450_op_normalize instruction, std::size_t instruction_start_index)
+    Glsl_std_450_op_normalize instruction, std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -5566,7 +6915,7 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_normalize(
 }
 
 void Spirv_to_llvm::handle_instruction_glsl_std_450_op_face_forward(
-    spirv::Glsl_std_450_op_face_forward instruction, std::size_t instruction_start_index)
+    Glsl_std_450_op_face_forward instruction, std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -5575,8 +6924,8 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_face_forward(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_glsl_std_450_op_reflect(
-    spirv::Glsl_std_450_op_reflect instruction, std::size_t instruction_start_index)
+void Spirv_to_llvm::handle_instruction_glsl_std_450_op_reflect(Glsl_std_450_op_reflect instruction,
+                                                               std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -5585,8 +6934,8 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_reflect(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_glsl_std_450_op_refract(
-    spirv::Glsl_std_450_op_refract instruction, std::size_t instruction_start_index)
+void Spirv_to_llvm::handle_instruction_glsl_std_450_op_refract(Glsl_std_450_op_refract instruction,
+                                                               std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -5596,7 +6945,7 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_refract(
 }
 
 void Spirv_to_llvm::handle_instruction_glsl_std_450_op_find_i_lsb(
-    spirv::Glsl_std_450_op_find_i_lsb instruction, std::size_t instruction_start_index)
+    Glsl_std_450_op_find_i_lsb instruction, std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -5606,7 +6955,7 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_find_i_lsb(
 }
 
 void Spirv_to_llvm::handle_instruction_glsl_std_450_op_find_s_msb(
-    spirv::Glsl_std_450_op_find_s_msb instruction, std::size_t instruction_start_index)
+    Glsl_std_450_op_find_s_msb instruction, std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -5616,7 +6965,7 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_find_s_msb(
 }
 
 void Spirv_to_llvm::handle_instruction_glsl_std_450_op_find_u_msb(
-    spirv::Glsl_std_450_op_find_u_msb instruction, std::size_t instruction_start_index)
+    Glsl_std_450_op_find_u_msb instruction, std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -5626,7 +6975,7 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_find_u_msb(
 }
 
 void Spirv_to_llvm::handle_instruction_glsl_std_450_op_interpolate_at_centroid(
-    spirv::Glsl_std_450_op_interpolate_at_centroid instruction, std::size_t instruction_start_index)
+    Glsl_std_450_op_interpolate_at_centroid instruction, std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -5636,7 +6985,7 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_interpolate_at_centroid(
 }
 
 void Spirv_to_llvm::handle_instruction_glsl_std_450_op_interpolate_at_sample(
-    spirv::Glsl_std_450_op_interpolate_at_sample instruction, std::size_t instruction_start_index)
+    Glsl_std_450_op_interpolate_at_sample instruction, std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -5646,7 +6995,7 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_interpolate_at_sample(
 }
 
 void Spirv_to_llvm::handle_instruction_glsl_std_450_op_interpolate_at_offset(
-    spirv::Glsl_std_450_op_interpolate_at_offset instruction, std::size_t instruction_start_index)
+    Glsl_std_450_op_interpolate_at_offset instruction, std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -5655,8 +7004,8 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_interpolate_at_offset(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_glsl_std_450_op_n_min(
-    spirv::Glsl_std_450_op_n_min instruction, std::size_t instruction_start_index)
+void Spirv_to_llvm::handle_instruction_glsl_std_450_op_n_min(Glsl_std_450_op_n_min instruction,
+                                                             std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -5665,8 +7014,8 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_n_min(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_glsl_std_450_op_n_max(
-    spirv::Glsl_std_450_op_n_max instruction, std::size_t instruction_start_index)
+void Spirv_to_llvm::handle_instruction_glsl_std_450_op_n_max(Glsl_std_450_op_n_max instruction,
+                                                             std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
@@ -5675,14 +7024,21 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_n_max(
                            + std::string(get_enumerant_name(instruction.get_operation())));
 }
 
-void Spirv_to_llvm::handle_instruction_glsl_std_450_op_n_clamp(
-    spirv::Glsl_std_450_op_n_clamp instruction, std::size_t instruction_start_index)
+void Spirv_to_llvm::handle_instruction_glsl_std_450_op_n_clamp(Glsl_std_450_op_n_clamp instruction,
+                                                               std::size_t instruction_start_index)
 {
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
                        "instruction not implemented: "
                            + std::string(get_enumerant_name(instruction.get_operation())));
+}
+
+Converted_module spirv_to_llvm(::LLVMContextRef context,
+                               const Word *shader_words,
+                               std::size_t shader_size)
+{
+    return Spirv_to_llvm(context).run(shader_words, shader_size);
 }
 }
 }
