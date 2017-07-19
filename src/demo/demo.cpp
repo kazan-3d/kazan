@@ -235,17 +235,18 @@ int test_main(int argc, char **argv)
             std::cout << dump_callbacks.ss.str() << std::endl;
         }
         auto llvm_context = llvm_wrapper::Context::create();
+        std::uint64_t next_module_id = 1;
         spirv_to_llvm::Converted_module converted_module;
         try
         {
-            converted_module = spirv_to_llvm::spirv_to_llvm(llvm_context, file->data(), file->size());
+            converted_module = spirv_to_llvm::spirv_to_llvm(llvm_context.get(), file->data(), file->size(), next_module_id++);
         }
         catch(spirv::Parser_error &e)
         {
             std::cerr << "error: " << e.what();
             return 1;
         }
-        ::LLVMDumpModule(converted_module.module);
+        ::LLVMDumpModule(converted_module.module.get());
     }
     else
     {

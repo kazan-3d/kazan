@@ -21,6 +21,7 @@
  *
  */
 #include "llvm_wrapper.h"
+#include <stdexcept>
 
 namespace vulkan_cpu
 {
@@ -28,6 +29,8 @@ namespace llvm_wrapper
 {
 Context Context::create()
 {
+    if(!::LLVMIsMultithreaded())
+        throw std::runtime_error("LLVM is not multithreaded");
     return Context(::LLVMContextCreate());
 }
 }

@@ -226,10 +226,12 @@ private:
     }
 
 public:
-    void add_member(Member member)
+    std::size_t add_member(Member member)
     {
+        std::size_t index = members.size();
         members.push_back(std::move(member));
-        on_add_member(members.size() - 1);
+        on_add_member(index);
+        return index;
     }
     const std::vector<Member> &get_members(bool need_llvm_member_indexes)
     {
@@ -263,6 +265,41 @@ public:
     }
 };
 
+class Constant_descriptor
+{
+    Constant_descriptor(const Constant_descriptor &) = delete;
+    Constant_descriptor &operator=(const Constant_descriptor &) = delete;
+
+public:
+    const std::shared_ptr<Type_descriptor> type;
+
+public:
+    explicit Constant_descriptor(std::shared_ptr<Type_descriptor> type) noexcept
+        : type(std::move(type))
+    {
+    }
+    ~Constant_descriptor() = default;
+    virtual ::LLVMValueRef get_or_make_value() = 0;
+};
+
+class Simple_constant_descriptor final : public Constant_descriptor
+{
+private:
+    ::LLVMValueRef value;
+
+public:
+    explicit Simple_constant_descriptor(std::shared_ptr<Type_descriptor> type,
+                                        ::LLVMValueRef value) noexcept
+        : Constant_descriptor(std::move(type)),
+          value(value)
+    {
+    }
+    virtual ::LLVMValueRef get_or_make_value() override
+    {
+        return value;
+    }
+};
+
 struct Converted_module
 {
     struct Entry_point
@@ -276,15 +313,27 @@ struct Converted_module
     llvm_wrapper::Module module;
     std::vector<Entry_point> entry_points;
     std::shared_ptr<Struct_type_descriptor> io_struct;
+    std::size_t inputs_member;
+    std::shared_ptr<Struct_type_descriptor> inputs_struct;
+    std::size_t outputs_member;
+    std::shared_ptr<Struct_type_descriptor> outputs_struct;
     Converted_module() : module(), entry_points()
     {
     }
     explicit Converted_module(llvm_wrapper::Module module,
                               std::vector<Entry_point> entry_points,
-                              std::shared_ptr<Struct_type_descriptor> io_struct) noexcept
+                              std::shared_ptr<Struct_type_descriptor> io_struct,
+                              std::size_t inputs_member,
+                              std::shared_ptr<Struct_type_descriptor> inputs_struct,
+                              std::size_t outputs_member,
+                              std::shared_ptr<Struct_type_descriptor> outputs_struct) noexcept
         : module(std::move(module)),
           entry_points(std::move(entry_points)),
-          io_struct(std::move(io_struct))
+          io_struct(std::move(io_struct)),
+          inputs_member(inputs_member),
+          inputs_struct(std::move(inputs_struct)),
+          outputs_member(outputs_member),
+          outputs_struct(std::move(outputs_struct))
     {
     }
 };
@@ -293,7 +342,8 @@ class Spirv_to_llvm;
 
 Converted_module spirv_to_llvm(::LLVMContextRef context,
                                const spirv::Word *shader_words,
-                               std::size_t shader_size);
+                               std::size_t shader_size,
+                               std::uint64_t shader_id);
 }
 }
 

@@ -27,6 +27,9 @@
 #include <memory>
 #include <type_traits>
 #include <utility>
+#include <string>
+#include <cassert>
+#include "util/string_view.h"
 
 namespace vulkan_cpu
 {
@@ -70,9 +73,13 @@ public:
     {
         return value;
     }
-    operator T() const noexcept
+    explicit operator T() const noexcept
     {
         return value;
+    }
+    explicit operator bool() const noexcept
+    {
+        return value != nullptr;
     }
     T release() noexcept
     {
@@ -114,6 +121,76 @@ struct Module : public Wrapper<::LLVMModuleRef, Module_deleter>
     static Module create(const char *id, ::LLVMContextRef context)
     {
         return Module(::LLVMModuleCreateWithNameInContext(id, context));
+    }
+};
+
+struct LLVM_string_deleter
+{
+    void operator()(char *str)
+    {
+        ::LLVMDisposeMessage(str);
+    }
+};
+
+class LLVM_string : public Wrapper<char *, LLVM_string_deleter>
+{
+public:
+    constexpr LLVM_string() noexcept : Wrapper()
+    {
+    }
+    static LLVM_string wrap(char *value) noexcept
+    {
+        LLVM_string retval;
+        retval.reset(value);
+        return retval;
+    }
+    static LLVM_string from(const char *value)
+    {
+        return wrap(::LLVMCreateMessage(value));
+    }
+    static LLVM_string from(const std::string &value)
+    {
+        return from(value.c_str());
+    }
+    static LLVM_string from(util::string_view value)
+    {
+        return from(std::string(value));
+    }
+    operator util::string_view() const
+    {
+        assert(*this);
+        return util::string_view(get());
+    }
+    explicit operator std::string() const
+    {
+        assert(*this);
+        return get();
+    }
+    explicit operator char *() const // override non-explicit operator
+    {
+        return get();
+    }
+};
+
+inline LLVM_string print_type_to_string(::LLVMTypeRef type)
+{
+    return LLVM_string::wrap(::LLVMPrintTypeToString(type));
+}
+
+struct Builder_deleter
+{
+    void operator()(::LLVMBuilderRef v) noexcept
+    {
+        return ::LLVMDisposeBuilder(v);
+    }
+};
+
+struct Builder : public Wrapper<::LLVMBuilderRef, Builder_deleter>
+{
+    using Wrapper::Wrapper;
+    static Builder create(::LLVMContextRef context)
+    {
+        return Builder(::LLVMCreateBuilderInContext(context));
     }
 };
 }

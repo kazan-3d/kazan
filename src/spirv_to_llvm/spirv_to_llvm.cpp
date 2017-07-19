@@ -22,6 +22,7 @@
  */
 #include "spirv_to_llvm.h"
 #include "util/optional.h"
+#include "util/variant.h"
 #include "util/enum.h"
 
 namespace vulkan_cpu
@@ -73,6 +74,36 @@ private:
     {
         std::string name;
     };
+    struct Input_variable_state
+    {
+        std::shared_ptr<Type_descriptor> type;
+        std::size_t member_index;
+    };
+    struct Output_variable_state
+    {
+        std::shared_ptr<Type_descriptor> type;
+        std::size_t member_index;
+    };
+    typedef util::variant<util::monostate, Input_variable_state, Output_variable_state>
+        Variable_state;
+    struct Function_state
+    {
+        std::shared_ptr<Function_type_descriptor> type;
+        ::LLVMValueRef function;
+        ::LLVMBasicBlockRef entry_block = nullptr;
+        explicit Function_state(std::shared_ptr<Function_type_descriptor> type,
+                                ::LLVMValueRef function) noexcept : type(std::move(type)),
+                                                                    function(function)
+        {
+        }
+    };
+    struct Label_state
+    {
+        ::LLVMBasicBlockRef basic_block;
+        explicit Label_state(::LLVMBasicBlockRef basic_block) noexcept : basic_block(basic_block)
+        {
+        }
+    };
     struct Id_state
     {
         util::optional<Op_string_state> op_string;
@@ -83,6 +114,27 @@ private:
         std::vector<Decoration_with_parameters> decorations;
         std::vector<Op_member_decorate> member_decorations;
         std::vector<Op_member_name> member_names;
+        Variable_state variable;
+        std::shared_ptr<Constant_descriptor> constant;
+        util::optional<Function_state> function;
+        util::optional<Label_state> label;
+
+    private:
+        template <typename Fn>
+        struct Variant_visit_helper
+        {
+            Fn &fn;
+            void operator()(util::monostate &) noexcept
+            {
+            }
+            template <typename T>
+            void operator()(T &&v)
+            {
+                fn(std::forward<T>(v));
+            }
+        };
+
+    public:
         template <typename Fn>
         void visit(Fn fn)
         {
@@ -93,7 +145,7 @@ private:
             if(name)
                 fn(*name);
             if(type)
-                fn(*type);
+                fn(type);
             for(auto &i : op_entry_points)
                 fn(i);
             for(auto &i : decorations)
@@ -102,6 +154,9 @@ private:
                 fn(i);
             for(auto &i : member_names)
                 fn(i);
+            util::visit(Variant_visit_helper<Fn>{fn}, variable);
+            if(constant)
+                fn(constant);
         }
         Id_state() noexcept
         {
@@ -115,10 +170,19 @@ private:
     Word input_generator_magic_number = 0;
     util::Enum_set<Capability> enabled_capabilities;
     ::LLVMContextRef context;
+    [[gnu::unused]] const std::uint64_t shader_id;
+    std::string name_prefix;
     llvm_wrapper::Module module;
     std::shared_ptr<Struct_type_descriptor> io_struct;
     std::array<std::shared_ptr<Type_descriptor>, 1> implicit_function_arguments;
+    std::size_t inputs_member;
+    std::shared_ptr<Struct_type_descriptor> inputs_struct;
+    std::size_t outputs_member;
+    std::shared_ptr<Struct_type_descriptor> outputs_struct;
     Stage stage;
+    Id current_function_id = 0;
+    Id current_basic_block_id = 0;
+    llvm_wrapper::Builder builder;
 
 private:
     Id_state &get_id_state(Id id)
@@ -126,24 +190,59 @@ private:
         assert(id != 0 && id <= id_states.size());
         return id_states[id - 1];
     }
-    const std::shared_ptr<Type_descriptor> &get_type(Id id, std::size_t instruction_start_index)
+    template <typename T = Type_descriptor>
+    std::shared_ptr<T> get_type(Id id, std::size_t instruction_start_index)
     {
         auto &state = get_id_state(id);
+        auto retval = std::dynamic_pointer_cast<T>(state.type);
         if(!state.type)
             throw Parser_error(
                 instruction_start_index, instruction_start_index, "id is not a type");
-        return state.type;
+        if(!retval)
+            throw Parser_error(instruction_start_index, instruction_start_index, "type mismatch");
+        return retval;
+    }
+    std::string get_name(Id id)
+    {
+        auto &name = get_id_state(id).name;
+        if(!name)
+            return {};
+        return name->name;
+    }
+    ::LLVMBasicBlockRef get_or_make_label(Id id)
+    {
+        auto &state = get_id_state(id);
+        if(!state.label)
+        {
+            auto &function = get_id_state(current_function_id).function.value();
+            state.label = Label_state(::LLVMAppendBasicBlockInContext(
+                context, function.function, (name_prefix + get_name(id)).c_str()));
+        }
+        return state.label->basic_block;
     }
 
 public:
-    explicit Spirv_to_llvm(::LLVMContextRef context) : context(context), stage()
+    explicit Spirv_to_llvm(::LLVMContextRef context, std::uint64_t shader_id)
+        : context(context), shader_id(shader_id), stage()
     {
-        module = llvm_wrapper::Module::create("", context);
+        {
+            std::ostringstream ss;
+            ss << "shader_" << shader_id << "_";
+            name_prefix = ss.str();
+        }
+        module = llvm_wrapper::Module::create((name_prefix + "module").c_str(), context);
+        builder = llvm_wrapper::Builder::create(context);
         constexpr std::size_t no_instruction_index = 0;
-        io_struct =
-            std::make_shared<Struct_type_descriptor>(context, "Io_struct", no_instruction_index);
+        io_struct = std::make_shared<Struct_type_descriptor>(
+            context, (name_prefix + "Io_struct").c_str(), no_instruction_index);
         assert(implicit_function_arguments.size() == 1);
         implicit_function_arguments[0] = io_struct;
+        inputs_struct = std::make_shared<Struct_type_descriptor>(
+            context, (name_prefix + "Inputs").c_str(), no_instruction_index);
+        inputs_member = io_struct->add_member(Struct_type_descriptor::Member({}, inputs_struct));
+        outputs_struct = std::make_shared<Struct_type_descriptor>(
+            context, (name_prefix + "Outputs").c_str(), no_instruction_index);
+        outputs_member = io_struct->add_member(Struct_type_descriptor::Member({}, outputs_struct));
     }
     Converted_module run(const Word *shader_words, std::size_t shader_size)
     {
@@ -166,7 +265,13 @@ public:
                     Converted_module::Entry_point(std::string(entry_point.entry_point.name)));
             }
         }
-        Converted_module retval(std::move(module), std::move(entry_points), std::move(io_struct));
+        Converted_module retval(std::move(module),
+                                std::move(entry_points),
+                                std::move(io_struct),
+                                inputs_member,
+                                std::move(inputs_struct),
+                                outputs_member,
+                                std::move(outputs_struct));
         return retval;
     }
     virtual void handle_header(unsigned version_number_major,
@@ -1353,7 +1458,7 @@ void Spirv_to_llvm::handle_instruction_op_source(
     {
         std::string filename(
             get_id_state(*instruction.file).op_string.value_or(Op_string_state()).value);
-        ::LLVMSetModuleIdentifier(module, filename.data(), filename.size());
+        ::LLVMSetModuleIdentifier(module.get(), filename.data(), filename.size());
     }
 }
 
@@ -1719,11 +1824,11 @@ void Spirv_to_llvm::handle_instruction_op_type_struct(Op_type_struct instruction
             auto &member = members[decoration.member];
             member.decorations.push_back(decoration.decoration);
         }
-        state.type =
-            std::make_shared<Struct_type_descriptor>(context,
-                                                     state.name.value_or(Name{}).name.c_str(),
-                                                     instruction_start_index,
-                                                     std::move(members));
+        state.type = std::make_shared<Struct_type_descriptor>(
+            context,
+            (name_prefix + get_name(instruction.result)).c_str(),
+            instruction_start_index,
+            std::move(members));
         break;
     }
     case Stage::generate_code:
@@ -1883,11 +1988,133 @@ void Spirv_to_llvm::handle_instruction_op_constant_false(Op_constant_false instr
 void Spirv_to_llvm::handle_instruction_op_constant(Op_constant instruction,
                                                    std::size_t instruction_start_index)
 {
-#warning finish
-    throw Parser_error(instruction_start_index,
-                       instruction_start_index,
-                       "instruction not implemented: "
-                           + std::string(get_enumerant_name(instruction.get_operation())));
+    switch(stage)
+    {
+    case Stage::calculate_types:
+    {
+        auto &state = get_id_state(instruction.result);
+        auto type = get_type(instruction.result_type, instruction_start_index);
+        if(auto *simple_type = dynamic_cast<Simple_type_descriptor *>(type.get()))
+        {
+            auto llvm_type = simple_type->get_or_make_type(true);
+            switch(::LLVMGetTypeKind(llvm_type))
+            {
+            case LLVMFloatTypeKind:
+            {
+                if(instruction.value.size() != 1)
+                    throw Parser_error(instruction_start_index,
+                                       instruction_start_index,
+                                       "OpConstant immediate value is wrong size for type float32");
+                state.constant = std::make_shared<Simple_constant_descriptor>(
+                    type,
+                    ::LLVMConstBitCast(
+                        ::LLVMConstInt(
+                            ::LLVMInt32TypeInContext(context), instruction.value[0], false),
+                        llvm_type));
+                break;
+            }
+            case LLVMIntegerTypeKind:
+            {
+                switch(::LLVMGetIntTypeWidth(llvm_type))
+                {
+                case 16:
+                {
+                    if(instruction.value.size() != 1)
+                        throw Parser_error(
+                            instruction_start_index,
+                            instruction_start_index,
+                            "OpConstant immediate value is wrong size for type int16");
+                    state.constant = std::make_shared<Simple_constant_descriptor>(
+                        type, ::LLVMConstInt(llvm_type, instruction.value[0], false));
+                    break;
+                }
+                case 32:
+                {
+                    if(instruction.value.size() != 1)
+                        throw Parser_error(
+                            instruction_start_index,
+                            instruction_start_index,
+                            "OpConstant immediate value is wrong size for type int32");
+                    state.constant = std::make_shared<Simple_constant_descriptor>(
+                        type, ::LLVMConstInt(llvm_type, instruction.value[0], false));
+                    break;
+                }
+                case 64:
+                {
+                    if(instruction.value.size() != 2)
+                        throw Parser_error(
+                            instruction_start_index,
+                            instruction_start_index,
+                            "OpConstant immediate value is wrong size for type int64");
+                    state.constant = std::make_shared<Simple_constant_descriptor>(
+                        type,
+                        ::LLVMConstInt(llvm_type,
+                                       (static_cast<std::uint64_t>(instruction.value[1]) << 32)
+                                           | instruction.value[0],
+                                       false));
+                    break;
+                }
+                case 1: // bool
+                default:
+                    throw Parser_error(
+                        instruction_start_index,
+                        instruction_start_index,
+                        "unimplemented simple type for OpConstant: "
+                            + std::string(llvm_wrapper::print_type_to_string(llvm_type)));
+                }
+                break;
+            }
+            case LLVMDoubleTypeKind:
+            {
+                if(instruction.value.size() != 2)
+                    throw Parser_error(instruction_start_index,
+                                       instruction_start_index,
+                                       "OpConstant immediate value is wrong size for type float64");
+                state.constant = std::make_shared<Simple_constant_descriptor>(
+                    type,
+                    ::LLVMConstBitCast(
+                        ::LLVMConstInt(::LLVMInt64TypeInContext(context),
+                                       (static_cast<std::uint64_t>(instruction.value[1]) << 32)
+                                           | instruction.value[0],
+                                       false),
+                        llvm_type));
+                break;
+            }
+            case LLVMHalfTypeKind:
+            {
+                if(instruction.value.size() != 1)
+                    throw Parser_error(instruction_start_index,
+                                       instruction_start_index,
+                                       "OpConstant immediate value is wrong size for type float16");
+                state.constant = std::make_shared<Simple_constant_descriptor>(
+                    type,
+                    ::LLVMConstBitCast(
+                        ::LLVMConstInt(
+                            ::LLVMInt16TypeInContext(context), instruction.value[0], false),
+                        llvm_type));
+                break;
+            }
+            default:
+            {
+                throw Parser_error(
+                    instruction_start_index,
+                    instruction_start_index,
+                    "unimplemented simple type for OpConstant: "
+                        + std::string(llvm_wrapper::print_type_to_string(llvm_type)));
+            }
+            }
+        }
+        else
+        {
+            throw Parser_error(instruction_start_index,
+                               instruction_start_index,
+                               "unimplemented type for OpConstant");
+        }
+        break;
+    }
+    case Stage::generate_code:
+        break;
+    }
 }
 
 void Spirv_to_llvm::handle_instruction_op_constant_composite(Op_constant_composite instruction,
@@ -1973,11 +2200,28 @@ void Spirv_to_llvm::handle_instruction_op_spec_constant_op(Op_spec_constant_op i
 void Spirv_to_llvm::handle_instruction_op_function(Op_function instruction,
                                                    std::size_t instruction_start_index)
 {
-#warning finish
-    throw Parser_error(instruction_start_index,
-                       instruction_start_index,
-                       "instruction not implemented: "
-                           + std::string(get_enumerant_name(instruction.get_operation())));
+    if(current_function_id)
+        throw Parser_error(instruction_start_index,
+                           instruction_start_index,
+                           "missing OpFunctionEnd before starting a new function");
+    current_function_id = instruction.result;
+    switch(stage)
+    {
+    case Stage::calculate_types:
+        break;
+    case Stage::generate_code:
+    {
+        auto &state = get_id_state(current_function_id);
+        auto function_type =
+            get_type<Function_type_descriptor>(instruction.function_type, instruction_start_index);
+        state.function =
+            Function_state(function_type,
+                           ::LLVMAddFunction(module.get(),
+                                             (name_prefix + get_name(current_function_id)).c_str(),
+                                             function_type->get_or_make_type(true)));
+        break;
+    }
+    }
 }
 
 void Spirv_to_llvm::handle_instruction_op_function_parameter(Op_function_parameter instruction,
@@ -1993,6 +2237,11 @@ void Spirv_to_llvm::handle_instruction_op_function_parameter(Op_function_paramet
 void Spirv_to_llvm::handle_instruction_op_function_end(Op_function_end instruction,
                                                        std::size_t instruction_start_index)
 {
+    if(!current_function_id)
+        throw Parser_error(instruction_start_index,
+                           instruction_start_index,
+                           "OpFunctionEnd without matching OpFunction");
+    current_function_id = 0;
 #warning finish
     throw Parser_error(instruction_start_index,
                        instruction_start_index,
@@ -2013,11 +2262,256 @@ void Spirv_to_llvm::handle_instruction_op_function_call(Op_function_call instruc
 void Spirv_to_llvm::handle_instruction_op_variable(Op_variable instruction,
                                                    std::size_t instruction_start_index)
 {
-#warning finish
-    throw Parser_error(instruction_start_index,
-                       instruction_start_index,
-                       "instruction not implemented: "
-                           + std::string(get_enumerant_name(instruction.get_operation())));
+    switch(stage)
+    {
+    case Stage::calculate_types:
+    {
+        auto &state = get_id_state(instruction.result);
+        bool check_decorations = true;
+        [&]()
+        {
+            switch(instruction.storage_class)
+            {
+            case Storage_class::uniform_constant:
+#warning finish implementing Storage_class::uniform_constant
+                break;
+            case Storage_class::input:
+            {
+                if(instruction.initializer)
+                    throw Parser_error(instruction_start_index,
+                                       instruction_start_index,
+                                       "shader input variable initializers are not implemented");
+                auto type = get_type(instruction.result_type, instruction_start_index);
+                state.variable =
+                    Input_variable_state{type,
+                                         inputs_struct->add_member(Struct_type_descriptor::Member(
+                                             state.decorations, type))};
+                check_decorations = false;
+                return;
+            }
+            case Storage_class::uniform:
+#warning finish implementing Storage_class::uniform
+                break;
+            case Storage_class::output:
+            {
+                if(instruction.initializer)
+                    throw Parser_error(instruction_start_index,
+                                       instruction_start_index,
+                                       "shader output variable initializers are not implemented");
+                auto type = get_type(instruction.result_type, instruction_start_index);
+                state.variable =
+                    Output_variable_state{type,
+                                          outputs_struct->add_member(Struct_type_descriptor::Member(
+                                              state.decorations, type))};
+                check_decorations = false;
+                return;
+            }
+            case Storage_class::workgroup:
+#warning finish implementing Storage_class::workgroup
+                break;
+            case Storage_class::cross_workgroup:
+#warning finish implementing Storage_class::cross_workgroup
+                break;
+            case Storage_class::private_:
+#warning finish implementing Storage_class::private_
+                break;
+            case Storage_class::function:
+            {
+                if(!current_function_id)
+                    throw Parser_error(instruction_start_index,
+                                       instruction_start_index,
+                                       "function-local variable must be inside function");
+                return;
+            }
+            case Storage_class::generic:
+#warning finish implementing Storage_class::generic
+                break;
+            case Storage_class::push_constant:
+#warning finish implementing Storage_class::push_constant
+                break;
+            case Storage_class::atomic_counter:
+#warning finish implementing Storage_class::atomic_counter
+                break;
+            case Storage_class::image:
+#warning finish implementing Storage_class::image
+                break;
+            case Storage_class::storage_buffer:
+#warning finish implementing Storage_class::storage_buffer
+                break;
+            }
+            throw Parser_error(instruction_start_index,
+                               instruction_start_index,
+                               "unimplemented OpVariable storage class: "
+                                   + std::string(get_enumerant_name(instruction.storage_class)));
+        }();
+        if(check_decorations)
+        {
+            for(auto &decoration : state.decorations)
+            {
+                switch(decoration.value)
+                {
+                case Decoration::relaxed_precision:
+#warning finish implementing Decoration::relaxed_precision
+                    break;
+                case Decoration::spec_id:
+#warning finish implementing Decoration::spec_id
+                    break;
+                case Decoration::block:
+#warning finish implementing Decoration::block
+                    break;
+                case Decoration::buffer_block:
+#warning finish implementing Decoration::buffer_block
+                    break;
+                case Decoration::row_major:
+#warning finish implementing Decoration::row_major
+                    break;
+                case Decoration::col_major:
+#warning finish implementing Decoration::col_major
+                    break;
+                case Decoration::array_stride:
+#warning finish implementing Decoration::array_stride
+                    break;
+                case Decoration::matrix_stride:
+#warning finish implementing Decoration::matrix_stride
+                    break;
+                case Decoration::glsl_shared:
+#warning finish implementing Decoration::glsl_shared
+                    break;
+                case Decoration::glsl_packed:
+#warning finish implementing Decoration::glsl_packed
+                    break;
+                case Decoration::c_packed:
+#warning finish implementing Decoration::c_packed
+                    break;
+                case Decoration::built_in:
+#warning finish implementing Decoration::built_in
+                    break;
+                case Decoration::no_perspective:
+#warning finish implementing Decoration::no_perspective
+                    break;
+                case Decoration::flat:
+#warning finish implementing Decoration::flat
+                    break;
+                case Decoration::patch:
+#warning finish implementing Decoration::patch
+                    break;
+                case Decoration::centroid:
+#warning finish implementing Decoration::centroid
+                    break;
+                case Decoration::sample:
+#warning finish implementing Decoration::sample
+                    break;
+                case Decoration::invariant:
+#warning finish implementing Decoration::invariant
+                    break;
+                case Decoration::restrict:
+#warning finish implementing Decoration::restrict
+                    break;
+                case Decoration::aliased:
+#warning finish implementing Decoration::aliased
+                    break;
+                case Decoration::volatile_:
+#warning finish implementing Decoration::volatile_
+                    break;
+                case Decoration::constant:
+#warning finish implementing Decoration::constant
+                    break;
+                case Decoration::coherent:
+#warning finish implementing Decoration::coherent
+                    break;
+                case Decoration::non_writable:
+#warning finish implementing Decoration::non_writable
+                    break;
+                case Decoration::non_readable:
+#warning finish implementing Decoration::non_readable
+                    break;
+                case Decoration::uniform:
+#warning finish implementing Decoration::uniform
+                    break;
+                case Decoration::saturated_conversion:
+#warning finish implementing Decoration::saturated_conversion
+                    break;
+                case Decoration::stream:
+#warning finish implementing Decoration::stream
+                    break;
+                case Decoration::location:
+#warning finish implementing Decoration::location
+                    break;
+                case Decoration::component:
+#warning finish implementing Decoration::component
+                    break;
+                case Decoration::index:
+#warning finish implementing Decoration::index
+                    break;
+                case Decoration::binding:
+#warning finish implementing Decoration::binding
+                    break;
+                case Decoration::descriptor_set:
+#warning finish implementing Decoration::descriptor_set
+                    break;
+                case Decoration::offset:
+#warning finish implementing Decoration::offset
+                    break;
+                case Decoration::xfb_buffer:
+#warning finish implementing Decoration::xfb_buffer
+                    break;
+                case Decoration::xfb_stride:
+#warning finish implementing Decoration::xfb_stride
+                    break;
+                case Decoration::func_param_attr:
+#warning finish implementing Decoration::func_param_attr
+                    break;
+                case Decoration::fp_rounding_mode:
+#warning finish implementing Decoration::fp_rounding_mode
+                    break;
+                case Decoration::fp_fast_math_mode:
+#warning finish implementing Decoration::fp_fast_math_mode
+                    break;
+                case Decoration::linkage_attributes:
+#warning finish implementing Decoration::linkage_attributes
+                    break;
+                case Decoration::no_contraction:
+#warning finish implementing Decoration::no_contraction
+                    break;
+                case Decoration::input_attachment_index:
+#warning finish implementing Decoration::input_attachment_index
+                    break;
+                case Decoration::alignment:
+#warning finish implementing Decoration::alignment
+                    break;
+                case Decoration::max_byte_offset:
+#warning finish implementing Decoration::max_byte_offset
+                    break;
+                case Decoration::alignment_id:
+#warning finish implementing Decoration::alignment_id
+                    break;
+                case Decoration::max_byte_offset_id:
+#warning finish implementing Decoration::max_byte_offset_id
+                    break;
+                case Decoration::override_coverage_nv:
+#warning finish implementing Decoration::override_coverage_nv
+                    break;
+                case Decoration::passthrough_nv:
+#warning finish implementing Decoration::passthrough_nv
+                    break;
+                case Decoration::viewport_relative_nv:
+#warning finish implementing Decoration::viewport_relative_nv
+                    break;
+                case Decoration::secondary_viewport_relative_nv:
+#warning finish implementing Decoration::secondary_viewport_relative_nv
+                    break;
+                }
+                throw Parser_error(instruction_start_index,
+                                   instruction_start_index,
+                                   "unimplemented decoration on OpVariable: "
+                                       + std::string(get_enumerant_name(decoration.value)));
+            }
+        }
+        break;
+    }
+    case Stage::generate_code:
+        break;
+    }
 }
 
 void Spirv_to_llvm::handle_instruction_op_image_texel_pointer(Op_image_texel_pointer instruction,
@@ -3746,11 +4240,28 @@ void Spirv_to_llvm::handle_instruction_op_selection_merge(Op_selection_merge ins
 void Spirv_to_llvm::handle_instruction_op_label(Op_label instruction,
                                                 std::size_t instruction_start_index)
 {
-#warning finish
-    throw Parser_error(instruction_start_index,
-                       instruction_start_index,
-                       "instruction not implemented: "
-                           + std::string(get_enumerant_name(instruction.get_operation())));
+    if(current_function_id == 0)
+        throw Parser_error(instruction_start_index, instruction_start_index, "OpLabel not allowed outside a function");
+    if(current_basic_block_id != 0)
+        throw Parser_error(instruction_start_index, instruction_start_index, "missing block terminator before OpLabel");
+    current_basic_block_id = instruction.result;
+    switch(stage)
+    {
+    case Stage::calculate_types:
+        break;
+    case Stage::generate_code:
+    {
+        auto &function = get_id_state(current_function_id).function.value();
+        auto block = get_or_make_label(instruction.result);
+        ::LLVMPositionBuilderAtEnd(builder.get(), block);
+        if(!function.entry_block)
+        {
+            function.entry_block = block;
+#warning finish adding function entry instructions
+        }
+        break;
+    }
+    }
 }
 
 void Spirv_to_llvm::handle_instruction_op_branch(Op_branch instruction,
@@ -7036,9 +7547,10 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_n_clamp(Glsl_std_450_op_n
 
 Converted_module spirv_to_llvm(::LLVMContextRef context,
                                const Word *shader_words,
-                               std::size_t shader_size)
+                               std::size_t shader_size,
+                               std::uint64_t shader_id)
 {
-    return Spirv_to_llvm(context).run(shader_words, shader_size);
+    return Spirv_to_llvm(context, shader_id).run(shader_words, shader_size);
 }
 }
 }
