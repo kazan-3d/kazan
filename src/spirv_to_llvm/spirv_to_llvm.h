@@ -29,21 +29,83 @@
 #include <vector>
 #include <string>
 #include <cassert>
+#include <type_traits>
+#include <utility>
 #include "llvm_wrapper/llvm_wrapper.h"
 
 namespace vulkan_cpu
 {
 namespace spirv_to_llvm
 {
+class Simple_type_descriptor;
+class Vector_type_descriptor;
+class Matrix_type_descriptor;
+class Pointer_type_descriptor;
+class Function_type_descriptor;
+class Struct_type_descriptor;
 class Type_descriptor
 {
     Type_descriptor(const Type_descriptor &) = delete;
     Type_descriptor &operator=(const Type_descriptor &) = delete;
 
 public:
+    struct Type_visitor
+    {
+        virtual ~Type_visitor() = default;
+        virtual void visit(Simple_type_descriptor &type) = 0;
+        virtual void visit(Vector_type_descriptor &type) = 0;
+        virtual void visit(Matrix_type_descriptor &type) = 0;
+        virtual void visit(Pointer_type_descriptor &type) = 0;
+        virtual void visit(Function_type_descriptor &type) = 0;
+        virtual void visit(Struct_type_descriptor &type) = 0;
+    };
+
+public:
     Type_descriptor() noexcept = default;
     virtual ~Type_descriptor() = default;
     virtual ::LLVMTypeRef get_or_make_type(bool need_complete_structs) = 0;
+    virtual void visit(Type_visitor &type_visitor) = 0;
+    void visit(Type_visitor &&type_visitor)
+    {
+        visit(type_visitor);
+    }
+    template <typename Fn>
+    typename std::enable_if<!std::is_convertible<Fn &&, const Type_visitor &>::value, void>::type
+        visit(Fn &&fn)
+    {
+        struct Visitor final : public Type_visitor
+        {
+            Fn &fn;
+            virtual void visit(Simple_type_descriptor &type) override
+            {
+                std::forward<Fn>(fn)(type);
+            }
+            virtual void visit(Vector_type_descriptor &type) override
+            {
+                std::forward<Fn>(fn)(type);
+            }
+            virtual void visit(Matrix_type_descriptor &type) override
+            {
+                std::forward<Fn>(fn)(type);
+            }
+            virtual void visit(Pointer_type_descriptor &type) override
+            {
+                std::forward<Fn>(fn)(type);
+            }
+            virtual void visit(Function_type_descriptor &type) override
+            {
+                std::forward<Fn>(fn)(type);
+            }
+            virtual void visit(Struct_type_descriptor &type) override
+            {
+                std::forward<Fn>(fn)(type);
+            }
+            explicit Visitor(Fn &fn) noexcept : fn(fn)
+            {
+            }
+        };
+        visit(Visitor(fn));
+    }
     class Recursion_checker;
     class Recursion_checker_state
     {
@@ -99,6 +161,77 @@ public:
     {
         return type;
     }
+    virtual void visit(Type_visitor &type_visitor) override
+    {
+        type_visitor.visit(*this);
+    }
+};
+
+class Vector_type_descriptor final : public Type_descriptor
+{
+private:
+    ::LLVMTypeRef type;
+    std::shared_ptr<Simple_type_descriptor> element_type;
+    std::size_t element_count;
+
+public:
+    explicit Vector_type_descriptor(std::shared_ptr<Simple_type_descriptor> element_type,
+                                    std::size_t element_count) noexcept
+        : type(::LLVMVectorType(element_type->get_or_make_type(true), element_count)),
+          element_type(std::move(element_type)),
+          element_count(element_count)
+    {
+    }
+    virtual ::LLVMTypeRef get_or_make_type([[gnu::unused]] bool need_complete_structs) override
+    {
+        return type;
+    }
+    virtual void visit(Type_visitor &type_visitor) override
+    {
+        type_visitor.visit(*this);
+    }
+    const std::shared_ptr<Simple_type_descriptor> &get_element_type() const noexcept
+    {
+        return element_type;
+    }
+    std::size_t get_element_count() const noexcept
+    {
+        return element_count;
+    }
+};
+
+class Matrix_type_descriptor final : public Type_descriptor
+{
+private:
+    ::LLVMTypeRef type;
+    std::shared_ptr<Vector_type_descriptor> column_type;
+    std::size_t column_count;
+
+public:
+    explicit Matrix_type_descriptor(std::shared_ptr<Vector_type_descriptor> column_type,
+                                    std::size_t column_count) noexcept
+        : type(::LLVMVectorType(column_type->get_element_type()->get_or_make_type(true),
+                                column_type->get_element_count() * column_count)),
+          column_type(std::move(column_type)),
+          column_count(column_count)
+    {
+    }
+    virtual ::LLVMTypeRef get_or_make_type([[gnu::unused]] bool need_complete_structs) override
+    {
+        return type;
+    }
+    virtual void visit(Type_visitor &type_visitor) override
+    {
+        type_visitor.visit(*this);
+    }
+    const std::shared_ptr<Vector_type_descriptor> &get_column_type() const noexcept
+    {
+        return column_type;
+    }
+    std::size_t get_column_count() const noexcept
+    {
+        return column_count;
+    }
 };
 
 class Pointer_type_descriptor final : public Type_descriptor
@@ -149,6 +282,10 @@ public:
         }
         return type;
     }
+    virtual void visit(Type_visitor &type_visitor) override
+    {
+        type_visitor.visit(*this);
+    }
 };
 
 class Function_type_descriptor final : public Type_descriptor
@@ -187,6 +324,10 @@ public:
                 llvm_return_type, llvm_args.data(), llvm_args.size(), is_var_arg);
         }
         return type;
+    }
+    virtual void visit(Type_visitor &type_visitor) override
+    {
+        type_visitor.visit(*this);
     }
 };
 
@@ -262,6 +403,10 @@ public:
             complete_type(need_complete_structs);
         }
         return type;
+    }
+    virtual void visit(Type_visitor &type_visitor) override
+    {
+        type_visitor.visit(*this);
     }
 };
 
