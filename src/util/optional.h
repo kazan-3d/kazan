@@ -80,6 +80,7 @@ struct Optional_base
     {
         if(is_full)
             full_value.~T();
+        is_full = false;
     }
     template <typename... Types>
     T &emplace(Types &&... args) noexcept(std::is_nothrow_constructible<T, Types...>::value)
@@ -179,6 +180,7 @@ struct Optional_base<T, true, false>
     void reset() noexcept
     {
         // full_value.~T() not needed
+        is_full = false;
     }
     template <typename... Types>
     T &emplace(Types &&... args) noexcept(std::is_nothrow_constructible<T, Types...>::value)
@@ -275,6 +277,7 @@ struct Optional_base<T, true, true>
     void reset() noexcept
     {
         // full_value.~T() not needed
+        is_full = false;
     }
     template <typename... Types>
     T &emplace(Types &&... args) noexcept(std::is_nothrow_constructible<T, Types...>::value)
