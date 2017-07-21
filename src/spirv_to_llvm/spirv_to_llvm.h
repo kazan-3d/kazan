@@ -61,9 +61,15 @@ public:
     };
 
 public:
-    Type_descriptor() noexcept = default;
+    const std::vector<spirv::Decoration_with_parameters> decorations;
+
+public:
+    explicit Type_descriptor(std::vector<spirv::Decoration_with_parameters> decorations) noexcept
+        : decorations(std::move(decorations))
+    {
+    }
     virtual ~Type_descriptor() = default;
-    virtual ::LLVMTypeRef get_or_make_type(bool need_complete_structs) = 0;
+    virtual ::LLVMTypeRef get_or_make_type() = 0;
     virtual void visit(Type_visitor &type_visitor) = 0;
     void visit(Type_visitor &&type_visitor)
     {
@@ -154,10 +160,13 @@ private:
     ::LLVMTypeRef type;
 
 public:
-    explicit Simple_type_descriptor(::LLVMTypeRef type) noexcept : type(type)
+    explicit Simple_type_descriptor(std::vector<spirv::Decoration_with_parameters> decorations,
+                                    ::LLVMTypeRef type) noexcept
+        : Type_descriptor(std::move(decorations)),
+          type(type)
     {
     }
-    virtual ::LLVMTypeRef get_or_make_type([[gnu::unused]] bool need_complete_structs) override
+    virtual ::LLVMTypeRef get_or_make_type() override
     {
         return type;
     }
@@ -175,14 +184,16 @@ private:
     std::size_t element_count;
 
 public:
-    explicit Vector_type_descriptor(std::shared_ptr<Simple_type_descriptor> element_type,
+    explicit Vector_type_descriptor(std::vector<spirv::Decoration_with_parameters> decorations,
+                                    std::shared_ptr<Simple_type_descriptor> element_type,
                                     std::size_t element_count) noexcept
-        : type(::LLVMVectorType(element_type->get_or_make_type(true), element_count)),
+        : Type_descriptor(std::move(decorations)),
+          type(::LLVMVectorType(element_type->get_or_make_type(), element_count)),
           element_type(std::move(element_type)),
           element_count(element_count)
     {
     }
-    virtual ::LLVMTypeRef get_or_make_type([[gnu::unused]] bool need_complete_structs) override
+    virtual ::LLVMTypeRef get_or_make_type() override
     {
         return type;
     }
@@ -208,15 +219,17 @@ private:
     std::size_t column_count;
 
 public:
-    explicit Matrix_type_descriptor(std::shared_ptr<Vector_type_descriptor> column_type,
+    explicit Matrix_type_descriptor(std::vector<spirv::Decoration_with_parameters> decorations,
+                                    std::shared_ptr<Vector_type_descriptor> column_type,
                                     std::size_t column_count) noexcept
-        : type(::LLVMVectorType(column_type->get_element_type()->get_or_make_type(true),
+        : Type_descriptor(std::move(decorations)),
+          type(::LLVMVectorType(column_type->get_element_type()->get_or_make_type(),
                                 column_type->get_element_count() * column_count)),
           column_type(std::move(column_type)),
           column_count(column_count)
     {
     }
-    virtual ::LLVMTypeRef get_or_make_type([[gnu::unused]] bool need_complete_structs) override
+    virtual ::LLVMTypeRef get_or_make_type() override
     {
         return type;
     }
@@ -243,9 +256,11 @@ private:
     Recursion_checker_state recursion_checker_state;
 
 public:
-    Pointer_type_descriptor(std::shared_ptr<Type_descriptor> base,
+    Pointer_type_descriptor(std::vector<spirv::Decoration_with_parameters> decorations,
+                            std::shared_ptr<Type_descriptor> base,
                             std::size_t instruction_start_index) noexcept
-        : base(std::move(base)),
+        : Type_descriptor(std::move(decorations)),
+          base(std::move(base)),
           instruction_start_index(instruction_start_index),
           type(nullptr)
     {
@@ -260,13 +275,15 @@ public:
         assert(new_base);
         base = std::move(new_base);
     }
-    explicit Pointer_type_descriptor(std::size_t instruction_start_index) noexcept
-        : base(nullptr),
+    explicit Pointer_type_descriptor(std::vector<spirv::Decoration_with_parameters> decorations,
+                                     std::size_t instruction_start_index) noexcept
+        : Type_descriptor(std::move(decorations)),
+          base(nullptr),
           instruction_start_index(instruction_start_index),
           type(nullptr)
     {
     }
-    virtual ::LLVMTypeRef get_or_make_type(bool need_complete_structs) override
+    virtual ::LLVMTypeRef get_or_make_type() override
     {
         if(!type)
         {
@@ -276,7 +293,7 @@ public:
                     instruction_start_index,
                     instruction_start_index,
                     "attempting to create type from pointer forward declaration");
-            auto base_type = base->get_or_make_type(need_complete_structs);
+            auto base_type = base->get_or_make_type();
             constexpr unsigned default_address_space = 0;
             type = ::LLVMPointerType(base_type, default_address_space);
         }
@@ -299,27 +316,29 @@ private:
     bool is_var_arg;
 
 public:
-    explicit Function_type_descriptor(std::shared_ptr<Type_descriptor> return_type,
+    explicit Function_type_descriptor(std::vector<spirv::Decoration_with_parameters> decorations,
+                                      std::shared_ptr<Type_descriptor> return_type,
                                       std::vector<std::shared_ptr<Type_descriptor>> args,
                                       std::size_t instruction_start_index,
                                       bool is_var_arg = false) noexcept
-        : return_type(std::move(return_type)),
+        : Type_descriptor(std::move(decorations)),
+          return_type(std::move(return_type)),
           args(std::move(args)),
           type(nullptr),
           instruction_start_index(instruction_start_index),
           is_var_arg(is_var_arg)
     {
     }
-    virtual ::LLVMTypeRef get_or_make_type(bool need_complete_structs) override
+    virtual ::LLVMTypeRef get_or_make_type() override
     {
         if(!type)
         {
             Recursion_checker recursion_checker(recursion_checker_state, instruction_start_index);
             std::vector<::LLVMTypeRef> llvm_args;
             llvm_args.reserve(args.size());
-            auto llvm_return_type = return_type->get_or_make_type(need_complete_structs);
+            auto llvm_return_type = return_type->get_or_make_type();
             for(auto &arg : args)
-                llvm_args.push_back(arg->get_or_make_type(need_complete_structs));
+                llvm_args.push_back(arg->get_or_make_type());
             type = ::LLVMFunctionType(
                 llvm_return_type, llvm_args.data(), llvm_args.size(), is_var_arg);
         }
@@ -354,7 +373,9 @@ private:
     bool is_complete;
     Recursion_checker_state recursion_checker_state;
     std::size_t instruction_start_index;
-    void complete_type(bool need_complete_structs);
+    ::LLVMContextRef context;
+    ::LLVMTargetDataRef target_data;
+    void complete_type();
     void on_add_member(std::size_t added_member_index) noexcept
     {
         assert(!is_complete);
@@ -377,30 +398,34 @@ public:
     const std::vector<Member> &get_members(bool need_llvm_member_indexes)
     {
         if(need_llvm_member_indexes)
-            get_or_make_type(true);
+            get_or_make_type();
         return members;
     }
-    explicit Struct_type_descriptor(::LLVMContextRef context,
+    explicit Struct_type_descriptor(std::vector<spirv::Decoration_with_parameters> decorations,
+                                    ::LLVMContextRef context,
+                                    ::LLVMTargetDataRef target_data,
                                     const char *name,
                                     std::size_t instruction_start_index,
                                     std::vector<Member> members = {})
-        : members(std::move(members)),
+        : Type_descriptor(std::move(decorations)),
+          members(std::move(members)),
           builtin_members{},
           type(::LLVMStructCreateNamed(context, name)),
           is_complete(false),
-          instruction_start_index(instruction_start_index)
+          instruction_start_index(instruction_start_index),
+          context(context),
+          target_data(target_data)
     {
         for(std::size_t member_index = 0; member_index < members.size(); member_index++)
             on_add_member(member_index);
     }
-    virtual ::LLVMTypeRef get_or_make_type(bool need_complete_structs) override
+    virtual ::LLVMTypeRef get_or_make_type() override
     {
-        if(need_complete_structs && !is_complete)
+        if(!is_complete)
         {
             Recursion_checker recursion_checker(recursion_checker_state, instruction_start_index);
-            if(recursion_checker.is_nested_recursion())
-                need_complete_structs = false;
-            complete_type(need_complete_structs);
+            if(!recursion_checker.is_nested_recursion())
+                complete_type();
         }
         return type;
     }

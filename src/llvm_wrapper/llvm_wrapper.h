@@ -24,12 +24,16 @@
 #define LLVM_WRAPPER_LLVM_WRAPPER_H_
 
 #include <llvm-c/Core.h>
+#include <llvm-c/Target.h>
+#include <llvm-c/TargetMachine.h>
+#include <llvm-c/ExecutionEngine.h>
 #include <memory>
 #include <type_traits>
 #include <utility>
 #include <string>
 #include <cassert>
 #include "util/string_view.h"
+#include "util/variant.h"
 
 namespace vulkan_cpu
 {
@@ -93,37 +97,6 @@ public:
     }
 };
 
-struct Context_deleter
-{
-    void operator()(::LLVMContextRef context) noexcept
-    {
-        ::LLVMContextDispose(context);
-    }
-};
-
-struct Context : public Wrapper<::LLVMContextRef, Context_deleter>
-{
-    using Wrapper::Wrapper;
-    static Context create();
-};
-
-struct Module_deleter
-{
-    void operator()(::LLVMModuleRef module) noexcept
-    {
-        ::LLVMDisposeModule(module);
-    }
-};
-
-struct Module : public Wrapper<::LLVMModuleRef, Module_deleter>
-{
-    using Wrapper::Wrapper;
-    static Module create(const char *id, ::LLVMContextRef context)
-    {
-        return Module(::LLVMModuleCreateWithNameInContext(id, context));
-    }
-};
-
 struct LLVM_string_deleter
 {
     void operator()(char *str)
@@ -169,6 +142,151 @@ public:
     explicit operator char *() const // override non-explicit operator
     {
         return get();
+    }
+};
+
+struct Context_deleter
+{
+    void operator()(::LLVMContextRef context) noexcept
+    {
+        ::LLVMContextDispose(context);
+    }
+};
+
+struct Context : public Wrapper<::LLVMContextRef, Context_deleter>
+{
+    using Wrapper::Wrapper;
+    static Context create();
+};
+
+struct Target_deleter
+{
+    void operator()(::LLVMTargetRef target) noexcept
+    {
+        static_cast<void>(target);
+    }
+};
+
+struct Target : public Wrapper<::LLVMTargetRef, Target_deleter>
+{
+    using Wrapper::Wrapper;
+    static LLVM_string get_default_target_triple()
+    {
+        return LLVM_string::wrap(::LLVMGetDefaultTargetTriple());
+    }
+    static LLVM_string get_process_target_triple();
+    static LLVM_string get_host_cpu_name();
+    static LLVM_string get_host_cpu_features();
+    typedef util::variant<Target, LLVM_string> Target_or_error_message;
+    static Target_or_error_message get_target_from_target_triple(const char *triple)
+    {
+        ::LLVMTargetRef target = nullptr;
+        char *error_message = nullptr;
+        if(::LLVMGetTargetFromTriple(triple, &target, &error_message) == 0)
+            return Target(target);
+        return LLVM_string::wrap(error_message);
+    }
+    static Target get_native_target()
+    {
+        auto native_triple = get_process_target_triple();
+        auto retval = get_target_from_target_triple(native_triple.get());
+        auto *target = util::get_if<Target>(&retval);
+        if(!target)
+            throw std::runtime_error(
+                "can't find target for native triple (" + std::string(native_triple) + "): "
+                + util::get<LLVM_string>(retval).get());
+        return std::move(*target);
+    }
+};
+
+struct Target_data_deleter
+{
+    void operator()(::LLVMTargetDataRef v) noexcept
+    {
+        ::LLVMDisposeTargetData(v);
+    }
+};
+
+struct Target_data : public Wrapper<::LLVMTargetDataRef, Target_data_deleter>
+{
+    using Wrapper::Wrapper;
+    static LLVM_string to_string(::LLVMTargetDataRef td)
+    {
+        return LLVM_string::wrap(::LLVMCopyStringRepOfTargetData(td));
+    }
+    LLVM_string to_string() const
+    {
+        return to_string(get());
+    }
+    static Target_data from_string(const char *str)
+    {
+        return Target_data(::LLVMCreateTargetData(str));
+    }
+};
+
+struct Target_machine_deleter
+{
+    void operator()(::LLVMTargetMachineRef tm) noexcept
+    {
+        ::LLVMDisposeTargetMachine(tm);
+    }
+};
+
+struct Target_machine : public Wrapper<::LLVMTargetMachineRef, Target_machine_deleter>
+{
+    using Wrapper::Wrapper;
+    static Target_machine create_native_target_machine();
+    static Target get_target(::LLVMTargetMachineRef tm)
+    {
+        return Target(::LLVMGetTargetMachineTarget(tm));
+    }
+    Target get_target() const
+    {
+        return get_target(get());
+    }
+    static LLVM_string get_target_triple(::LLVMTargetMachineRef tm)
+    {
+        return LLVM_string::wrap(::LLVMGetTargetMachineTriple(tm));
+    }
+    LLVM_string get_target_triple() const
+    {
+        return get_target_triple(get());
+    }
+    static Target_data create_target_data_layout(::LLVMTargetMachineRef tm)
+    {
+        return Target_data(::LLVMCreateTargetDataLayout(tm));
+    }
+    Target_data create_target_data_layout() const
+    {
+        return create_target_data_layout(get());
+    }
+};
+
+struct Module_deleter
+{
+    void operator()(::LLVMModuleRef module) noexcept
+    {
+        ::LLVMDisposeModule(module);
+    }
+};
+
+struct Module : public Wrapper<::LLVMModuleRef, Module_deleter>
+{
+    using Wrapper::Wrapper;
+    static Module create(const char *id, ::LLVMContextRef context)
+    {
+        return Module(::LLVMModuleCreateWithNameInContext(id, context));
+    }
+    static Module create_native(const char *id, ::LLVMContextRef context)
+    {
+        Module retval = create(id, context);
+        retval.set_target_to_native();
+        return retval;
+    }
+    static void set_target_to_native(::LLVMModuleRef module);
+    void set_target_to_native()
+    {
+        set_target_to_native(get());
     }
 };
 
