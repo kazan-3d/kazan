@@ -2840,7 +2840,9 @@ private:
     }
 
 public:
-    directory_entry() noexcept = default;
+    directory_entry() noexcept
+    {
+    }
     explicit directory_entry(const filesystem::path &path_value) : path_value(path_value)
     {
         refresh();
