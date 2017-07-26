@@ -687,7 +687,9 @@ public:
                                                      no_instruction_index);
         assert(implicit_function_arguments.size() == 1);
         static_assert(io_struct_argument_index == 0, "");
-        implicit_function_arguments[io_struct_argument_index] = io_struct;
+        implicit_function_arguments[io_struct_argument_index] =
+            std::make_shared<Pointer_type_descriptor>(
+                std::vector<Decoration_with_parameters>{}, io_struct, no_instruction_index);
         inputs_struct =
             std::make_shared<Struct_type_descriptor>(std::vector<Decoration_with_parameters>{},
                                                      context,
@@ -3056,10 +3058,18 @@ void Spirv_to_llvm::handle_instruction_op_variable(Op_variable instruction,
                 throw Parser_error(instruction_start_index,
                                    instruction_start_index,
                                    "function-local variable must be inside function");
-#warning finish implementing Storage_class::function
-            throw Parser_error(instruction_start_index,
-                               instruction_start_index,
-                               "function-local variables are not implemented");
+            auto &function = get_id_state(current_function_id).function.value();
+            if(!function.entry_block
+               || function.entry_block->entry_block != get_or_make_label(current_basic_block_id))
+                throw Parser_error(instruction_start_index,
+                                   instruction_start_index,
+                                   "function-local variable must be inside initial basic block");
+            auto type = get_type(instruction.result_type, instruction_start_index);
+            state.value = Value(
+                ::LLVMBuildAlloca(
+                    builder.get(), type->get_or_make_type(), get_name(instruction.result).c_str()),
+                type);
+            return;
         }
         case Storage_class::generic:
 #warning finish implementing Storage_class::generic
@@ -3318,24 +3328,69 @@ void Spirv_to_llvm::handle_instruction_op_composite_construct(Op_composite_const
         auto &state = get_id_state(instruction.result);
         auto result_type = get_type(instruction.result_type, instruction_start_index);
         ::LLVMValueRef result_value = nullptr;
+        std::string name = get_name(instruction.result);
         struct Visitor
         {
             Op_composite_construct &instruction;
             std::size_t instruction_start_index;
             Id_state &state;
             ::LLVMValueRef &result_value;
+            std::string &name;
+            Spirv_to_llvm *this_;
             void operator()(Simple_type_descriptor &)
             {
                 throw Parser_error(instruction_start_index,
                                    instruction_start_index,
                                    "invalid result type for OpCompositeConstruct");
             }
-            void operator()(Vector_type_descriptor &)
+            void operator()(Vector_type_descriptor &type)
             {
-#warning finish
-                throw Parser_error(instruction_start_index,
-                                   instruction_start_index,
-                                   "unimplemented result type for OpCompositeConstruct");
+                if(instruction.constituents.size() < 2)
+                    throw Parser_error(instruction_start_index,
+                                       instruction_start_index,
+                                       "too few inputs to construct a vector");
+                result_value = ::LLVMGetUndef(type.get_or_make_type());
+                std::uint32_t insert_index = 0;
+                auto insert_element = [&](::LLVMValueRef element)
+                {
+                    if(insert_index >= type.get_element_count())
+                        throw Parser_error(
+                            instruction_start_index,
+                            instruction_start_index,
+                            "too many input vector elements to fit in output vector");
+                    result_value = ::LLVMBuildInsertElement(
+                        this_->builder.get(),
+                        result_value,
+                        element,
+                        ::LLVMConstInt(
+                            ::LLVMInt32TypeInContext(this_->context), insert_index, false),
+                        insert_index + 1 == type.get_element_count() ? name.c_str() : "");
+                    insert_index++;
+                };
+                for(Id input : instruction.constituents)
+                {
+                    auto &value = this_->get_id_state(input).value.value();
+                    if(auto *vector_type = dynamic_cast<Vector_type_descriptor *>(value.type.get()))
+                    {
+                        for(std::uint32_t i = 0; i < vector_type->get_element_count(); i++)
+                        {
+                            insert_element(::LLVMBuildExtractElement(
+                                this_->builder.get(),
+                                value.value,
+                                ::LLVMConstInt(
+                                    ::LLVMInt32TypeInContext(this_->context), insert_index, false),
+                                ""));
+                        }
+                    }
+                    else
+                    {
+                        insert_element(value.value);
+                    }
+                }
+                if(insert_index < type.get_element_count())
+                    throw Parser_error(instruction_start_index,
+                                       instruction_start_index,
+                                       "too few input vector elements to fill output vector");
             }
             void operator()(Matrix_type_descriptor &)
             {
@@ -3364,7 +3419,8 @@ void Spirv_to_llvm::handle_instruction_op_composite_construct(Op_composite_const
                                    "unimplemented result type for OpCompositeConstruct");
             }
         };
-        result_type->visit(Visitor{instruction, instruction_start_index, state, result_value});
+        result_type->visit(
+            Visitor{instruction, instruction_start_index, state, result_value, name, this});
         state.value = Value(result_value, std::move(result_type));
         break;
     }
@@ -3385,7 +3441,7 @@ void Spirv_to_llvm::handle_instruction_op_composite_extract(Op_composite_extract
         std::string name = "";
         for(std::size_t i = 0; i < instruction.indexes.size(); i++)
         {
-            std::size_t index = instruction.indexes[i];
+            std::uint32_t index = instruction.indexes[i];
             if(i == instruction.indexes.size() - 1)
                 name = get_name(instruction.result);
             struct Visitor
@@ -3394,19 +3450,28 @@ void Spirv_to_llvm::handle_instruction_op_composite_extract(Op_composite_extract
                 Id_state &state;
                 Value &result;
                 std::string &name;
-                std::size_t index;
+                std::uint32_t index;
+                ::LLVMContextRef context;
+                llvm_wrapper::Builder &builder;
                 void operator()(Simple_type_descriptor &)
                 {
                     throw Parser_error(instruction_start_index,
                                        instruction_start_index,
                                        "invalid composite type for OpCompositeExtract");
                 }
-                void operator()(Vector_type_descriptor &)
+                void operator()(Vector_type_descriptor &type)
                 {
-#warning finish
-                    throw Parser_error(instruction_start_index,
-                                       instruction_start_index,
-                                       "unimplemented composite type for OpCompositeExtract");
+                    if(index >= type.get_element_count())
+                        throw Parser_error(instruction_start_index,
+                                           instruction_start_index,
+                                           "index out of range in OpCompositeExtract");
+                    result =
+                        Value(::LLVMBuildExtractElement(
+                                  builder.get(),
+                                  result.value,
+                                  ::LLVMConstInt(::LLVMInt32TypeInContext(context), index, false),
+                                  name.c_str()),
+                              type.get_element_type());
                 }
                 void operator()(Matrix_type_descriptor &)
                 {
@@ -3436,7 +3501,8 @@ void Spirv_to_llvm::handle_instruction_op_composite_extract(Op_composite_extract
                 }
             };
             auto *type = result.type.get();
-            type->visit(Visitor{instruction_start_index, state, result, name, index});
+            type->visit(
+                Visitor{instruction_start_index, state, result, name, index, context, builder});
         }
         state.value = result;
         break;
@@ -5009,12 +5075,6 @@ void Spirv_to_llvm::handle_instruction_op_label(Op_label instruction,
         if(!function.entry_block)
         {
             auto io_struct_value = ::LLVMGetParam(function.function, io_struct_argument_index);
-#if 1
-            if(block) // always true, but not constant so clang doesn't warn
-                throw Parser_error(
-                    instruction_start_index, instruction_start_index, "finish fixing OpLabel");
-#endif
-#warning finish fixing SIGSEGV here
             auto inputs_struct_value = ::LLVMBuildStructGEP(
                 builder.get(),
                 io_struct_value,
