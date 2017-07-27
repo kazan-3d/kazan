@@ -126,19 +126,19 @@ util::optional<std::vector<spirv::Word>> load_file(const char *filename)
 void dump_words(const spirv::Word *words, std::size_t word_count)
 {
     constexpr std::size_t max_words_per_line = 4;
-    auto old_fill = std::cout.fill('0');
-    auto old_flags = std::cout.flags(std::ios::uppercase | std::ios::hex | std::ios::right);
-    auto old_width = std::cout.width();
+    auto old_fill = std::cerr.fill('0');
+    auto old_flags = std::cerr.flags(std::ios::uppercase | std::ios::hex | std::ios::right);
+    auto old_width = std::cerr.width();
     bool wrote_line_beginning = false;
     bool wrote_line_ending = true;
-    std::cout << "Words:\n";
+    std::cerr << "Words:\n";
     std::size_t current_words_per_line = 0;
     std::size_t index;
     auto seperator = "";
     auto write_line_beginning = [&]()
     {
-        std::cout.width(8);
-        std::cout << index << ":";
+        std::cerr.width(8);
+        std::cerr << index << ":";
         seperator = " ";
         wrote_line_beginning = true;
         wrote_line_ending = false;
@@ -148,15 +148,15 @@ void dump_words(const spirv::Word *words, std::size_t word_count)
     {
         while(current_words_per_line < max_words_per_line)
         {
-            std::cout << seperator;
+            std::cerr << seperator;
             seperator = " ";
-            std::cout.width(8);
-            std::cout.fill(' ');
-            std::cout << "";
-            std::cout.fill('0');
+            std::cerr.width(8);
+            std::cerr.fill(' ');
+            std::cerr << "";
+            std::cerr.fill('0');
             current_words_per_line++;
         }
-        std::cout << seperator << " |" << chars << "|\n";
+        std::cerr << seperator << " |" << chars << "|\n";
         seperator = "";
         wrote_line_ending = true;
         wrote_line_beginning = false;
@@ -172,10 +172,10 @@ void dump_words(const spirv::Word *words, std::size_t word_count)
     };
     auto write_word = [&](spirv::Word w)
     {
-        std::cout << seperator;
+        std::cerr << seperator;
         seperator = " ";
-        std::cout.width(8);
-        std::cout << w;
+        std::cerr.width(8);
+        std::cerr << w;
         current_words_per_line++;
         append_char(w & 0xFFU);
         append_char((w >> 8) & 0xFFU);
@@ -192,10 +192,10 @@ void dump_words(const spirv::Word *words, std::size_t word_count)
     }
     if(!wrote_line_ending)
         write_line_ending();
-    std::cout.flush();
-    std::cout.width(old_width);
-    std::cout.fill(old_fill);
-    std::cout.flags(old_flags);
+    std::cerr.flush();
+    std::cerr.width(old_width);
+    std::cerr.fill(old_fill);
+    std::cerr.flags(old_flags);
 }
 
 void dump_words(const std::vector<spirv::Word> &words)
@@ -215,12 +215,13 @@ int test_main(int argc, char **argv)
         }
         filename = argv[1];
     }
-    std::cout << "loading " << filename << std::endl;
+    std::cerr << "loading " << filename << std::endl;
     auto file = load_file(filename);
     if(file)
     {
         {
             dump_words(*file);
+            std::cerr << std::endl;
             spirv::Dump_callbacks dump_callbacks;
             try
             {
@@ -228,11 +229,11 @@ int test_main(int argc, char **argv)
             }
             catch(spirv::Parser_error &e)
             {
-                std::cout << dump_callbacks.ss.str() << std::endl;
+                std::cerr << dump_callbacks.ss.str() << std::endl;
                 std::cerr << "error: " << e.what();
                 return 1;
             }
-            std::cout << dump_callbacks.ss.str() << std::endl;
+            std::cerr << dump_callbacks.ss.str() << std::endl;
         }
         auto llvm_context = llvm_wrapper::Context::create();
         std::uint64_t next_module_id = 1;
@@ -246,7 +247,11 @@ int test_main(int argc, char **argv)
             std::cerr << "error: " << e.what();
             return 1;
         }
+        std::cerr << "Translation to LLVM succeeded." << std::endl;
         ::LLVMDumpModule(converted_module.module.get());
+        bool failed = ::LLVMVerifyModule(converted_module.module.get(), ::LLVMPrintMessageAction, nullptr);
+        if(failed)
+            return 1;
     }
     else
     {

@@ -4,7 +4,7 @@ cmake_install.cmake
 CMakeCache.txt
 Makefile
 /.settings/
-/test-files/test.spv
+/test-files/test2.spv
 out.json
 compile_commands.json
 /.kdev4/

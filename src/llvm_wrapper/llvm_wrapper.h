@@ -27,6 +27,7 @@
 #include <llvm-c/Target.h>
 #include <llvm-c/TargetMachine.h>
 #include <llvm-c/ExecutionEngine.h>
+#include <llvm-c/Analysis.h>
 #include <memory>
 #include <type_traits>
 #include <utility>
@@ -311,6 +312,13 @@ struct Builder : public Wrapper<::LLVMBuilderRef, Builder_deleter>
         return Builder(::LLVMCreateBuilderInContext(context));
     }
 };
+
+inline ::LLVMTypeRef get_scalar_or_vector_element_type(::LLVMTypeRef type)
+{
+    if(::LLVMGetTypeKind(type) == ::LLVMTypeKind::LLVMVectorTypeKind)
+        return ::LLVMGetElementType(type);
+    return type;
+}
 }
 }
 
