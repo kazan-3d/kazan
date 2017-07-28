@@ -16,5 +16,5 @@ Work-in-progress for Vulkan implementation on cpu
     cmake .. -DCMAKE_CXX_COMPILER="`which clang++-4.0`" -DCMAKE_C_COMPILER="`which clang-4.0`" -DCMAKE_BUILD_TYPE=Debug
     make
 
-Using the version of LLVM that comes with Ubuntu doesn't work.  
+Using the version of LLVM 3.8 that comes with Ubuntu doesn't work.  
 See [Issue #1](https://github.com/programmerjake/vulkan-cpu/issues/1) for more details.
