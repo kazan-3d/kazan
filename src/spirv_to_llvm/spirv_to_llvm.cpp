@@ -613,6 +613,7 @@ private:
     Word input_generator_magic_number = 0;
     util::Enum_set<Capability> enabled_capabilities;
     ::LLVMContextRef context;
+    ::LLVMTargetMachineRef target_machine;
     [[gnu::unused]] const std::uint64_t shader_id;
     std::string name_prefix_string;
     llvm_wrapper::Module module;
@@ -674,15 +675,18 @@ private:
     }
 
 public:
-    explicit Spirv_to_llvm(::LLVMContextRef context, std::uint64_t shader_id)
-        : context(context), shader_id(shader_id), stage()
+    explicit Spirv_to_llvm(::LLVMContextRef context,
+                           ::LLVMTargetMachineRef target_machine,
+                           std::uint64_t shader_id)
+        : context(context), target_machine(target_machine), shader_id(shader_id), stage()
     {
         {
             std::ostringstream ss;
             ss << "shader_" << shader_id << "_";
             name_prefix_string = ss.str();
         }
-        module = llvm_wrapper::Module::create_native(get_prefixed_name("module").c_str(), context);
+        module = llvm_wrapper::Module::create_with_target_machine(
+            get_prefixed_name("module").c_str(), context, target_machine);
         builder = llvm_wrapper::Builder::create(context);
         auto target_data = ::LLVMGetModuleDataLayout(module.get());
         constexpr std::size_t no_instruction_index = 0;
@@ -2706,11 +2710,11 @@ void Spirv_to_llvm::handle_instruction_op_function(Op_function instruction,
                                    + std::string(get_enumerant_name(instruction.get_operation())));
         auto function_type =
             get_type<Function_type_descriptor>(instruction.function_type, instruction_start_index);
-        state.function = Function_state(
-            function_type,
-            ::LLVMAddFunction(module.get(),
-                              get_prefixed_name(get_name(current_function_id)).c_str(),
-                              function_type->get_or_make_type()));
+        auto function = ::LLVMAddFunction(module.get(),
+                                          get_prefixed_name(get_name(current_function_id)).c_str(),
+                                          function_type->get_or_make_type());
+        llvm_wrapper::Module::set_function_target_machine(function, target_machine);
+        state.function = Function_state(function_type, function);
         break;
     }
     }
@@ -8588,11 +8592,12 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_n_clamp(Glsl_std_450_op_n
 }
 
 Converted_module spirv_to_llvm(::LLVMContextRef context,
+                               ::LLVMTargetMachineRef target_machine,
                                const Word *shader_words,
                                std::size_t shader_size,
                                std::uint64_t shader_id)
 {
-    return Spirv_to_llvm(context, shader_id).run(shader_words, shader_size);
+    return Spirv_to_llvm(context, target_machine, shader_id).run(shader_words, shader_size);
 }
 }
 }

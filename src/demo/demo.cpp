@@ -235,12 +235,17 @@ int test_main(int argc, char **argv)
             }
             std::cerr << dump_callbacks.ss.str() << std::endl;
         }
+        auto llvm_target_machine = llvm_wrapper::Target_machine::create_native_target_machine();
         auto llvm_context = llvm_wrapper::Context::create();
         std::uint64_t next_module_id = 1;
         spirv_to_llvm::Converted_module converted_module;
         try
         {
-            converted_module = spirv_to_llvm::spirv_to_llvm(llvm_context.get(), file->data(), file->size(), next_module_id++);
+            converted_module = spirv_to_llvm::spirv_to_llvm(llvm_context.get(),
+                                                            llvm_target_machine.get(),
+                                                            file->data(),
+                                                            file->size(),
+                                                            next_module_id++);
         }
         catch(spirv::Parser_error &e)
         {
@@ -249,7 +254,8 @@ int test_main(int argc, char **argv)
         }
         std::cerr << "Translation to LLVM succeeded." << std::endl;
         ::LLVMDumpModule(converted_module.module.get());
-        bool failed = ::LLVMVerifyModule(converted_module.module.get(), ::LLVMPrintMessageAction, nullptr);
+        bool failed =
+            ::LLVMVerifyModule(converted_module.module.get(), ::LLVMPrintMessageAction, nullptr);
         if(failed)
             return 1;
     }

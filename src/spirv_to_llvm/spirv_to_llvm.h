@@ -511,6 +511,7 @@ struct Converted_module
 class Spirv_to_llvm;
 
 Converted_module spirv_to_llvm(::LLVMContextRef context,
+                               ::LLVMTargetMachineRef target_machine,
                                const spirv::Word *shader_words,
                                std::size_t shader_size,
                                std::uint64_t shader_id);

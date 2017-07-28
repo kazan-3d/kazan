@@ -22,7 +22,7 @@ cmake_minimum_required(VERSION 3.1 FATAL_ERROR)
 
 set(sources llvm_wrapper.cpp)
 add_library(llvm_wrapper STATIC ${sources})
-if(0)
+if(1)
 llvm_map_components_to_libnames(llvm_libraries core mcjit native analysis)
 else()
 set(llvm_libraries LLVM)

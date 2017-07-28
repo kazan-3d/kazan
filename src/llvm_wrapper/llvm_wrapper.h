@@ -157,7 +157,21 @@ struct Context_deleter
 struct Context : public Wrapper<::LLVMContextRef, Context_deleter>
 {
     using Wrapper::Wrapper;
-    static Context create();
+
+private:
+    static void init_helper();
+
+public:
+    static void init()
+    {
+        static int v = (init_helper(), 0);
+        static_cast<void>(v);
+    }
+    static Context create()
+    {
+        init();
+        return Context(::LLVMContextCreate());
+    }
 };
 
 struct Target_deleter
@@ -173,6 +187,7 @@ struct Target : public Wrapper<::LLVMTargetRef, Target_deleter>
     using Wrapper::Wrapper;
     static LLVM_string get_default_target_triple()
     {
+        Context::init();
         return LLVM_string::wrap(::LLVMGetDefaultTargetTriple());
     }
     static LLVM_string get_process_target_triple();
@@ -181,6 +196,7 @@ struct Target : public Wrapper<::LLVMTargetRef, Target_deleter>
     typedef util::variant<Target, LLVM_string> Target_or_error_message;
     static Target_or_error_message get_target_from_target_triple(const char *triple)
     {
+        Context::init();
         ::LLVMTargetRef target = nullptr;
         char *error_message = nullptr;
         if(::LLVMGetTargetFromTriple(triple, &target, &error_message) == 0)
@@ -189,6 +205,7 @@ struct Target : public Wrapper<::LLVMTargetRef, Target_deleter>
     }
     static Target get_native_target()
     {
+        Context::init();
         auto native_triple = get_process_target_triple();
         auto retval = get_target_from_target_triple(native_triple.get());
         auto *target = util::get_if<Target>(&retval);
@@ -261,6 +278,22 @@ struct Target_machine : public Wrapper<::LLVMTargetMachineRef, Target_machine_de
     {
         return create_target_data_layout(get());
     }
+    static LLVM_string get_cpu(::LLVMTargetMachineRef tm)
+    {
+        return LLVM_string::wrap(::LLVMGetTargetMachineCPU(tm));
+    }
+    LLVM_string get_cpu() const
+    {
+        return get_cpu(get());
+    }
+    static LLVM_string get_feature_string(::LLVMTargetMachineRef tm)
+    {
+        return LLVM_string::wrap(::LLVMGetTargetMachineFeatureString(tm));
+    }
+    LLVM_string get_feature_string() const
+    {
+        return get_feature_string(get());
+    }
 };
 
 struct Module_deleter
@@ -278,16 +311,20 @@ struct Module : public Wrapper<::LLVMModuleRef, Module_deleter>
     {
         return Module(::LLVMModuleCreateWithNameInContext(id, context));
     }
-    static Module create_native(const char *id, ::LLVMContextRef context)
+    static Module create_with_target_machine(const char *id,
+                                             ::LLVMContextRef context,
+                                             ::LLVMTargetMachineRef target_machine)
     {
         Module retval = create(id, context);
-        retval.set_target_to_native();
+        retval.set_target_machine(target_machine);
         return retval;
     }
-    static void set_target_to_native(::LLVMModuleRef module);
-    void set_target_to_native()
+    static void set_target_machine(::LLVMModuleRef module, ::LLVMTargetMachineRef target_machine);
+    static void set_function_target_machine(::LLVMValueRef function,
+                                            ::LLVMTargetMachineRef target_machine);
+    void set_target_machine(::LLVMTargetMachineRef target_machine)
     {
-        set_target_to_native(get());
+        set_target_machine(get(), target_machine);
     }
 };
 
@@ -319,6 +356,49 @@ inline ::LLVMTypeRef get_scalar_or_vector_element_type(::LLVMTypeRef type)
         return ::LLVMGetElementType(type);
     return type;
 }
+
+struct MCJIT_memory_manager_deleter
+{
+    void operator()(::LLVMMCJITMemoryManagerRef v) noexcept
+    {
+        ::LLVMDisposeMCJITMemoryManager(v);
+    }
+};
+
+struct MCJIT_memory_manager
+    : public Wrapper<::LLVMMCJITMemoryManagerRef, MCJIT_memory_manager_deleter>
+{
+    using Wrapper::Wrapper;
+};
+
+struct Shared_memory_manager
+{
+    MCJIT_memory_manager mcjit_memory_manager;
+    std::shared_ptr<void> shared_memory_manager;
+    explicit Shared_memory_manager(MCJIT_memory_manager mcjit_memory_manager,
+                                   std::shared_ptr<void> shared_memory_manager) noexcept
+        : mcjit_memory_manager(std::move(mcjit_memory_manager)),
+          shared_memory_manager(std::move(shared_memory_manager))
+    {
+    }
+    Shared_memory_manager() noexcept
+    {
+    }
+    static Shared_memory_manager create();
+};
+
+struct Execution_engine_deleter
+{
+    void operator()(::LLVMExecutionEngineRef v) noexcept
+    {
+        ::LLVMDisposeExecutionEngine(v);
+    }
+};
+
+struct Execution_engine : public Wrapper<::LLVMExecutionEngineRef, Execution_engine_deleter>
+{
+    using Wrapper::Wrapper;
+};
 }
 }
 
