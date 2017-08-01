@@ -26,13 +26,14 @@
 #include <llvm-c/Core.h>
 #include <llvm-c/Target.h>
 #include <llvm-c/TargetMachine.h>
-#include <llvm-c/ExecutionEngine.h>
+#include <llvm-c/OrcBindings.h>
 #include <llvm-c/Analysis.h>
 #include <memory>
 #include <type_traits>
 #include <utility>
 #include <string>
 #include <cassert>
+#include <stdexcept>
 #include "util/string_view.h"
 #include "util/variant.h"
 
@@ -357,47 +358,107 @@ inline ::LLVMTypeRef get_scalar_or_vector_element_type(::LLVMTypeRef type)
     return type;
 }
 
-struct MCJIT_memory_manager_deleter
+// TODO: add CMake tests to determine which Orc version we need
+#if 0
+// added error code return from LLVMOrcAddEagerlyCompiledIR
+#define LLVM_WRAPPER_ORC_REVISION_NUMBER 307350
+#elif 0
+// added shared modules
+#define LLVM_WRAPPER_ORC_REVISION_NUMBER 306182
+#else
+// initial revision
+#define LLVM_WRAPPER_ORC_REVISION_NUMBER 251482
+#endif
+
+#if LLVM_WRAPPER_ORC_REVISION_NUMBER >= 306166
+struct Orc_shared_module_ref_deleter
 {
-    void operator()(::LLVMMCJITMemoryManagerRef v) noexcept
+    void operator()(::LLVMSharedModuleRef v) noexcept
     {
-        ::LLVMDisposeMCJITMemoryManager(v);
+        ::LLVMOrcDisposeSharedModuleRef(v);
     }
 };
 
-struct MCJIT_memory_manager
-    : public Wrapper<::LLVMMCJITMemoryManagerRef, MCJIT_memory_manager_deleter>
+struct Orc_shared_module_ref : public Wrapper<::LLVMSharedModuleRef, Orc_shared_module_ref_deleter>
 {
     using Wrapper::Wrapper;
+    static Orc_shared_module_ref make(Module module)
+    {
+        return Orc_shared_module_ref(::LLVMOrcMakeSharedModule(module.release()));
+    }
 };
+#endif
 
-struct Shared_memory_manager
+struct Orc_jit_stack_deleter
 {
-    MCJIT_memory_manager mcjit_memory_manager;
-    std::shared_ptr<void> shared_memory_manager;
-    explicit Shared_memory_manager(MCJIT_memory_manager mcjit_memory_manager,
-                                   std::shared_ptr<void> shared_memory_manager) noexcept
-        : mcjit_memory_manager(std::move(mcjit_memory_manager)),
-          shared_memory_manager(std::move(shared_memory_manager))
+    void operator()(::LLVMOrcJITStackRef v) noexcept
     {
-    }
-    Shared_memory_manager() noexcept
-    {
-    }
-    static Shared_memory_manager create();
-};
-
-struct Execution_engine_deleter
-{
-    void operator()(::LLVMExecutionEngineRef v) noexcept
-    {
-        ::LLVMDisposeExecutionEngine(v);
+        ::LLVMOrcDisposeInstance(v);
     }
 };
 
-struct Execution_engine : public Wrapper<::LLVMExecutionEngineRef, Execution_engine_deleter>
+struct Orc_jit_stack : public Wrapper<::LLVMOrcJITStackRef, Orc_jit_stack_deleter>
 {
     using Wrapper::Wrapper;
+    static Orc_jit_stack create(Target_machine target_machine)
+    {
+        return Orc_jit_stack(::LLVMOrcCreateInstance(target_machine.release()));
+    }
+    static ::LLVMOrcModuleHandle add_eagerly_compiled_ir(
+        ::LLVMOrcJITStackRef orc_jit_stack,
+        Module module,
+        ::LLVMOrcSymbolResolverFn symbol_resolver_callback,
+        void *symbol_resolver_user_data)
+    {
+        ::LLVMOrcModuleHandle retval{};
+#if LLVM_WRAPPER_ORC_REVISION_NUMBER >= 307350
+        if(::LLVMOrcErrorSuccess
+           != ::LLVMOrcAddEagerlyCompiledIR(orc_jit_stack,
+                                            &retval,
+                                            Orc_shared_module_ref::make(std::move(module)).get(),
+                                            symbol_resolver_callback,
+                                            symbol_resolver_user_data))
+            throw std::runtime_error(std::string("LLVM Orc Error: ")
+                                     + ::LLVMOrcGetErrorMsg(orc_jit_stack));
+#elif LLVM_WRAPPER_ORC_REVISION_NUMBER >= 306182
+        retval = ::LLVMOrcAddEagerlyCompiledIR(orc_jit_stack,
+                                               Orc_shared_module_ref::make(std::move(module)).get(),
+                                               symbol_resolver_callback,
+                                               symbol_resolver_user_data);
+#elif LLVM_WRAPPER_ORC_REVISION_NUMBER >= 251482
+        retval = ::LLVMOrcAddEagerlyCompiledIR(
+            orc_jit_stack, module.release(), symbol_resolver_callback, symbol_resolver_user_data);
+#else
+#error unsupported LLVM_WRAPPER_ORC_REVISION_NUMBER
+#endif
+        return retval;
+    }
+    ::LLVMOrcModuleHandle add_eagerly_compiled_ir(
+        Module module,
+        ::LLVMOrcSymbolResolverFn symbol_resolver_callback,
+        void *symbol_resolver_user_data)
+    {
+        return add_eagerly_compiled_ir(
+            get(), std::move(module), symbol_resolver_callback, symbol_resolver_user_data);
+    }
+    static std::uintptr_t get_symbol_address(::LLVMOrcJITStackRef orc_jit_stack, const char *symbol_name)
+    {
+        return ::LLVMOrcGetSymbolAddress(orc_jit_stack, symbol_name);
+    }
+    template <typename T>
+    static T *get_symbol(::LLVMOrcJITStackRef orc_jit_stack, const char *symbol_name)
+    {
+        return reinterpret_cast<T *>(get_symbol_address(orc_jit_stack, symbol_name));
+    }
+    std::uintptr_t get_symbol_address(const char *symbol_name)
+    {
+        return get_symbol_address(get(), symbol_name);
+    }
+    template <typename T>
+    T *get_symbol(const char *symbol_name)
+    {
+        return get_symbol<T>(get(), symbol_name);
+    }
 };
 }
 }

@@ -475,8 +475,11 @@ struct Converted_module
     struct Entry_point
     {
         std::string name;
+        std::string entry_function_name;
 #warning finish filling in Entry_point
-        explicit Entry_point(std::string name) noexcept : name(std::move(name))
+        explicit Entry_point(std::string name, std::string entry_function_name) noexcept
+            : name(std::move(name)),
+              entry_function_name(std::move(entry_function_name))
         {
         }
     };

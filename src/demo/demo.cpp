@@ -258,6 +258,23 @@ int test_main(int argc, char **argv)
             ::LLVMVerifyModule(converted_module.module.get(), ::LLVMPrintMessageAction, nullptr);
         if(failed)
             return 1;
+        auto orc_jit_stack = llvm_wrapper::Orc_jit_stack::create(std::move(llvm_target_machine));
+        orc_jit_stack.add_eagerly_compiled_ir(
+            std::move(converted_module.module),
+            [](const char *symbol_name, [[gnu::unused]] void *user_data) noexcept->std::uint64_t
+            {
+                std::cerr << "resolving symbol: " << symbol_name << std::endl;
+                void *symbol = nullptr;
+                return reinterpret_cast<std::uintptr_t>(symbol);
+            },
+            nullptr);
+        for(auto &entry_point : converted_module.entry_points)
+        {
+            auto function = reinterpret_cast<void *>(
+                orc_jit_stack.get_symbol_address(entry_point.entry_function_name.c_str()));
+            std::cerr << "entry point \"" << entry_point.name << "\": &"
+                      << entry_point.entry_function_name << " == " << function << std::endl;
+        }
     }
     else
     {

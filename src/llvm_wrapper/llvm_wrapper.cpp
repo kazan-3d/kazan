@@ -23,7 +23,7 @@
 #include "llvm_wrapper.h"
 #include <llvm/Support/Host.h>
 #include <llvm/ExecutionEngine/SectionMemoryManager.h>
-#include <stdexcept>
+#include <llvm-c/ExecutionEngine.h>
 #include <iostream>
 #include <cstdlib>
 #include <algorithm>
@@ -36,9 +36,14 @@ void Context::init_helper()
 {
     if(!::LLVMIsMultithreaded())
         throw std::runtime_error("LLVM is not multithreaded");
-    ::LLVMLinkInMCJIT();
     if(::LLVMInitializeNativeTarget() != 0)
         throw std::runtime_error("LLVMInitializeNativeTarget failed");
+    if(::LLVMInitializeNativeAsmParser() != 0)
+        throw std::runtime_error("LLVMInitializeNativeAsmParser failed");
+    if(::LLVMInitializeNativeAsmPrinter() != 0)
+        throw std::runtime_error("LLVMInitializeNativeAsmPrinter failed");
+    if(::LLVMInitializeNativeDisassembler() != 0)
+        throw std::runtime_error("LLVMInitializeNativeDisassembler failed");
 }
 
 LLVM_string Target::get_process_target_triple()
@@ -107,56 +112,6 @@ void Module::set_function_target_machine(::LLVMValueRef function,
         function, "target-cpu", Target_machine::get_cpu(target_machine).get());
     ::LLVMAddTargetDependentFunctionAttr(
         function, "target-features", Target_machine::get_feature_string(target_machine).get());
-}
-
-Shared_memory_manager Shared_memory_manager::create()
-{
-    Context::init();
-    auto memory_manager = std::make_shared<llvm::SectionMemoryManager>();
-    std::unique_ptr<std::shared_ptr<llvm::SectionMemoryManager>> memory_manager_wrapper;
-    memory_manager_wrapper.reset(new std::shared_ptr<llvm::SectionMemoryManager>(memory_manager));
-    MCJIT_memory_manager mcjit_memory_manager(::LLVMCreateSimpleMCJITMemoryManager(
-        static_cast<void *>(memory_manager_wrapper.get()),
-        [](void *user_data,
-           std::uintptr_t size,
-           unsigned alignment,
-           unsigned section_id,
-           const char *section_name) -> std::uint8_t *
-        {
-            auto &memory_manager =
-                *static_cast<std::shared_ptr<llvm::SectionMemoryManager> *>(user_data);
-            return memory_manager->allocateCodeSection(size, alignment, section_id, section_name);
-        },
-        [](void *user_data,
-           std::uintptr_t size,
-           unsigned alignment,
-           unsigned section_id,
-           const char *section_name,
-           LLVMBool is_read_only) -> std::uint8_t *
-        {
-            auto &memory_manager =
-                *static_cast<std::shared_ptr<llvm::SectionMemoryManager> *>(user_data);
-            return memory_manager->allocateDataSection(
-                size, alignment, section_id, section_name, is_read_only);
-        },
-        [](void *user_data, char **error_message_out) -> LLVMBool
-        {
-            auto &memory_manager =
-                *static_cast<std::shared_ptr<llvm::SectionMemoryManager> *>(user_data);
-            if(!error_message_out)
-                return memory_manager->finalizeMemory(nullptr);
-            std::string error_message;
-            bool failed = memory_manager->finalizeMemory(&error_message);
-            if(failed)
-                *error_message_out = LLVM_string::from(error_message).release();
-            return failed;
-        },
-        [](void *user_data) noexcept
-        {
-            delete static_cast<std::shared_ptr<llvm::SectionMemoryManager> *>(user_data);
-        }));
-    memory_manager_wrapper.release();
-    return Shared_memory_manager(std::move(mcjit_memory_manager), std::move(memory_manager));
 }
 }
 }
