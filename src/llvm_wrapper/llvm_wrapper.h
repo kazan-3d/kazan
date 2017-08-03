@@ -349,6 +349,29 @@ struct Builder : public Wrapper<::LLVMBuilderRef, Builder_deleter>
     {
         return Builder(::LLVMCreateBuilderInContext(context));
     }
+    static ::LLVMValueRef build_smod(::LLVMBuilderRef builder,
+                                     ::LLVMValueRef lhs,
+                                     ::LLVMValueRef rhs,
+                                     const char *result_name)
+    {
+        auto srem_result = ::LLVMBuildSRem(builder, lhs, rhs, "");
+        auto zero_constant = ::LLVMConstInt(::LLVMTypeOf(lhs), 0, false);
+        auto different_signs = ::LLVMBuildICmp(
+            builder, ::LLVMIntSLT, ::LLVMBuildXor(builder, lhs, rhs, ""), zero_constant, "");
+        auto imperfectly_divides =
+            ::LLVMBuildICmp(builder, ::LLVMIntNE, srem_result, zero_constant, "");
+        auto adjustment =
+            ::LLVMBuildSelect(builder,
+                              ::LLVMBuildAnd(builder, different_signs, imperfectly_divides, ""),
+                              rhs,
+                              zero_constant,
+                              "");
+        return ::LLVMBuildAdd(builder, srem_result, adjustment, result_name);
+    }
+    ::LLVMValueRef build_smod(::LLVMValueRef lhs, ::LLVMValueRef rhs, const char *result_name) const
+    {
+        return build_smod(get(), lhs, rhs, result_name);
+    }
 };
 
 inline ::LLVMTypeRef get_scalar_or_vector_element_type(::LLVMTypeRef type)
@@ -441,7 +464,8 @@ struct Orc_jit_stack : public Wrapper<::LLVMOrcJITStackRef, Orc_jit_stack_delete
         return add_eagerly_compiled_ir(
             get(), std::move(module), symbol_resolver_callback, symbol_resolver_user_data);
     }
-    static std::uintptr_t get_symbol_address(::LLVMOrcJITStackRef orc_jit_stack, const char *symbol_name)
+    static std::uintptr_t get_symbol_address(::LLVMOrcJITStackRef orc_jit_stack,
+                                             const char *symbol_name)
     {
         return ::LLVMOrcGetSymbolAddress(orc_jit_stack, symbol_name);
     }

@@ -40,6 +40,7 @@ namespace spirv_to_llvm
 class Simple_type_descriptor;
 class Vector_type_descriptor;
 class Matrix_type_descriptor;
+class Array_type_descriptor;
 class Pointer_type_descriptor;
 class Function_type_descriptor;
 class Struct_type_descriptor;
@@ -55,6 +56,7 @@ public:
         virtual void visit(Simple_type_descriptor &type) = 0;
         virtual void visit(Vector_type_descriptor &type) = 0;
         virtual void visit(Matrix_type_descriptor &type) = 0;
+        virtual void visit(Array_type_descriptor &type) = 0;
         virtual void visit(Pointer_type_descriptor &type) = 0;
         virtual void visit(Function_type_descriptor &type) = 0;
         virtual void visit(Struct_type_descriptor &type) = 0;
@@ -91,6 +93,10 @@ public:
                 std::forward<Fn>(fn)(type);
             }
             virtual void visit(Matrix_type_descriptor &type) override
+            {
+                std::forward<Fn>(fn)(type);
+            }
+            virtual void visit(Array_type_descriptor &type) override
             {
                 std::forward<Fn>(fn)(type);
             }
@@ -244,6 +250,50 @@ public:
     std::size_t get_column_count() const noexcept
     {
         return column_count;
+    }
+};
+
+class Array_type_descriptor final : public Type_descriptor
+{
+private:
+    ::LLVMTypeRef type;
+    std::shared_ptr<Type_descriptor> element_type;
+    std::size_t element_count;
+    std::size_t instruction_start_index;
+    Recursion_checker_state recursion_checker_state;
+
+public:
+    explicit Array_type_descriptor(std::vector<spirv::Decoration_with_parameters> decorations,
+                                   std::shared_ptr<Type_descriptor> element_type,
+                                   std::size_t element_count,
+                                   std::size_t instruction_start_index) noexcept
+        : Type_descriptor(std::move(decorations)),
+          type(::LLVMVectorType(element_type->get_or_make_type(), element_count)),
+          element_type(std::move(element_type)),
+          element_count(element_count),
+          instruction_start_index(instruction_start_index)
+    {
+    }
+    virtual ::LLVMTypeRef get_or_make_type() override
+    {
+        if(!type)
+        {
+            Recursion_checker recursion_checker(recursion_checker_state, instruction_start_index);
+            type = ::LLVMArrayType(element_type->get_or_make_type(), element_count);
+        }
+        return type;
+    }
+    virtual void visit(Type_visitor &type_visitor) override
+    {
+        type_visitor.visit(*this);
+    }
+    const std::shared_ptr<Type_descriptor> &get_element_type() const noexcept
+    {
+        return element_type;
+    }
+    std::size_t get_element_count() const noexcept
+    {
+        return element_count;
     }
 };
 

@@ -654,6 +654,48 @@ private:
             throw Parser_error(instruction_start_index, instruction_start_index, "type mismatch");
         return retval;
     }
+    unsigned long long get_unsigned_integer_constant(Id id, std::size_t instruction_start_index)
+    {
+        auto &constant = get_id_state(id).constant;
+        if(!constant)
+            throw Parser_error(
+                instruction_start_index, instruction_start_index, "id is not a constant integer");
+        if(auto *type = dynamic_cast<Simple_type_descriptor *>(constant->type.get()))
+        {
+            auto llvm_type = type->get_or_make_type();
+            if(::LLVMGetTypeKind(llvm_type) != ::LLVMIntegerTypeKind)
+                throw Parser_error(instruction_start_index,
+                                   instruction_start_index,
+                                   "id is not a constant integer");
+        }
+        else
+        {
+            throw Parser_error(
+                instruction_start_index, instruction_start_index, "id is not a constant integer");
+        }
+        return ::LLVMConstIntGetZExtValue(constant->get_or_make_value());
+    }
+    long long get_signed_integer_constant(Id id, std::size_t instruction_start_index)
+    {
+        auto &constant = get_id_state(id).constant;
+        if(!constant)
+            throw Parser_error(
+                instruction_start_index, instruction_start_index, "id is not a constant integer");
+        if(auto *type = dynamic_cast<Simple_type_descriptor *>(constant->type.get()))
+        {
+            auto llvm_type = type->get_or_make_type();
+            if(::LLVMGetTypeKind(llvm_type) != ::LLVMIntegerTypeKind)
+                throw Parser_error(instruction_start_index,
+                                   instruction_start_index,
+                                   "id is not a constant integer");
+        }
+        else
+        {
+            throw Parser_error(
+                instruction_start_index, instruction_start_index, "id is not a constant integer");
+        }
+        return ::LLVMConstIntGetSExtValue(constant->get_or_make_value());
+    }
     std::string get_name(Id id)
     {
         auto &name = get_id_state(id).name;
@@ -2289,11 +2331,26 @@ void Spirv_to_llvm::handle_instruction_op_type_sampled_image(Op_type_sampled_ima
 void Spirv_to_llvm::handle_instruction_op_type_array(Op_type_array instruction,
                                                      std::size_t instruction_start_index)
 {
-#warning finish
-    throw Parser_error(instruction_start_index,
-                       instruction_start_index,
-                       "instruction not implemented: "
-                           + std::string(get_enumerant_name(instruction.get_operation())));
+    switch(stage)
+    {
+    case Stage::calculate_types:
+    {
+        auto &state = get_id_state(instruction.result);
+        auto length = get_unsigned_integer_constant(instruction.length, instruction_start_index);
+        if(length <= 0)
+            throw Parser_error(instruction_start_index,
+                               instruction_start_index,
+                               "OpTypeArray length must be a positive constant integer");
+        state.type = std::make_shared<Array_type_descriptor>(
+            state.decorations,
+            get_type(instruction.element_type, instruction_start_index),
+            length,
+            instruction_start_index);
+        break;
+    }
+    case Stage::generate_code:
+        break;
+    }
 }
 
 void Spirv_to_llvm::handle_instruction_op_type_runtime_array(Op_type_runtime_array instruction,
@@ -2739,7 +2796,10 @@ void Spirv_to_llvm::handle_instruction_op_function(Op_function instruction,
                                    + std::string(get_enumerant_name(instruction.get_operation())));
         auto function_type =
             get_type<Function_type_descriptor>(instruction.function_type, instruction_start_index);
-        auto function_name = get_or_make_prefixed_name(get_name(current_function_id));
+        auto function_name = get_name(current_function_id);
+        if(function_name.empty() && state.op_entry_points.size() == 1)
+            function_name = std::string(state.op_entry_points[0].entry_point.name);
+        function_name = get_or_make_prefixed_name(std::move(function_name));
         auto function = ::LLVMAddFunction(
             module.get(), function_name.c_str(), function_type->get_or_make_type());
         llvm_wrapper::Module::set_function_target_machine(function, target_machine);
@@ -3301,6 +3361,13 @@ void Spirv_to_llvm::handle_instruction_op_access_chain(Op_access_chain instructi
                                        instruction_start_index,
                                        "unimplemented composite type for OpAccessChain");
                 }
+                void operator()(Array_type_descriptor &)
+                {
+#warning finish
+                    throw Parser_error(instruction_start_index,
+                                       instruction_start_index,
+                                       "unimplemented composite type for OpAccessChain");
+                }
                 void operator()(Pointer_type_descriptor &)
                 {
                     throw Parser_error(instruction_start_index,
@@ -3551,6 +3618,13 @@ void Spirv_to_llvm::handle_instruction_op_composite_construct(Op_composite_const
                                    instruction_start_index,
                                    "unimplemented result type for OpCompositeConstruct");
             }
+            void operator()(Array_type_descriptor &)
+            {
+#warning finish
+                throw Parser_error(instruction_start_index,
+                                   instruction_start_index,
+                                   "unimplemented result type for OpCompositeConstruct");
+            }
             void operator()(Pointer_type_descriptor &)
             {
                 throw Parser_error(instruction_start_index,
@@ -3631,6 +3705,13 @@ void Spirv_to_llvm::handle_instruction_op_composite_extract(Op_composite_extract
                               type.get_element_type());
                 }
                 void operator()(Matrix_type_descriptor &)
+                {
+#warning finish
+                    throw Parser_error(instruction_start_index,
+                                       instruction_start_index,
+                                       "unimplemented composite type for OpCompositeExtract");
+                }
+                void operator()(Array_type_descriptor &)
                 {
 #warning finish
                     throw Parser_error(instruction_start_index,
@@ -3957,11 +4038,28 @@ void Spirv_to_llvm::handle_instruction_op_convert_f_to_s(Op_convert_f_to_s instr
 void Spirv_to_llvm::handle_instruction_op_convert_s_to_f(Op_convert_s_to_f instruction,
                                                          std::size_t instruction_start_index)
 {
-#warning finish
-    throw Parser_error(instruction_start_index,
-                       instruction_start_index,
-                       "instruction not implemented: "
-                           + std::string(get_enumerant_name(instruction.get_operation())));
+    switch(stage)
+    {
+    case Stage::calculate_types:
+        break;
+    case Stage::generate_code:
+    {
+        auto &state = get_id_state(instruction.result);
+        if(!state.decorations.empty())
+            throw Parser_error(instruction_start_index,
+                               instruction_start_index,
+                               "decorations on instruction not implemented: "
+                                   + std::string(get_enumerant_name(instruction.get_operation())));
+        auto result_type = get_type(instruction.result_type, instruction_start_index);
+        state.value =
+            Value(::LLVMBuildSIToFP(builder.get(),
+                                    get_id_state(instruction.signed_value).value.value().value,
+                                    result_type->get_or_make_type(),
+                                    get_name(instruction.result).c_str()),
+                  result_type);
+        break;
+    }
+    }
 }
 
 void Spirv_to_llvm::handle_instruction_op_convert_u_to_f(Op_convert_u_to_f instruction,
@@ -4223,11 +4321,27 @@ void Spirv_to_llvm::handle_instruction_op_i_mul(Op_i_mul instruction,
 void Spirv_to_llvm::handle_instruction_op_f_mul(Op_f_mul instruction,
                                                 std::size_t instruction_start_index)
 {
-#warning finish
-    throw Parser_error(instruction_start_index,
-                       instruction_start_index,
-                       "instruction not implemented: "
-                           + std::string(get_enumerant_name(instruction.get_operation())));
+    switch(stage)
+    {
+    case Stage::calculate_types:
+        break;
+    case Stage::generate_code:
+    {
+        auto &state = get_id_state(instruction.result);
+        if(!state.decorations.empty())
+            throw Parser_error(instruction_start_index,
+                               instruction_start_index,
+                               "decorations on instruction not implemented: "
+                                   + std::string(get_enumerant_name(instruction.get_operation())));
+        auto result_type = get_type(instruction.result_type, instruction_start_index);
+        state.value = Value(::LLVMBuildFMul(builder.get(),
+                                            get_id_state(instruction.operand_1).value.value().value,
+                                            get_id_state(instruction.operand_2).value.value().value,
+                                            get_name(instruction.result).c_str()),
+                            result_type);
+        break;
+    }
+    }
 }
 
 void Spirv_to_llvm::handle_instruction_op_u_div(Op_u_div instruction,
@@ -4283,11 +4397,27 @@ void Spirv_to_llvm::handle_instruction_op_s_rem(Op_s_rem instruction,
 void Spirv_to_llvm::handle_instruction_op_s_mod(Op_s_mod instruction,
                                                 std::size_t instruction_start_index)
 {
-#warning finish
-    throw Parser_error(instruction_start_index,
-                       instruction_start_index,
-                       "instruction not implemented: "
-                           + std::string(get_enumerant_name(instruction.get_operation())));
+    switch(stage)
+    {
+    case Stage::calculate_types:
+        break;
+    case Stage::generate_code:
+    {
+        auto &state = get_id_state(instruction.result);
+        if(!state.decorations.empty())
+            throw Parser_error(instruction_start_index,
+                               instruction_start_index,
+                               "decorations on instruction not implemented: "
+                                   + std::string(get_enumerant_name(instruction.get_operation())));
+        auto result_type = get_type(instruction.result_type, instruction_start_index);
+        state.value =
+            Value(builder.build_smod(get_id_state(instruction.operand_1).value.value().value,
+                                     get_id_state(instruction.operand_2).value.value().value,
+                                     get_name(instruction.result).c_str()),
+                  result_type);
+        break;
+    }
+    }
 }
 
 void Spirv_to_llvm::handle_instruction_op_f_rem(Op_f_rem instruction,
