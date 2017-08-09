@@ -42,6 +42,6 @@ add_custom_command(OUTPUT ${spirv_parser_sources} ${spirv_parser_headers}
                    VERBATIM
                    COMMENT "Generating SPIR-V Parser")
 set(sources ${sources} ${spirv_parser_sources})
-add_library(spirv STATIC ${sources})
-target_link_libraries(spirv util json)
-target_include_directories(spirv PUBLIC ${spirv_parser_generated_include_dir})
+add_library(vulkan_cpu_spirv STATIC ${sources})
+target_link_libraries(vulkan_cpu_spirv vulkan_cpu_util vulkan_cpu_json)
+target_include_directories(vulkan_cpu_spirv PUBLIC ${spirv_parser_generated_include_dir})

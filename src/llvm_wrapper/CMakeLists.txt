@@ -21,10 +21,10 @@
 cmake_minimum_required(VERSION 3.1 FATAL_ERROR)
 
 set(sources llvm_wrapper.cpp)
-add_library(llvm_wrapper STATIC ${sources})
-if(1)
+add_library(vulkan_cpu_llvm_wrapper STATIC ${sources})
+if(0)
 llvm_map_components_to_libnames(llvm_libraries core native analysis orcjit mcjit nativecodegen)
 else()
 set(llvm_libraries LLVM)
 endif()
-target_link_libraries(llvm_wrapper util ${llvm_libraries})
+target_link_libraries(vulkan_cpu_llvm_wrapper util ${llvm_libraries})

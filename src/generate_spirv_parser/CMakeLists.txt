@@ -26,4 +26,4 @@ set(sources ast.cpp
             parser.cpp
             patch.cpp)
 add_executable(generate_spirv_parser ${sources})
-target_link_libraries(generate_spirv_parser util json)
+target_link_libraries(generate_spirv_parser vulkan_cpu_util vulkan_cpu_json)

@@ -21,5 +21,5 @@
 cmake_minimum_required(VERSION 3.1 FATAL_ERROR)
 
 set(sources spirv_to_llvm.cpp)
-add_library(spirv_to_llvm STATIC ${sources})
-target_link_libraries(spirv_to_llvm util spirv llvm_wrapper)
+add_library(vulkan_cpu_spirv_to_llvm STATIC ${sources})
+target_link_libraries(vulkan_cpu_spirv_to_llvm vulkan_cpu_util vulkan_cpu_spirv vulkan_cpu_llvm_wrapper)

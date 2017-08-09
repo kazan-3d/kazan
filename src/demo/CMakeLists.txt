@@ -21,4 +21,4 @@
 cmake_minimum_required(VERSION 3.1 FATAL_ERROR)
 set(sources demo.cpp) 
 add_executable(demo ${sources})
-target_link_libraries(demo spirv util spirv_to_llvm)
+target_link_libraries(demo vulkan_cpu_spirv vulkan_cpu_util vulkan_cpu_spirv_to_llvm)

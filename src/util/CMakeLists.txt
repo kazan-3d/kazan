@@ -40,7 +40,7 @@ set(sources bit_intrinsics.cpp
             string_view.cpp
             variant.cpp
             void_t.cpp)
-add_library(util STATIC ${sources})
-target_include_directories(util PUBLIC ${CMAKE_CURRENT_BINARY_DIR}/..)
-add_executable(util_test EXCLUDE_FROM_ALL ${sources} util_test.cpp)
-target_include_directories(util_test PUBLIC ${CMAKE_CURRENT_BINARY_DIR}/..)
+add_library(vulkan_cpu_util STATIC ${sources})
+target_include_directories(vulkan_cpu_util PUBLIC ${CMAKE_CURRENT_BINARY_DIR}/..)
+add_executable(vulkan_cpu_util_test EXCLUDE_FROM_ALL ${sources} util_test.cpp)
+target_include_directories(vulkan_cpu_util_test PUBLIC ${CMAKE_CURRENT_BINARY_DIR}/..)
