@@ -24,6 +24,7 @@
 #include <llvm/Support/Host.h>
 #include <llvm/ExecutionEngine/SectionMemoryManager.h>
 #include <llvm-c/ExecutionEngine.h>
+#include <llvm/IR/DataLayout.h>
 #include <iostream>
 #include <cstdlib>
 #include <algorithm>
@@ -84,6 +85,11 @@ LLVM_string Target::get_host_cpu_features()
         retval += name;
     }
     return LLVM_string::from(retval);
+}
+
+std::size_t Target_data::get_pointer_alignment(::LLVMTargetDataRef td) noexcept
+{
+    return llvm::unwrap(td)->getPointerABIAlignment(0);
 }
 
 Target_machine Target_machine::create_native_target_machine()

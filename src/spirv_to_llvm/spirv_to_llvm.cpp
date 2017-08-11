@@ -389,8 +389,8 @@ void Struct_type_descriptor::complete_type()
                                    + std::string(get_enumerant_name(decoration.value)));
         }
         auto member_type = member.type->get_or_make_type();
-        if(::LLVMGetTypeKind(member_type) == ::LLVMStructTypeKind
-           && ::LLVMIsOpaqueStruct(member_type))
+        if(::LLVMGetTypeKind(member_type.type) == ::LLVMStructTypeKind
+           && ::LLVMIsOpaqueStruct(member_type.type))
         {
             if(dynamic_cast<const Struct_type_descriptor *>(member.type.get()))
                 throw Parser_error(instruction_start_index,
@@ -400,12 +400,12 @@ void Struct_type_descriptor::complete_type()
                                instruction_start_index,
                                "struct can't have opaque struct members");
         }
-        std::size_t alignment = ::LLVMPreferredAlignmentOfType(target_data, member_type);
-        assert(is_power_of_2(alignment));
-        std::size_t size = ::LLVMABISizeOfType(target_data, member_type);
-        if(alignment > total_alignment)
-            total_alignment = alignment;
-        member_descriptors.push_back(Member_descriptor(alignment, size, member_type));
+        assert(is_power_of_2(member_type.alignment));
+        std::size_t size = ::LLVMABISizeOfType(target_data, member_type.type);
+        if(member_type.alignment > total_alignment)
+            total_alignment = member_type.alignment;
+        member_descriptors.push_back(
+            Member_descriptor(member_type.alignment, size, member_type.type));
     }
     assert(member_descriptors.size() == members.size());
     assert(is_power_of_2(total_alignment));
@@ -436,8 +436,9 @@ void Struct_type_descriptor::complete_type()
     {
         member_types.push_back(::LLVMInt8TypeInContext(context)); // so it isn't empty
     }
-    constexpr bool is_packed = false;
-    ::LLVMStructSetBody(type, member_types.data(), member_types.size(), is_packed);
+    constexpr bool is_packed = true;
+    ::LLVMStructSetBody(type.type, member_types.data(), member_types.size(), is_packed);
+    type.alignment = total_alignment;
     is_complete = true;
 }
 
@@ -619,6 +620,7 @@ private:
     util::Enum_set<Capability> enabled_capabilities;
     ::LLVMContextRef context;
     ::LLVMTargetMachineRef target_machine;
+    ::LLVMTargetDataRef target_data;
     [[gnu::unused]] const std::uint64_t shader_id;
     std::string name_prefix_string;
     llvm_wrapper::Module module;
@@ -663,7 +665,7 @@ private:
         if(auto *type = dynamic_cast<Simple_type_descriptor *>(constant->type.get()))
         {
             auto llvm_type = type->get_or_make_type();
-            if(::LLVMGetTypeKind(llvm_type) != ::LLVMIntegerTypeKind)
+            if(::LLVMGetTypeKind(llvm_type.type) != ::LLVMIntegerTypeKind)
                 throw Parser_error(instruction_start_index,
                                    instruction_start_index,
                                    "id is not a constant integer");
@@ -684,7 +686,7 @@ private:
         if(auto *type = dynamic_cast<Simple_type_descriptor *>(constant->type.get()))
         {
             auto llvm_type = type->get_or_make_type();
-            if(::LLVMGetTypeKind(llvm_type) != ::LLVMIntegerTypeKind)
+            if(::LLVMGetTypeKind(llvm_type.type) != ::LLVMIntegerTypeKind)
                 throw Parser_error(instruction_start_index,
                                    instruction_start_index,
                                    "id is not a constant integer");
@@ -753,8 +755,8 @@ public:
         }
         module = llvm_wrapper::Module::create_with_target_machine(
             get_prefixed_name("module").c_str(), context, target_machine);
+        target_data = ::LLVMGetModuleDataLayout(module.get());
         builder = llvm_wrapper::Builder::create(context);
-        auto target_data = ::LLVMGetModuleDataLayout(module.get());
         constexpr std::size_t no_instruction_index = 0;
         io_struct =
             std::make_shared<Struct_type_descriptor>(std::vector<Decoration_with_parameters>{},
@@ -765,8 +767,10 @@ public:
         assert(implicit_function_arguments.size() == 1);
         static_assert(io_struct_argument_index == 0, "");
         implicit_function_arguments[io_struct_argument_index] =
-            std::make_shared<Pointer_type_descriptor>(
-                std::vector<Decoration_with_parameters>{}, io_struct, no_instruction_index);
+            std::make_shared<Pointer_type_descriptor>(std::vector<Decoration_with_parameters>{},
+                                                      io_struct,
+                                                      no_instruction_index,
+                                                      target_data);
         inputs_struct =
             std::make_shared<Struct_type_descriptor>(std::vector<Decoration_with_parameters>{},
                                                      context,
@@ -2180,8 +2184,8 @@ void Spirv_to_llvm::handle_instruction_op_type_void(
     case Stage::calculate_types:
     {
         auto &state = get_id_state(instruction.result);
-        state.type = std::make_shared<Simple_type_descriptor>(state.decorations,
-                                                              ::LLVMVoidTypeInContext(context));
+        state.type = std::make_shared<Simple_type_descriptor>(
+            state.decorations, LLVM_type_and_alignment(::LLVMVoidTypeInContext(context), 1));
         break;
     }
     case Stage::generate_code:
@@ -2213,9 +2217,13 @@ void Spirv_to_llvm::handle_instruction_op_type_int(Op_type_int instruction,
         case 16:
         case 32:
         case 64:
+        {
+            auto type = ::LLVMIntTypeInContext(context, instruction.width);
             state.type = std::make_shared<Simple_type_descriptor>(
-                state.decorations, ::LLVMIntTypeInContext(context, instruction.width));
+                state.decorations,
+                LLVM_type_and_alignment(type, ::LLVMPreferredAlignmentOfType(target_data, type)));
             break;
+        }
         default:
             throw Parser_error(
                 instruction_start_index, instruction_start_index, "invalid int width");
@@ -2235,24 +2243,25 @@ void Spirv_to_llvm::handle_instruction_op_type_float(Op_type_float instruction,
     case Stage::calculate_types:
     {
         auto &state = get_id_state(instruction.result);
+        ::LLVMTypeRef type = nullptr;
         switch(instruction.width)
         {
         case 16:
-            state.type = std::make_shared<Simple_type_descriptor>(state.decorations,
-                                                                  ::LLVMHalfTypeInContext(context));
+            type = ::LLVMHalfTypeInContext(context);
             break;
         case 32:
-            state.type = std::make_shared<Simple_type_descriptor>(
-                state.decorations, ::LLVMFloatTypeInContext(context));
+            type = ::LLVMFloatTypeInContext(context);
             break;
         case 64:
-            state.type = std::make_shared<Simple_type_descriptor>(
-                state.decorations, ::LLVMDoubleTypeInContext(context));
+            type = ::LLVMDoubleTypeInContext(context);
             break;
         default:
             throw Parser_error(
                 instruction_start_index, instruction_start_index, "invalid float width");
         }
+        state.type = std::make_shared<Simple_type_descriptor>(
+            state.decorations,
+            LLVM_type_and_alignment(type, ::LLVMPreferredAlignmentOfType(target_data, type)));
         break;
     }
     case Stage::generate_code:
@@ -2271,7 +2280,8 @@ void Spirv_to_llvm::handle_instruction_op_type_vector(Op_type_vector instruction
         state.type = std::make_shared<Vector_type_descriptor>(
             state.decorations,
             get_type<Simple_type_descriptor>(instruction.component_type, instruction_start_index),
-            instruction.component_count);
+            instruction.component_count,
+            target_data);
         break;
     }
     case Stage::generate_code:
@@ -2290,7 +2300,8 @@ void Spirv_to_llvm::handle_instruction_op_type_matrix(Op_type_matrix instruction
         state.type = std::make_shared<Matrix_type_descriptor>(
             state.decorations,
             get_type<Vector_type_descriptor>(instruction.column_type, instruction_start_index),
-            instruction.column_count);
+            instruction.column_count,
+            target_data);
         break;
     }
     case Stage::generate_code:
@@ -2422,7 +2433,8 @@ void Spirv_to_llvm::handle_instruction_op_type_pointer(Op_type_pointer instructi
             state.type = std::make_shared<Pointer_type_descriptor>(
                 state.decorations,
                 get_type(instruction.type, instruction_start_index),
-                instruction_start_index);
+                instruction_start_index,
+                target_data);
         }
         else if(auto *pointer_type = dynamic_cast<Pointer_type_descriptor *>(state.type.get()))
         {
@@ -2464,7 +2476,8 @@ void Spirv_to_llvm::handle_instruction_op_type_function(Op_type_function instruc
             state.decorations,
             get_type(instruction.return_type, instruction_start_index),
             std::move(args),
-            instruction_start_index);
+            instruction_start_index,
+            target_data);
         break;
     }
     case Stage::generate_code:
@@ -2569,7 +2582,7 @@ void Spirv_to_llvm::handle_instruction_op_constant(Op_constant instruction,
         if(auto *simple_type = dynamic_cast<Simple_type_descriptor *>(type.get()))
         {
             auto llvm_type = simple_type->get_or_make_type();
-            switch(::LLVMGetTypeKind(llvm_type))
+            switch(::LLVMGetTypeKind(llvm_type.type))
             {
             case LLVMFloatTypeKind:
             {
@@ -2582,12 +2595,12 @@ void Spirv_to_llvm::handle_instruction_op_constant(Op_constant instruction,
                     ::LLVMConstBitCast(
                         ::LLVMConstInt(
                             ::LLVMInt32TypeInContext(context), instruction.value[0], false),
-                        llvm_type));
+                        llvm_type.type));
                 break;
             }
             case LLVMIntegerTypeKind:
             {
-                switch(::LLVMGetIntTypeWidth(llvm_type))
+                switch(::LLVMGetIntTypeWidth(llvm_type.type))
                 {
                 case 16:
                 {
@@ -2597,7 +2610,7 @@ void Spirv_to_llvm::handle_instruction_op_constant(Op_constant instruction,
                             instruction_start_index,
                             "OpConstant immediate value is wrong size for type int16");
                     state.constant = std::make_shared<Simple_constant_descriptor>(
-                        type, ::LLVMConstInt(llvm_type, instruction.value[0], false));
+                        type, ::LLVMConstInt(llvm_type.type, instruction.value[0], false));
                     break;
                 }
                 case 32:
@@ -2608,7 +2621,7 @@ void Spirv_to_llvm::handle_instruction_op_constant(Op_constant instruction,
                             instruction_start_index,
                             "OpConstant immediate value is wrong size for type int32");
                     state.constant = std::make_shared<Simple_constant_descriptor>(
-                        type, ::LLVMConstInt(llvm_type, instruction.value[0], false));
+                        type, ::LLVMConstInt(llvm_type.type, instruction.value[0], false));
                     break;
                 }
                 case 64:
@@ -2620,7 +2633,7 @@ void Spirv_to_llvm::handle_instruction_op_constant(Op_constant instruction,
                             "OpConstant immediate value is wrong size for type int64");
                     state.constant = std::make_shared<Simple_constant_descriptor>(
                         type,
-                        ::LLVMConstInt(llvm_type,
+                        ::LLVMConstInt(llvm_type.type,
                                        (static_cast<std::uint64_t>(instruction.value[1]) << 32)
                                            | instruction.value[0],
                                        false));
@@ -2632,7 +2645,7 @@ void Spirv_to_llvm::handle_instruction_op_constant(Op_constant instruction,
                         instruction_start_index,
                         instruction_start_index,
                         "unimplemented simple type for OpConstant: "
-                            + std::string(llvm_wrapper::print_type_to_string(llvm_type)));
+                            + std::string(llvm_wrapper::print_type_to_string(llvm_type.type)));
                 }
                 break;
             }
@@ -2649,7 +2662,7 @@ void Spirv_to_llvm::handle_instruction_op_constant(Op_constant instruction,
                                        (static_cast<std::uint64_t>(instruction.value[1]) << 32)
                                            | instruction.value[0],
                                        false),
-                        llvm_type));
+                        llvm_type.type));
                 break;
             }
             case LLVMHalfTypeKind:
@@ -2663,7 +2676,7 @@ void Spirv_to_llvm::handle_instruction_op_constant(Op_constant instruction,
                     ::LLVMConstBitCast(
                         ::LLVMConstInt(
                             ::LLVMInt16TypeInContext(context), instruction.value[0], false),
-                        llvm_type));
+                        llvm_type.type));
                 break;
             }
             default:
@@ -2672,7 +2685,7 @@ void Spirv_to_llvm::handle_instruction_op_constant(Op_constant instruction,
                     instruction_start_index,
                     instruction_start_index,
                     "unimplemented simple type for OpConstant: "
-                        + std::string(llvm_wrapper::print_type_to_string(llvm_type)));
+                        + std::string(llvm_wrapper::print_type_to_string(llvm_type.type)));
             }
             }
         }
@@ -2801,7 +2814,7 @@ void Spirv_to_llvm::handle_instruction_op_function(Op_function instruction,
             function_name = std::string(state.op_entry_points[0].entry_point.name);
         function_name = get_or_make_prefixed_name(std::move(function_name));
         auto function = ::LLVMAddFunction(
-            module.get(), function_name.c_str(), function_type->get_or_make_type());
+            module.get(), function_name.c_str(), function_type->get_or_make_type().type);
         llvm_wrapper::Module::set_function_target_machine(function, target_machine);
         state.function = Function_state(function_type, function, std::move(function_name));
         break;
@@ -3181,9 +3194,10 @@ void Spirv_to_llvm::handle_instruction_op_variable(Op_variable instruction,
             auto type =
                 get_type<Pointer_type_descriptor>(instruction.result_type, instruction_start_index);
             state.value = Value(::LLVMBuildAlloca(builder.get(),
-                                                  type->get_base_type()->get_or_make_type(),
+                                                  type->get_base_type()->get_or_make_type().type,
                                                   get_name(instruction.result).c_str()),
                                 type);
+            ::LLVMSetAlignment(state.value->value, type->get_base_type()->get_or_make_type().alignment);
             return;
         }
         case Storage_class::generic:
@@ -3250,6 +3264,7 @@ void Spirv_to_llvm::handle_instruction_op_load(Op_load instruction,
                                             get_id_state(instruction.pointer).value.value().value,
                                             get_name(instruction.result).c_str()),
                             get_type(instruction.result_type, instruction_start_index));
+        ::LLVMSetAlignment(state.value->value, state.value->type->get_or_make_type().alignment);
         break;
     }
     }
@@ -3278,9 +3293,11 @@ void Spirv_to_llvm::handle_instruction_op_store(Op_store instruction,
             throw Parser_error(instruction_start_index,
                                instruction_start_index,
                                "OpStore nontemporal not implemented");
-        ::LLVMBuildStore(builder.get(),
-                         get_id_state(instruction.object).value.value().value,
-                         get_id_state(instruction.pointer).value.value().value);
+        auto &object_value = get_id_state(instruction.object).value.value();
+        auto &pointer_value = get_id_state(instruction.pointer).value.value();
+        ::LLVMSetAlignment(::LLVMBuildStore(builder.get(),
+                         object_value.value,
+                         pointer_value.value), object_value.type->get_or_make_type().alignment);
         break;
     }
     }
@@ -3568,7 +3585,7 @@ void Spirv_to_llvm::handle_instruction_op_composite_construct(Op_composite_const
                     throw Parser_error(instruction_start_index,
                                        instruction_start_index,
                                        "too few inputs to construct a vector");
-                result_value = ::LLVMGetUndef(type.get_or_make_type());
+                result_value = ::LLVMGetUndef(type.get_or_make_type().type);
                 std::uint32_t insert_index = 0;
                 auto insert_element = [&](::LLVMValueRef element)
                 {
@@ -4017,7 +4034,7 @@ void Spirv_to_llvm::handle_instruction_op_convert_f_to_u(Op_convert_f_to_u instr
         state.value =
             Value(::LLVMBuildFPToUI(builder.get(),
                                     get_id_state(instruction.float_value).value.value().value,
-                                    result_type->get_or_make_type(),
+                                    result_type->get_or_make_type().type,
                                     get_name(instruction.result).c_str()),
                   result_type);
         break;
@@ -4054,7 +4071,7 @@ void Spirv_to_llvm::handle_instruction_op_convert_s_to_f(Op_convert_s_to_f instr
         state.value =
             Value(::LLVMBuildSIToFP(builder.get(),
                                     get_id_state(instruction.signed_value).value.value().value,
-                                    result_type->get_or_make_type(),
+                                    result_type->get_or_make_type().type,
                                     get_name(instruction.result).c_str()),
                   result_type);
         break;
@@ -4089,17 +4106,17 @@ void Spirv_to_llvm::handle_instruction_op_u_convert(Op_u_convert instruction,
                                    + std::string(get_enumerant_name(instruction.get_operation())));
         auto result_type = get_type(instruction.result_type, instruction_start_index);
         auto result_type_int_width = ::LLVMGetIntTypeWidth(
-            llvm_wrapper::get_scalar_or_vector_element_type(result_type->get_or_make_type()));
+            llvm_wrapper::get_scalar_or_vector_element_type(result_type->get_or_make_type().type));
         auto &arg = get_id_state(instruction.unsigned_value).value.value();
         auto arg_int_width = ::LLVMGetIntTypeWidth(
-            llvm_wrapper::get_scalar_or_vector_element_type(arg.type->get_or_make_type()));
+            llvm_wrapper::get_scalar_or_vector_element_type(arg.type->get_or_make_type().type));
         auto opcode = ::LLVMTrunc;
         if(result_type_int_width > arg_int_width)
             opcode = ::LLVMZExt;
         state.value = Value(::LLVMBuildCast(builder.get(),
                                             opcode,
                                             arg.value,
-                                            result_type->get_or_make_type(),
+                                            result_type->get_or_make_type().type,
                                             get_name(instruction.result).c_str()),
                             result_type);
         break;
@@ -4240,7 +4257,7 @@ void Spirv_to_llvm::handle_instruction_op_bitcast(Op_bitcast instruction,
         }
         state.value = Value(::LLVMBuildBitCast(builder.get(),
                                                arg.value,
-                                               result_type->get_or_make_type(),
+                                               result_type->get_or_make_type().type,
                                                get_name(instruction.result).c_str()),
                             result_type);
         break;
@@ -5485,9 +5502,10 @@ void Spirv_to_llvm::handle_instruction_op_switch(
                                                     get_or_make_label(instruction.default_),
                                                     instruction.target.size());
         for(auto &target : instruction.target)
-            ::LLVMAddCase(switch_instruction,
-                          ::LLVMConstInt(selector.type->get_or_make_type(), target.part_1, false),
-                          get_or_make_label(target.part_2));
+            ::LLVMAddCase(
+                switch_instruction,
+                ::LLVMConstInt(selector.type->get_or_make_type().type, target.part_1, false),
+                get_or_make_label(target.part_2));
         break;
     }
     }

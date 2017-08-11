@@ -241,6 +241,11 @@ struct Target_data : public Wrapper<::LLVMTargetDataRef, Target_data_deleter>
     {
         return Target_data(::LLVMCreateTargetData(str));
     }
+    static std::size_t get_pointer_alignment(::LLVMTargetDataRef td) noexcept;
+    std::size_t get_pointer_alignment() const noexcept
+    {
+        return get_pointer_alignment(get());
+    }
 };
 
 struct Target_machine_deleter

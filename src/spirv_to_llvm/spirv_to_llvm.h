@@ -31,12 +31,27 @@
 #include <cassert>
 #include <type_traits>
 #include <utility>
+#include <cstddef>
 #include "llvm_wrapper/llvm_wrapper.h"
 
 namespace vulkan_cpu
 {
 namespace spirv_to_llvm
 {
+struct LLVM_type_and_alignment
+{
+    ::LLVMTypeRef type;
+    std::size_t alignment;
+    constexpr LLVM_type_and_alignment() noexcept : type(nullptr), alignment(0)
+    {
+    }
+    constexpr LLVM_type_and_alignment(::LLVMTypeRef type, std::size_t alignment) noexcept
+        : type(type),
+          alignment(alignment)
+    {
+    }
+};
+
 class Simple_type_descriptor;
 class Vector_type_descriptor;
 class Matrix_type_descriptor;
@@ -71,7 +86,7 @@ public:
     {
     }
     virtual ~Type_descriptor() = default;
-    virtual ::LLVMTypeRef get_or_make_type() = 0;
+    virtual LLVM_type_and_alignment get_or_make_type() = 0;
     virtual void visit(Type_visitor &type_visitor) = 0;
     void visit(Type_visitor &&type_visitor)
     {
@@ -163,16 +178,16 @@ public:
 class Simple_type_descriptor final : public Type_descriptor
 {
 private:
-    ::LLVMTypeRef type;
+    LLVM_type_and_alignment type;
 
 public:
     explicit Simple_type_descriptor(std::vector<spirv::Decoration_with_parameters> decorations,
-                                    ::LLVMTypeRef type) noexcept
+                                    LLVM_type_and_alignment type) noexcept
         : Type_descriptor(std::move(decorations)),
           type(type)
     {
     }
-    virtual ::LLVMTypeRef get_or_make_type() override
+    virtual LLVM_type_and_alignment get_or_make_type() override
     {
         return type;
     }
@@ -185,21 +200,35 @@ public:
 class Vector_type_descriptor final : public Type_descriptor
 {
 private:
-    ::LLVMTypeRef type;
+    LLVM_type_and_alignment type;
     std::shared_ptr<Simple_type_descriptor> element_type;
     std::size_t element_count;
 
 public:
     explicit Vector_type_descriptor(std::vector<spirv::Decoration_with_parameters> decorations,
                                     std::shared_ptr<Simple_type_descriptor> element_type,
-                                    std::size_t element_count) noexcept
+                                    std::size_t element_count,
+                                    ::LLVMTargetDataRef target_data) noexcept
         : Type_descriptor(std::move(decorations)),
-          type(::LLVMVectorType(element_type->get_or_make_type(), element_count)),
+          type(make_vector_type(element_type, element_count, target_data)),
           element_type(std::move(element_type)),
           element_count(element_count)
     {
     }
-    virtual ::LLVMTypeRef get_or_make_type() override
+    static LLVM_type_and_alignment make_vector_type(
+        const std::shared_ptr<Simple_type_descriptor> &element_type,
+        std::size_t element_count,
+        ::LLVMTargetDataRef target_data)
+    {
+        auto llvm_element_type = element_type->get_or_make_type();
+        auto type = ::LLVMVectorType(llvm_element_type.type, element_count);
+        std::size_t alignment = ::LLVMPreferredAlignmentOfType(target_data, type);
+        constexpr std::size_t max_abi_alignment = alignof(std::max_align_t);
+        if(alignment > max_abi_alignment)
+            alignment = max_abi_alignment;
+        return {type, alignment};
+    }
+    virtual LLVM_type_and_alignment get_or_make_type() override
     {
         return type;
     }
@@ -220,22 +249,25 @@ public:
 class Matrix_type_descriptor final : public Type_descriptor
 {
 private:
-    ::LLVMTypeRef type;
+    LLVM_type_and_alignment type;
     std::shared_ptr<Vector_type_descriptor> column_type;
     std::size_t column_count;
 
 public:
     explicit Matrix_type_descriptor(std::vector<spirv::Decoration_with_parameters> decorations,
                                     std::shared_ptr<Vector_type_descriptor> column_type,
-                                    std::size_t column_count) noexcept
+                                    std::size_t column_count,
+                                    ::LLVMTargetDataRef target_data) noexcept
         : Type_descriptor(std::move(decorations)),
-          type(::LLVMVectorType(column_type->get_element_type()->get_or_make_type(),
-                                column_type->get_element_count() * column_count)),
+          type(Vector_type_descriptor::make_vector_type(column_type->get_element_type(),
+                                                        column_type->get_element_count()
+                                                            * column_count,
+                                                        target_data)),
           column_type(std::move(column_type)),
           column_count(column_count)
     {
     }
-    virtual ::LLVMTypeRef get_or_make_type() override
+    virtual LLVM_type_and_alignment get_or_make_type() override
     {
         return type;
     }
@@ -256,7 +288,7 @@ public:
 class Array_type_descriptor final : public Type_descriptor
 {
 private:
-    ::LLVMTypeRef type;
+    LLVM_type_and_alignment type;
     std::shared_ptr<Type_descriptor> element_type;
     std::size_t element_count;
     std::size_t instruction_start_index;
@@ -268,18 +300,20 @@ public:
                                    std::size_t element_count,
                                    std::size_t instruction_start_index) noexcept
         : Type_descriptor(std::move(decorations)),
-          type(::LLVMVectorType(element_type->get_or_make_type(), element_count)),
+          type(),
           element_type(std::move(element_type)),
           element_count(element_count),
           instruction_start_index(instruction_start_index)
     {
     }
-    virtual ::LLVMTypeRef get_or_make_type() override
+    virtual LLVM_type_and_alignment get_or_make_type() override
     {
-        if(!type)
+        if(!type.type)
         {
             Recursion_checker recursion_checker(recursion_checker_state, instruction_start_index);
-            type = ::LLVMArrayType(element_type->get_or_make_type(), element_count);
+            auto llvm_element_type = element_type->get_or_make_type();
+            type = LLVM_type_and_alignment(::LLVMArrayType(llvm_element_type.type, element_count),
+                                           llvm_element_type.alignment);
         }
         return type;
     }
@@ -302,17 +336,18 @@ class Pointer_type_descriptor final : public Type_descriptor
 private:
     std::shared_ptr<Type_descriptor> base;
     std::size_t instruction_start_index;
-    ::LLVMTypeRef type;
+    LLVM_type_and_alignment type;
     Recursion_checker_state recursion_checker_state;
 
 public:
     Pointer_type_descriptor(std::vector<spirv::Decoration_with_parameters> decorations,
                             std::shared_ptr<Type_descriptor> base,
-                            std::size_t instruction_start_index) noexcept
+                            std::size_t instruction_start_index,
+                            ::LLVMTargetDataRef target_data) noexcept
         : Type_descriptor(std::move(decorations)),
           base(std::move(base)),
           instruction_start_index(instruction_start_index),
-          type(nullptr)
+          type(nullptr, llvm_wrapper::Target_data::get_pointer_alignment(target_data))
     {
     }
     const std::shared_ptr<Type_descriptor> &get_base_type() const noexcept
@@ -326,16 +361,17 @@ public:
         base = std::move(new_base);
     }
     explicit Pointer_type_descriptor(std::vector<spirv::Decoration_with_parameters> decorations,
-                                     std::size_t instruction_start_index) noexcept
+                                     std::size_t instruction_start_index,
+                                     ::LLVMTargetDataRef target_data) noexcept
         : Type_descriptor(std::move(decorations)),
           base(nullptr),
           instruction_start_index(instruction_start_index),
-          type(nullptr)
+          type(nullptr, llvm_wrapper::Target_data::get_pointer_alignment(target_data))
     {
     }
-    virtual ::LLVMTypeRef get_or_make_type() override
+    virtual LLVM_type_and_alignment get_or_make_type() override
     {
-        if(!type)
+        if(!type.type)
         {
             Recursion_checker recursion_checker(recursion_checker_state, instruction_start_index);
             if(!base)
@@ -345,7 +381,7 @@ public:
                     "attempting to create type from pointer forward declaration");
             auto base_type = base->get_or_make_type();
             constexpr unsigned default_address_space = 0;
-            type = ::LLVMPointerType(base_type, default_address_space);
+            type.type = ::LLVMPointerType(base_type.type, default_address_space);
         }
         return type;
     }
@@ -360,7 +396,7 @@ class Function_type_descriptor final : public Type_descriptor
 private:
     std::shared_ptr<Type_descriptor> return_type;
     std::vector<std::shared_ptr<Type_descriptor>> args;
-    ::LLVMTypeRef type;
+    LLVM_type_and_alignment type;
     Recursion_checker_state recursion_checker_state;
     std::size_t instruction_start_index;
     bool is_var_arg;
@@ -370,27 +406,28 @@ public:
                                       std::shared_ptr<Type_descriptor> return_type,
                                       std::vector<std::shared_ptr<Type_descriptor>> args,
                                       std::size_t instruction_start_index,
+                                     ::LLVMTargetDataRef target_data,
                                       bool is_var_arg = false) noexcept
         : Type_descriptor(std::move(decorations)),
           return_type(std::move(return_type)),
           args(std::move(args)),
-          type(nullptr),
+          type(nullptr, llvm_wrapper::Target_data::get_pointer_alignment(target_data)),
           instruction_start_index(instruction_start_index),
           is_var_arg(is_var_arg)
     {
     }
-    virtual ::LLVMTypeRef get_or_make_type() override
+    virtual LLVM_type_and_alignment get_or_make_type() override
     {
-        if(!type)
+        if(!type.type)
         {
             Recursion_checker recursion_checker(recursion_checker_state, instruction_start_index);
             std::vector<::LLVMTypeRef> llvm_args;
             llvm_args.reserve(args.size());
             auto llvm_return_type = return_type->get_or_make_type();
             for(auto &arg : args)
-                llvm_args.push_back(arg->get_or_make_type());
-            type = ::LLVMFunctionType(
-                llvm_return_type, llvm_args.data(), llvm_args.size(), is_var_arg);
+                llvm_args.push_back(arg->get_or_make_type().type);
+            type.type = ::LLVMFunctionType(
+                llvm_return_type.type, llvm_args.data(), llvm_args.size(), is_var_arg);
         }
         return type;
     }
@@ -419,7 +456,7 @@ public:
 private:
     std::vector<Member> members;
     util::Enum_map<spirv::Built_in, std::size_t> builtin_members;
-    ::LLVMTypeRef type;
+    LLVM_type_and_alignment type;
     bool is_complete;
     Recursion_checker_state recursion_checker_state;
     std::size_t instruction_start_index;
@@ -460,7 +497,7 @@ public:
         : Type_descriptor(std::move(decorations)),
           members(std::move(members)),
           builtin_members{},
-          type(::LLVMStructCreateNamed(context, name)),
+          type(::LLVMStructCreateNamed(context, name), 0),
           is_complete(false),
           instruction_start_index(instruction_start_index),
           context(context),
@@ -469,7 +506,7 @@ public:
         for(std::size_t member_index = 0; member_index < members.size(); member_index++)
             on_add_member(member_index);
     }
-    virtual ::LLVMTypeRef get_or_make_type() override
+    virtual LLVM_type_and_alignment get_or_make_type() override
     {
         if(!is_complete)
         {
