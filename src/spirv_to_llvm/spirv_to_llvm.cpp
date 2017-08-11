@@ -2184,6 +2184,11 @@ void Spirv_to_llvm::handle_instruction_op_type_void(
     case Stage::calculate_types:
     {
         auto &state = get_id_state(instruction.result);
+        if(!state.decorations.empty())
+            throw Parser_error(instruction_start_index,
+                               instruction_start_index,
+                               "decorations on instruction not implemented: "
+                                   + std::string(get_enumerant_name(instruction.get_operation())));
         state.type = std::make_shared<Simple_type_descriptor>(
             state.decorations, LLVM_type_and_alignment(::LLVMVoidTypeInContext(context), 1));
         break;
@@ -2211,6 +2216,11 @@ void Spirv_to_llvm::handle_instruction_op_type_int(Op_type_int instruction,
     case Stage::calculate_types:
     {
         auto &state = get_id_state(instruction.result);
+        if(!state.decorations.empty())
+            throw Parser_error(instruction_start_index,
+                               instruction_start_index,
+                               "decorations on instruction not implemented: "
+                                   + std::string(get_enumerant_name(instruction.get_operation())));
         switch(instruction.width)
         {
         case 8:
@@ -2243,6 +2253,11 @@ void Spirv_to_llvm::handle_instruction_op_type_float(Op_type_float instruction,
     case Stage::calculate_types:
     {
         auto &state = get_id_state(instruction.result);
+        if(!state.decorations.empty())
+            throw Parser_error(instruction_start_index,
+                               instruction_start_index,
+                               "decorations on instruction not implemented: "
+                                   + std::string(get_enumerant_name(instruction.get_operation())));
         ::LLVMTypeRef type = nullptr;
         switch(instruction.width)
         {
@@ -2277,6 +2292,11 @@ void Spirv_to_llvm::handle_instruction_op_type_vector(Op_type_vector instruction
     case Stage::calculate_types:
     {
         auto &state = get_id_state(instruction.result);
+        if(!state.decorations.empty())
+            throw Parser_error(instruction_start_index,
+                               instruction_start_index,
+                               "decorations on instruction not implemented: "
+                                   + std::string(get_enumerant_name(instruction.get_operation())));
         state.type = std::make_shared<Vector_type_descriptor>(
             state.decorations,
             get_type<Simple_type_descriptor>(instruction.component_type, instruction_start_index),
@@ -2297,6 +2317,11 @@ void Spirv_to_llvm::handle_instruction_op_type_matrix(Op_type_matrix instruction
     case Stage::calculate_types:
     {
         auto &state = get_id_state(instruction.result);
+        if(!state.decorations.empty())
+            throw Parser_error(instruction_start_index,
+                               instruction_start_index,
+                               "decorations on instruction not implemented: "
+                                   + std::string(get_enumerant_name(instruction.get_operation())));
         state.type = std::make_shared<Matrix_type_descriptor>(
             state.decorations,
             get_type<Vector_type_descriptor>(instruction.column_type, instruction_start_index),
@@ -2347,6 +2372,11 @@ void Spirv_to_llvm::handle_instruction_op_type_array(Op_type_array instruction,
     case Stage::calculate_types:
     {
         auto &state = get_id_state(instruction.result);
+        if(!state.decorations.empty())
+            throw Parser_error(instruction_start_index,
+                               instruction_start_index,
+                               "decorations on instruction not implemented: "
+                                   + std::string(get_enumerant_name(instruction.get_operation())));
         auto length = get_unsigned_integer_constant(instruction.length, instruction_start_index);
         if(length <= 0)
             throw Parser_error(instruction_start_index,
@@ -2428,6 +2458,11 @@ void Spirv_to_llvm::handle_instruction_op_type_pointer(Op_type_pointer instructi
     case Stage::calculate_types:
     {
         auto &state = get_id_state(instruction.result);
+        if(!state.decorations.empty())
+            throw Parser_error(instruction_start_index,
+                               instruction_start_index,
+                               "decorations on instruction not implemented: "
+                                   + std::string(get_enumerant_name(instruction.get_operation())));
         if(!state.type)
         {
             state.type = std::make_shared<Pointer_type_descriptor>(
@@ -2472,6 +2507,11 @@ void Spirv_to_llvm::handle_instruction_op_type_function(Op_type_function instruc
         for(Id_ref type : instruction.parameter_0_type_parameter_1_type)
             args.push_back(get_type(type, instruction_start_index));
         auto &state = get_id_state(instruction.result);
+        if(!state.decorations.empty())
+            throw Parser_error(instruction_start_index,
+                               instruction_start_index,
+                               "decorations on instruction not implemented: "
+                                   + std::string(get_enumerant_name(instruction.get_operation())));
         state.type = std::make_shared<Function_type_descriptor>(
             state.decorations,
             get_type(instruction.return_type, instruction_start_index),
@@ -3197,7 +3237,8 @@ void Spirv_to_llvm::handle_instruction_op_variable(Op_variable instruction,
                                                   type->get_base_type()->get_or_make_type().type,
                                                   get_name(instruction.result).c_str()),
                                 type);
-            ::LLVMSetAlignment(state.value->value, type->get_base_type()->get_or_make_type().alignment);
+            ::LLVMSetAlignment(state.value->value,
+                               type->get_base_type()->get_or_make_type().alignment);
             return;
         }
         case Storage_class::generic:
@@ -3295,9 +3336,8 @@ void Spirv_to_llvm::handle_instruction_op_store(Op_store instruction,
                                "OpStore nontemporal not implemented");
         auto &object_value = get_id_state(instruction.object).value.value();
         auto &pointer_value = get_id_state(instruction.pointer).value.value();
-        ::LLVMSetAlignment(::LLVMBuildStore(builder.get(),
-                         object_value.value,
-                         pointer_value.value), object_value.type->get_or_make_type().alignment);
+        ::LLVMSetAlignment(::LLVMBuildStore(builder.get(), object_value.value, pointer_value.value),
+                           object_value.type->get_or_make_type().alignment);
         break;
     }
     }
