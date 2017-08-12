@@ -19,12 +19,7 @@
 # SOFTWARE.
 #
 cmake_minimum_required(VERSION 3.1 FATAL_ERROR)
-include_directories(${CMAKE_CURRENT_SOURCE_DIR})
-add_subdirectory(demo)
-add_subdirectory(generate_spirv_parser)
-add_subdirectory(json)
-add_subdirectory(llvm_wrapper)
-add_subdirectory(pipeline)
-add_subdirectory(spirv)
-add_subdirectory(spirv_to_llvm)
-add_subdirectory(util)
+
+set(sources pipeline.cpp)
+add_library(vulkan_cpu_pipeline STATIC ${sources})
+target_link_libraries(vulkan_cpu_pipeline vulkan_cpu_spirv_to_llvm vulkan_cpu_util vulkan_cpu_spirv vulkan_cpu_llvm_wrapper)

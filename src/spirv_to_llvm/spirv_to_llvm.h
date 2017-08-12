@@ -406,7 +406,7 @@ public:
                                       std::shared_ptr<Type_descriptor> return_type,
                                       std::vector<std::shared_ptr<Type_descriptor>> args,
                                       std::size_t instruction_start_index,
-                                     ::LLVMTargetDataRef target_data,
+                                      ::LLVMTargetDataRef target_data,
                                       bool is_var_arg = false) noexcept
         : Type_descriptor(std::move(decorations)),
           return_type(std::move(return_type)),
@@ -559,36 +559,23 @@ public:
 
 struct Converted_module
 {
-    struct Entry_point
-    {
-        std::string name;
-        std::string entry_function_name;
-#warning finish filling in Entry_point
-        explicit Entry_point(std::string name, std::string entry_function_name) noexcept
-            : name(std::move(name)),
-              entry_function_name(std::move(entry_function_name))
-        {
-        }
-    };
     llvm_wrapper::Module module;
-    std::vector<Entry_point> entry_points;
+    std::string entry_function_name;
     std::shared_ptr<Struct_type_descriptor> io_struct;
     std::size_t inputs_member;
     std::shared_ptr<Struct_type_descriptor> inputs_struct;
     std::size_t outputs_member;
     std::shared_ptr<Struct_type_descriptor> outputs_struct;
-    Converted_module() : module(), entry_points()
-    {
-    }
+    Converted_module() = default;
     explicit Converted_module(llvm_wrapper::Module module,
-                              std::vector<Entry_point> entry_points,
+                              std::string entry_function_name,
                               std::shared_ptr<Struct_type_descriptor> io_struct,
                               std::size_t inputs_member,
                               std::shared_ptr<Struct_type_descriptor> inputs_struct,
                               std::size_t outputs_member,
                               std::shared_ptr<Struct_type_descriptor> outputs_struct) noexcept
         : module(std::move(module)),
-          entry_points(std::move(entry_points)),
+          entry_function_name(std::move(entry_function_name)),
           io_struct(std::move(io_struct)),
           inputs_member(inputs_member),
           inputs_struct(std::move(inputs_struct)),
@@ -604,7 +591,9 @@ Converted_module spirv_to_llvm(::LLVMContextRef context,
                                ::LLVMTargetMachineRef target_machine,
                                const spirv::Word *shader_words,
                                std::size_t shader_size,
-                               std::uint64_t shader_id);
+                               std::uint64_t shader_id,
+                               spirv::Execution_model execution_model,
+                               util::string_view entry_point_name);
 }
 }
 

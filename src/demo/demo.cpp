@@ -245,7 +245,9 @@ int test_main(int argc, char **argv)
                                                             llvm_target_machine.get(),
                                                             file->data(),
                                                             file->size(),
-                                                            next_module_id++);
+                                                            next_module_id++,
+                                                            spirv::Execution_model::vertex,
+                                                            "main");
         }
         catch(spirv::Parser_error &e)
         {
@@ -268,13 +270,10 @@ int test_main(int argc, char **argv)
                 return reinterpret_cast<std::uintptr_t>(symbol);
             },
             nullptr);
-        for(auto &entry_point : converted_module.entry_points)
-        {
-            auto function = reinterpret_cast<void *>(
-                orc_jit_stack.get_symbol_address(entry_point.entry_function_name.c_str()));
-            std::cerr << "entry point \"" << entry_point.name << "\": &"
-                      << entry_point.entry_function_name << " == " << function << std::endl;
-        }
+        auto function = reinterpret_cast<void *>(
+            orc_jit_stack.get_symbol_address(converted_module.entry_function_name.c_str()));
+        std::cerr << "entry point: " << converted_module.entry_function_name << ": " << function
+                  << std::endl;
     }
     else
     {

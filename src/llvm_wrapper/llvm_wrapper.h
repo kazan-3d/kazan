@@ -489,6 +489,177 @@ struct Orc_jit_stack : public Wrapper<::LLVMOrcJITStackRef, Orc_jit_stack_delete
         return get_symbol<T>(get(), symbol_name);
     }
 };
+
+template <typename T>
+struct Create_llvm_type
+{
+    static_assert(!std::is_same<T, T>::value, "Create_llvm_type not implemented for type T");
+    ::LLVMTypeRef operator()(::LLVMContextRef context) const = delete;
+};
+
+template <typename T>
+struct Create_llvm_type<const T> : public Create_llvm_type<T>
+{
+};
+
+template <>
+struct Create_llvm_type<void>
+{
+    ::LLVMTypeRef operator()(::LLVMContextRef context) const
+    {
+        return ::LLVMVoidTypeInContext(context);
+    }
+};
+
+template <>
+struct Create_llvm_type<bool>
+{
+    ::LLVMTypeRef operator()(::LLVMContextRef context) const
+    {
+        return ::LLVMIntTypeInContext(context,
+                                      std::numeric_limits<unsigned char>::digits * sizeof(bool));
+    }
+};
+
+template <>
+struct Create_llvm_type<char>
+{
+    ::LLVMTypeRef operator()(::LLVMContextRef context) const
+    {
+        return ::LLVMIntTypeInContext(context, std::numeric_limits<unsigned char>::digits);
+    }
+};
+
+template <>
+struct Create_llvm_type<unsigned char>
+{
+    ::LLVMTypeRef operator()(::LLVMContextRef context) const
+    {
+        return ::LLVMIntTypeInContext(context, std::numeric_limits<unsigned char>::digits);
+    }
+};
+
+template <>
+struct Create_llvm_type<signed char>
+{
+    ::LLVMTypeRef operator()(::LLVMContextRef context) const
+    {
+        return ::LLVMIntTypeInContext(context, std::numeric_limits<unsigned char>::digits);
+    }
+};
+
+template <>
+struct Create_llvm_type<short>
+{
+    ::LLVMTypeRef operator()(::LLVMContextRef context) const
+    {
+        return ::LLVMIntTypeInContext(context, std::numeric_limits<unsigned short>::digits);
+    }
+};
+
+template <>
+struct Create_llvm_type<unsigned short>
+{
+    ::LLVMTypeRef operator()(::LLVMContextRef context) const
+    {
+        return ::LLVMIntTypeInContext(context, std::numeric_limits<unsigned short>::digits);
+    }
+};
+
+template <>
+struct Create_llvm_type<int>
+{
+    ::LLVMTypeRef operator()(::LLVMContextRef context) const
+    {
+        return ::LLVMIntTypeInContext(context, std::numeric_limits<unsigned>::digits);
+    }
+};
+
+template <>
+struct Create_llvm_type<unsigned>
+{
+    ::LLVMTypeRef operator()(::LLVMContextRef context) const
+    {
+        return ::LLVMIntTypeInContext(context, std::numeric_limits<unsigned>::digits);
+    }
+};
+
+template <>
+struct Create_llvm_type<long>
+{
+    ::LLVMTypeRef operator()(::LLVMContextRef context) const
+    {
+        return ::LLVMIntTypeInContext(context, std::numeric_limits<unsigned long>::digits);
+    }
+};
+
+template <>
+struct Create_llvm_type<unsigned long>
+{
+    ::LLVMTypeRef operator()(::LLVMContextRef context) const
+    {
+        return ::LLVMIntTypeInContext(context, std::numeric_limits<unsigned long>::digits);
+    }
+};
+
+template <>
+struct Create_llvm_type<long long>
+{
+    ::LLVMTypeRef operator()(::LLVMContextRef context) const
+    {
+        return ::LLVMIntTypeInContext(context, std::numeric_limits<unsigned long long>::digits);
+    }
+};
+
+template <>
+struct Create_llvm_type<unsigned long long>
+{
+    ::LLVMTypeRef operator()(::LLVMContextRef context) const
+    {
+        return ::LLVMIntTypeInContext(context, std::numeric_limits<unsigned long long>::digits);
+    }
+};
+
+template <typename T>
+struct Create_llvm_type<T *>
+{
+    ::LLVMTypeRef operator()(::LLVMContextRef context) const
+    {
+        constexpr unsigned default_address_space = 0;
+        return ::LLVMPointerType(Create_llvm_type<T>()(context), default_address_space);
+    }
+};
+
+template <>
+struct Create_llvm_type<void *> : public Create_llvm_type<unsigned char *>
+{
+};
+
+template <>
+struct Create_llvm_type<const void *> : public Create_llvm_type<const unsigned char *>
+{
+};
+
+template <typename T, std::size_t N>
+struct Create_llvm_type<T[N]>
+{
+    ::LLVMTypeRef operator()(::LLVMContextRef context) const
+    {
+        return ::LLVMArrayType(Create_llvm_type<T>()(context), N);
+    }
+};
+
+template <typename Return_type, typename ...Args>
+struct Create_llvm_type<Return_type (*)(Args...)>
+{
+    ::LLVMTypeRef operator()(::LLVMContextRef context) const
+    {
+        ::LLVMTypeRef arguments[] = {Create_llvm_type<Args>()(context)...};
+        constexpr bool is_var_arg = false;
+        return ::LLVMFunctionType(
+            Create_llvm_type<Return_type>()(context), arguments, sizeof...(Args), is_var_arg);
+    }
+};
 }
 }
 
