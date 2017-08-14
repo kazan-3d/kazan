@@ -399,6 +399,7 @@ private:
     LLVM_type_and_alignment type;
     Recursion_checker_state recursion_checker_state;
     std::size_t instruction_start_index;
+    bool valid_for_entry_point;
     bool is_var_arg;
 
 public:
@@ -407,12 +408,14 @@ public:
                                       std::vector<std::shared_ptr<Type_descriptor>> args,
                                       std::size_t instruction_start_index,
                                       ::LLVMTargetDataRef target_data,
-                                      bool is_var_arg = false) noexcept
+                                      bool valid_for_entry_point,
+                                      bool is_var_arg) noexcept
         : Type_descriptor(std::move(decorations)),
           return_type(std::move(return_type)),
           args(std::move(args)),
           type(nullptr, llvm_wrapper::Target_data::get_pointer_alignment(target_data)),
           instruction_start_index(instruction_start_index),
+          valid_for_entry_point(valid_for_entry_point),
           is_var_arg(is_var_arg)
     {
     }
@@ -434,6 +437,10 @@ public:
     virtual void visit(Type_visitor &type_visitor) override
     {
         type_visitor.visit(*this);
+    }
+    bool is_valid_for_entry_point() const noexcept
+    {
+        return valid_for_entry_point;
     }
 };
 

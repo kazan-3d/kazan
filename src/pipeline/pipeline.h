@@ -69,7 +69,7 @@ class Graphics_pipeline final : public Pipeline
 public:
 #warning finish adding draw function parameters
     typedef void (*Vertex_shader_function)(std::uint32_t vertex_start_index,
-                                           std::uint32_t vertex_count,
+                                           std::uint32_t vertex_end_index,
                                            std::uint32_t instance_id,
                                            void *output_buffer);
 
