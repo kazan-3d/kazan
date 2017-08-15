@@ -361,6 +361,7 @@ enum class Output_part
     enum_structs,
     composite_types,
     instruction_structs,
+    instruction_variant,
     parse_error_class,
     parser_callbacks_class,
     dump_callbacks_class,
@@ -395,6 +396,7 @@ vulkan_cpu_util_generate_enum_traits(Output_part,
                                      Output_part::enum_structs,
                                      Output_part::composite_types,
                                      Output_part::instruction_structs,
+                                     Output_part::instruction_variant,
                                      Output_part::parse_error_class,
                                      Output_part::parser_callbacks_class,
                                      Output_part::dump_callbacks_class,
@@ -748,6 +750,7 @@ namespace spirv
         std::list<Output_struct> composite_types;
         std::list<Output_struct> enum_structs;
         std::list<Output_struct> instruction_structs;
+        detail::Generated_output_stream instruction_variant;
         explicit Spirv_h(const util::filesystem::path &file_path)
             : Header_file_base(file_path),
               basic_types(file_path),
@@ -755,7 +758,8 @@ namespace spirv
               id_types(file_path),
               enum_definitions(file_path),
               enum_properties_definitions(file_path),
-              literal_types(file_path)
+              literal_types(file_path),
+              instruction_variant(file_path)
         {
             register_output_part(Output_part::basic_types, &Spirv_h::basic_types);
             register_output_part(Output_part::basic_constants, &Spirv_h::basic_constants);
@@ -768,6 +772,7 @@ namespace spirv
             register_output_part(Output_part::composite_types, &Spirv_h::write_composite_types);
             register_output_part(Output_part::instruction_structs,
                                  &Spirv_h::write_instruction_structs);
+            register_output_part(Output_part::instruction_variant, &Spirv_h::instruction_variant);
         }
         void write_enum_structs(detail::Generated_output_stream &output_stream, Output_part) const
         {
@@ -1147,8 +1152,18 @@ constexpr util::Enum_set<)" << state.extension_enumeration.value()->cpp_name
         }
         void write_instructions(State &state)
         {
+            auto instruction_name = "Instruction"_sv;
+            auto variant_start = "typedef util::variant<"_sv;
+            instruction_variant << detail::push_start
+                                << detail::add_start_offset(variant_start.size()) << variant_start;
+            bool first = true;
             for(auto &instruction_descriptor : state.instruction_descriptor_list)
             {
+                if(first)
+                    first = false;
+                else
+                    instruction_variant << ",\n";
+                instruction_variant << instruction_descriptor.cpp_struct_name;
                 auto &instruction_struct = *instruction_structs.emplace(
                     instruction_structs.end(), file_path, instruction_descriptor.cpp_struct_name);
                 instruction_struct.struct_members
@@ -1164,6 +1179,8 @@ constexpr util::Enum_set<)" << state.extension_enumeration.value()->cpp_name
                 for(auto &operand : instruction_descriptor.explicit_operands)
                     write_instruction_operand(state, operand, instruction_struct);
             }
+            instruction_variant << "> " << instruction_name << ";\n" << detail::pop_start
+                                << detail::restart_indent;
         }
         virtual void fill_output(State &state) override
         {
