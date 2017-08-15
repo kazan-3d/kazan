@@ -473,7 +473,7 @@ private:
     {
         Op_entry_point entry_point;
         std::size_t instruction_start_index;
-        util::optional<Execution_mode_with_parameters> execution_mode;
+        std::vector<Execution_mode_with_parameters> execution_modes;
     };
     struct Name
     {
@@ -2846,10 +2846,7 @@ void Spirv_to_llvm::handle_instruction_op_execution_mode(Op_execution_mode instr
             throw Parser_error(instruction_start_index,
                                instruction_start_index,
                                "entry point not defined in OpExecutionMode");
-        if(state.op_entry_points.back().execution_mode)
-            throw Parser_error(
-                instruction_start_index, instruction_start_index, "execution mode already set");
-        state.op_entry_points.back().execution_mode = std::move(instruction.mode);
+        state.op_entry_points.back().execution_modes.push_back(std::move(instruction.mode));
     }
 }
 
