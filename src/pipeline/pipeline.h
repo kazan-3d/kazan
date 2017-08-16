@@ -25,41 +25,116 @@
 
 #include <memory>
 #include <cstdint>
+#include <utility>
+#include <cassert>
 #include "llvm_wrapper/llvm_wrapper.h"
+#include "vulkan/vulkan.h"
 
 namespace vulkan_cpu
 {
 namespace pipeline
 {
+class Pipeline_cache;
+
+class Pipeline_cache_handle
+{
+private:
+    static void destroy(Pipeline_cache *value) noexcept;
+
+public:
+    explicit Pipeline_cache_handle(Pipeline_cache *value) noexcept : value(value)
+    {
+    }
+    constexpr Pipeline_cache_handle() noexcept : value(nullptr)
+    {
+    }
+    Pipeline_cache_handle(Pipeline_cache_handle &&rt) noexcept : value(rt.value)
+    {
+        rt.value = nullptr;
+    }
+    Pipeline_cache_handle &operator=(Pipeline_cache_handle rt) noexcept
+    {
+        swap(rt);
+        return *this;
+    }
+    ~Pipeline_cache_handle() noexcept
+    {
+        if(value)
+            destroy(value);
+    }
+    void swap(Pipeline_cache_handle &rt) noexcept
+    {
+        using std::swap;
+        swap(value, rt.value);
+    }
+    static Pipeline_cache *from_handle(VkPipelineCache pipeline_cache) noexcept
+    {
+        return reinterpret_cast<Pipeline_cache *>(pipeline_cache);
+    }
+    static Pipeline_cache_handle move_from_handle(VkPipelineCache pipeline_cache) noexcept
+    {
+        return Pipeline_cache_handle(from_handle(pipeline_cache));
+    }
+    Pipeline_cache *get() const noexcept
+    {
+        return value;
+    }
+    Pipeline_cache *release() noexcept
+    {
+        auto retval = value;
+        value = nullptr;
+        return retval;
+    }
+    Pipeline_cache *operator->() const noexcept
+    {
+        assert(value);
+        return value;
+    }
+    Pipeline_cache &operator*() const noexcept
+    {
+        return *operator->();
+    }
+
+private:
+    Pipeline_cache *value;
+};
+
+inline VkPipelineCache to_handle(Pipeline_cache *pipeline_cache) noexcept
+{
+    return reinterpret_cast<VkPipelineCache>(pipeline_cache);
+}
+
+inline VkPipelineCache move_to_handle(Pipeline_cache_handle pipeline_cache) noexcept
+{
+    return to_handle(pipeline_cache.release());
+}
+
 class Pipeline
 {
     Pipeline(const Pipeline &) = delete;
     Pipeline &operator=(const Pipeline &) = delete;
 
 public:
-    typedef std::uintptr_t Handle;
-
-public:
     constexpr Pipeline() noexcept
     {
     }
     virtual ~Pipeline() = default;
-    static std::unique_ptr<Pipeline> move_from_handle(Handle pipeline) noexcept
+    static std::unique_ptr<Pipeline> move_from_handle(VkPipeline pipeline) noexcept
     {
         return std::unique_ptr<Pipeline>(from_handle(pipeline));
     }
-    static Pipeline *from_handle(Handle pipeline) noexcept
+    static Pipeline *from_handle(VkPipeline pipeline) noexcept
     {
         return reinterpret_cast<Pipeline *>(pipeline);
     }
 };
 
-inline Pipeline::Handle to_handle(Pipeline *pipeline) noexcept
+inline VkPipeline to_handle(Pipeline *pipeline) noexcept
 {
-    return reinterpret_cast<Pipeline::Handle>(pipeline);
+    return reinterpret_cast<VkPipeline>(pipeline);
 }
 
-inline Pipeline::Handle move_to_handle(std::unique_ptr<Pipeline> pipeline) noexcept
+inline VkPipeline move_to_handle(std::unique_ptr<Pipeline> pipeline) noexcept
 {
     return to_handle(pipeline.release());
 }
@@ -78,15 +153,15 @@ public:
     {
         return vertex_shader_function;
     }
-#warning finish implementing Graphics_pipeline::make
-    static std::unique_ptr<Graphics_pipeline> make();
-    static std::unique_ptr<Graphics_pipeline> move_from_handle(Handle pipeline) noexcept
+    static std::unique_ptr<Graphics_pipeline> make(Pipeline_cache *pipeline_cache,
+                                                   const VkGraphicsPipelineCreateInfo &create_info);
+    static std::unique_ptr<Graphics_pipeline> move_from_handle(VkPipeline pipeline) noexcept
     {
         return std::unique_ptr<Graphics_pipeline>(from_handle(pipeline));
     }
-    static Graphics_pipeline *from_handle(Handle pipeline) noexcept
+    static Graphics_pipeline *from_handle(VkPipeline pipeline) noexcept
     {
-        auto *retval = reinterpret_cast<Pipeline *>(pipeline);
+        auto *retval = Pipeline::from_handle(pipeline);
         assert(!retval || dynamic_cast<Graphics_pipeline *>(retval));
         return static_cast<Graphics_pipeline *>(retval);
     }
@@ -104,12 +179,12 @@ private:
     Vertex_shader_function vertex_shader_function;
 };
 
-inline Pipeline::Handle to_handle(Graphics_pipeline *pipeline) noexcept
+inline VkPipeline to_handle(Graphics_pipeline *pipeline) noexcept
 {
     return to_handle(static_cast<Pipeline *>(pipeline));
 }
 
-inline Pipeline::Handle move_to_handle(std::unique_ptr<Graphics_pipeline> pipeline) noexcept
+inline VkPipeline move_to_handle(std::unique_ptr<Graphics_pipeline> pipeline) noexcept
 {
     return to_handle(pipeline.release());
 }

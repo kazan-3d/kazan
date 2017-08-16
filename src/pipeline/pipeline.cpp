@@ -21,3 +21,17 @@
  *
  */
 #include "pipeline.h"
+#include <stdexcept>
+
+namespace vulkan_cpu
+{
+namespace pipeline
+{
+std::unique_ptr<Graphics_pipeline> Graphics_pipeline::make(
+    Pipeline_cache *pipeline_cache, const VkGraphicsPipelineCreateInfo &create_info)
+{
+#warning finish implementing Graphics_pipeline::make
+    throw std::runtime_error("Graphics_pipeline::make is not implemented");
+}
+}
+}
