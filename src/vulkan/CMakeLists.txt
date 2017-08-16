@@ -19,13 +19,6 @@
 # SOFTWARE.
 #
 cmake_minimum_required(VERSION 3.1 FATAL_ERROR)
-include_directories(${CMAKE_CURRENT_SOURCE_DIR})
-add_subdirectory(demo)
-add_subdirectory(generate_spirv_parser)
-add_subdirectory(json)
-add_subdirectory(llvm_wrapper)
-add_subdirectory(pipeline)
-add_subdirectory(spirv)
-add_subdirectory(spirv_to_llvm)
-add_subdirectory(util)
-add_subdirectory(vulkan)
+set(sources vulkan.cpp)
+add_library(vulkan_cpu_vulkan STATIC ${sources})
+target_compile_definitions(vulkan_cpu_vulkan PUBLIC VK_NO_PROTOTYPES)
