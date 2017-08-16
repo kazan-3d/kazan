@@ -272,7 +272,7 @@ int test_main(int argc, char **argv)
             nullptr);
         auto function = reinterpret_cast<void *>(
             orc_jit_stack.get_symbol_address(converted_module.entry_function_name.c_str()));
-        std::cerr << "entry point: " << converted_module.entry_function_name << ": " << function
+        std::cerr << "entry point: " << converted_module.entry_function_name << ": " << reinterpret_cast<void *>(function)
                   << std::endl;
     }
     else

@@ -568,25 +568,16 @@ struct Converted_module
 {
     llvm_wrapper::Module module;
     std::string entry_function_name;
-    std::shared_ptr<Struct_type_descriptor> io_struct;
-    std::size_t inputs_member;
     std::shared_ptr<Struct_type_descriptor> inputs_struct;
-    std::size_t outputs_member;
     std::shared_ptr<Struct_type_descriptor> outputs_struct;
     Converted_module() = default;
     explicit Converted_module(llvm_wrapper::Module module,
                               std::string entry_function_name,
-                              std::shared_ptr<Struct_type_descriptor> io_struct,
-                              std::size_t inputs_member,
                               std::shared_ptr<Struct_type_descriptor> inputs_struct,
-                              std::size_t outputs_member,
                               std::shared_ptr<Struct_type_descriptor> outputs_struct) noexcept
         : module(std::move(module)),
           entry_function_name(std::move(entry_function_name)),
-          io_struct(std::move(io_struct)),
-          inputs_member(inputs_member),
           inputs_struct(std::move(inputs_struct)),
-          outputs_member(outputs_member),
           outputs_struct(std::move(outputs_struct))
     {
     }
