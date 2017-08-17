@@ -35,7 +35,7 @@
 namespace
 {
 using namespace vulkan_cpu::util::soft_float;
-std::string hexValue(const ExtendedFloat &v)
+[[gnu::unused]] std::string hexValue(const ExtendedFloat &v)
 {
     if(v.isNaN())
     {
@@ -387,6 +387,14 @@ void mainFn()
     {
         return log10(ExtendedFloat(a));
     };
+    auto fromHalf_1 = [](std::uint16_t a, long double b) -> ExtendedFloat
+    {
+        return ExtendedFloat::fromHalfPrecision(a);
+    };
+    auto fromHalf_2 = [](std::uint16_t a, long double b) -> ExtendedFloat
+    {
+        return ExtendedFloat(b);
+    };
     const long double NaN = std::numeric_limits<long double>::quiet_NaN();
     const long double Infinity = std::numeric_limits<long double>::infinity();
     testCase("add", add1, add2, +0.0L, +0.0L);
@@ -526,6 +534,21 @@ void mainFn()
     testCase("log2", log2_1, log2_2, static_cast<long double>(ExtendedFloat::LogOf2()));
     testCase("log10", log10_1, log10_2, 1e1001L);
     testCase("log10", log10_1, log10_2, 1.5L);
+    testCase("fromHalf",
+             fromHalf_1,
+             fromHalf_2,
+             static_cast<std::uint64_t>(0x1U),
+             5.9604644775390625e-8L);
+    testCase("fromHalf",
+             fromHalf_1,
+             fromHalf_2,
+             static_cast<std::uint64_t>(0x8001U),
+             -5.9604644775390625e-8L);
+    testCase("fromHalf", fromHalf_1, fromHalf_2, static_cast<std::uint64_t>(0x3C00U), 1.0L);
+    testCase("fromHalf", fromHalf_1, fromHalf_2, static_cast<std::uint64_t>(0xBC00U), -1.0L);
+    testCase("fromHalf", fromHalf_1, fromHalf_2, static_cast<std::uint64_t>(0x7C00U), Infinity);
+    testCase("fromHalf", fromHalf_1, fromHalf_2, static_cast<std::uint64_t>(0xFC00U), -Infinity);
+    testCase("fromHalf", fromHalf_1, fromHalf_2, static_cast<std::uint64_t>(0x7C01U), NaN);
 }
 struct Init
 {

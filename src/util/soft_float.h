@@ -561,6 +561,23 @@ struct ExtendedFloat final // modeled after IEEE754 standard
         value = std::scalbn(value, 63 - static_cast<long>(exponent) + exponentBias());
         mantissa = value;
     }
+    static constexpr ExtendedFloat fromHalfPrecision(std::uint16_t value) noexcept
+    {
+        bool sign = (value & 0x8000U) != 0;
+        std::uint16_t exponentField = (value & 0x7C00U) >> 10;
+        std::uint16_t mantissaField = value & 0x3FFU;
+        if(exponentField == 0x1FU)
+        {
+            if(mantissaField != 0)
+                return NaN();
+            return Infinity(sign);
+        }
+        if(exponentField != 0)
+            mantissaField |= 0x400U; // add in implicit 1
+        else
+            exponentField = 1;
+        return ExtendedFloat(mantissaField, static_cast<int>(exponentField) - 15 - 10 + exponentBias() + 63, sign);
+    }
     explicit operator long double() const noexcept
     {
         if(exponent == infinityNaNExponent())
