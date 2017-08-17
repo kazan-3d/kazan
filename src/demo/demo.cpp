@@ -31,8 +31,8 @@
 #include "spirv/parser.h"
 #include "util/optional.h"
 #include "util/string_view.h"
-#include "spirv_to_llvm/spirv_to_llvm.h"
-#include "llvm_wrapper/llvm_wrapper.h"
+#include "pipeline/pipeline.h"
+#include "vulkan/vulkan.h"
 
 namespace vulkan_cpu
 {
@@ -219,61 +219,141 @@ int test_main(int argc, char **argv)
     auto file = load_file(filename);
     if(file)
     {
-        {
-            dump_words(*file);
-            std::cerr << std::endl;
-            spirv::Dump_callbacks dump_callbacks;
-            try
-            {
-                spirv::parse(dump_callbacks, file->data(), file->size());
-            }
-            catch(spirv::Parser_error &e)
-            {
-                std::cerr << dump_callbacks.ss.str() << std::endl;
-                std::cerr << "error: " << e.what();
-                return 1;
-            }
-            std::cerr << dump_callbacks.ss.str() << std::endl;
-        }
-        auto llvm_target_machine = llvm_wrapper::Target_machine::create_native_target_machine();
-        auto llvm_context = llvm_wrapper::Context::create();
-        std::uint64_t next_module_id = 1;
-        spirv_to_llvm::Converted_module converted_module;
+        dump_words(*file);
+        std::cerr << std::endl;
         try
         {
-            converted_module = spirv_to_llvm::spirv_to_llvm(llvm_context.get(),
-                                                            llvm_target_machine.get(),
-                                                            file->data(),
-                                                            file->size(),
-                                                            next_module_id++,
-                                                            spirv::Execution_model::vertex,
-                                                            "main");
+            VkShaderModuleCreateInfo shader_module_create_info = {
+                .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
+                .pNext = nullptr,
+                .flags = 0,
+                .codeSize = file->size() * sizeof(spirv::Word),
+                .pCode = file->data(),
+            };
+            auto shader_module = pipeline::Shader_module_handle::make(shader_module_create_info);
+            VkPipelineLayoutCreateInfo pipeline_layout_create_info = {
+                .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
+                .pNext = nullptr,
+                .flags = 0,
+                .setLayoutCount = 0,
+                .pSetLayouts = nullptr,
+                .pushConstantRangeCount = 0,
+                .pPushConstantRanges = nullptr,
+            };
+            auto pipeline_layout =
+                pipeline::Pipeline_layout_handle::make(pipeline_layout_create_info);
+            constexpr std::size_t subpass_count = 1;
+            VkSubpassDescription subpass_descriptions[subpass_count] = {
+                {
+                    .flags = 0,
+                    .pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
+                    .inputAttachmentCount = 0,
+                    .pInputAttachments = nullptr,
+                    .colorAttachmentCount = 0,
+                    .pColorAttachments = nullptr,
+                    .pResolveAttachments = nullptr,
+                    .pDepthStencilAttachment = nullptr,
+                    .preserveAttachmentCount = 0,
+                    .pPreserveAttachments = nullptr,
+                },
+            };
+            VkRenderPassCreateInfo render_pass_create_info = {
+                .sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
+                .pNext = nullptr,
+                .flags = 0,
+                .attachmentCount = 0,
+                .pAttachments = nullptr,
+                .subpassCount = subpass_count,
+                .pSubpasses = subpass_descriptions,
+                .dependencyCount = 0,
+                .pDependencies = nullptr,
+            };
+            auto render_pass = pipeline::Render_pass_handle::make(render_pass_create_info);
+            constexpr std::size_t stage_count = 1;
+            VkPipelineShaderStageCreateInfo stages[stage_count] = {
+                {
+                    .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+                    .pNext = nullptr,
+                    .flags = 0,
+                    .stage = VK_SHADER_STAGE_VERTEX_BIT,
+                    .module = pipeline::to_handle(shader_module.get()),
+                    .pName = "main",
+                    .pSpecializationInfo = nullptr,
+                },
+            };
+            VkPipelineVertexInputStateCreateInfo pipeline_vertex_input_state_create_info = {
+                .sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
+                .pNext = nullptr,
+                .flags = 0,
+                .vertexBindingDescriptionCount = 0,
+                .pVertexBindingDescriptions = nullptr,
+                .vertexAttributeDescriptionCount = 0,
+                .pVertexAttributeDescriptions = nullptr,
+            };
+            VkPipelineInputAssemblyStateCreateInfo pipeline_input_assembly_state_create_info = {
+                .sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
+                .pNext = nullptr,
+                .flags = 0,
+                .topology = VK_PRIMITIVE_TOPOLOGY_POINT_LIST,
+                .primitiveRestartEnable = false,
+            };
+            VkPipelineRasterizationStateCreateInfo pipeline_rasterization_state_create_info = {
+                .sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
+                .pNext = nullptr,
+                .flags = 0,
+                .depthClampEnable = false,
+                .rasterizerDiscardEnable = true,
+                .polygonMode = VK_POLYGON_MODE_FILL,
+                .cullMode = VK_CULL_MODE_BACK_BIT,
+                .frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE,
+                .depthBiasEnable = false,
+                .depthBiasConstantFactor = 0,
+                .depthBiasClamp = 0,
+                .depthBiasSlopeFactor = 0,
+                .lineWidth = 1,
+            };
+            VkGraphicsPipelineCreateInfo graphics_pipeline_create_info = {
+                .sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
+                .pNext = nullptr,
+                .flags = 0,
+                .stageCount = stage_count,
+                .pStages = stages,
+                .pVertexInputState = &pipeline_vertex_input_state_create_info,
+                .pInputAssemblyState = &pipeline_input_assembly_state_create_info,
+                .pTessellationState = nullptr,
+                .pViewportState = nullptr,
+                .pRasterizationState = &pipeline_rasterization_state_create_info,
+                .pMultisampleState = nullptr,
+                .pDepthStencilState = nullptr,
+                .pColorBlendState = nullptr,
+                .pDynamicState = nullptr,
+                .layout = pipeline::to_handle(pipeline_layout.get()),
+                .renderPass = pipeline::to_handle(render_pass.get()),
+                .subpass = 0,
+                .basePipelineHandle = VK_NULL_HANDLE,
+                .basePipelineIndex = -1,
+            };
+            auto graphics_pipeline =
+                pipeline::Graphics_pipeline::make(nullptr, graphics_pipeline_create_info);
+            std::cerr << "vertex_shader_output_struct_size: "
+                      << graphics_pipeline->get_vertex_shader_output_struct_size() << std::endl;
+            constexpr std::uint32_t vertex_start_index = 0;
+            constexpr std::uint32_t vertex_end_index = 3;
+            constexpr std::uint32_t instance_id = 0;
+            constexpr std::size_t vertex_count = vertex_end_index - vertex_start_index;
+            std::unique_ptr<unsigned char[]> output_buffer(
+                new unsigned char[graphics_pipeline->get_vertex_shader_output_struct_size()
+                                  * vertex_count]);
+            auto vertex_shader_function = graphics_pipeline->get_vertex_shader_function();
+            vertex_shader_function(
+                vertex_start_index, vertex_end_index, instance_id, output_buffer.get());
+            std::cerr << "shader completed" << std::endl;
         }
-        catch(spirv::Parser_error &e)
+        catch(std::runtime_error &e)
         {
-            std::cerr << "error: " << e.what();
+            std::cerr << "error: " << e.what() << std::endl;
             return 1;
         }
-        std::cerr << "Translation to LLVM succeeded." << std::endl;
-        ::LLVMDumpModule(converted_module.module.get());
-        bool failed =
-            ::LLVMVerifyModule(converted_module.module.get(), ::LLVMPrintMessageAction, nullptr);
-        if(failed)
-            return 1;
-        auto orc_jit_stack = llvm_wrapper::Orc_jit_stack::create(std::move(llvm_target_machine));
-        orc_jit_stack.add_eagerly_compiled_ir(
-            std::move(converted_module.module),
-            [](const char *symbol_name, [[gnu::unused]] void *user_data) noexcept->std::uint64_t
-            {
-                std::cerr << "resolving symbol: " << symbol_name << std::endl;
-                void *symbol = nullptr;
-                return reinterpret_cast<std::uintptr_t>(symbol);
-            },
-            nullptr);
-        auto function = reinterpret_cast<void *>(
-            orc_jit_stack.get_symbol_address(converted_module.entry_function_name.c_str()));
-        std::cerr << "entry point: " << converted_module.entry_function_name << ": " << reinterpret_cast<void *>(function)
-                  << std::endl;
     }
     else
     {

@@ -27,86 +27,138 @@
 #include <cstdint>
 #include <utility>
 #include <cassert>
+#include <cstring>
 #include "llvm_wrapper/llvm_wrapper.h"
 #include "vulkan/vulkan.h"
+#include "spirv/spirv.h"
 
 namespace vulkan_cpu
 {
 namespace pipeline
 {
-class Pipeline_cache;
-
-class Pipeline_cache_handle
+template <typename T>
+struct Api_object_deleter
 {
-private:
-    static void destroy(Pipeline_cache *value) noexcept;
-
-public:
-    explicit Pipeline_cache_handle(Pipeline_cache *value) noexcept : value(value)
-    {
-    }
-    constexpr Pipeline_cache_handle() noexcept : value(nullptr)
-    {
-    }
-    Pipeline_cache_handle(Pipeline_cache_handle &&rt) noexcept : value(rt.value)
-    {
-        rt.value = nullptr;
-    }
-    Pipeline_cache_handle &operator=(Pipeline_cache_handle rt) noexcept
-    {
-        swap(rt);
-        return *this;
-    }
-    ~Pipeline_cache_handle() noexcept
-    {
-        if(value)
-            destroy(value);
-    }
-    void swap(Pipeline_cache_handle &rt) noexcept
-    {
-        using std::swap;
-        swap(value, rt.value);
-    }
-    static Pipeline_cache *from_handle(VkPipelineCache pipeline_cache) noexcept
-    {
-        return reinterpret_cast<Pipeline_cache *>(pipeline_cache);
-    }
-    static Pipeline_cache_handle move_from_handle(VkPipelineCache pipeline_cache) noexcept
-    {
-        return Pipeline_cache_handle(from_handle(pipeline_cache));
-    }
-    Pipeline_cache *get() const noexcept
-    {
-        return value;
-    }
-    Pipeline_cache *release() noexcept
-    {
-        auto retval = value;
-        value = nullptr;
-        return retval;
-    }
-    Pipeline_cache *operator->() const noexcept
-    {
-        assert(value);
-        return value;
-    }
-    Pipeline_cache &operator*() const noexcept
-    {
-        return *operator->();
-    }
-
-private:
-    Pipeline_cache *value;
+    void operator()(T *) const noexcept = delete;
+    typedef void Vulkan_handle;
+    typedef void Create_info;
 };
 
-inline VkPipelineCache to_handle(Pipeline_cache *pipeline_cache) noexcept
+template <typename Object_>
+struct Api_object_handle : public std::unique_ptr<Object_, Api_object_deleter<Object_>>
 {
-    return reinterpret_cast<VkPipelineCache>(pipeline_cache);
+    typedef typename Api_object_deleter<Object_>::Vulkan_handle Vulkan_handle;
+    typedef typename Api_object_deleter<Object_>::Create_info Create_info;
+    typedef Object_ Object;
+    using std::unique_ptr<Object_, Api_object_deleter<Object_>>::unique_ptr;
+    static Object *from_handle(Vulkan_handle vulkan_handle) noexcept
+    {
+        return reinterpret_cast<Object *>(vulkan_handle);
+    }
+    static Api_object_handle move_from_handle(Vulkan_handle vulkan_handle) noexcept
+    {
+        return Api_object_handle(from_handle(vulkan_handle));
+    }
+    static Api_object_handle make(const Create_info &create_info);
+};
+
+template <typename Object>
+inline typename Api_object_deleter<Object>::Vulkan_handle to_handle(Object *object) noexcept
+{
+    static_assert(!std::is_void<typename Api_object_deleter<Object>::Vulkan_handle>::value, "");
+    return reinterpret_cast<typename Api_object_deleter<Object>::Vulkan_handle>(object);
 }
 
-inline VkPipelineCache move_to_handle(Pipeline_cache_handle pipeline_cache) noexcept
+template <typename Object>
+inline typename Api_object_deleter<Object>::Vulkan_handle move_to_handle(
+    Api_object_handle<Object> object) noexcept
 {
-    return to_handle(pipeline_cache.release());
+    return to_handle(object.release());
+}
+
+class Pipeline_cache;
+
+template <>
+struct Api_object_deleter<Pipeline_cache>
+{
+    void operator()(Pipeline_cache *pipeline_cache) const noexcept;
+    typedef VkPipelineCache Vulkan_handle;
+    typedef VkPipelineCacheCreateInfo Create_info;
+};
+
+typedef Api_object_handle<Pipeline_cache> Pipeline_cache_handle;
+
+class Render_pass;
+
+template <>
+struct Api_object_deleter<Render_pass>
+{
+    void operator()(Render_pass *render_pass) const noexcept;
+    typedef VkRenderPass Vulkan_handle;
+    typedef VkRenderPassCreateInfo Create_info;
+};
+
+typedef Api_object_handle<Render_pass> Render_pass_handle;
+
+class Pipeline_layout;
+
+template <>
+struct Api_object_deleter<Pipeline_layout>
+{
+    void operator()(Pipeline_layout *pipeline_layout) const noexcept;
+    typedef VkPipelineLayout Vulkan_handle;
+    typedef VkPipelineLayoutCreateInfo Create_info;
+};
+
+typedef Api_object_handle<Pipeline_layout> Pipeline_layout_handle;
+
+struct Shader_module
+{
+    std::shared_ptr<unsigned char> bytes;
+    std::size_t byte_count;
+    Shader_module(std::shared_ptr<unsigned char> bytes, std::size_t byte_count) noexcept
+        : bytes(std::move(bytes)),
+          byte_count(byte_count)
+    {
+    }
+    const spirv::Word *words() const noexcept
+    {
+        return reinterpret_cast<const spirv::Word *>(bytes.get());
+    }
+    std::size_t word_count() const noexcept
+    {
+        assert(byte_count % sizeof(spirv::Word) == 0);
+        return byte_count / sizeof(spirv::Word);
+    }
+};
+
+template <>
+struct Api_object_deleter<Shader_module>
+{
+    void operator()(Shader_module *shader_module) const noexcept
+    {
+        delete shader_module;
+    }
+    typedef VkShaderModule Vulkan_handle;
+    typedef VkShaderModuleCreateInfo Create_info;
+};
+
+typedef Api_object_handle<Shader_module> Shader_module_handle;
+
+template <>
+inline Shader_module_handle Shader_module_handle::make(const VkShaderModuleCreateInfo &create_info)
+{
+    struct Code_deleter
+    {
+        void operator()(unsigned char *bytes) const noexcept
+        {
+            delete[] bytes;
+        }
+    };
+    auto bytes =
+        std::shared_ptr<unsigned char>(new unsigned char[create_info.codeSize], Code_deleter{});
+    std::memcpy(bytes.get(), create_info.pCode, create_info.codeSize);
+    return Shader_module_handle(new Shader_module(std::move(bytes), create_info.codeSize));
 }
 
 class Pipeline
@@ -141,6 +193,9 @@ inline VkPipeline move_to_handle(std::unique_ptr<Pipeline> pipeline) noexcept
 
 class Graphics_pipeline final : public Pipeline
 {
+private:
+    struct Implementation;
+
 public:
 #warning finish adding draw function parameters
     typedef void (*Vertex_shader_function)(std::uint32_t vertex_start_index,
@@ -149,9 +204,13 @@ public:
                                            void *output_buffer);
 
 public:
-    const Vertex_shader_function get_vertex_shader_function() const noexcept
+    Vertex_shader_function get_vertex_shader_function() const noexcept
     {
         return vertex_shader_function;
+    }
+    std::size_t get_vertex_shader_output_struct_size() const noexcept
+    {
+        return vertex_shader_output_struct_size;
     }
     static std::unique_ptr<Graphics_pipeline> make(Pipeline_cache *pipeline_cache,
                                                    const VkGraphicsPipelineCreateInfo &create_info);
@@ -167,16 +226,19 @@ public:
     }
 
 private:
-    Graphics_pipeline(std::shared_ptr<void> state,
-                      Vertex_shader_function vertex_shader_function) noexcept
-        : state(std::move(state)),
-          vertex_shader_function(vertex_shader_function)
+    Graphics_pipeline(std::shared_ptr<Implementation> implementation,
+                      Vertex_shader_function vertex_shader_function,
+                      std::size_t vertex_shader_output_struct_size) noexcept
+        : implementation(std::move(implementation)),
+          vertex_shader_function(vertex_shader_function),
+          vertex_shader_output_struct_size(vertex_shader_output_struct_size)
     {
     }
 
 private:
-    std::shared_ptr<void> state;
+    std::shared_ptr<Implementation> implementation;
     Vertex_shader_function vertex_shader_function;
+    std::size_t vertex_shader_output_struct_size;
 };
 
 inline VkPipeline to_handle(Graphics_pipeline *pipeline) noexcept

@@ -570,16 +570,34 @@ struct Converted_module
     std::string entry_function_name;
     std::shared_ptr<Struct_type_descriptor> inputs_struct;
     std::shared_ptr<Struct_type_descriptor> outputs_struct;
+    spirv::Execution_model execution_model;
     Converted_module() = default;
     explicit Converted_module(llvm_wrapper::Module module,
                               std::string entry_function_name,
                               std::shared_ptr<Struct_type_descriptor> inputs_struct,
-                              std::shared_ptr<Struct_type_descriptor> outputs_struct) noexcept
+                              std::shared_ptr<Struct_type_descriptor> outputs_struct,
+                              spirv::Execution_model execution_model) noexcept
         : module(std::move(module)),
           entry_function_name(std::move(entry_function_name)),
           inputs_struct(std::move(inputs_struct)),
-          outputs_struct(std::move(outputs_struct))
+          outputs_struct(std::move(outputs_struct)),
+          execution_model(execution_model)
     {
+    }
+};
+
+struct Jit_symbol_resolver
+{
+    typedef void (*Resolved_symbol)();
+    Resolved_symbol resolve(const char *name)
+    {
+#warning finish implementing
+        return nullptr;
+    }
+    static std::uint64_t resolve(const char *name, void *user_data) noexcept
+    {
+        return reinterpret_cast<std::uint64_t>(
+            static_cast<Jit_symbol_resolver *>(user_data)->resolve(name));
     }
 };
 

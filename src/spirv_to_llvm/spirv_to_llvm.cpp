@@ -1590,7 +1590,8 @@ public:
         return Converted_module(std::move(module),
                                 std::move(entry_function_name),
                                 std::move(inputs_struct),
-                                std::move(outputs_struct));
+                                std::move(outputs_struct),
+                                execution_model);
     }
     virtual void handle_header(unsigned version_number_major,
                                unsigned version_number_minor,
