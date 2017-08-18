@@ -101,7 +101,7 @@ public:
 
 struct LLVM_string_deleter
 {
-    void operator()(char *str)
+    void operator()(char *str) const noexcept
     {
         ::LLVMDisposeMessage(str);
     }
@@ -149,7 +149,7 @@ public:
 
 struct Context_deleter
 {
-    void operator()(::LLVMContextRef context) noexcept
+    void operator()(::LLVMContextRef context) const noexcept
     {
         ::LLVMContextDispose(context);
     }
@@ -177,7 +177,7 @@ public:
 
 struct Target_deleter
 {
-    void operator()(::LLVMTargetRef target) noexcept
+    void operator()(::LLVMTargetRef target) const noexcept
     {
         static_cast<void>(target);
     }
@@ -220,7 +220,7 @@ struct Target : public Wrapper<::LLVMTargetRef, Target_deleter>
 
 struct Target_data_deleter
 {
-    void operator()(::LLVMTargetDataRef v) noexcept
+    void operator()(::LLVMTargetDataRef v) const noexcept
     {
         ::LLVMDisposeTargetData(v);
     }
@@ -250,7 +250,7 @@ struct Target_data : public Wrapper<::LLVMTargetDataRef, Target_data_deleter>
 
 struct Target_machine_deleter
 {
-    void operator()(::LLVMTargetMachineRef tm) noexcept
+    void operator()(::LLVMTargetMachineRef tm) const noexcept
     {
         ::LLVMDisposeTargetMachine(tm);
     }
@@ -304,7 +304,7 @@ struct Target_machine : public Wrapper<::LLVMTargetMachineRef, Target_machine_de
 
 struct Module_deleter
 {
-    void operator()(::LLVMModuleRef module) noexcept
+    void operator()(::LLVMModuleRef module) const noexcept
     {
         ::LLVMDisposeModule(module);
     }
@@ -341,7 +341,7 @@ inline LLVM_string print_type_to_string(::LLVMTypeRef type)
 
 struct Builder_deleter
 {
-    void operator()(::LLVMBuilderRef v) noexcept
+    void operator()(::LLVMBuilderRef v) const noexcept
     {
         return ::LLVMDisposeBuilder(v);
     }
@@ -401,7 +401,7 @@ inline ::LLVMTypeRef get_scalar_or_vector_element_type(::LLVMTypeRef type)
 #if LLVM_WRAPPER_ORC_REVISION_NUMBER >= 306166
 struct Orc_shared_module_ref_deleter
 {
-    void operator()(::LLVMSharedModuleRef v) noexcept
+    void operator()(::LLVMSharedModuleRef v) const noexcept
     {
         ::LLVMOrcDisposeSharedModuleRef(v);
     }
@@ -419,7 +419,7 @@ struct Orc_shared_module_ref : public Wrapper<::LLVMSharedModuleRef, Orc_shared_
 
 struct Orc_jit_stack_deleter
 {
-    void operator()(::LLVMOrcJITStackRef v) noexcept
+    void operator()(::LLVMOrcJITStackRef v) const noexcept
     {
         ::LLVMOrcDisposeInstance(v);
     }

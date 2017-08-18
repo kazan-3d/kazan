@@ -341,13 +341,19 @@ int test_main(int argc, char **argv)
             constexpr std::uint32_t vertex_end_index = 3;
             constexpr std::uint32_t instance_id = 0;
             constexpr std::size_t vertex_count = vertex_end_index - vertex_start_index;
-            std::unique_ptr<unsigned char[]> output_buffer(
-                new unsigned char[graphics_pipeline->get_vertex_shader_output_struct_size()
-                                  * vertex_count]);
-            auto vertex_shader_function = graphics_pipeline->get_vertex_shader_function();
-            vertex_shader_function(
+            std::size_t output_buffer_size =
+                graphics_pipeline->get_vertex_shader_output_struct_size() * vertex_count;
+            std::unique_ptr<unsigned char[]> output_buffer(new unsigned char[output_buffer_size]);
+            for(std::size_t i = 0; i < output_buffer_size; i++)
+                output_buffer[i] = 0;
+            graphics_pipeline->run_vertex_shader(
                 vertex_start_index, vertex_end_index, instance_id, output_buffer.get());
             std::cerr << "shader completed" << std::endl;
+            for(std::size_t i = 0; i < vertex_count; i++)
+            {
+                graphics_pipeline->dump_vertex_shader_output_struct(output_buffer.get()
+                                                                    + graphics_pipeline->get_vertex_shader_output_struct_size() * i);
+            }
         }
         catch(std::runtime_error &e)
         {

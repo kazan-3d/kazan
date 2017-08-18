@@ -20,7 +20,8 @@
 #
 cmake_minimum_required(VERSION 3.1 FATAL_ERROR)
 
-set(sources llvm_wrapper.cpp)
+set(sources llvm_wrapper.cpp
+            orc_compile_stack.cpp)
 add_library(vulkan_cpu_llvm_wrapper STATIC ${sources})
 if(0)
 llvm_map_components_to_libnames(llvm_libraries core native analysis orcjit mcjit nativecodegen)
