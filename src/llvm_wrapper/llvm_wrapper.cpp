@@ -25,6 +25,7 @@
 #include <llvm/ExecutionEngine/SectionMemoryManager.h>
 #include <llvm-c/ExecutionEngine.h>
 #include <llvm/IR/DataLayout.h>
+#include <llvm/Target/TargetMachine.h>
 #include <iostream>
 #include <cstdlib>
 #include <algorithm>
@@ -33,6 +34,12 @@ namespace vulkan_cpu
 {
 namespace llvm_wrapper
 {
+// implement the unwrap functions that aren't in public llvm headers
+static llvm::TargetMachine *unwrap(::LLVMTargetMachineRef v) noexcept
+{
+    return reinterpret_cast<llvm::TargetMachine *>(v);
+}
+
 void Context::init_helper()
 {
     if(!::LLVMIsMultithreaded())
@@ -92,16 +99,32 @@ std::size_t Target_data::get_pointer_alignment(::LLVMTargetDataRef td) noexcept
     return llvm::unwrap(td)->getPointerABIAlignment(0);
 }
 
-Target_machine Target_machine::create_native_target_machine()
+Target_machine Target_machine::create_native_target_machine(::LLVMCodeGenOptLevel code_gen_level)
 {
     auto target = Target::get_native_target();
     return Target_machine(::LLVMCreateTargetMachine(target.get(),
                                                     Target::get_process_target_triple().get(),
                                                     Target::get_host_cpu_name().get(),
                                                     Target::get_host_cpu_features().get(),
-                                                    ::LLVMCodeGenLevelDefault,
+                                                    code_gen_level,
                                                     ::LLVMRelocDefault,
                                                     ::LLVMCodeModelJITDefault));
+}
+
+::LLVMCodeGenOptLevel Target_machine::get_code_gen_opt_level(::LLVMTargetMachineRef tm) noexcept
+{
+    switch(unwrap(tm)->getOptLevel())
+    {
+    case llvm::CodeGenOpt::Level::None:
+        return ::LLVMCodeGenLevelNone;
+    case llvm::CodeGenOpt::Level::Less:
+        return ::LLVMCodeGenLevelLess;
+    case llvm::CodeGenOpt::Level::Default:
+        return ::LLVMCodeGenLevelDefault;
+    case llvm::CodeGenOpt::Level::Aggressive:
+        return ::LLVMCodeGenLevelAggressive;
+    }
+    return ::LLVMCodeGenLevelDefault;
 }
 
 void Module::set_target_machine(::LLVMModuleRef module, ::LLVMTargetMachineRef target_machine)

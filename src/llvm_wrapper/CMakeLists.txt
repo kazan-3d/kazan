@@ -29,3 +29,4 @@ else()
 set(llvm_libraries LLVM)
 endif()
 target_link_libraries(vulkan_cpu_llvm_wrapper util ${llvm_libraries})
+set_source_files_properties(orc_compile_stack.cpp PROPERTIES COMPILE_FLAGS -fno-rtti) # prevent link errors with missing type info

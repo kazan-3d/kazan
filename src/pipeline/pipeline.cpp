@@ -23,6 +23,7 @@
 #include "pipeline.h"
 #include "spirv_to_llvm/spirv_to_llvm.h"
 #include "llvm_wrapper/llvm_wrapper.h"
+#include "llvm_wrapper/orc_compile_stack.h"
 #include "vulkan/util.h"
 #include "util/soft_float.h"
 #include "json/json.h"
@@ -78,11 +79,31 @@ Pipeline_layout_handle Pipeline_layout_handle::make(
     return Pipeline_layout_handle(new Pipeline_layout());
 }
 
+llvm_wrapper::Module Pipeline::optimize_module(llvm_wrapper::Module module,
+                                               ::LLVMTargetMachineRef target_machine)
+{
+    switch(llvm_wrapper::Target_machine::get_code_gen_opt_level(target_machine))
+    {
+    case ::LLVMCodeGenLevelNone:
+    case ::LLVMCodeGenLevelLess:
+        break;
+    case ::LLVMCodeGenLevelDefault:
+    case ::LLVMCodeGenLevelAggressive:
+    {
+#warning finish implementing module optimizations
+        std::cerr << "optimized module:" << std::endl;
+        ::LLVMDumpModule(module.get());
+        break;
+    }
+    }
+    return module;
+}
+
 struct Graphics_pipeline::Implementation
 {
     llvm_wrapper::Context llvm_context = llvm_wrapper::Context::create();
     spirv_to_llvm::Jit_symbol_resolver jit_symbol_resolver;
-    llvm_wrapper::Orc_jit_stack jit_stack;
+    llvm_wrapper::Orc_compile_stack jit_stack;
     llvm_wrapper::Target_data data_layout;
     std::vector<spirv_to_llvm::Converted_module> compiled_shaders;
     std::shared_ptr<spirv_to_llvm::Struct_type_descriptor> vertex_shader_output_struct;
@@ -354,7 +375,11 @@ std::unique_ptr<Graphics_pipeline> Graphics_pipeline::make(
         throw std::runtime_error("creating derived pipelines is not implemented");
     }
     auto implementation = std::make_shared<Implementation>();
-    auto llvm_target_machine = llvm_wrapper::Target_machine::create_native_target_machine();
+    auto optimization_level = ::LLVMCodeGenLevelDefault;
+    if(create_info.flags & VK_PIPELINE_CREATE_DISABLE_OPTIMIZATION_BIT)
+        optimization_level = ::LLVMCodeGenLevelNone;
+    auto llvm_target_machine =
+        llvm_wrapper::Target_machine::create_native_target_machine(optimization_level);
     implementation->compiled_shaders.reserve(create_info.stageCount);
     for(std::size_t i = 0; i < create_info.stageCount; i++)
     {
@@ -394,7 +419,8 @@ std::unique_ptr<Graphics_pipeline> Graphics_pipeline::make(
         implementation->compiled_shaders.push_back(std::move(compiled_shader));
     }
     implementation->data_layout = llvm_target_machine.create_target_data_layout();
-    implementation->jit_stack = llvm_wrapper::Orc_jit_stack::create(std::move(llvm_target_machine));
+    implementation->jit_stack =
+        llvm_wrapper::Orc_compile_stack::create(std::move(llvm_target_machine), optimize_module);
     Vertex_shader_function vertex_shader_function = nullptr;
     std::size_t vertex_shader_output_struct_size = 0;
     for(auto &compiled_shader : implementation->compiled_shaders)

@@ -24,6 +24,9 @@
 #define LLVM_WRAPPER_ORC_COMPILE_STACK_H_
 
 #include "llvm_wrapper.h"
+#include <string>
+#include <utility>
+#include <functional>
 
 namespace vulkan_cpu
 {
@@ -41,31 +44,35 @@ struct Orc_compile_stack_deleter
 struct Orc_compile_stack : public Wrapper<Orc_compile_stack_ref, Orc_compile_stack_deleter>
 {
     using Wrapper::Wrapper;
-    static Orc_compile_stack create(Target_machine target_machine);
-    static void add_eagerly_compiled_ir(Orc_compile_stack_ref orc_compile_stack,
-                                        Module module,
-                                        ::LLVMOrcSymbolResolverFn symbol_resolver_callback,
-                                        void *symbol_resolver_user_data);
-    void add_eagerly_compiled_ir(Module module,
-                                 ::LLVMOrcSymbolResolverFn symbol_resolver_callback,
-                                 void *symbol_resolver_user_data)
+    typedef std::uintptr_t (*Symbol_resolver_callback)(const std::string &name, void *user_data);
+    typedef std::uint64_t Module_handle;
+    typedef std::function<Module(Module, ::LLVMTargetMachineRef target_machine)> Optimize_function;
+    static Orc_compile_stack create(Target_machine target_machine,
+                                    Optimize_function optimize_function = nullptr);
+    static Module_handle add_eagerly_compiled_ir(Orc_compile_stack_ref orc_compile_stack,
+                                                 Module module,
+                                                 Symbol_resolver_callback symbol_resolver_callback,
+                                                 void *symbol_resolver_user_data);
+    Module_handle add_eagerly_compiled_ir(Module module,
+                                          Symbol_resolver_callback symbol_resolver_callback,
+                                          void *symbol_resolver_user_data)
     {
-        add_eagerly_compiled_ir(
+        return add_eagerly_compiled_ir(
             get(), std::move(module), symbol_resolver_callback, symbol_resolver_user_data);
     }
     static std::uintptr_t get_symbol_address(Orc_compile_stack_ref orc_compile_stack,
-                                             const char *symbol_name);
+                                             const std::string &symbol_name);
     template <typename T>
-    static T *get_symbol(Orc_compile_stack_ref orc_compile_stack, const char *symbol_name)
+    static T *get_symbol(Orc_compile_stack_ref orc_compile_stack, const std::string &symbol_name)
     {
         return reinterpret_cast<T *>(get_symbol_address(orc_compile_stack, symbol_name));
     }
-    std::uintptr_t get_symbol_address(const char *symbol_name)
+    std::uintptr_t get_symbol_address(const std::string &symbol_name)
     {
         return get_symbol_address(get(), symbol_name);
     }
     template <typename T>
-    T *get_symbol(const char *symbol_name)
+    T *get_symbol(const std::string &symbol_name)
     {
         return get_symbol<T>(get(), symbol_name);
     }

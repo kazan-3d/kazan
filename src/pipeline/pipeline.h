@@ -179,6 +179,10 @@ public:
     {
         return reinterpret_cast<Pipeline *>(pipeline);
     }
+
+protected:
+    static llvm_wrapper::Module optimize_module(llvm_wrapper::Module module,
+                                                ::LLVMTargetMachineRef target_machine);
 };
 
 inline VkPipeline to_handle(Pipeline *pipeline) noexcept

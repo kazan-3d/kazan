@@ -33,6 +33,7 @@
 #include <utility>
 #include <cstddef>
 #include "llvm_wrapper/llvm_wrapper.h"
+#include "util/string_view.h"
 
 namespace vulkan_cpu
 {
@@ -589,7 +590,7 @@ struct Converted_module
 struct Jit_symbol_resolver
 {
     typedef void (*Resolved_symbol)();
-    Resolved_symbol resolve(const char *name)
+    Resolved_symbol resolve(util::string_view name)
     {
 #warning finish implementing
         return nullptr;
@@ -597,6 +598,11 @@ struct Jit_symbol_resolver
     static std::uint64_t resolve(const char *name, void *user_data) noexcept
     {
         return reinterpret_cast<std::uint64_t>(
+            static_cast<Jit_symbol_resolver *>(user_data)->resolve(name));
+    }
+    static std::uintptr_t resolve(const std::string &name, void *user_data) noexcept
+    {
+        return reinterpret_cast<std::uintptr_t>(
             static_cast<Jit_symbol_resolver *>(user_data)->resolve(name));
     }
 };

@@ -259,7 +259,8 @@ struct Target_machine_deleter
 struct Target_machine : public Wrapper<::LLVMTargetMachineRef, Target_machine_deleter>
 {
     using Wrapper::Wrapper;
-    static Target_machine create_native_target_machine();
+    static Target_machine create_native_target_machine(
+        ::LLVMCodeGenOptLevel code_gen_level = ::LLVMCodeGenLevelDefault);
     static Target get_target(::LLVMTargetMachineRef tm)
     {
         return Target(::LLVMGetTargetMachineTarget(tm));
@@ -299,6 +300,11 @@ struct Target_machine : public Wrapper<::LLVMTargetMachineRef, Target_machine_de
     LLVM_string get_feature_string() const
     {
         return get_feature_string(get());
+    }
+    static ::LLVMCodeGenOptLevel get_code_gen_opt_level(::LLVMTargetMachineRef tm) noexcept;
+    ::LLVMCodeGenOptLevel get_code_gen_opt_level() const noexcept
+    {
+        return get_code_gen_opt_level(get());
     }
 };
 
@@ -649,7 +655,7 @@ struct Create_llvm_type<T[N]>
     }
 };
 
-template <typename Return_type, typename ...Args>
+template <typename Return_type, typename... Args>
 struct Create_llvm_type<Return_type (*)(Args...)>
 {
     ::LLVMTypeRef operator()(::LLVMContextRef context) const
