@@ -5255,11 +5255,27 @@ void Spirv_to_llvm::handle_instruction_op_u_mod(Op_u_mod instruction,
 void Spirv_to_llvm::handle_instruction_op_s_rem(Op_s_rem instruction,
                                                 std::size_t instruction_start_index)
 {
-#warning finish
-    throw Parser_error(instruction_start_index,
-                       instruction_start_index,
-                       "instruction not implemented: "
-                           + std::string(get_enumerant_name(instruction.get_operation())));
+    switch(stage)
+    {
+    case Stage::calculate_types:
+        break;
+    case Stage::generate_code:
+    {
+        auto &state = get_id_state(instruction.result);
+        if(!state.decorations.empty())
+            throw Parser_error(instruction_start_index,
+                               instruction_start_index,
+                               "decorations on instruction not implemented: "
+                                   + std::string(get_enumerant_name(instruction.get_operation())));
+        auto result_type = get_type(instruction.result_type, instruction_start_index);
+        state.value = Value(::LLVMBuildSRem(builder.get(),
+                                            get_id_state(instruction.operand_1).value.value().value,
+                                            get_id_state(instruction.operand_2).value.value().value,
+                                            get_name(instruction.result).c_str()),
+                            result_type);
+        break;
+    }
+    }
 }
 
 void Spirv_to_llvm::handle_instruction_op_s_mod(Op_s_mod instruction,

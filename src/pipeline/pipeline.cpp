@@ -91,6 +91,48 @@ llvm_wrapper::Module Pipeline::optimize_module(llvm_wrapper::Module module,
     case ::LLVMCodeGenLevelAggressive:
     {
 #warning finish implementing module optimizations
+        {
+            auto manager = llvm_wrapper::Pass_manager::create_function_pass_manager(module.get());
+            ::LLVMAddPromoteMemoryToRegisterPass(manager.get());
+            ::LLVMAddScalarReplAggregatesPass(manager.get());
+            ::LLVMAddScalarizerPass(manager.get());
+            ::LLVMAddEarlyCSEMemSSAPass(manager.get());
+            ::LLVMAddSCCPPass(manager.get());
+            ::LLVMAddAggressiveDCEPass(manager.get());
+            ::LLVMAddLICMPass(manager.get());
+            ::LLVMAddCFGSimplificationPass(manager.get());
+            ::LLVMAddReassociatePass(manager.get());
+            ::LLVMAddInstructionCombiningPass(manager.get());
+            ::LLVMAddNewGVNPass(manager.get());
+            ::LLVMAddCorrelatedValuePropagationPass(manager.get());
+            ::LLVMInitializeFunctionPassManager(manager.get());
+            for(auto fn = ::LLVMGetFirstFunction(module.get()); fn; fn = ::LLVMGetNextFunction(fn))
+                ::LLVMRunFunctionPassManager(manager.get(), fn);
+            ::LLVMFinalizeFunctionPassManager(manager.get());
+        }
+        {
+            auto manager = llvm_wrapper::Pass_manager::create_module_pass_manager();
+            ::LLVMAddIPSCCPPass(manager.get());
+            ::LLVMAddFunctionInliningPass(manager.get());
+            ::LLVMAddDeadArgEliminationPass(manager.get());
+            ::LLVMAddGlobalDCEPass(manager.get());
+            ::LLVMRunPassManager(manager.get(), module.get());
+        }
+        {
+            auto manager = llvm_wrapper::Pass_manager::create_function_pass_manager(module.get());
+            ::LLVMAddCFGSimplificationPass(manager.get());
+            ::LLVMAddPromoteMemoryToRegisterPass(manager.get());
+            ::LLVMAddScalarReplAggregatesPass(manager.get());
+            ::LLVMAddReassociatePass(manager.get());
+            ::LLVMAddInstructionCombiningPass(manager.get());
+            ::LLVMAddLoopUnrollPass(manager.get());
+            ::LLVMAddSLPVectorizePass(manager.get());
+            ::LLVMAddAggressiveDCEPass(manager.get());
+            ::LLVMInitializeFunctionPassManager(manager.get());
+            for(auto fn = ::LLVMGetFirstFunction(module.get()); fn; fn = ::LLVMGetNextFunction(fn))
+                ::LLVMRunFunctionPassManager(manager.get(), fn);
+            ::LLVMFinalizeFunctionPassManager(manager.get());
+        }
         std::cerr << "optimized module:" << std::endl;
         ::LLVMDumpModule(module.get());
         break;

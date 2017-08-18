@@ -28,6 +28,9 @@
 #include <llvm-c/TargetMachine.h>
 #include <llvm-c/OrcBindings.h>
 #include <llvm-c/Analysis.h>
+#include <llvm-c/Transforms/IPO.h>
+#include <llvm-c/Transforms/Scalar.h>
+#include <llvm-c/Transforms/Vectorize.h>
 #include <memory>
 #include <type_traits>
 #include <utility>
@@ -365,6 +368,14 @@ struct Builder : public Wrapper<::LLVMBuilderRef, Builder_deleter>
                                      ::LLVMValueRef rhs,
                                      const char *result_name)
     {
+        if(::LLVMGetValueKind(rhs) == ::LLVMConstantIntValueKind)
+        {
+            unsigned long long value = ::LLVMConstIntGetZExtValue(rhs);
+            if(value == 0)
+                return ::LLVMGetUndef(::LLVMTypeOf(rhs));
+            if((value & (value - 1)) == 0)
+                return ::LLVMBuildAnd(builder, lhs, ::LLVMConstInt(::LLVMTypeOf(rhs), value - 1, false), result_name);
+        }
         auto srem_result = ::LLVMBuildSRem(builder, lhs, rhs, "");
         auto zero_constant = ::LLVMConstInt(::LLVMTypeOf(lhs), 0, false);
         auto different_signs = ::LLVMBuildICmp(
@@ -382,6 +393,27 @@ struct Builder : public Wrapper<::LLVMBuilderRef, Builder_deleter>
     ::LLVMValueRef build_smod(::LLVMValueRef lhs, ::LLVMValueRef rhs, const char *result_name) const
     {
         return build_smod(get(), lhs, rhs, result_name);
+    }
+};
+
+struct Pass_manager_deleter
+{
+    void operator()(::LLVMPassManagerRef v) const noexcept
+    {
+        ::LLVMDisposePassManager(v);
+    }
+};
+
+struct Pass_manager : public Wrapper<::LLVMPassManagerRef, Pass_manager_deleter>
+{
+    using Wrapper::Wrapper;
+    static Pass_manager create_module_pass_manager()
+    {
+        return Pass_manager(::LLVMCreatePassManager());
+    }
+    static Pass_manager create_function_pass_manager(::LLVMModuleRef module)
+    {
+        return Pass_manager(::LLVMCreateFunctionPassManagerForModule(module));
     }
 };
 
