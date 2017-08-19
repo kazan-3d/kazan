@@ -26,6 +26,7 @@
 #include <llvm-c/ExecutionEngine.h>
 #include <llvm/IR/DataLayout.h>
 #include <llvm/Target/TargetMachine.h>
+#include <llvm/Analysis/TargetTransformInfo.h>
 #include <iostream>
 #include <cstdlib>
 #include <algorithm>
@@ -125,6 +126,17 @@ Target_machine Target_machine::create_native_target_machine(::LLVMCodeGenOptLeve
         return ::LLVMCodeGenLevelAggressive;
     }
     return ::LLVMCodeGenLevelDefault;
+}
+
+unsigned Target_machine::get_biggest_vector_register_bit_width(::LLVMTargetMachineRef tm,
+                                                               ::LLVMValueRef function)
+{
+    auto unwrapped_function = llvm::unwrap<llvm::Function>(function);
+    llvm::FunctionAnalysisManager function_analysis_manager;
+    return unwrap(tm)
+        ->getTargetIRAnalysis()
+        .run(*unwrapped_function, function_analysis_manager)
+        .getRegisterBitWidth(true);
 }
 
 void Module::set_target_machine(::LLVMModuleRef module, ::LLVMTargetMachineRef target_machine)

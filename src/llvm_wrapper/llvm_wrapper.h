@@ -309,6 +309,12 @@ struct Target_machine : public Wrapper<::LLVMTargetMachineRef, Target_machine_de
     {
         return get_code_gen_opt_level(get());
     }
+    static unsigned get_biggest_vector_register_bit_width(::LLVMTargetMachineRef tm,
+                                                          ::LLVMValueRef function);
+    unsigned get_biggest_vector_register_bit_width(::LLVMValueRef function) const
+    {
+        return get_biggest_vector_register_bit_width(get(), function);
+    }
 };
 
 struct Module_deleter
@@ -374,7 +380,8 @@ struct Builder : public Wrapper<::LLVMBuilderRef, Builder_deleter>
             if(value == 0)
                 return ::LLVMGetUndef(::LLVMTypeOf(rhs));
             if((value & (value - 1)) == 0)
-                return ::LLVMBuildAnd(builder, lhs, ::LLVMConstInt(::LLVMTypeOf(rhs), value - 1, false), result_name);
+                return ::LLVMBuildAnd(
+                    builder, lhs, ::LLVMConstInt(::LLVMTypeOf(rhs), value - 1, false), result_name);
         }
         auto srem_result = ::LLVMBuildSRem(builder, lhs, rhs, "");
         auto zero_constant = ::LLVMConstInt(::LLVMTypeOf(lhs), 0, false);

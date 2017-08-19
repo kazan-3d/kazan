@@ -93,6 +93,7 @@ llvm_wrapper::Module Pipeline::optimize_module(llvm_wrapper::Module module,
 #warning finish implementing module optimizations
         {
             auto manager = llvm_wrapper::Pass_manager::create_function_pass_manager(module.get());
+            ::LLVMAddAnalysisPasses(target_machine, manager.get());
             ::LLVMAddPromoteMemoryToRegisterPass(manager.get());
             ::LLVMAddScalarReplAggregatesPass(manager.get());
             ::LLVMAddScalarizerPass(manager.get());
@@ -112,6 +113,7 @@ llvm_wrapper::Module Pipeline::optimize_module(llvm_wrapper::Module module,
         }
         {
             auto manager = llvm_wrapper::Pass_manager::create_module_pass_manager();
+            ::LLVMAddAnalysisPasses(target_machine, manager.get());
             ::LLVMAddIPSCCPPass(manager.get());
             ::LLVMAddFunctionInliningPass(manager.get());
             ::LLVMAddDeadArgEliminationPass(manager.get());
@@ -120,6 +122,7 @@ llvm_wrapper::Module Pipeline::optimize_module(llvm_wrapper::Module module,
         }
         {
             auto manager = llvm_wrapper::Pass_manager::create_function_pass_manager(module.get());
+            ::LLVMAddAnalysisPasses(target_machine, manager.get());
             ::LLVMAddCFGSimplificationPass(manager.get());
             ::LLVMAddPromoteMemoryToRegisterPass(manager.get());
             ::LLVMAddScalarReplAggregatesPass(manager.get());
