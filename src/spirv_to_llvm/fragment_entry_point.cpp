@@ -86,351 +86,351 @@ using namespace spirv;
                 auto input_pointer = ::LLVMBuildStructGEP(
                     builder.get(), inputs_struct_pointer, input_member.llvm_member_index, "input");
                 ::LLVMDumpType(::LLVMTypeOf(input_pointer));
-                util::optional<spirv::Built_in> built_in;
+                util::optional<Built_in> built_in;
                 static_cast<void>(input_pointer);
                 for(auto &decoration : input_member.decorations)
                 {
                     switch(decoration.value)
                     {
-                    case spirv::Decoration::relaxed_precision:
+                    case Decoration::relaxed_precision:
 #warning finish implementing Decoration::relaxed_precision
                         break;
-                    case spirv::Decoration::spec_id:
+                    case Decoration::spec_id:
 #warning finish implementing Decoration::spec_id
                         break;
-                    case spirv::Decoration::block:
+                    case Decoration::block:
 #warning finish implementing Decoration::block
                         break;
-                    case spirv::Decoration::buffer_block:
+                    case Decoration::buffer_block:
 #warning finish implementing Decoration::buffer_block
                         break;
-                    case spirv::Decoration::row_major:
+                    case Decoration::row_major:
 #warning finish implementing Decoration::row_major
                         break;
-                    case spirv::Decoration::col_major:
+                    case Decoration::col_major:
 #warning finish implementing Decoration::col_major
                         break;
-                    case spirv::Decoration::array_stride:
+                    case Decoration::array_stride:
 #warning finish implementing Decoration::array_stride
                         break;
-                    case spirv::Decoration::matrix_stride:
+                    case Decoration::matrix_stride:
 #warning finish implementing Decoration::matrix_stride
                         break;
-                    case spirv::Decoration::glsl_shared:
+                    case Decoration::glsl_shared:
 #warning finish implementing Decoration::glsl_shared
                         break;
-                    case spirv::Decoration::glsl_packed:
+                    case Decoration::glsl_packed:
 #warning finish implementing Decoration::glsl_packed
                         break;
-                    case spirv::Decoration::c_packed:
+                    case Decoration::c_packed:
 #warning finish implementing Decoration::c_packed
                         break;
-                    case spirv::Decoration::built_in:
+                    case Decoration::built_in:
                         if(built_in)
-                            throw spirv::Parser_error(
+                            throw Parser_error(
                                 0, 0, "multiple BuiltIn decorations on the same variable");
                         built_in =
-                            util::get<spirv::Decoration_built_in_parameters>(decoration.parameters)
+                            util::get<Decoration_built_in_parameters>(decoration.parameters)
                                 .built_in;
                         continue;
-                    case spirv::Decoration::no_perspective:
+                    case Decoration::no_perspective:
 #warning finish implementing Decoration::no_perspective
                         break;
-                    case spirv::Decoration::flat:
+                    case Decoration::flat:
 #warning finish implementing Decoration::flat
                         break;
-                    case spirv::Decoration::patch:
+                    case Decoration::patch:
 #warning finish implementing Decoration::patch
                         break;
-                    case spirv::Decoration::centroid:
+                    case Decoration::centroid:
 #warning finish implementing Decoration::centroid
                         break;
-                    case spirv::Decoration::sample:
+                    case Decoration::sample:
 #warning finish implementing Decoration::sample
                         break;
-                    case spirv::Decoration::invariant:
+                    case Decoration::invariant:
 #warning finish implementing Decoration::invariant
                         break;
-                    case spirv::Decoration::restrict:
+                    case Decoration::restrict:
 #warning finish implementing Decoration::restrict
                         break;
-                    case spirv::Decoration::aliased:
+                    case Decoration::aliased:
 #warning finish implementing Decoration::aliased
                         break;
-                    case spirv::Decoration::volatile_:
+                    case Decoration::volatile_:
 #warning finish implementing Decoration::volatile_
                         break;
-                    case spirv::Decoration::constant:
+                    case Decoration::constant:
 #warning finish implementing Decoration::constant
                         break;
-                    case spirv::Decoration::coherent:
+                    case Decoration::coherent:
 #warning finish implementing Decoration::coherent
                         break;
-                    case spirv::Decoration::non_writable:
+                    case Decoration::non_writable:
 #warning finish implementing Decoration::non_writable
                         break;
-                    case spirv::Decoration::non_readable:
+                    case Decoration::non_readable:
 #warning finish implementing Decoration::non_readable
                         break;
-                    case spirv::Decoration::uniform:
+                    case Decoration::uniform:
 #warning finish implementing Decoration::uniform
                         break;
-                    case spirv::Decoration::saturated_conversion:
+                    case Decoration::saturated_conversion:
 #warning finish implementing Decoration::saturated_conversion
                         break;
-                    case spirv::Decoration::stream:
+                    case Decoration::stream:
 #warning finish implementing Decoration::stream
                         break;
-                    case spirv::Decoration::location:
+                    case Decoration::location:
 #warning finish implementing Decoration::location
                         break;
-                    case spirv::Decoration::component:
+                    case Decoration::component:
 #warning finish implementing Decoration::component
                         break;
-                    case spirv::Decoration::index:
+                    case Decoration::index:
 #warning finish implementing Decoration::index
                         break;
-                    case spirv::Decoration::binding:
+                    case Decoration::binding:
 #warning finish implementing Decoration::binding
                         break;
-                    case spirv::Decoration::descriptor_set:
+                    case Decoration::descriptor_set:
 #warning finish implementing Decoration::descriptor_set
                         break;
-                    case spirv::Decoration::offset:
+                    case Decoration::offset:
 #warning finish implementing Decoration::offset
                         break;
-                    case spirv::Decoration::xfb_buffer:
+                    case Decoration::xfb_buffer:
 #warning finish implementing Decoration::xfb_buffer
                         break;
-                    case spirv::Decoration::xfb_stride:
+                    case Decoration::xfb_stride:
 #warning finish implementing Decoration::xfb_stride
                         break;
-                    case spirv::Decoration::func_param_attr:
+                    case Decoration::func_param_attr:
 #warning finish implementing Decoration::func_param_attr
                         break;
-                    case spirv::Decoration::fp_rounding_mode:
+                    case Decoration::fp_rounding_mode:
 #warning finish implementing Decoration::fp_rounding_mode
                         break;
-                    case spirv::Decoration::fp_fast_math_mode:
+                    case Decoration::fp_fast_math_mode:
 #warning finish implementing Decoration::fp_fast_math_mode
                         break;
-                    case spirv::Decoration::linkage_attributes:
+                    case Decoration::linkage_attributes:
 #warning finish implementing Decoration::linkage_attributes
                         break;
-                    case spirv::Decoration::no_contraction:
+                    case Decoration::no_contraction:
 #warning finish implementing Decoration::no_contraction
                         break;
-                    case spirv::Decoration::input_attachment_index:
+                    case Decoration::input_attachment_index:
 #warning finish implementing Decoration::input_attachment_index
                         break;
-                    case spirv::Decoration::alignment:
+                    case Decoration::alignment:
 #warning finish implementing Decoration::alignment
                         break;
-                    case spirv::Decoration::max_byte_offset:
+                    case Decoration::max_byte_offset:
 #warning finish implementing Decoration::max_byte_offset
                         break;
-                    case spirv::Decoration::alignment_id:
+                    case Decoration::alignment_id:
 #warning finish implementing Decoration::alignment_id
                         break;
-                    case spirv::Decoration::max_byte_offset_id:
+                    case Decoration::max_byte_offset_id:
 #warning finish implementing Decoration::max_byte_offset_id
                         break;
-                    case spirv::Decoration::override_coverage_nv:
+                    case Decoration::override_coverage_nv:
 #warning finish implementing Decoration::override_coverage_nv
                         break;
-                    case spirv::Decoration::passthrough_nv:
+                    case Decoration::passthrough_nv:
 #warning finish implementing Decoration::passthrough_nv
                         break;
-                    case spirv::Decoration::viewport_relative_nv:
+                    case Decoration::viewport_relative_nv:
 #warning finish implementing Decoration::viewport_relative_nv
                         break;
-                    case spirv::Decoration::secondary_viewport_relative_nv:
+                    case Decoration::secondary_viewport_relative_nv:
 #warning finish implementing Decoration::secondary_viewport_relative_nv
                         break;
                     }
-                    throw spirv::Parser_error(
+                    throw Parser_error(
                         0,
                         0,
                         "unimplemented member decoration on shader input variable: "
                             + std::string(get_enumerant_name(decoration.value)));
                 }
                 if(!built_in)
-                    throw spirv::Parser_error(
+                    throw Parser_error(
                         0, 0, "non-built-in shader input variables are not implemented");
                 do
                 {
                     switch(*built_in)
                     {
-                    case spirv::Built_in::position:
+                    case Built_in::position:
 #warning finish implementing Built_in::position
                         break;
-                    case spirv::Built_in::point_size:
+                    case Built_in::point_size:
 #warning finish implementing Built_in::point_size
                         break;
-                    case spirv::Built_in::clip_distance:
+                    case Built_in::clip_distance:
 #warning finish implementing Built_in::clip_distance
                         break;
-                    case spirv::Built_in::cull_distance:
+                    case Built_in::cull_distance:
 #warning finish implementing Built_in::cull_distance
                         break;
-                    case spirv::Built_in::vertex_id:
+                    case Built_in::vertex_id:
 #warning finish implementing Built_in::vertex_id
                         break;
-                    case spirv::Built_in::instance_id:
+                    case Built_in::instance_id:
 #warning finish implementing Built_in::instance_id
                         break;
-                    case spirv::Built_in::primitive_id:
+                    case Built_in::primitive_id:
 #warning finish implementing Built_in::primitive_id
                         break;
-                    case spirv::Built_in::invocation_id:
+                    case Built_in::invocation_id:
 #warning finish implementing Built_in::invocation_id
                         break;
-                    case spirv::Built_in::layer:
+                    case Built_in::layer:
 #warning finish implementing Built_in::layer
                         break;
-                    case spirv::Built_in::viewport_index:
+                    case Built_in::viewport_index:
 #warning finish implementing Built_in::viewport_index
                         break;
-                    case spirv::Built_in::tess_level_outer:
+                    case Built_in::tess_level_outer:
 #warning finish implementing Built_in::tess_level_outer
                         break;
-                    case spirv::Built_in::tess_level_inner:
+                    case Built_in::tess_level_inner:
 #warning finish implementing Built_in::tess_level_inner
                         break;
-                    case spirv::Built_in::tess_coord:
+                    case Built_in::tess_coord:
 #warning finish implementing Built_in::tess_coord
                         break;
-                    case spirv::Built_in::patch_vertices:
+                    case Built_in::patch_vertices:
 #warning finish implementing Built_in::patch_vertices
                         break;
-                    case spirv::Built_in::frag_coord:
+                    case Built_in::frag_coord:
 #warning finish implementing Built_in::frag_coord
                         break;
-                    case spirv::Built_in::point_coord:
+                    case Built_in::point_coord:
 #warning finish implementing Built_in::point_coord
                         break;
-                    case spirv::Built_in::front_facing:
+                    case Built_in::front_facing:
 #warning finish implementing Built_in::front_facing
                         break;
-                    case spirv::Built_in::sample_id:
+                    case Built_in::sample_id:
 #warning finish implementing Built_in::sample_id
                         break;
-                    case spirv::Built_in::sample_position:
+                    case Built_in::sample_position:
 #warning finish implementing Built_in::sample_position
                         break;
-                    case spirv::Built_in::sample_mask:
+                    case Built_in::sample_mask:
 #warning finish implementing Built_in::sample_mask
                         break;
-                    case spirv::Built_in::frag_depth:
+                    case Built_in::frag_depth:
 #warning finish implementing Built_in::frag_depth
                         break;
-                    case spirv::Built_in::helper_invocation:
+                    case Built_in::helper_invocation:
 #warning finish implementing Built_in::helper_invocation
                         break;
-                    case spirv::Built_in::num_workgroups:
+                    case Built_in::num_workgroups:
 #warning finish implementing Built_in::num_workgroups
                         break;
-                    case spirv::Built_in::workgroup_size:
+                    case Built_in::workgroup_size:
 #warning finish implementing Built_in::workgroup_size
                         break;
-                    case spirv::Built_in::workgroup_id:
+                    case Built_in::workgroup_id:
 #warning finish implementing Built_in::workgroup_id
                         break;
-                    case spirv::Built_in::local_invocation_id:
+                    case Built_in::local_invocation_id:
 #warning finish implementing Built_in::local_invocation_id
                         break;
-                    case spirv::Built_in::global_invocation_id:
+                    case Built_in::global_invocation_id:
 #warning finish implementing Built_in::global_invocation_id
                         break;
-                    case spirv::Built_in::local_invocation_index:
+                    case Built_in::local_invocation_index:
 #warning finish implementing Built_in::local_invocation_index
                         break;
-                    case spirv::Built_in::work_dim:
+                    case Built_in::work_dim:
 #warning finish implementing Built_in::work_dim
                         break;
-                    case spirv::Built_in::global_size:
+                    case Built_in::global_size:
 #warning finish implementing Built_in::global_size
                         break;
-                    case spirv::Built_in::enqueued_workgroup_size:
+                    case Built_in::enqueued_workgroup_size:
 #warning finish implementing Built_in::enqueued_workgroup_size
                         break;
-                    case spirv::Built_in::global_offset:
+                    case Built_in::global_offset:
 #warning finish implementing Built_in::global_offset
                         break;
-                    case spirv::Built_in::global_linear_id:
+                    case Built_in::global_linear_id:
 #warning finish implementing Built_in::global_linear_id
                         break;
-                    case spirv::Built_in::subgroup_size:
+                    case Built_in::subgroup_size:
 #warning finish implementing Built_in::subgroup_size
                         break;
-                    case spirv::Built_in::subgroup_max_size:
+                    case Built_in::subgroup_max_size:
 #warning finish implementing Built_in::subgroup_max_size
                         break;
-                    case spirv::Built_in::num_subgroups:
+                    case Built_in::num_subgroups:
 #warning finish implementing Built_in::num_subgroups
                         break;
-                    case spirv::Built_in::num_enqueued_subgroups:
+                    case Built_in::num_enqueued_subgroups:
 #warning finish implementing Built_in::num_enqueued_subgroups
                         break;
-                    case spirv::Built_in::subgroup_id:
+                    case Built_in::subgroup_id:
 #warning finish implementing Built_in::subgroup_id
                         break;
-                    case spirv::Built_in::subgroup_local_invocation_id:
+                    case Built_in::subgroup_local_invocation_id:
 #warning finish implementing Built_in::subgroup_local_invocation_id
                         break;
-                    case spirv::Built_in::vertex_index:
+                    case Built_in::vertex_index:
 #warning finish implementing Built_in::vertex_index
                         break;
-                    case spirv::Built_in::instance_index:
+                    case Built_in::instance_index:
 #warning finish implementing Built_in::instance_index
                         break;
-                    case spirv::Built_in::subgroup_eq_mask_khr:
+                    case Built_in::subgroup_eq_mask_khr:
 #warning finish implementing Built_in::subgroup_eq_mask_khr
                         break;
-                    case spirv::Built_in::subgroup_ge_mask_khr:
+                    case Built_in::subgroup_ge_mask_khr:
 #warning finish implementing Built_in::subgroup_ge_mask_khr
                         break;
-                    case spirv::Built_in::subgroup_gt_mask_khr:
+                    case Built_in::subgroup_gt_mask_khr:
 #warning finish implementing Built_in::subgroup_gt_mask_khr
                         break;
-                    case spirv::Built_in::subgroup_le_mask_khr:
+                    case Built_in::subgroup_le_mask_khr:
 #warning finish implementing Built_in::subgroup_le_mask_khr
                         break;
-                    case spirv::Built_in::subgroup_lt_mask_khr:
+                    case Built_in::subgroup_lt_mask_khr:
 #warning finish implementing Built_in::subgroup_lt_mask_khr
                         break;
-                    case spirv::Built_in::base_vertex:
+                    case Built_in::base_vertex:
 #warning finish implementing Built_in::base_vertex
                         break;
-                    case spirv::Built_in::base_instance:
+                    case Built_in::base_instance:
 #warning finish implementing Built_in::base_instance
                         break;
-                    case spirv::Built_in::draw_index:
+                    case Built_in::draw_index:
 #warning finish implementing Built_in::draw_index
                         break;
-                    case spirv::Built_in::device_index:
+                    case Built_in::device_index:
 #warning finish implementing Built_in::device_index
                         break;
-                    case spirv::Built_in::view_index:
+                    case Built_in::view_index:
 #warning finish implementing Built_in::view_index
                         break;
-                    case spirv::Built_in::viewport_mask_nv:
+                    case Built_in::viewport_mask_nv:
 #warning finish implementing Built_in::viewport_mask_nv
                         break;
-                    case spirv::Built_in::secondary_position_nv:
+                    case Built_in::secondary_position_nv:
 #warning finish implementing Built_in::secondary_position_nv
                         break;
-                    case spirv::Built_in::secondary_viewport_mask_nv:
+                    case Built_in::secondary_viewport_mask_nv:
 #warning finish implementing Built_in::secondary_viewport_mask_nv
                         break;
-                    case spirv::Built_in::position_per_view_nv:
+                    case Built_in::position_per_view_nv:
 #warning finish implementing Built_in::position_per_view_nv
                         break;
-                    case spirv::Built_in::viewport_mask_per_view_nv:
+                    case Built_in::viewport_mask_per_view_nv:
 #warning finish implementing Built_in::viewport_mask_per_view_nv
                         break;
                     }
-                    throw spirv::Parser_error(0,
+                    throw Parser_error(0,
                                               0,
                                               "unimplemented built in shader input variable: "
                                                   + std::string(get_enumerant_name(*built_in)));
@@ -446,189 +446,189 @@ using namespace spirv;
                                                            output_member.llvm_member_index,
                                                            "output");
                 static_cast<void>(output_pointer);
-                util::optional<spirv::Literal_integer> location;
+                util::optional<Literal_integer> location;
                 for(auto &decoration : output_member.decorations)
                 {
                     switch(decoration.value)
                     {
-                    case spirv::Decoration::relaxed_precision:
+                    case Decoration::relaxed_precision:
 #warning finish implementing Decoration::relaxed_precision
                         break;
-                    case spirv::Decoration::spec_id:
+                    case Decoration::spec_id:
 #warning finish implementing Decoration::spec_id
                         break;
-                    case spirv::Decoration::block:
+                    case Decoration::block:
 #warning finish implementing Decoration::block
                         break;
-                    case spirv::Decoration::buffer_block:
+                    case Decoration::buffer_block:
 #warning finish implementing Decoration::buffer_block
                         break;
-                    case spirv::Decoration::row_major:
+                    case Decoration::row_major:
 #warning finish implementing Decoration::row_major
                         break;
-                    case spirv::Decoration::col_major:
+                    case Decoration::col_major:
 #warning finish implementing Decoration::col_major
                         break;
-                    case spirv::Decoration::array_stride:
+                    case Decoration::array_stride:
 #warning finish implementing Decoration::array_stride
                         break;
-                    case spirv::Decoration::matrix_stride:
+                    case Decoration::matrix_stride:
 #warning finish implementing Decoration::matrix_stride
                         break;
-                    case spirv::Decoration::glsl_shared:
+                    case Decoration::glsl_shared:
 #warning finish implementing Decoration::glsl_shared
                         break;
-                    case spirv::Decoration::glsl_packed:
+                    case Decoration::glsl_packed:
 #warning finish implementing Decoration::glsl_packed
                         break;
-                    case spirv::Decoration::c_packed:
+                    case Decoration::c_packed:
 #warning finish implementing Decoration::c_packed
                         break;
-                    case spirv::Decoration::built_in:
+                    case Decoration::built_in:
 #warning finish implementing Decoration::built_in
                         break;
-                    case spirv::Decoration::no_perspective:
+                    case Decoration::no_perspective:
 #warning finish implementing Decoration::no_perspective
                         break;
-                    case spirv::Decoration::flat:
+                    case Decoration::flat:
 #warning finish implementing Decoration::flat
                         break;
-                    case spirv::Decoration::patch:
+                    case Decoration::patch:
 #warning finish implementing Decoration::patch
                         break;
-                    case spirv::Decoration::centroid:
+                    case Decoration::centroid:
 #warning finish implementing Decoration::centroid
                         break;
-                    case spirv::Decoration::sample:
+                    case Decoration::sample:
 #warning finish implementing Decoration::sample
                         break;
-                    case spirv::Decoration::invariant:
+                    case Decoration::invariant:
 #warning finish implementing Decoration::invariant
                         break;
-                    case spirv::Decoration::restrict:
+                    case Decoration::restrict:
 #warning finish implementing Decoration::restrict
                         break;
-                    case spirv::Decoration::aliased:
+                    case Decoration::aliased:
 #warning finish implementing Decoration::aliased
                         break;
-                    case spirv::Decoration::volatile_:
+                    case Decoration::volatile_:
 #warning finish implementing Decoration::volatile_
                         break;
-                    case spirv::Decoration::constant:
+                    case Decoration::constant:
 #warning finish implementing Decoration::constant
                         break;
-                    case spirv::Decoration::coherent:
+                    case Decoration::coherent:
 #warning finish implementing Decoration::coherent
                         break;
-                    case spirv::Decoration::non_writable:
+                    case Decoration::non_writable:
 #warning finish implementing Decoration::non_writable
                         break;
-                    case spirv::Decoration::non_readable:
+                    case Decoration::non_readable:
 #warning finish implementing Decoration::non_readable
                         break;
-                    case spirv::Decoration::uniform:
+                    case Decoration::uniform:
 #warning finish implementing Decoration::uniform
                         break;
-                    case spirv::Decoration::saturated_conversion:
+                    case Decoration::saturated_conversion:
 #warning finish implementing Decoration::saturated_conversion
                         break;
-                    case spirv::Decoration::stream:
+                    case Decoration::stream:
 #warning finish implementing Decoration::stream
                         break;
-                    case spirv::Decoration::location:
+                    case Decoration::location:
                         if(location)
-                            throw spirv::Parser_error(
+                            throw Parser_error(
                                 0, 0, "multiple Location decorations on the same variable");
                         location =
-                            util::get<spirv::Decoration_location_parameters>(decoration.parameters)
+                            util::get<Decoration_location_parameters>(decoration.parameters)
                                 .location;
                         continue;
-                    case spirv::Decoration::component:
+                    case Decoration::component:
 #warning finish implementing Decoration::component
                         break;
-                    case spirv::Decoration::index:
+                    case Decoration::index:
 #warning finish implementing Decoration::index
                         break;
-                    case spirv::Decoration::binding:
+                    case Decoration::binding:
 #warning finish implementing Decoration::binding
                         break;
-                    case spirv::Decoration::descriptor_set:
+                    case Decoration::descriptor_set:
 #warning finish implementing Decoration::descriptor_set
                         break;
-                    case spirv::Decoration::offset:
+                    case Decoration::offset:
 #warning finish implementing Decoration::offset
                         break;
-                    case spirv::Decoration::xfb_buffer:
+                    case Decoration::xfb_buffer:
 #warning finish implementing Decoration::xfb_buffer
                         break;
-                    case spirv::Decoration::xfb_stride:
+                    case Decoration::xfb_stride:
 #warning finish implementing Decoration::xfb_stride
                         break;
-                    case spirv::Decoration::func_param_attr:
+                    case Decoration::func_param_attr:
 #warning finish implementing Decoration::func_param_attr
                         break;
-                    case spirv::Decoration::fp_rounding_mode:
+                    case Decoration::fp_rounding_mode:
 #warning finish implementing Decoration::fp_rounding_mode
                         break;
-                    case spirv::Decoration::fp_fast_math_mode:
+                    case Decoration::fp_fast_math_mode:
 #warning finish implementing Decoration::fp_fast_math_mode
                         break;
-                    case spirv::Decoration::linkage_attributes:
+                    case Decoration::linkage_attributes:
 #warning finish implementing Decoration::linkage_attributes
                         break;
-                    case spirv::Decoration::no_contraction:
+                    case Decoration::no_contraction:
 #warning finish implementing Decoration::no_contraction
                         break;
-                    case spirv::Decoration::input_attachment_index:
+                    case Decoration::input_attachment_index:
 #warning finish implementing Decoration::input_attachment_index
                         break;
-                    case spirv::Decoration::alignment:
+                    case Decoration::alignment:
 #warning finish implementing Decoration::alignment
                         break;
-                    case spirv::Decoration::max_byte_offset:
+                    case Decoration::max_byte_offset:
 #warning finish implementing Decoration::max_byte_offset
                         break;
-                    case spirv::Decoration::alignment_id:
+                    case Decoration::alignment_id:
 #warning finish implementing Decoration::alignment_id
                         break;
-                    case spirv::Decoration::max_byte_offset_id:
+                    case Decoration::max_byte_offset_id:
 #warning finish implementing Decoration::max_byte_offset_id
                         break;
-                    case spirv::Decoration::override_coverage_nv:
+                    case Decoration::override_coverage_nv:
 #warning finish implementing Decoration::override_coverage_nv
                         break;
-                    case spirv::Decoration::passthrough_nv:
+                    case Decoration::passthrough_nv:
 #warning finish implementing Decoration::passthrough_nv
                         break;
-                    case spirv::Decoration::viewport_relative_nv:
+                    case Decoration::viewport_relative_nv:
 #warning finish implementing Decoration::viewport_relative_nv
                         break;
-                    case spirv::Decoration::secondary_viewport_relative_nv:
+                    case Decoration::secondary_viewport_relative_nv:
 #warning finish implementing Decoration::secondary_viewport_relative_nv
                         break;
                     }
-                    throw spirv::Parser_error(
+                    throw Parser_error(
                         0,
                         0,
                         "unimplemented member decoration on shader output variable: "
                             + std::string(get_enumerant_name(decoration.value)));
                 }
                 if(!location)
-                    throw spirv::Parser_error(
+                    throw Parser_error(
                         0, 0, "fragment shader output variable is missing Location decoration");
                 if(*location != 0)
-                    throw spirv::Parser_error(
+                    throw Parser_error(
                         0,
                         0,
                         "nonzero Location for fragment shader output variable is unimplemented");
                 auto llvm_output_member_type = output_member.type->get_or_make_type();
                 if(llvm_output_member_type.type != llvm_vec4_type)
-                    throw spirv::Parser_error(
+                    throw Parser_error(
                         0, 0, "fragment shader output variable type is unimplemented");
                 auto callback = [llvm_output_member_type, &output_color, this, output_pointer]()
                 {
                     if(output_color)
-                        throw spirv::Parser_error(
+                        throw Parser_error(
                             0, 0, "duplicate fragment shader output variable");
                     output_color = ::LLVMBuildLoad(builder.get(), output_pointer, "output_color");
                     ::LLVMSetAlignment(output_color, llvm_output_member_type.alignment);
@@ -638,7 +638,7 @@ using namespace spirv;
         }
         else
         {
-            throw spirv::Parser_error(0, 0, "internal error: unhandled Io_struct member");
+            throw Parser_error(0, 0, "internal error: unhandled Io_struct member");
         }
     }
     {
@@ -657,7 +657,7 @@ using namespace spirv;
         fn();
     after_call_callbacks.clear();
     if(!output_color)
-        throw spirv::Parser_error(0, 0, "no fragment shader color output variables");
+        throw Parser_error(0, 0, "no fragment shader color output variables");
     auto constant_one = ::LLVMConstReal(llvm_float_type, 1.0);
     ::LLVMValueRef constant_vec4_of_one;
     {
