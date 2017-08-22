@@ -75,6 +75,34 @@ private:
         My_object_linking_layer &operator=(My_object_linking_layer &&) = delete;
 
     private:
+        struct Object_set_wrapper
+        {
+            typedef std::unique_ptr<llvm::object::OwningBinary<llvm::object::ObjectFile>>
+                value_type;
+            const value_type *objects;
+            std::size_t object_count;
+            explicit Object_set_wrapper(const std::vector<value_type> &objects) noexcept
+                : objects(objects.data()),
+                  object_count(objects.size())
+            {
+            }
+            auto begin() const noexcept
+            {
+                return objects;
+            }
+            auto end() const noexcept
+            {
+                return objects + object_count;
+            }
+            std::size_t size() const noexcept
+            {
+                return object_count;
+            }
+            auto &operator[](std::size_t index) const noexcept
+            {
+                return objects[index];
+            }
+        };
         class On_loaded_functor
         {
             friend class My_object_linking_layer;
@@ -89,8 +117,7 @@ private:
         public:
             void operator()(
                 llvm::orc::ObjectLinkingLayerBase::ObjSetHandleT,
-                const std::
-                    vector<std::unique_ptr<llvm::object::OwningBinary<llvm::object::ObjectFile>>>
+                const Object_set_wrapper
                         &object_set,
                 const std::vector<std::unique_ptr<llvm::RuntimeDyld::LoadedObjectInfo>>
                     &load_result)
@@ -165,8 +192,9 @@ private:
         {
             auto retval = create_module_handle();
             auto &handle = handle_map[retval];
+            auto object_set_iter = object_sets.insert(object_sets.end(), std::move(object_set));
             handle = object_linking_layer.addObjectSet(
-                std::move(object_set), std::move(memory_manager), std::move(symbol_resolver));
+                Object_set_wrapper(*object_set_iter), std::move(memory_manager), std::move(symbol_resolver));
             return retval;
         }
 
@@ -175,6 +203,7 @@ private:
         std::vector<std::shared_ptr<llvm::JITEventListener>> jit_event_listener_list;
         llvm::orc::ObjectLinkingLayer<On_loaded_functor> object_linking_layer;
         std::unordered_map<Module_handle, decltype(object_linking_layer)::ObjSetHandleT> handle_map;
+        std::list<std::vector<std::unique_ptr<llvm::object::OwningBinary<llvm::object::ObjectFile>>>> object_sets;
         std::unordered_multiset<const llvm::object::ObjectFile *> loaded_object_set;
     };
     typedef std::function<std::unique_ptr<llvm::Module>(std::unique_ptr<llvm::Module>)>
