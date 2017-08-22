@@ -31,6 +31,7 @@
 #include "llvm_wrapper/llvm_wrapper.h"
 #include "vulkan/vulkan.h"
 #include "spirv/spirv.h"
+#include "image/image.h"
 
 namespace vulkan_cpu
 {
@@ -221,6 +222,14 @@ public:
         return vertex_shader_output_struct_size;
     }
     void dump_vertex_shader_output_struct(const void *output_struct) const;
+    void run_fragment_shader(std::uint32_t *color_attachment_pixel) const noexcept
+    {
+        fragment_shader_function(color_attachment_pixel);
+    }
+    void run(std::uint32_t vertex_start_index,
+             std::uint32_t vertex_end_index,
+             std::uint32_t instance_id,
+             image::Image &color_attachment);
     static std::unique_ptr<Graphics_pipeline> make(Pipeline_cache *pipeline_cache,
                                                    const VkGraphicsPipelineCreateInfo &create_info);
     static std::unique_ptr<Graphics_pipeline> move_from_handle(VkPipeline pipeline) noexcept
@@ -237,10 +246,14 @@ public:
 private:
     Graphics_pipeline(std::shared_ptr<Implementation> implementation,
                       Vertex_shader_function vertex_shader_function,
-                      std::size_t vertex_shader_output_struct_size) noexcept
+                      std::size_t vertex_shader_output_struct_size,
+                      std::size_t vertex_shader_position_output_offset,
+                      Fragment_shader_function fragment_shader_function) noexcept
         : implementation(std::move(implementation)),
           vertex_shader_function(vertex_shader_function),
-          vertex_shader_output_struct_size(vertex_shader_output_struct_size)
+          vertex_shader_output_struct_size(vertex_shader_output_struct_size),
+          vertex_shader_position_output_offset(vertex_shader_position_output_offset),
+          fragment_shader_function(fragment_shader_function)
     {
     }
 
@@ -248,6 +261,8 @@ private:
     std::shared_ptr<Implementation> implementation;
     Vertex_shader_function vertex_shader_function;
     std::size_t vertex_shader_output_struct_size;
+    std::size_t vertex_shader_position_output_offset;
+    Fragment_shader_function fragment_shader_function;
 };
 
 inline VkPipeline to_handle(Graphics_pipeline *pipeline) noexcept

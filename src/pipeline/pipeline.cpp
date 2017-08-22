@@ -406,6 +406,238 @@ void Graphics_pipeline::dump_vertex_shader_output_struct(const void *output_stru
               << std::endl;
 }
 
+void Graphics_pipeline::run(std::uint32_t vertex_start_index,
+                            std::uint32_t vertex_end_index,
+                            std::uint32_t instance_id,
+                            image::Image &color_attachment)
+{
+    constexpr std::size_t vec4_native_alignment = alignof(float) * 4;
+    constexpr std::size_t max_alignment = alignof(std::max_align_t);
+    constexpr std::size_t vec4_alignment =
+        vec4_native_alignment > max_alignment ? max_alignment : vec4_native_alignment;
+    struct alignas(vec4_alignment) Vec4
+    {
+        float x;
+        float y;
+        float z;
+        float w;
+        constexpr Vec4() noexcept : x(), y(), z(), w()
+        {
+        }
+        constexpr explicit Vec4(float x, float y, float z, float w) noexcept : x(x),
+                                                                               y(y),
+                                                                               z(z),
+                                                                               w(w)
+        {
+        }
+    };
+    auto interpolate_float = [](float t, float v0, float v1) noexcept->float
+    {
+        return t * v1 + (1.0f - t) * v0;
+    };
+    auto interpolate_vec4 = [interpolate_float](
+                                float t, const Vec4 &v0, const Vec4 &v1) noexcept->Vec4
+    {
+        return Vec4(interpolate_float(t, v0.x, v1.x),
+                    interpolate_float(t, v0.y, v1.y),
+                    interpolate_float(t, v0.z, v1.z),
+                    interpolate_float(t, v0.w, v1.w));
+    };
+    static constexpr std::size_t triangle_vertex_count = 3;
+    struct Triangle
+    {
+        Vec4 vertexes[triangle_vertex_count];
+        constexpr Triangle() noexcept : vertexes{}
+        {
+        }
+        constexpr Triangle(const Vec4 &v0, const Vec4 &v1, const Vec4 &v2) noexcept
+            : vertexes{v0, v1, v2}
+        {
+        }
+    };
+    auto solve_for_t = [](float v0, float v1) noexcept->float
+    {
+        // solves interpolate(t, v0, v1) == 0
+        return v0 / (v0 - v1);
+    };
+    auto clip_edge = [solve_for_t, interpolate_vec4](const Vec4 &start_vertex,
+                                                     const Vec4 &end_vertex,
+                                                     Vec4 *output_vertexes,
+                                                     std::size_t &output_vertex_count,
+                                                     auto eval_vertex) -> bool
+    {
+        // eval_vertex returns a non-negative number if the vertex is inside the clip volume
+        float start_vertex_signed_distance = eval_vertex(start_vertex);
+        float end_vertex_signed_distance = eval_vertex(end_vertex);
+        if(start_vertex_signed_distance != start_vertex_signed_distance)
+            return false; // triangle has a NaN coordinate; skip it
+        if(start_vertex_signed_distance < 0)
+        {
+            // start_vertex is outside
+            if(end_vertex_signed_distance < 0)
+            {
+                // end_vertex is outside; do nothing
+            }
+            else
+            {
+                // end_vertex is inside
+                output_vertexes[output_vertex_count++] = interpolate_vec4(
+                    solve_for_t(start_vertex_signed_distance, end_vertex_signed_distance),
+                    start_vertex,
+                    end_vertex);
+                output_vertexes[output_vertex_count++] = end_vertex;
+            }
+        }
+        else
+        {
+            // start_vertex is inside
+            if(end_vertex_signed_distance < 0)
+            {
+                // end_vertex is outside
+                output_vertexes[output_vertex_count++] = interpolate_vec4(
+                    solve_for_t(start_vertex_signed_distance, end_vertex_signed_distance),
+                    start_vertex,
+                    end_vertex);
+            }
+            else
+            {
+                // end_vertex is inside
+                output_vertexes[output_vertex_count++] = end_vertex;
+            }
+        }
+        return true;
+    };
+    auto clip_triangles = [clip_edge](
+        std::vector<Triangle> &triangles, std::vector<Triangle> &temp_triangles, auto eval_vertex)
+    {
+        temp_triangles.clear();
+        for(auto &input_ref : triangles)
+        {
+            Triangle input = input_ref; // copy to enable compiler optimizations
+            constexpr std::size_t max_clipped_output_vertex_count = 4;
+            Vec4 output_vertexes[max_clipped_output_vertex_count];
+            std::size_t output_vertex_count = 0;
+            bool skip_triangle = false;
+            std::size_t end_vertex_index = 1;
+            for(std::size_t start_vertex_index = 0; start_vertex_index < triangle_vertex_count;
+                start_vertex_index++)
+            {
+                if(!clip_edge(input.vertexes[start_vertex_index],
+                              input.vertexes[end_vertex_index],
+                              output_vertexes,
+                              output_vertex_count,
+                              eval_vertex))
+                {
+                    skip_triangle = true;
+                    break;
+                }
+                if(++end_vertex_index >= triangle_vertex_count)
+                    end_vertex_index = 0;
+            }
+            if(skip_triangle)
+                continue;
+            switch(output_vertex_count)
+            {
+            case 0:
+            case 1:
+            case 2:
+                continue;
+            case 3:
+                temp_triangles.push_back(
+                    Triangle(output_vertexes[0], output_vertexes[1], output_vertexes[2]));
+                continue;
+            case 4:
+                temp_triangles.push_back(
+                    Triangle(output_vertexes[0], output_vertexes[1], output_vertexes[2]));
+                temp_triangles.push_back(
+                    Triangle(output_vertexes[0], output_vertexes[2], output_vertexes[3]));
+                continue;
+            }
+            assert(!"clipping algorithm failed");
+        }
+        temp_triangles.swap(triangles);
+    };
+    std::vector<Triangle> triangles;
+    std::vector<Triangle> temp_triangles;
+    constexpr std::size_t chunk_max_size = 96;
+    static_assert(chunk_max_size % triangle_vertex_count == 0, "");
+    std::unique_ptr<unsigned char[]> chunk_vertex_buffer(
+        new unsigned char[get_vertex_shader_output_struct_size() * chunk_max_size]);
+    while(vertex_start_index < vertex_end_index)
+    {
+        std::uint32_t chunk_size = vertex_end_index - vertex_start_index;
+        if(chunk_size > chunk_max_size)
+            chunk_size = chunk_max_size;
+        run_vertex_shader(vertex_start_index,
+                          vertex_start_index + chunk_size,
+                          instance_id,
+                          chunk_vertex_buffer.get());
+        const unsigned char *current_vertex =
+            chunk_vertex_buffer.get() + vertex_shader_position_output_offset;
+        triangles.clear();
+        for(std::uint32_t i = 0; i + triangle_vertex_count <= chunk_size;
+            i += triangle_vertex_count)
+        {
+            Triangle triangle;
+            for(std::size_t j = 0; j < triangle_vertex_count; j++)
+            {
+                triangle.vertexes[j] = *reinterpret_cast<const Vec4 *>(current_vertex);
+                current_vertex += vertex_shader_output_struct_size;
+            }
+            triangles.push_back(triangle);
+        }
+        // clip to 0 <= vertex.z
+        clip_triangles(triangles,
+                       temp_triangles,
+                       [](const Vec4 &vertex) noexcept->float
+                       {
+                           return vertex.z;
+                       });
+        // clip to vertex.z <= vertex.w
+        clip_triangles(triangles,
+                       temp_triangles,
+                       [](const Vec4 &vertex) noexcept->float
+                       {
+                           return vertex.w - vertex.z;
+                       });
+        // clip to -vertex.w <= vertex.x
+        clip_triangles(triangles,
+                       temp_triangles,
+                       [](const Vec4 &vertex) noexcept->float
+                       {
+                           return vertex.x + vertex.w;
+                       });
+        // clip to vertex.x <= vertex.w
+        clip_triangles(triangles,
+                       temp_triangles,
+                       [](const Vec4 &vertex) noexcept->float
+                       {
+                           return vertex.w - vertex.x;
+                       });
+        // clip to -vertex.w <= vertex.y
+        clip_triangles(triangles,
+                       temp_triangles,
+                       [](const Vec4 &vertex) noexcept->float
+                       {
+                           return vertex.y + vertex.w;
+                       });
+        // clip to vertex.y <= vertex.w
+        clip_triangles(triangles,
+                       temp_triangles,
+                       [](const Vec4 &vertex) noexcept->float
+                       {
+                           return vertex.w - vertex.y;
+                       });
+        [[gnu::unused]] auto rasterize_triangle = [this](Triangle triangle)
+        {
+#warning finish implementing Graphics_pipeline::run::rasterize_triangle
+            assert(!"finish implementing Graphics_pipeline::run::rasterize_triangle");
+        };
+#warning finish implementing Graphics_pipeline::run
+        assert(!"finish implementing Graphics_pipeline::run");
+    }
+}
+
 std::unique_ptr<Graphics_pipeline> Graphics_pipeline::make(
     Pipeline_cache *pipeline_cache, const VkGraphicsPipelineCreateInfo &create_info)
 {
@@ -426,6 +658,7 @@ std::unique_ptr<Graphics_pipeline> Graphics_pipeline::make(
     auto llvm_target_machine =
         llvm_wrapper::Target_machine::create_native_target_machine(optimization_level);
     implementation->compiled_shaders.reserve(create_info.stageCount);
+    util::Enum_set<spirv::Execution_model> found_shader_stages;
     for(std::size_t i = 0; i < create_info.stageCount; i++)
     {
         auto &stage_info = create_info.pStages[i];
@@ -433,6 +666,10 @@ std::unique_ptr<Graphics_pipeline> Graphics_pipeline::make(
             vulkan::get_execution_models_from_shader_stage_flags(stage_info.stage);
         assert(execution_models.size() == 1);
         auto execution_model = *execution_models.begin();
+        bool added_to_found_shader_stages =
+            std::get<1>(found_shader_stages.insert(execution_model));
+        if(!added_to_found_shader_stages)
+            throw std::runtime_error("duplicate shader stage");
         auto *shader_module = Shader_module_handle::from_handle(stage_info.module);
         assert(shader_module);
         {
@@ -468,6 +705,8 @@ std::unique_ptr<Graphics_pipeline> Graphics_pipeline::make(
         llvm_wrapper::Orc_compile_stack::create(std::move(llvm_target_machine), optimize_module);
     Vertex_shader_function vertex_shader_function = nullptr;
     std::size_t vertex_shader_output_struct_size = 0;
+    util::optional<std::size_t> vertex_shader_position_output_offset;
+    Fragment_shader_function fragment_shader_function = nullptr;
     for(auto &compiled_shader : implementation->compiled_shaders)
     {
         vertex_shader_output_struct_size = implementation->jit_stack.add_eagerly_compiled_ir(
@@ -482,6 +721,10 @@ std::unique_ptr<Graphics_pipeline> Graphics_pipeline::make(
         switch(compiled_shader.execution_model)
         {
         case spirv::Execution_model::fragment:
+            fragment_shader_function =
+                reinterpret_cast<Fragment_shader_function>(shader_entry_point_address);
+#warning finish implementing Graphics_pipeline::make
+            continue;
 #warning finish implementing Graphics_pipeline::make
             throw std::runtime_error("creating fragment shaders is not implemented");
         case spirv::Execution_model::geometry:
@@ -499,9 +742,66 @@ std::unique_ptr<Graphics_pipeline> Graphics_pipeline::make(
             vertex_shader_function =
                 reinterpret_cast<Vertex_shader_function>(shader_entry_point_address);
             implementation->vertex_shader_output_struct = compiled_shader.outputs_struct;
+            auto llvm_vertex_shader_output_struct =
+                implementation->vertex_shader_output_struct->get_or_make_type().type;
             vertex_shader_output_struct_size = ::LLVMABISizeOfType(
-                implementation->data_layout.get(),
-                implementation->vertex_shader_output_struct->get_or_make_type().type);
+                implementation->data_layout.get(), llvm_vertex_shader_output_struct);
+            for(auto &member : implementation->vertex_shader_output_struct->get_members(true))
+            {
+                for(auto &decoration : member.decorations)
+                {
+                    if(decoration.value == spirv::Decoration::built_in)
+                    {
+                        auto &builtin =
+                            util::get<spirv::Decoration_built_in_parameters>(decoration.parameters);
+                        if(builtin.built_in == spirv::Built_in::position)
+                        {
+                            vertex_shader_position_output_offset =
+                                ::LLVMOffsetOfElement(implementation->data_layout.get(),
+                                                      llvm_vertex_shader_output_struct,
+                                                      member.llvm_member_index);
+                            break;
+                        }
+                    }
+                }
+                if(vertex_shader_position_output_offset)
+                    break;
+                if(auto *struct_type =
+                       dynamic_cast<spirv_to_llvm::Struct_type_descriptor *>(member.type.get()))
+                {
+                    std::size_t struct_offset =
+                        ::LLVMOffsetOfElement(implementation->data_layout.get(),
+                                              llvm_vertex_shader_output_struct,
+                                              member.llvm_member_index);
+                    auto llvm_struct_type = struct_type->get_or_make_type().type;
+                    for(auto &submember : struct_type->get_members(true))
+                    {
+                        for(auto &decoration : submember.decorations)
+                        {
+                            if(decoration.value == spirv::Decoration::built_in)
+                            {
+                                auto &builtin = util::get<spirv::Decoration_built_in_parameters>(
+                                    decoration.parameters);
+                                if(builtin.built_in == spirv::Built_in::position)
+                                {
+                                    vertex_shader_position_output_offset =
+                                        struct_offset
+                                        + ::LLVMOffsetOfElement(implementation->data_layout.get(),
+                                                                llvm_struct_type,
+                                                                submember.llvm_member_index);
+                                    break;
+                                }
+                            }
+                        }
+                        if(vertex_shader_position_output_offset)
+                            break;
+                    }
+                }
+                if(vertex_shader_position_output_offset)
+                    break;
+            }
+            if(!vertex_shader_position_output_offset)
+                throw std::runtime_error("can't find vertex shader Position output");
 #warning finish implementing Graphics_pipeline::make
             continue;
         }
@@ -511,8 +811,13 @@ std::unique_ptr<Graphics_pipeline> Graphics_pipeline::make(
 #warning finish implementing Graphics_pipeline::make
     if(!vertex_shader_function)
         throw std::runtime_error("graphics pipeline doesn't have vertex shader");
-    return std::unique_ptr<Graphics_pipeline>(new Graphics_pipeline(
-        std::move(implementation), vertex_shader_function, vertex_shader_output_struct_size));
+    assert(vertex_shader_position_output_offset);
+    return std::unique_ptr<Graphics_pipeline>(
+        new Graphics_pipeline(std::move(implementation),
+                              vertex_shader_function,
+                              vertex_shader_output_struct_size,
+                              *vertex_shader_position_output_offset,
+                              fragment_shader_function));
 }
 }
 }
