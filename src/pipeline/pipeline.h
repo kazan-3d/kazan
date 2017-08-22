@@ -206,6 +206,7 @@ public:
                                            std::uint32_t vertex_end_index,
                                            std::uint32_t instance_id,
                                            void *output_buffer);
+    typedef void (*Fragment_shader_function)(std::uint32_t *color_attachment_pixel);
 
 public:
     void run_vertex_shader(std::uint32_t vertex_start_index,

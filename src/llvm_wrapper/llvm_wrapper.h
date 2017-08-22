@@ -557,6 +557,24 @@ struct Create_llvm_type<void>
 };
 
 template <>
+struct Create_llvm_type<float>
+{
+    ::LLVMTypeRef operator()(::LLVMContextRef context) const
+    {
+        return ::LLVMFloatTypeInContext(context);
+    }
+};
+
+template <>
+struct Create_llvm_type<double>
+{
+    ::LLVMTypeRef operator()(::LLVMContextRef context) const
+    {
+        return ::LLVMDoubleTypeInContext(context);
+    }
+};
+
+template <>
 struct Create_llvm_type<bool>
 {
     ::LLVMTypeRef operator()(::LLVMContextRef context) const

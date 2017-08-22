@@ -27,12 +27,17 @@
 #include <array>
 #include <type_traits>
 #include <string>
+#include <SDL.h>
 #include "spirv/spirv.h"
 #include "spirv/parser.h"
 #include "util/optional.h"
 #include "util/string_view.h"
 #include "pipeline/pipeline.h"
 #include "vulkan/vulkan.h"
+
+#if SDL_MAJOR_VERSION != 2
+#error wrong SDL varsion
+#endif
 
 namespace vulkan_cpu
 {
@@ -203,167 +208,258 @@ void dump_words(const std::vector<spirv::Word> &words)
     dump_words(words.data(), words.size());
 }
 
-int test_main(int argc, char **argv)
+pipeline::Shader_module_handle load_shader(const char *filename)
 {
-    const char *filename = "test-files/test.spv";
-    if(argc > 1)
-    {
-        if(argv[1][0] == '-')
-        {
-            std::cerr << "usage: demo [<file.spv>]\n";
-            return 1;
-        }
-        filename = argv[1];
-    }
     std::cerr << "loading " << filename << std::endl;
     auto file = load_file(filename);
-    if(file)
+    if(!file)
+        throw std::runtime_error("loading shader failed: " + std::string(filename));
+    dump_words(*file);
+    std::cerr << std::endl;
+    VkShaderModuleCreateInfo shader_module_create_info = {
+        .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
+        .pNext = nullptr,
+        .flags = 0,
+        .codeSize = file->size() * sizeof(spirv::Word),
+        .pCode = file->data(),
+    };
+    return pipeline::Shader_module_handle::make(shader_module_create_info);
+}
+
+pipeline::Pipeline_layout_handle make_pipeline_layout()
+{
+    VkPipelineLayoutCreateInfo pipeline_layout_create_info = {
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
+        .pNext = nullptr,
+        .flags = 0,
+        .setLayoutCount = 0,
+        .pSetLayouts = nullptr,
+        .pushConstantRangeCount = 0,
+        .pPushConstantRanges = nullptr,
+    };
+    return pipeline::Pipeline_layout_handle::make(pipeline_layout_create_info);
+}
+
+int test_main(int argc, char **argv)
+{
+    const char *vertex_shader_filename = "test-files/tri.vert.spv";
+    const char *fragment_shader_filename = "test-files/tri.frag.spv";
+    if(argc > 1)
     {
-        dump_words(*file);
-        std::cerr << std::endl;
-        try
+        if(argc != 3 || argv[1][0] == '-' || argv[2][0] == '-')
         {
-            VkShaderModuleCreateInfo shader_module_create_info = {
-                .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
-                .pNext = nullptr,
-                .flags = 0,
-                .codeSize = file->size() * sizeof(spirv::Word),
-                .pCode = file->data(),
-            };
-            auto shader_module = pipeline::Shader_module_handle::make(shader_module_create_info);
-            VkPipelineLayoutCreateInfo pipeline_layout_create_info = {
-                .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
-                .pNext = nullptr,
-                .flags = 0,
-                .setLayoutCount = 0,
-                .pSetLayouts = nullptr,
-                .pushConstantRangeCount = 0,
-                .pPushConstantRanges = nullptr,
-            };
-            auto pipeline_layout =
-                pipeline::Pipeline_layout_handle::make(pipeline_layout_create_info);
-            constexpr std::size_t subpass_count = 1;
-            VkSubpassDescription subpass_descriptions[subpass_count] = {
-                {
-                    .flags = 0,
-                    .pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
-                    .inputAttachmentCount = 0,
-                    .pInputAttachments = nullptr,
-                    .colorAttachmentCount = 0,
-                    .pColorAttachments = nullptr,
-                    .pResolveAttachments = nullptr,
-                    .pDepthStencilAttachment = nullptr,
-                    .preserveAttachmentCount = 0,
-                    .pPreserveAttachments = nullptr,
-                },
-            };
-            VkRenderPassCreateInfo render_pass_create_info = {
-                .sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
-                .pNext = nullptr,
-                .flags = 0,
-                .attachmentCount = 0,
-                .pAttachments = nullptr,
-                .subpassCount = subpass_count,
-                .pSubpasses = subpass_descriptions,
-                .dependencyCount = 0,
-                .pDependencies = nullptr,
-            };
-            auto render_pass = pipeline::Render_pass_handle::make(render_pass_create_info);
-            constexpr std::size_t stage_count = 1;
-            VkPipelineShaderStageCreateInfo stages[stage_count] = {
-                {
-                    .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
-                    .pNext = nullptr,
-                    .flags = 0,
-                    .stage = VK_SHADER_STAGE_VERTEX_BIT,
-                    .module = pipeline::to_handle(shader_module.get()),
-                    .pName = "main",
-                    .pSpecializationInfo = nullptr,
-                },
-            };
-            VkPipelineVertexInputStateCreateInfo pipeline_vertex_input_state_create_info = {
-                .sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
-                .pNext = nullptr,
-                .flags = 0,
-                .vertexBindingDescriptionCount = 0,
-                .pVertexBindingDescriptions = nullptr,
-                .vertexAttributeDescriptionCount = 0,
-                .pVertexAttributeDescriptions = nullptr,
-            };
-            VkPipelineInputAssemblyStateCreateInfo pipeline_input_assembly_state_create_info = {
-                .sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
-                .pNext = nullptr,
-                .flags = 0,
-                .topology = VK_PRIMITIVE_TOPOLOGY_POINT_LIST,
-                .primitiveRestartEnable = false,
-            };
-            VkPipelineRasterizationStateCreateInfo pipeline_rasterization_state_create_info = {
-                .sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
-                .pNext = nullptr,
-                .flags = 0,
-                .depthClampEnable = false,
-                .rasterizerDiscardEnable = true,
-                .polygonMode = VK_POLYGON_MODE_FILL,
-                .cullMode = VK_CULL_MODE_BACK_BIT,
-                .frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE,
-                .depthBiasEnable = false,
-                .depthBiasConstantFactor = 0,
-                .depthBiasClamp = 0,
-                .depthBiasSlopeFactor = 0,
-                .lineWidth = 1,
-            };
-            VkGraphicsPipelineCreateInfo graphics_pipeline_create_info = {
-                .sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
-                .pNext = nullptr,
-                .flags = 0,
-                .stageCount = stage_count,
-                .pStages = stages,
-                .pVertexInputState = &pipeline_vertex_input_state_create_info,
-                .pInputAssemblyState = &pipeline_input_assembly_state_create_info,
-                .pTessellationState = nullptr,
-                .pViewportState = nullptr,
-                .pRasterizationState = &pipeline_rasterization_state_create_info,
-                .pMultisampleState = nullptr,
-                .pDepthStencilState = nullptr,
-                .pColorBlendState = nullptr,
-                .pDynamicState = nullptr,
-                .layout = pipeline::to_handle(pipeline_layout.get()),
-                .renderPass = pipeline::to_handle(render_pass.get()),
-                .subpass = 0,
-                .basePipelineHandle = VK_NULL_HANDLE,
-                .basePipelineIndex = -1,
-            };
-            auto graphics_pipeline =
-                pipeline::Graphics_pipeline::make(nullptr, graphics_pipeline_create_info);
-            std::cerr << "vertex_shader_output_struct_size: "
-                      << graphics_pipeline->get_vertex_shader_output_struct_size() << std::endl;
-            constexpr std::uint32_t vertex_start_index = 0;
-            constexpr std::uint32_t vertex_end_index = 3;
-            constexpr std::uint32_t instance_id = 0;
-            constexpr std::size_t vertex_count = vertex_end_index - vertex_start_index;
-            std::size_t output_buffer_size =
-                graphics_pipeline->get_vertex_shader_output_struct_size() * vertex_count;
-            std::unique_ptr<unsigned char[]> output_buffer(new unsigned char[output_buffer_size]);
-            for(std::size_t i = 0; i < output_buffer_size; i++)
-                output_buffer[i] = 0;
-            graphics_pipeline->run_vertex_shader(
-                vertex_start_index, vertex_end_index, instance_id, output_buffer.get());
-            std::cerr << "shader completed" << std::endl;
-            for(std::size_t i = 0; i < vertex_count; i++)
-            {
-                graphics_pipeline->dump_vertex_shader_output_struct(output_buffer.get()
-                                                                    + graphics_pipeline->get_vertex_shader_output_struct_size() * i);
-            }
-        }
-        catch(std::runtime_error &e)
-        {
-            std::cerr << "error: " << e.what() << std::endl;
+            std::cerr << "usage: demo [<file.vert.spv> <file.frag.spv>]\n";
             return 1;
         }
+        vertex_shader_filename = argv[1];
+        fragment_shader_filename = argv[2];
     }
-    else
+    try
     {
-        std::cerr << "error: can't load file" << std::endl;
+        auto vertex_shader = load_shader(vertex_shader_filename);
+        auto fragment_shader = load_shader(fragment_shader_filename);
+        auto pipeline_layout = make_pipeline_layout();
+        constexpr std::size_t main_color_attachment_index = 0;
+        constexpr std::size_t attachment_count = main_color_attachment_index + 1;
+        VkAttachmentDescription attachments[attachment_count] = {};
+        attachments[main_color_attachment_index] = VkAttachmentDescription{
+            .flags = 0,
+            .format = VK_FORMAT_B8G8R8A8_UNORM,
+            .samples = VK_SAMPLE_COUNT_1_BIT,
+            .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+            .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
+            .stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+            .stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+            .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+            .finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
+        };
+        constexpr std::size_t color_attachment_count = 1;
+        VkAttachmentReference color_attachment_references[color_attachment_count] = {
+            {
+                .attachment = main_color_attachment_index,
+                .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+            },
+        };
+        constexpr std::size_t subpass_count = 1;
+        VkSubpassDescription subpass_descriptions[subpass_count] = {
+            {
+                .flags = 0,
+                .pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
+                .inputAttachmentCount = 0,
+                .pInputAttachments = nullptr,
+                .colorAttachmentCount = color_attachment_count,
+                .pColorAttachments = color_attachment_references,
+                .pResolveAttachments = nullptr,
+                .pDepthStencilAttachment = nullptr,
+                .preserveAttachmentCount = 0,
+                .pPreserveAttachments = nullptr,
+            },
+        };
+        VkRenderPassCreateInfo render_pass_create_info = {
+            .sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
+            .pNext = nullptr,
+            .flags = 0,
+            .attachmentCount = attachment_count,
+            .pAttachments = attachments,
+            .subpassCount = subpass_count,
+            .pSubpasses = subpass_descriptions,
+            .dependencyCount = 0,
+            .pDependencies = nullptr,
+        };
+        auto render_pass = pipeline::Render_pass_handle::make(render_pass_create_info);
+        constexpr std::size_t stage_index_vertex = 0;
+        constexpr std::size_t stage_index_fragment = stage_index_vertex + 1;
+        constexpr std::size_t stage_count = stage_index_fragment + 1;
+        VkPipelineShaderStageCreateInfo stages[stage_count] = {};
+        stages[stage_index_vertex] = VkPipelineShaderStageCreateInfo{
+            .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+            .pNext = nullptr,
+            .flags = 0,
+            .stage = VK_SHADER_STAGE_VERTEX_BIT,
+            .module = pipeline::to_handle(vertex_shader.get()),
+            .pName = "main",
+            .pSpecializationInfo = nullptr,
+        };
+        stages[stage_index_fragment] = VkPipelineShaderStageCreateInfo{
+            .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+            .pNext = nullptr,
+            .flags = 0,
+            .stage = VK_SHADER_STAGE_FRAGMENT_BIT,
+            .module = pipeline::to_handle(fragment_shader.get()),
+            .pName = "main",
+            .pSpecializationInfo = nullptr,
+        };
+        VkPipelineVertexInputStateCreateInfo pipeline_vertex_input_state_create_info = {
+            .sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
+            .pNext = nullptr,
+            .flags = 0,
+            .vertexBindingDescriptionCount = 0,
+            .pVertexBindingDescriptions = nullptr,
+            .vertexAttributeDescriptionCount = 0,
+            .pVertexAttributeDescriptions = nullptr,
+        };
+        VkPipelineInputAssemblyStateCreateInfo pipeline_input_assembly_state_create_info = {
+            .sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
+            .pNext = nullptr,
+            .flags = 0,
+            .topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
+            .primitiveRestartEnable = false,
+        };
+        static constexpr std::size_t window_width = 640;
+        static constexpr std::size_t window_height = 480;
+        static constexpr std::size_t viewport_count = 1;
+        VkViewport viewports[viewport_count] = {
+            {
+                .x = 0,
+                .y = 0,
+                .width = window_width,
+                .height = window_height,
+                .minDepth = 0,
+                .maxDepth = 1,
+            },
+        };
+        VkRect2D scissors[viewport_count] = {
+            {
+                .offset =
+                    {
+                        .x = 0, .y = 0,
+                    },
+                .extent =
+                    {
+                        .width = window_width, .height = window_height,
+                    },
+            },
+        };
+        VkPipelineViewportStateCreateInfo pipeline_viewport_state_create_info = {
+            .sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
+            .pNext = nullptr,
+            .flags = 0,
+            .viewportCount = viewport_count,
+            .pViewports = viewports,
+            .scissorCount = viewport_count,
+            .pScissors = scissors,
+        };
+        VkPipelineRasterizationStateCreateInfo pipeline_rasterization_state_create_info = {
+            .sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
+            .pNext = nullptr,
+            .flags = 0,
+            .depthClampEnable = false,
+            .rasterizerDiscardEnable = false,
+            .polygonMode = VK_POLYGON_MODE_FILL,
+            .cullMode = VK_CULL_MODE_NONE,
+            .frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE,
+            .depthBiasEnable = false,
+            .depthBiasConstantFactor = 0,
+            .depthBiasClamp = 0,
+            .depthBiasSlopeFactor = 0,
+            .lineWidth = 1,
+        };
+        VkPipelineMultisampleStateCreateInfo pipeline_multisample_state_create_info = {
+            .sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
+            .pNext = nullptr,
+            .flags = 0,
+            .rasterizationSamples = VK_SAMPLE_COUNT_1_BIT,
+            .sampleShadingEnable = false,
+            .minSampleShading = 1,
+            .pSampleMask = nullptr,
+            .alphaToCoverageEnable = false,
+            .alphaToOneEnable = false,
+        };
+        VkPipelineColorBlendAttachmentState color_blend_attachment_states[color_attachment_count] =
+            {
+                {
+                    .blendEnable = false,
+                    .srcColorBlendFactor = VK_BLEND_FACTOR_SRC_COLOR,
+                    .dstColorBlendFactor = VK_BLEND_FACTOR_ZERO,
+                    .colorBlendOp = VK_BLEND_OP_ADD,
+                    .srcAlphaBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA,
+                    .dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO,
+                    .alphaBlendOp = VK_BLEND_OP_ADD,
+                    .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT
+                                      | VK_COLOR_COMPONENT_B_BIT
+                                      | VK_COLOR_COMPONENT_A_BIT,
+                },
+            };
+        VkPipelineColorBlendStateCreateInfo pipeline_color_blend_state_create_info = {
+            .sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
+            .pNext = nullptr,
+            .flags = 0,
+            .logicOpEnable = false,
+            .logicOp = VK_LOGIC_OP_COPY,
+            .attachmentCount = color_attachment_count,
+            .pAttachments = color_blend_attachment_states,
+            .blendConstants =
+                {
+                    0, 0, 0, 0,
+                },
+        };
+        VkGraphicsPipelineCreateInfo graphics_pipeline_create_info = {
+            .sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
+            .pNext = nullptr,
+            .flags = 0,
+            .stageCount = stage_count,
+            .pStages = stages,
+            .pVertexInputState = &pipeline_vertex_input_state_create_info,
+            .pInputAssemblyState = &pipeline_input_assembly_state_create_info,
+            .pTessellationState = nullptr,
+            .pViewportState = &pipeline_viewport_state_create_info,
+            .pRasterizationState = &pipeline_rasterization_state_create_info,
+            .pMultisampleState = &pipeline_multisample_state_create_info,
+            .pDepthStencilState = nullptr,
+            .pColorBlendState = &pipeline_color_blend_state_create_info,
+            .pDynamicState = nullptr,
+            .layout = pipeline::to_handle(pipeline_layout.get()),
+            .renderPass = pipeline::to_handle(render_pass.get()),
+            .subpass = 0,
+            .basePipelineHandle = VK_NULL_HANDLE,
+            .basePipelineIndex = -1,
+        };
+        auto graphics_pipeline =
+            pipeline::Graphics_pipeline::make(nullptr, graphics_pipeline_create_info);
+    }
+    catch(std::runtime_error &e)
+    {
+        std::cerr << "error: " << e.what() << std::endl;
         return 1;
     }
     return 0;

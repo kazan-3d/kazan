@@ -19,6 +19,9 @@
 # SOFTWARE.
 #
 cmake_minimum_required(VERSION 3.1 FATAL_ERROR)
+find_package(SDL2 REQUIRED)
+string(STRIP ${SDL2_LIBRARIES} libraries) # workaround SDL2 automake bug
 set(sources demo.cpp) 
 add_executable(demo ${sources})
-target_link_libraries(demo vulkan_cpu_spirv vulkan_cpu_util vulkan_cpu_pipeline vulkan_cpu_vulkan)
+target_include_directories(demo PRIVATE ${SDL2_INCLUDE_DIRS})
+target_link_libraries(demo ${libraries} vulkan_cpu_spirv vulkan_cpu_util vulkan_cpu_pipeline vulkan_cpu_vulkan)

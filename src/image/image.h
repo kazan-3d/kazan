@@ -27,44 +27,113 @@
 #include <memory>
 #include <cassert>
 #include <cstdint>
-#include "util/constexpr_array.h"
+#include "util/enum.h"
 
 namespace vulkan_cpu
 {
 namespace image
 {
-struct Image
+struct Image_descriptor
 {
-    const VkImageType type;
-    const VkImageTiling tiling;
-    const VkFormat format;
-    const util::Constexpr_array<std::uint32_t, 3> dimensions;
-    const std::size_t memory_size;
-    std::unique_ptr<unsigned char[]> memory;
-    Image(VkImageType type,
-          VkImageTiling tiling,
-          VkFormat format,
-          const util::Constexpr_array<std::uint32_t, 3> &dimensions,
-          std::unique_ptr<unsigned char[]> memory = nullptr) noexcept
-        : type(type),
-          tiling(tiling),
-          format(format),
-          dimensions(dimensions),
-          memory_size(get_memory_size(type, tiling, format, dimensions)),
-          memory(std::move(memory))
+    static constexpr VkImageCreateFlags supported_flags =
+        VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT | VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT;
+    VkImageCreateFlags flags;
+    VkImageType type;
+    VkFormat format;
+    VkExtent3D extent;
+    std::uint32_t mip_levels;
+    std::uint32_t array_layers;
+    static constexpr VkSampleCountFlags supported_samples = VK_SAMPLE_COUNT_1_BIT;
+    VkSampleCountFlagBits samples;
+    VkImageTiling tiling;
+    constexpr explicit Image_descriptor(const VkImageCreateInfo &image_create_info) noexcept
+        : flags(image_create_info.flags),
+          type(image_create_info.imageType),
+          format(image_create_info.format),
+          extent(image_create_info.extent),
+          mip_levels(image_create_info.mipLevels),
+          array_layers(image_create_info.arrayLayers),
+          samples(image_create_info.samples),
+          tiling(image_create_info.tiling)
+    {
+        assert(image_create_info.sType == VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO);
+        assert((flags & ~supported_flags) == 0);
+        assert((samples & ~supported_samples) == 0);
+        assert(extent.width > 0);
+        assert(extent.height > 0);
+        assert(extent.depth > 0);
+
+#warning finish implementing Image
+        assert(type == VK_IMAGE_TYPE_2D && "unimplemented image type");
+        assert(extent.depth == 1);
+
+        assert(format == VK_FORMAT_B8G8R8A8_UNORM && "unimplemented image format");
+        assert(mip_levels == 1 && "mipmapping is unimplemented");
+        assert(array_layers == 1 && "array images are unimplemented");
+        assert(tiling == VK_IMAGE_TILING_LINEAR && "non-linear image tiling is unimplemented");
+        assert(image_create_info.initialLayout == VK_IMAGE_LAYOUT_UNDEFINED
+               && "preinitialized images are unimplemented");
+    }
+    constexpr Image_descriptor(VkImageCreateFlags flags,
+                               VkImageType type,
+                               VkFormat format,
+                               VkExtent3D extent,
+                               std::uint32_t mip_levels,
+                               std::uint32_t array_layers,
+                               VkSampleCountFlagBits samples,
+                               VkImageTiling tiling) noexcept : flags(flags),
+                                                                type(type),
+                                                                format(format),
+                                                                extent(extent),
+                                                                mip_levels(mip_levels),
+                                                                array_layers(array_layers),
+                                                                samples(samples),
+                                                                tiling(tiling)
     {
     }
-    static constexpr std::size_t get_memory_size(
-        VkImageType type,
-        VkImageTiling tiling,
-        VkFormat format,
-        const util::Constexpr_array<std::uint32_t, 3> &dimensions) noexcept
+    constexpr std::size_t get_memory_size() const noexcept
     {
 #warning finish implementing Image
-        assert(type == VK_IMAGE_TYPE_2D);
-        assert(tiling == VK_IMAGE_TILING_LINEAR);
-        assert(format == VK_FORMAT_R8G8B8A8_SRGB);
-        return sizeof(std::uint32_t) * dimensions[0] * dimensions[1];
+        assert(samples == VK_SAMPLE_COUNT_1_BIT && "multisample images are unimplemented");
+        assert(extent.width > 0);
+        assert(extent.height > 0);
+        assert(extent.depth > 0);
+
+        assert(type == VK_IMAGE_TYPE_2D && "unimplemented image type");
+        assert(extent.depth == 1);
+
+        assert(format == VK_FORMAT_B8G8R8A8_UNORM && "unimplemented image format");
+        assert(mip_levels == 1 && "mipmapping is unimplemented");
+        assert(array_layers == 1 && "array images are unimplemented");
+        assert(tiling == VK_IMAGE_TILING_LINEAR && "non-linear image tiling is unimplemented");
+        std::size_t retval = sizeof(std::uint32_t);
+        retval *= extent.width;
+        retval *= extent.height;
+        return retval;
+    }
+};
+
+struct Allocate_memory_tag
+{
+    explicit constexpr Allocate_memory_tag(int) noexcept
+    {
+    }
+};
+
+constexpr Allocate_memory_tag allocate_memory_tag{0};
+
+struct Image
+{
+    const Image_descriptor descriptor;
+    std::unique_ptr<unsigned char[]> memory;
+    Image(const Image_descriptor &descriptor,
+          std::unique_ptr<unsigned char[]> memory = nullptr) noexcept : descriptor(descriptor),
+                                                                        memory(std::move(memory))
+    {
+    }
+    Image(const Image_descriptor &descriptor, Allocate_memory_tag)
+        : descriptor(descriptor), memory(new unsigned char[descriptor.get_memory_size()])
+    {
     }
 #warning finish implementing Image
 };
