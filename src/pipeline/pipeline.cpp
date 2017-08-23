@@ -755,21 +755,24 @@ void Graphics_pipeline::run(std::uint32_t vertex_start_index,
                 min_y = clipped_scissor_rect_min.y;
             if(end_y > clipped_scissor_rect_end.y)
                 end_y = clipped_scissor_rect_end.y;
-            constexpr int scale = 1 << 8;
+            constexpr int log2_scale = 16;
+            constexpr auto scale = 1LL << log2_scale;
+            typedef std::int64_t Edge_equation_integer_type;
             struct Edge_equation
             {
-                std::int32_t a;
-                std::int32_t b;
-                std::int32_t c;
-                std::int32_t padding;
+                Edge_equation_integer_type a;
+                Edge_equation_integer_type b;
+                Edge_equation_integer_type c;
+                Edge_equation_integer_type padding;
                 constexpr Edge_equation() noexcept : a(), b(), c(), padding()
                 {
                 }
-                constexpr Edge_equation(std::int32_t a, std::int32_t b, std::int32_t c) noexcept
-                    : a(a),
-                      b(b),
-                      c(c),
-                      padding()
+                constexpr Edge_equation(Edge_equation_integer_type a,
+                                        Edge_equation_integer_type b,
+                                        Edge_equation_integer_type c) noexcept : a(a),
+                                                                                 b(b),
+                                                                                 c(c),
+                                                                                 padding()
                 {
                 }
                 constexpr bool inside(std::int32_t x, std::int32_t y) const noexcept
@@ -778,36 +781,49 @@ void Graphics_pipeline::run(std::uint32_t vertex_start_index,
                 }
             };
             Edge_equation edge_equations[triangle_vertex_count];
+            bool skip_triangle = false;
             for(std::size_t start_vertex_index = 0, end_vertex_index = 1, other_vertex_index = 2;
                 start_vertex_index < triangle_vertex_count;
                 start_vertex_index++)
             {
-                float x1 = framebuffer_coordinates[start_vertex_index].x;
-                float y1 = framebuffer_coordinates[start_vertex_index].y;
-                float x2 = framebuffer_coordinates[end_vertex_index].x;
-                float y2 = framebuffer_coordinates[end_vertex_index].y;
-                [[gnu::unused]] float x3 = framebuffer_coordinates[other_vertex_index].x;
-                [[gnu::unused]] float y3 = framebuffer_coordinates[other_vertex_index].y;
-                std::int32_t a;
-                std::int32_t b;
-                std::int32_t c;
+                float x1_float = framebuffer_coordinates[start_vertex_index].x;
+                float y1_float = framebuffer_coordinates[start_vertex_index].y;
+                float x2_float = framebuffer_coordinates[end_vertex_index].x;
+                float y2_float = framebuffer_coordinates[end_vertex_index].y;
+                [[gnu::unused]] float x3_float = framebuffer_coordinates[other_vertex_index].x;
+                [[gnu::unused]] float y3_float = framebuffer_coordinates[other_vertex_index].y;
+                auto x1_fixed = static_cast<Edge_equation_integer_type>(x1_float * scale);
+                auto y1_fixed = static_cast<Edge_equation_integer_type>(y1_float * scale);
+                auto x2_fixed = static_cast<Edge_equation_integer_type>(x2_float * scale);
+                auto y2_fixed = static_cast<Edge_equation_integer_type>(y2_float * scale);
+                [[gnu::unused]] auto x3_fixed =
+                    static_cast<Edge_equation_integer_type>(x3_float * scale);
+                [[gnu::unused]] auto y3_fixed =
+                    static_cast<Edge_equation_integer_type>(y3_float * scale);
+                Edge_equation_integer_type a;
+                Edge_equation_integer_type b;
+                Edge_equation_integer_type c;
                 {
                     // solve a * x1 + b * y1 + c == 0 &&
                     // a * x2 + b * y2 + c == 0 &&
-                    // max(abs(a), abs(b)) == scale &&
                     // a * x3 + b * y3 + c >= 0
-                    float divisor = std::fmax(std::fabs(x2 - x1), std::fabs(y1 - y2));
-                    float factor = scale / divisor;
-                    float a_float = (y1 - y2) * factor;
-                    float b_float = (x2 - x1) * factor;
-                    float c_float = (x1 * y2 - x2 * y1) * factor;
+                    if(x1_fixed == x2_fixed && y1_fixed == y2_fixed)
+                    {
+                        // rounded to a zero-area triangle
+                        skip_triangle = true;
+                        break;
+                    }
+                    Edge_equation_integer_type a_fixed = (y1_fixed - y2_fixed) * scale;
+                    Edge_equation_integer_type b_fixed = (x2_fixed - x1_fixed) * scale;
+                    Edge_equation_integer_type c_fixed =
+                        (x1_fixed * y2_fixed - x2_fixed * y1_fixed);
 
                     // offset to end up checking at pixel center instead of top-left pixel corner
-                    c_float += 0.5f * (a_float + b_float);
+                    c_fixed += (a_fixed + b_fixed) / 2;
 
-                    a = a_float;
-                    b = b_float;
-                    c = c_float;
+                    a = a_fixed;
+                    b = b_fixed;
+                    c = c_fixed;
                     if(orientation > 0)
                     {
                         // fix sign
@@ -820,6 +836,7 @@ void Graphics_pipeline::run(std::uint32_t vertex_start_index,
                 if(a < 0 || (a == 0 && b < 0))
                 {
                     // not a top-left edge, fixup c
+                    // effectively changes the '>=' to '>' in Edge_equation::inside
                     c--;
                 }
 
@@ -829,6 +846,8 @@ void Graphics_pipeline::run(std::uint32_t vertex_start_index,
                 if(++other_vertex_index >= triangle_vertex_count)
                     other_vertex_index = 0;
             }
+            if(skip_triangle)
+                continue;
             auto fs = this->fragment_shader_function;
             for(std::int32_t y = min_y; y < end_y; y++)
             {
@@ -840,10 +859,13 @@ void Graphics_pipeline::run(std::uint32_t vertex_start_index,
                         inside &= edge_equation.inside(x, y);
                     }
                     if(inside)
-                        fs(reinterpret_cast<Pixel_type *>(
+                    {
+                        auto *pixel = reinterpret_cast<Pixel_type *>(
                             color_attachment_memory
                             + (static_cast<std::size_t>(x) * color_attachment_pixel_size
-                               + static_cast<std::size_t>(y) * color_attachment_stride)));
+                               + static_cast<std::size_t>(y) * color_attachment_stride));
+                        fs(pixel);
+                    }
                 }
             }
         };

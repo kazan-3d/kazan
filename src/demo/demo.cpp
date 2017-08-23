@@ -241,6 +241,26 @@ pipeline::Pipeline_layout_handle make_pipeline_layout()
     return pipeline::Pipeline_layout_handle::make(pipeline_layout_create_info);
 }
 
+template <typename Integer_type>
+util::optional<Integer_type> parse_unsigned_integer(util::string_view str, Integer_type max_value = std::numeric_limits<Integer_type>::max()) noexcept
+{
+    static_assert(std::is_unsigned<Integer_type>::value, "");
+    if(str.empty())
+        return {};
+    Integer_type retval = 0;
+    for(char ch : str)
+    {
+        if(ch < '0' || ch > '9')
+            return {};
+        unsigned ch_value = ch - '0';
+        if(retval > max_value / 10 || (retval == max_value / 10 && ch_value > max_value % 10))
+            return {};
+        retval *= 10;
+        retval += ch_value;
+    }
+    return retval;
+}
+
 int test_main(int argc, char **argv)
 {
     if(SDL_Init(0) < 0)
@@ -257,18 +277,26 @@ int test_main(int argc, char **argv)
     } shutdown_sdl;
     const char *vertex_shader_filename = "test-files/tri.vert.spv";
     const char *fragment_shader_filename = "test-files/tri.frag.spv";
+    const char *vertex_count_str = "633";
     if(argc > 1)
     {
-        if(argc != 3 || argv[1][0] == '-' || argv[2][0] == '-')
+        if(argc != 4 || argv[1][0] == '-' || argv[2][0] == '-' || argv[3][0] == '-')
         {
-            std::cerr << "usage: demo [<file.vert.spv> <file.frag.spv>]\n";
+            std::cerr << "usage: demo [<file.vert.spv> <file.frag.spv> <vertex count>]\n";
             return 1;
         }
         vertex_shader_filename = argv[1];
         fragment_shader_filename = argv[2];
+        vertex_count_str = argv[3];
     }
     try
     {
+        auto vertex_count = parse_unsigned_integer<std::uint64_t>(vertex_count_str);
+        if(!vertex_count)
+            throw std::runtime_error("invalid value for vertex count, must be a decimal integer");
+        constexpr auto max_vertex_count = 50000000;
+        if(*vertex_count > max_vertex_count)
+            throw std::runtime_error("vertex count is too large");
         auto vertex_shader = load_shader(vertex_shader_filename);
         auto fragment_shader = load_shader(fragment_shader_filename);
         auto pipeline_layout = make_pipeline_layout();
@@ -358,8 +386,9 @@ int test_main(int argc, char **argv)
             .topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
             .primitiveRestartEnable = false,
         };
-        static constexpr std::size_t window_width = 640;
-        static constexpr std::size_t window_height = 480;
+        static constexpr std::size_t window_width = 1024;
+        static_assert(window_width % 4 == 0, "");
+        static constexpr std::size_t window_height = window_width * 3ULL / 4;
         static constexpr std::size_t viewport_count = 1;
         VkViewport viewports[viewport_count] = {
             {
@@ -492,14 +521,14 @@ int test_main(int argc, char **argv)
         image::Image color_attachment(image::Image_descriptor(image_create_info),
                                       image::allocate_memory_tag);
         VkClearColorValue clear_color;
-        // set clear_color to opaque red
-        clear_color.float32[0] = 1;
-        clear_color.float32[1] = 0;
-        clear_color.float32[2] = 0;
+        // set clear_color to opaque gray
+        clear_color.float32[0] = 0.25;
+        clear_color.float32[1] = 0.25;
+        clear_color.float32[2] = 0.25;
         clear_color.float32[3] = 1;
         color_attachment.clear(clear_color);
         constexpr std::uint32_t vertex_start_index = 0;
-        constexpr std::uint32_t vertex_end_index = 3;
+        std::uint32_t vertex_end_index = *vertex_count;
         constexpr std::uint32_t instance_id = 0;
         graphics_pipeline->run(vertex_start_index, vertex_end_index, instance_id, color_attachment);
         typedef std::uint32_t Pixel_type;
@@ -543,7 +572,8 @@ int test_main(int argc, char **argv)
                                      rgba(0, 0, 0xFF, 0),
                                      rgba(0, 0, 0, 0xFF)));
         if(!surface)
-            throw std::runtime_error(std::string("SDL_CreateRGBSurfaceFrom failed: ") + SDL_GetError());
+            throw std::runtime_error(std::string("SDL_CreateRGBSurfaceFrom failed: ")
+                                     + SDL_GetError());
         const char *output_file = "output.bmp";
         if(SDL_SaveBMP(surface.get(), output_file) < 0)
             throw std::runtime_error(std::string("SDL_SaveBMP failed: ") + SDL_GetError());
