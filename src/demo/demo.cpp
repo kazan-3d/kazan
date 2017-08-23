@@ -34,6 +34,7 @@
 #include "util/string_view.h"
 #include "pipeline/pipeline.h"
 #include "vulkan/vulkan.h"
+#include "util/void_t.h"
 
 #if SDL_MAJOR_VERSION != 2
 #error wrong SDL varsion
@@ -242,6 +243,18 @@ pipeline::Pipeline_layout_handle make_pipeline_layout()
 
 int test_main(int argc, char **argv)
 {
+    if(SDL_Init(0) < 0)
+    {
+        std::cerr << "SDL_Init failed: " << SDL_GetError() << std::endl;
+        return 1;
+    }
+    struct Shutdown_sdl
+    {
+        ~Shutdown_sdl()
+        {
+            SDL_Quit();
+        }
+    } shutdown_sdl;
     const char *vertex_shader_filename = "test-files/tri.vert.spv";
     const char *fragment_shader_filename = "test-files/tri.frag.spv";
     if(argc > 1)
@@ -456,6 +469,85 @@ int test_main(int argc, char **argv)
         };
         auto graphics_pipeline =
             pipeline::Graphics_pipeline::make(nullptr, graphics_pipeline_create_info);
+        VkImageCreateInfo image_create_info = {
+            .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+            .pNext = nullptr,
+            .flags = 0,
+            .imageType = VK_IMAGE_TYPE_2D,
+            .format = VK_FORMAT_B8G8R8A8_UNORM,
+            .extent =
+                {
+                    .width = window_width, .height = window_height, .depth = 1,
+                },
+            .mipLevels = 1,
+            .arrayLayers = 1,
+            .samples = VK_SAMPLE_COUNT_1_BIT,
+            .tiling = VK_IMAGE_TILING_LINEAR,
+            .usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
+            .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+            .queueFamilyIndexCount = 0,
+            .pQueueFamilyIndices = nullptr,
+            .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+        };
+        image::Image color_attachment(image::Image_descriptor(image_create_info),
+                                      image::allocate_memory_tag);
+        VkClearColorValue clear_color;
+        // set clear_color to opaque red
+        clear_color.float32[0] = 1;
+        clear_color.float32[1] = 0;
+        clear_color.float32[2] = 0;
+        clear_color.float32[3] = 1;
+        color_attachment.clear(clear_color);
+        constexpr std::uint32_t vertex_start_index = 0;
+        constexpr std::uint32_t vertex_end_index = 3;
+        constexpr std::uint32_t instance_id = 0;
+        graphics_pipeline->run(vertex_start_index, vertex_end_index, instance_id, color_attachment);
+        typedef std::uint32_t Pixel_type;
+        // check Pixel_type
+        static_assert(std::is_void<util::void_t<decltype(graphics_pipeline->run_fragment_shader(
+                          static_cast<Pixel_type *>(nullptr)))>>::value,
+                      "");
+        auto rgba = [](std::uint8_t r,
+                       std::uint8_t g,
+                       std::uint8_t b,
+                       std::uint8_t a) noexcept->Pixel_type
+        {
+            union
+            {
+                Pixel_type retval;
+                std::uint8_t bytes[4];
+            };
+            static_assert(sizeof(retval) == sizeof(bytes), "");
+            bytes[0] = b;
+            bytes[1] = g;
+            bytes[2] = r;
+            bytes[3] = a;
+            return retval;
+        };
+        constexpr std::size_t bits_per_pixel = 32;
+        struct Surface_deleter
+        {
+            void operator()(SDL_Surface *v) const noexcept
+            {
+                ::SDL_FreeSurface(v);
+            }
+        };
+        std::unique_ptr<SDL_Surface, Surface_deleter> surface(
+            SDL_CreateRGBSurfaceFrom(color_attachment.memory.get(),
+                                     window_width,
+                                     window_height,
+                                     bits_per_pixel,
+                                     color_attachment.descriptor.get_memory_stride(),
+                                     rgba(0xFF, 0, 0, 0),
+                                     rgba(0, 0xFF, 0, 0),
+                                     rgba(0, 0, 0xFF, 0),
+                                     rgba(0, 0, 0, 0xFF)));
+        if(!surface)
+            throw std::runtime_error(std::string("SDL_CreateRGBSurfaceFrom failed: ") + SDL_GetError());
+        const char *output_file = "output.bmp";
+        if(SDL_SaveBMP(surface.get(), output_file) < 0)
+            throw std::runtime_error(std::string("SDL_SaveBMP failed: ") + SDL_GetError());
+        std::cerr << "saved output image to " << output_file << std::endl;
     }
     catch(std::runtime_error &e)
     {

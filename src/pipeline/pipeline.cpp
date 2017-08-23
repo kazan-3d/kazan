@@ -409,12 +409,36 @@ void Graphics_pipeline::dump_vertex_shader_output_struct(const void *output_stru
 void Graphics_pipeline::run(std::uint32_t vertex_start_index,
                             std::uint32_t vertex_end_index,
                             std::uint32_t instance_id,
-                            image::Image &color_attachment)
+                            const image::Image &color_attachment)
 {
+    typedef std::uint32_t Pixel_type;
+    assert(color_attachment.descriptor.tiling == VK_IMAGE_TILING_LINEAR);
+    std::size_t color_attachment_stride = color_attachment.descriptor.get_memory_stride();
+    std::size_t color_attachment_pixel_size = color_attachment.descriptor.get_memory_pixel_size();
+    unsigned char *color_attachment_memory = color_attachment.memory.get();
+    float viewport_x_scale, viewport_x_offset, viewport_y_scale, viewport_y_offset,
+        viewport_z_scale, viewport_z_offset;
+    {
+        float px = viewport.width;
+        float ox = viewport.x + 0.5f * viewport.width;
+        float py = viewport.height;
+        float oy = viewport.y + 0.5f * viewport.height;
+        float pz = viewport.maxDepth - viewport.minDepth;
+        float oz = viewport.minDepth;
+        viewport_x_scale = px * 0.5f;
+        viewport_x_offset = ox;
+        viewport_y_scale = py * 0.5f;
+        viewport_y_offset = oy;
+        viewport_z_scale = pz;
+        viewport_z_offset = oz;
+    }
     constexpr std::size_t vec4_native_alignment = alignof(float) * 4;
     constexpr std::size_t max_alignment = alignof(std::max_align_t);
     constexpr std::size_t vec4_alignment =
         vec4_native_alignment > max_alignment ? max_alignment : vec4_native_alignment;
+    constexpr std::size_t ivec4_native_alignment = alignof(std::int32_t) * 4;
+    constexpr std::size_t ivec4_alignment =
+        ivec4_native_alignment > max_alignment ? max_alignment : ivec4_native_alignment;
     struct alignas(vec4_alignment) Vec4
     {
         float x;
@@ -428,6 +452,25 @@ void Graphics_pipeline::run(std::uint32_t vertex_start_index,
                                                                                y(y),
                                                                                z(z),
                                                                                w(w)
+        {
+        }
+    };
+    struct alignas(ivec4_alignment) Ivec4
+    {
+        std::int32_t x;
+        std::int32_t y;
+        std::int32_t z;
+        std::int32_t w;
+        constexpr Ivec4() noexcept : x(), y(), z(), w()
+        {
+        }
+        constexpr explicit Ivec4(std::int32_t x,
+                                 std::int32_t y,
+                                 std::int32_t z,
+                                 std::int32_t w) noexcept : x(x),
+                                                            y(y),
+                                                            z(z),
+                                                            w(w)
         {
         }
     };
@@ -568,8 +611,10 @@ void Graphics_pipeline::run(std::uint32_t vertex_start_index,
         std::uint32_t chunk_size = vertex_end_index - vertex_start_index;
         if(chunk_size > chunk_max_size)
             chunk_size = chunk_max_size;
-        run_vertex_shader(vertex_start_index,
-                          vertex_start_index + chunk_size,
+        auto current_vertex_start_index = vertex_start_index;
+        vertex_start_index += chunk_size;
+        run_vertex_shader(current_vertex_start_index,
+                          current_vertex_start_index + chunk_size,
                           instance_id,
                           chunk_vertex_buffer.get());
         const unsigned char *current_vertex =
@@ -628,13 +673,180 @@ void Graphics_pipeline::run(std::uint32_t vertex_start_index,
                        {
                            return vertex.w - vertex.y;
                        });
-        [[gnu::unused]] auto rasterize_triangle = [this](Triangle triangle)
-        {
-#warning finish implementing Graphics_pipeline::run::rasterize_triangle
-            assert(!"finish implementing Graphics_pipeline::run::rasterize_triangle");
+        VkOffset2D clipped_scissor_rect_min = scissor_rect.offset;
+        VkOffset2D clipped_scissor_rect_end = {
+            .x = scissor_rect.offset.x + static_cast<std::int32_t>(scissor_rect.extent.width),
+            .y = scissor_rect.offset.y + static_cast<std::int32_t>(scissor_rect.extent.height),
         };
-#warning finish implementing Graphics_pipeline::run
-        assert(!"finish implementing Graphics_pipeline::run");
+        if(clipped_scissor_rect_min.x < 0)
+            clipped_scissor_rect_min.x = 0;
+        if(clipped_scissor_rect_min.y < 0)
+            clipped_scissor_rect_min.y = 0;
+        if(clipped_scissor_rect_end.x > color_attachment.descriptor.extent.width)
+            clipped_scissor_rect_end.x = color_attachment.descriptor.extent.width;
+        if(clipped_scissor_rect_end.y < color_attachment.descriptor.extent.height)
+            clipped_scissor_rect_end.y = color_attachment.descriptor.extent.height;
+        if(clipped_scissor_rect_end.x <= clipped_scissor_rect_min.x)
+            continue;
+        if(clipped_scissor_rect_end.y <= clipped_scissor_rect_min.y)
+            continue;
+        for(std::size_t triangle_index = 0; triangle_index < triangles.size(); triangle_index++)
+        {
+            Triangle triangle = triangles[triangle_index];
+            Vec4 projected_triangle_and_inv_w[triangle_vertex_count];
+            Vec4 framebuffer_coordinates[triangle_vertex_count];
+            for(std::size_t i = 0; i < triangle_vertex_count; i++)
+            {
+                projected_triangle_and_inv_w[i].w = 1.0f / triangle.vertexes[i].w;
+                projected_triangle_and_inv_w[i].x =
+                    triangle.vertexes[i].x * projected_triangle_and_inv_w[i].w;
+                projected_triangle_and_inv_w[i].y =
+                    triangle.vertexes[i].y * projected_triangle_and_inv_w[i].w;
+                projected_triangle_and_inv_w[i].z =
+                    triangle.vertexes[i].z * projected_triangle_and_inv_w[i].w;
+                framebuffer_coordinates[i] =
+                    Vec4(projected_triangle_and_inv_w[i].x * viewport_x_scale + viewport_x_offset,
+                         projected_triangle_and_inv_w[i].y * viewport_y_scale + viewport_y_offset,
+                         projected_triangle_and_inv_w[i].z * viewport_z_scale + viewport_z_offset,
+                         0);
+            }
+            float orientation = 0;
+            for(std::size_t start_vertex_index = 0, end_vertex_index = 1;
+                start_vertex_index < triangle_vertex_count;
+                start_vertex_index++)
+            {
+                float x1 = framebuffer_coordinates[start_vertex_index].x;
+                float y1 = framebuffer_coordinates[start_vertex_index].y;
+                float x2 = framebuffer_coordinates[end_vertex_index].x;
+                float y2 = framebuffer_coordinates[end_vertex_index].y;
+                orientation += x2 * y1 - x1 * y2;
+                if(++end_vertex_index >= triangle_vertex_count)
+                    end_vertex_index = 0;
+            }
+            if(!(orientation < 0)
+               && !(orientation > 0)) // zero area triangle or triangle coordinate is NaN
+                continue;
+            // orientation > 0 for counter-clockwise triangle
+            // orientation < 0 for clockwise triangle
+            std::int32_t min_x, end_x, min_y, end_y;
+            bool first = true;
+            for(std::size_t i = 0; i < triangle_vertex_count; i++)
+            {
+                // x and y will be >= 0 so we can use truncate instead of floor for speed
+                auto current_min_x = static_cast<std::int32_t>(framebuffer_coordinates[i].x);
+                auto current_min_y = static_cast<std::int32_t>(framebuffer_coordinates[i].y);
+                std::int32_t current_end_x = current_min_x + 1;
+                std::int32_t current_end_y = current_min_y + 1;
+                if(first || current_min_x < min_x)
+                    min_x = current_min_x;
+                if(first || current_end_x > end_x)
+                    end_x = current_end_x;
+                if(first || current_min_y < min_y)
+                    min_y = current_min_y;
+                if(first || current_end_y > end_y)
+                    end_y = current_end_y;
+                first = false;
+            }
+            if(min_x < clipped_scissor_rect_min.x)
+                min_x = clipped_scissor_rect_min.x;
+            if(end_x > clipped_scissor_rect_end.x)
+                end_x = clipped_scissor_rect_end.x;
+            if(min_y < clipped_scissor_rect_min.y)
+                min_y = clipped_scissor_rect_min.y;
+            if(end_y > clipped_scissor_rect_end.y)
+                end_y = clipped_scissor_rect_end.y;
+            constexpr int scale = 1 << 8;
+            struct Edge_equation
+            {
+                std::int32_t a;
+                std::int32_t b;
+                std::int32_t c;
+                std::int32_t padding;
+                constexpr Edge_equation() noexcept : a(), b(), c(), padding()
+                {
+                }
+                constexpr Edge_equation(std::int32_t a, std::int32_t b, std::int32_t c) noexcept
+                    : a(a),
+                      b(b),
+                      c(c),
+                      padding()
+                {
+                }
+                constexpr bool inside(std::int32_t x, std::int32_t y) const noexcept
+                {
+                    return a * x + b * y + c >= 0;
+                }
+            };
+            Edge_equation edge_equations[triangle_vertex_count];
+            for(std::size_t start_vertex_index = 0, end_vertex_index = 1, other_vertex_index = 2;
+                start_vertex_index < triangle_vertex_count;
+                start_vertex_index++)
+            {
+                float x1 = framebuffer_coordinates[start_vertex_index].x;
+                float y1 = framebuffer_coordinates[start_vertex_index].y;
+                float x2 = framebuffer_coordinates[end_vertex_index].x;
+                float y2 = framebuffer_coordinates[end_vertex_index].y;
+                [[gnu::unused]] float x3 = framebuffer_coordinates[other_vertex_index].x;
+                [[gnu::unused]] float y3 = framebuffer_coordinates[other_vertex_index].y;
+                std::int32_t a;
+                std::int32_t b;
+                std::int32_t c;
+                {
+                    // solve a * x1 + b * y1 + c == 0 &&
+                    // a * x2 + b * y2 + c == 0 &&
+                    // max(abs(a), abs(b)) == scale &&
+                    // a * x3 + b * y3 + c >= 0
+                    float divisor = std::fmax(std::fabs(x2 - x1), std::fabs(y1 - y2));
+                    float factor = scale / divisor;
+                    float a_float = (y1 - y2) * factor;
+                    float b_float = (x2 - x1) * factor;
+                    float c_float = (x1 * y2 - x2 * y1) * factor;
+
+                    // offset to end up checking at pixel center instead of top-left pixel corner
+                    c_float += 0.5f * (a_float + b_float);
+
+                    a = a_float;
+                    b = b_float;
+                    c = c_float;
+                    if(orientation > 0)
+                    {
+                        // fix sign
+                        a = -a;
+                        b = -b;
+                        c = -c;
+                    }
+                }
+                // handle top-left fill rule
+                if(a < 0 || (a == 0 && b < 0))
+                {
+                    // not a top-left edge, fixup c
+                    c--;
+                }
+
+                edge_equations[start_vertex_index] = Edge_equation(a, b, c);
+                if(++end_vertex_index >= triangle_vertex_count)
+                    end_vertex_index = 0;
+                if(++other_vertex_index >= triangle_vertex_count)
+                    other_vertex_index = 0;
+            }
+            auto fs = this->fragment_shader_function;
+            for(std::int32_t y = min_y; y < end_y; y++)
+            {
+                for(std::int32_t x = min_x; x < end_x; x++)
+                {
+                    bool inside = true;
+                    for(auto &edge_equation : edge_equations)
+                    {
+                        inside &= edge_equation.inside(x, y);
+                    }
+                    if(inside)
+                        fs(reinterpret_cast<Pixel_type *>(
+                            color_attachment_memory
+                            + (static_cast<std::size_t>(x) * color_attachment_pixel_size
+                               + static_cast<std::size_t>(y) * color_attachment_stride)));
+                }
+            }
+        };
     }
 }
 
@@ -709,7 +921,7 @@ std::unique_ptr<Graphics_pipeline> Graphics_pipeline::make(
     Fragment_shader_function fragment_shader_function = nullptr;
     for(auto &compiled_shader : implementation->compiled_shaders)
     {
-        vertex_shader_output_struct_size = implementation->jit_stack.add_eagerly_compiled_ir(
+        implementation->jit_stack.add_eagerly_compiled_ir(
             std::move(compiled_shader.module),
             &spirv_to_llvm::Jit_symbol_resolver::resolve,
             static_cast<void *>(&implementation->jit_symbol_resolver));
@@ -811,13 +1023,23 @@ std::unique_ptr<Graphics_pipeline> Graphics_pipeline::make(
 #warning finish implementing Graphics_pipeline::make
     if(!vertex_shader_function)
         throw std::runtime_error("graphics pipeline doesn't have vertex shader");
+    if(!create_info.pViewportState)
+        throw std::runtime_error("missing viewport state");
+    if(create_info.pViewportState->viewportCount != 1)
+        throw std::runtime_error("unimplemented viewport count");
+    if(!create_info.pViewportState->pViewports)
+        throw std::runtime_error("missing viewport list");
+    if(!create_info.pViewportState->pScissors)
+        throw std::runtime_error("missing scissor rectangle list");
     assert(vertex_shader_position_output_offset);
     return std::unique_ptr<Graphics_pipeline>(
         new Graphics_pipeline(std::move(implementation),
                               vertex_shader_function,
                               vertex_shader_output_struct_size,
                               *vertex_shader_position_output_offset,
-                              fragment_shader_function));
+                              fragment_shader_function,
+                              create_info.pViewportState->pViewports[0],
+                              create_info.pViewportState->pScissors[0]));
 }
 }
 }

@@ -229,7 +229,7 @@ public:
     void run(std::uint32_t vertex_start_index,
              std::uint32_t vertex_end_index,
              std::uint32_t instance_id,
-             image::Image &color_attachment);
+             const image::Image &color_attachment);
     static std::unique_ptr<Graphics_pipeline> make(Pipeline_cache *pipeline_cache,
                                                    const VkGraphicsPipelineCreateInfo &create_info);
     static std::unique_ptr<Graphics_pipeline> move_from_handle(VkPipeline pipeline) noexcept
@@ -248,12 +248,16 @@ private:
                       Vertex_shader_function vertex_shader_function,
                       std::size_t vertex_shader_output_struct_size,
                       std::size_t vertex_shader_position_output_offset,
-                      Fragment_shader_function fragment_shader_function) noexcept
+                      Fragment_shader_function fragment_shader_function,
+                      VkViewport viewport,
+                      VkRect2D scissor_rect) noexcept
         : implementation(std::move(implementation)),
           vertex_shader_function(vertex_shader_function),
           vertex_shader_output_struct_size(vertex_shader_output_struct_size),
           vertex_shader_position_output_offset(vertex_shader_position_output_offset),
-          fragment_shader_function(fragment_shader_function)
+          fragment_shader_function(fragment_shader_function),
+          viewport(viewport),
+          scissor_rect(scissor_rect)
     {
     }
 
@@ -263,6 +267,8 @@ private:
     std::size_t vertex_shader_output_struct_size;
     std::size_t vertex_shader_position_output_offset;
     Fragment_shader_function fragment_shader_function;
+    VkViewport viewport;
+    VkRect2D scissor_rect;
 };
 
 inline VkPipeline to_handle(Graphics_pipeline *pipeline) noexcept

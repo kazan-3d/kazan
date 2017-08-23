@@ -53,6 +53,13 @@ void Context::init_helper()
         throw std::runtime_error("LLVMInitializeNativeAsmPrinter failed");
     if(::LLVMInitializeNativeDisassembler() != 0)
         throw std::runtime_error("LLVMInitializeNativeDisassembler failed");
+    static struct LLVM_shutdown
+    {
+        ~LLVM_shutdown()
+        {
+            ::LLVMShutdown();
+        }
+    } llvm_shutdown;
 }
 
 LLVM_string Target::get_process_target_triple()
