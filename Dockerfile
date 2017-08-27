@@ -3,5 +3,5 @@ RUN apt-get update -q && apt-get dist-upgrade -qy && apt-get install -qy clang-4
 WORKDIR /build
 COPY . /build
 RUN ./docker-build-scripts/build.sh
-RUN ./build/src/demo/demo && convert output.bmp output.png && curl --upload-file ./output.png https://transfer.sh/output.png || echo running failed
+RUN ./build/src/demo/demo > demo-output.txt 2>&1 && convert output.bmp output.png && curl --upload-file ./output.png https://transfer.sh/output.png && echo && curl --upload-file ./demo-output.txt https://transfer.sh/demo-output.txt && echo || echo running failed
 CMD ["/bin/bash"]
