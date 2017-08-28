@@ -39,3 +39,46 @@ Members:
 ### `detail::name_from_words_*`
 splits all the inputs strings into words using `Chained_word_iterator`, then concatenates all the words together separated by underlines, finally applies the word capitalization modifications indicated by the function name. If the result is a C++ keyword (is found in `detail::keywords`), then append an additional underline.
 Returns a `Name_from_words_holder`.
+
+## `generate_spirv_parser/generate.cpp`
+
+### `detail::Generated_output_stream::write_to_file`
+interprets the indentation-control commands then writes the resulting indented text to a file. If `do_reindent` is false, then it doesn't interpret the indentation-control commands or indents the text, writing the text to the output file without changes. This is useful for debugging.
+
+### `Output_part`
+`enum` for the part of the output. The output files are written in parts, this `enum` serves to determine the order in which the parts are written to the output.
+
+### `Spirv_and_parser_generator::State`
+Main implementation of the output file code generator.
+
+#### `Spirv_and_parser_generator::State::Output_base`
+base class that handles ordering the output parts and combining them together.  
+Members:
+- `register_output_part`: register a new output part along with the variable containing the output part or the function that generates the output part.
+- `write_whole_output`: generates the output
+
+#### `Spirv_and_parser_generator::State::Output_struct`
+class representing the different output parts of a `struct`. Handles generating a default constructor and a initialize-everything constructor.  
+Members:
+- `add_nonstatic_member`: add a new non-static member.
+
+#### `Spirv_and_parser_generator::State::Output_file_base`
+class that contains the file-level output parts
+
+#### `Spirv_and_parser_generator::State::Header_file_base`
+class that contains the file-level output parts specific to header files.
+
+#### `Spirv_and_parser_generator::State::Source_file_base`
+class that contains the file-level output parts specific to source files.
+
+#### `Spirv_and_parser_generator::State::Spirv_h`
+class for generating `spirv/spirv.h`
+
+#### `Spirv_and_parser_generator::State::Spirv_cpp`
+class for generating `spirv/spirv.cpp`
+
+#### `Spirv_and_parser_generator::State::Parser_h`
+class for generating `spirv/parser.h`
+
+#### `Spirv_and_parser_generator::State::Parser_cpp`
+class for generating `spirv/parser.cpp`
