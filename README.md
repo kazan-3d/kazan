@@ -4,6 +4,10 @@
 
 Work-in-progress for Vulkan implementation on cpu
 
+[TODO list](docs/todo.md)
+
+[Documentation](docs)
+
 ## Build in Docker
 
     docker build -t vulkan-cpu .
