@@ -1,4 +1,4 @@
-# Util library
+# util library
 
 ## `util/bit_intrinsics.h`
 
