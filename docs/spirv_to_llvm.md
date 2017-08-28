@@ -126,3 +126,30 @@ Members:
 - `Spirv_to_llvm`: create a `Spirv_to_llvm` object
 - `generate_entry_function`: generates the entry-point function. This is the JIT compiled function whose signature matches the function pointers in `pipeline::Pipeline`'s child classes. This generated function calls the function specified by `Op_entry_point`.
 - `run`: main function that runs all the different stages of translation into LLVM IR.
+
+## `spirv_to_llvm/spirv_to_llvm.cpp`
+Implementation for functions declared in `spirv_to_llvm/spirv_to_llvm.h`
+
+### `spirv_to_llvm::Struct_type_descriptor::complete_type`
+Function that does all of the heavy lifting to layout structs. We can't use LLVM's layout code because longer vectors end up with an alignment larger than `::operator new` can handle.
+
+### `spirv_to_llvm::Spirv_to_llvm::handle_header`
+copies the values from the SPIR-V header to class members and allocates space in `id_states` for all of the `Id`s.
+
+### `spirv_to_llvm::spirv_to_llvm`
+wrapper function around the Spirv_to_llvm class, so we don't have to include a huge amount of code from the rest of this project.
+
+## `spirv_to_llvm/core_instructions.cpp`
+Implementation of instructions specified in `khronos-spirv/spirv.core.grammar.json`.
+
+## `spirv_to_llvm/glsl_instructions.cpp`
+Implementation of instructions specified in `khronos-spirv/extinst.glsl.std.450.grammar.json`.
+
+## `spirv_to_llvm/opencl_instructions.cpp`
+Implementation of instructions specified in `khronos-spirv/extinst.opencl.std.100.grammar.json`.
+
+## `spirv_to_llvm/fragment_entry_point.cpp`
+Implementation of `Spirv_to_llvm::generate_entry_function` for fragment shaders
+
+## `spirv_to_llvm/vertex_entry_point.cpp`
+Implementation of `Spirv_to_llvm::generate_entry_function` for vertex shaders
