@@ -5,7 +5,7 @@ I've probably done more work on the code since GSOC, available here: [master bra
 
 ## State of code at end of GSOC
 
-A more detailed to-do list is available: [todo.md](todo.md)
+A more detailed to-do list is available: [todo.md](todo.md)  
 Documentation is available: [docs](..)
 
 Completed:
