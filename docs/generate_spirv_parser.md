@@ -82,3 +82,15 @@ class for generating `spirv/parser.h`
 
 #### `Spirv_and_parser_generator::State::Parser_cpp`
 class for generating `spirv/parser.cpp`
+
+## `generate_spirv_parser/instruction_properties.h`
+structures for describing SPIR-V instruction properties that are not in the JSON format.
+
+## `generate_spirv_parser/instruction_properties.cpp`
+the list of SPIR-V instruction that have properties that are not in the JSON format.
+
+## `generate_spirv_parser/parser.cpp`
+the code to convert from the JSON ASTs to `generate_spirv_parser`'s AST. This is where all of the input validation should be.
+
+## `generate_spirv_parser/patch.cpp`
+the patches to apply to `generate_spirv_parser`'s AST to correct things like unnamed variables producing duplicate names in the output code.
