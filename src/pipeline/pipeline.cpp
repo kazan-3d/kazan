@@ -500,7 +500,7 @@ void Graphics_pipeline::run(std::uint32_t vertex_start_index,
     };
     auto solve_for_t = [](float v0, float v1) noexcept->float
     {
-        // solves interpolate(t, v0, v1) == 0
+        // solves interpolate_float(t, v0, v1) == 0
         return v0 / (v0 - v1);
     };
     auto clip_edge = [solve_for_t, interpolate_vec4](const Vec4 &start_vertex,
