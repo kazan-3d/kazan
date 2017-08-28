@@ -28,3 +28,6 @@ Not implemented:
 - indexed drawing -- should implement a vertex cache of some sort
 - shader compile cache
 - Vulkan WSI
+
+Misc:
+- Determine if cmake supports using multiple compilers, allowing use of gcc for compiling everything except for the code that needs to end up as llvm ir.
