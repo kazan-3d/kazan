@@ -30,3 +30,7 @@ Not yet started:
 - Vulkan doesn't actually specify using the top-left fill rule. (I couldn't find it in the [rasterization section](https://www.khronos.org/registry/vulkan/specs/1.0-wsi_extensions/html/vkspec.html#primsrast-polygons-basic) of the Vulkan spec.)
 - SPIR-V is actually surprisingly complicated to parse for an IR that's supposed to be simple to parse. You have to determine the types of values before you can parse OpSwitch instructions properly as the number of words taken by each case depends on the bit-width of the value being switched on.
 - I probably should have used the SPIR-V parser that was already written by Khronos.
+
+## Why I didn't complete everything planned
+I think that I should have used the SPIR-V parser that was already written by Khronos, as I spent about a month writing the SPIR-V parser generator.
+I also think I over-engineering some of the utility code.
