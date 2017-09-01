@@ -27,6 +27,7 @@
 #include <array>
 #include <type_traits>
 #include <string>
+#include <cctype>
 #include <SDL.h>
 #include "spirv/spirv.h"
 #include "spirv/parser.h"
@@ -242,7 +243,9 @@ pipeline::Pipeline_layout_handle make_pipeline_layout()
 }
 
 template <typename Integer_type>
-util::optional<Integer_type> parse_unsigned_integer(util::string_view str, Integer_type max_value = std::numeric_limits<Integer_type>::max()) noexcept
+util::optional<Integer_type> parse_unsigned_integer(
+    util::string_view str,
+    Integer_type max_value = std::numeric_limits<Integer_type>::max()) noexcept
 {
     static_assert(std::is_unsigned<Integer_type>::value, "");
     if(str.empty())
@@ -257,6 +260,313 @@ util::optional<Integer_type> parse_unsigned_integer(util::string_view str, Integ
             return {};
         retval *= 10;
         retval += ch_value;
+    }
+    return retval;
+}
+
+template <typename Integer_type>
+util::optional<Integer_type> parse_signed_integer(
+    util::string_view str,
+    Integer_type max_value = std::numeric_limits<Integer_type>::max(),
+    Integer_type min_value = std::numeric_limits<Integer_type>::min()) noexcept
+{
+    assert(max_value >= min_value);
+    static_assert(std::is_signed<Integer_type>::value, "");
+    typedef typename std::make_unsigned<Integer_type>::type Unsigned_type;
+    bool is_negative = false;
+    if(str.empty())
+        return {};
+    if(str.front() == '+')
+    {
+        str.remove_prefix(1);
+    }
+    else if(str.front() == '-')
+    {
+        is_negative = true;
+        str.remove_prefix(1);
+    }
+    if(str.empty())
+        return {};
+    Unsigned_type unsigned_max;
+    if(is_negative)
+    {
+        if(min_value > 0)
+            return {};
+        unsigned_max = -static_cast<Unsigned_type>(min_value);
+    }
+    else
+    {
+        if(max_value < 0)
+            return {};
+        unsigned_max = static_cast<Unsigned_type>(max_value);
+    }
+    auto unsigned_retval = parse_unsigned_integer(str, unsigned_max);
+    if(!unsigned_retval)
+        return {};
+    Integer_type retval;
+    if(is_negative)
+    {
+        retval = static_cast<Integer_type>(-*unsigned_retval);
+        if(retval > max_value)
+            return {};
+    }
+    else
+    {
+        retval = static_cast<Integer_type>(*unsigned_retval);
+        if(retval < min_value)
+            return {};
+    }
+    return retval;
+}
+
+struct Vertex_input_struct
+{
+    struct alignas(4 * alignof(float)) Vec4
+    {
+        float x, y, z, w;
+        static constexpr VkFormat format = VK_FORMAT_R32G32B32A32_SFLOAT;
+    };
+    Vec4 position;
+    static constexpr VkFormat position_format = decltype(position)::format;
+    static constexpr std::size_t position_location = 0; // must match tri.vert
+    constexpr Vertex_input_struct() noexcept : position{}
+    {
+    }
+    constexpr explicit Vertex_input_struct(const Vec4 &position) noexcept : position(position)
+    {
+    }
+};
+
+struct Wavefront_obj_parse_error : public std::runtime_error
+{
+    const char *filename;
+    std::size_t line_number;
+    static std::string make_what(const char *filename,
+                                 std::size_t line_number,
+                                 util::string_view message)
+    {
+        std::ostringstream ss;
+        ss << filename << ":" << line_number << ": error: " << message;
+        return ss.str();
+    }
+    Wavefront_obj_parse_error(const char *filename,
+                              std::size_t line_number,
+                              util::string_view message)
+        : runtime_error(make_what(filename, line_number, message)),
+          filename(filename),
+          line_number(line_number)
+    {
+    }
+};
+
+std::vector<Vertex_input_struct> load_wavefront_obj_file(const char *filename)
+{
+    std::vector<Vertex_input_struct> retval;
+    std::ifstream is(filename);
+    if(!is)
+        throw Wavefront_obj_parse_error(filename, 0, "failed to open file");
+    std::size_t line_number = 0;
+    struct Vertex
+    {
+        float x = 0, y = 0, z = 0;
+    };
+    std::vector<Vertex> vertexes;
+    struct Texture_vertex
+    {
+        float u = 0, v = 0;
+    };
+    std::vector<Texture_vertex> texture_vertexes;
+    struct Normal_vertex
+    {
+        float x = 0, y = 0, z = 0;
+    };
+    std::vector<Normal_vertex> normal_vertexes;
+    while(is)
+    {
+        line_number++;
+        std::string line_str;
+        std::getline(is, line_str);
+        for(char &ch : line_str)
+        {
+            // replace all white space with a space character
+            if(std::isspace(static_cast<unsigned char>(ch)))
+                ch = ' ';
+        }
+        util::string_view line(line_str);
+        // skip leading whitespace
+        while(!line.empty() && line.front() == ' ')
+            line.remove_prefix(1);
+        // skip trailing whitespace
+        while(!line.empty() && line.back() == ' ')
+            line.remove_suffix(1);
+        // skip blank lines and comments
+        if(line.empty() || line.front() == '#')
+            continue;
+        auto command = line.substr(0, line.find_first_of(' '));
+        line.remove_prefix(command.size());
+        // skip leading whitespace
+        while(!line.empty() && line.front() == ' ')
+            line.remove_prefix(1);
+        if(command == "v") // vertex
+        {
+            std::istringstream is;
+            is.str(std::string(line));
+            float x = 0, y = 0, z = 0;
+            is >> x >> y >> z;
+            if(!is || is.peek() != std::char_traits<char>::eof())
+                throw Wavefront_obj_parse_error(
+                    filename, line_number, "parsing vertex command failed");
+            vertexes.push_back({
+                .x = x, .y = y, .z = z,
+            });
+        }
+        else if(command == "vn") // vertex normal
+        {
+            std::istringstream is;
+            is.str(std::string(line));
+            float x = 0, y = 0, z = 0;
+            is >> x >> y >> z;
+            if(!is || is.peek() != std::char_traits<char>::eof())
+                throw Wavefront_obj_parse_error(
+                    filename, line_number, "parsing vertex normal command failed");
+            normal_vertexes.push_back({
+                .x = x, .y = y, .z = z,
+            });
+        }
+        else if(command == "vt") // vertex texture
+        {
+            std::istringstream is;
+            is.str(std::string(line));
+            float u = 0, v = 0;
+            is >> u >> v;
+            if(!is || is.peek() != std::char_traits<char>::eof())
+                throw Wavefront_obj_parse_error(
+                    filename, line_number, "parsing vertex texture command failed");
+            texture_vertexes.push_back({
+                .u = u, .v = v,
+            });
+        }
+        else if(command == "s" && line == "off")
+        {
+            // smoothing groups are not implemented, so turning smoothing off has no effect
+        }
+        else if(command == "f")
+        {
+            struct Face_vertex
+            {
+                Vertex vertex;
+                util::optional<Texture_vertex> texture_vertex;
+                util::optional<Normal_vertex> normal_vertex;
+            };
+            std::vector<Face_vertex> face_vertexes;
+            while(!line.empty())
+            {
+                auto vertex_str = line.substr(0, line.find_first_of(' '));
+                line.remove_prefix(vertex_str.size());
+                // skip leading whitespace
+                while(!line.empty() && line.front() == ' ')
+                    line.remove_prefix(1);
+                assert(!vertex_str.empty());
+                auto vertex_index_str = vertex_str.substr(0, vertex_str.find_first_of('/'));
+                vertex_str.remove_prefix(vertex_index_str.size());
+                util::string_view vertex_texture_index_str;
+                util::string_view vertex_normal_index_str;
+                if(!vertex_str.empty())
+                {
+                    vertex_str.remove_prefix(1); // remove slash
+                    vertex_texture_index_str = vertex_str.substr(0, vertex_str.find_first_of('/'));
+                    vertex_str.remove_prefix(vertex_texture_index_str.size());
+                    if(!vertex_str.empty())
+                    {
+                        vertex_str.remove_prefix(1); // remove slash
+                        vertex_normal_index_str = vertex_str;
+                    }
+                }
+                auto parse_vertex_index = [filename, line_number](
+                    auto &vertexes,
+                    util::string_view vertex_index_str,
+                    const char *vertex_index_name)
+                {
+                    std::size_t vertex_count = vertexes.size();
+                    std::int64_t max_index = vertex_count;
+                    std::int64_t min_index = -vertex_count;
+                    auto vertex_index =
+                        parse_signed_integer(vertex_index_str, max_index, min_index);
+                    if(!vertex_index || *vertex_index == 0)
+                        throw Wavefront_obj_parse_error(filename,
+                                                        line_number,
+                                                        std::string("invalid ") + vertex_index_name
+                                                            + ": "
+                                                            + std::string(vertex_index_str));
+                    if(*vertex_index < 0)
+                        *vertex_index += vertex_count;
+                    else
+                        (*vertex_index)--;
+                    assert(*vertex_index >= 0 && *vertex_index < vertex_count);
+                    return vertexes[*vertex_index];
+                };
+                auto vertex = parse_vertex_index(vertexes, vertex_index_str, "vertex index");
+                util::optional<Texture_vertex> texture_vertex;
+                if(!vertex_texture_index_str.empty())
+                    texture_vertex = parse_vertex_index(
+                        texture_vertexes, vertex_texture_index_str, "vertex texture index");
+                util::optional<Normal_vertex> normal_vertex;
+                if(!vertex_normal_index_str.empty())
+                    normal_vertex = parse_vertex_index(
+                        normal_vertexes, vertex_normal_index_str, "vertex normal index");
+                face_vertexes.push_back({
+                    .vertex = vertex,
+                    .texture_vertex = texture_vertex,
+                    .normal_vertex = normal_vertex,
+                });
+            }
+            if(face_vertexes.size() < 3)
+                throw Wavefront_obj_parse_error(
+                    filename, line_number, "faces must have at least 3 vertexes");
+            std::vector<Vertex_input_struct> transformed_vertexes;
+            transformed_vertexes.reserve(face_vertexes.size());
+            for(auto &face_vertex : face_vertexes)
+            {
+                // convert from obj coordinate system to OpenGL coordinate system
+                float global_x = face_vertex.vertex.x;
+                float global_y = -face_vertex.vertex.z;
+                float global_z = face_vertex.vertex.y;
+                // camera transformation
+                float camera_x = global_x;
+                float camera_y = global_y;
+                float camera_z = global_z - 1;
+                // perspective project
+                constexpr float far_plane = 10;
+                constexpr float factor = 1 / far_plane;
+                float projected_x = factor * camera_x;
+                float projected_y = -factor * camera_y;
+                float projected_z = -factor * camera_z;
+                float projected_w = -factor * camera_z;
+                // fix aspect ratio
+                constexpr float x_aspect_ratio_correction = 3.0 / 4;
+                constexpr float y_aspect_ratio_correction = 1;
+                float final_x = projected_x * x_aspect_ratio_correction;
+                float final_y = projected_y * y_aspect_ratio_correction;
+                float final_z = projected_z;
+                float final_w = projected_w;
+                transformed_vertexes.push_back(Vertex_input_struct({
+                    .x = final_x, .y = final_y, .z = final_z, .w = final_w,
+                }));
+            }
+            // triangulate face
+            for(std::size_t leading_vertex_index = 2, trailing_vertex_index = 1;
+                leading_vertex_index < transformed_vertexes.size();
+                leading_vertex_index++, trailing_vertex_index++)
+            {
+                retval.push_back(transformed_vertexes[0]);
+                retval.push_back(transformed_vertexes[trailing_vertex_index]);
+                retval.push_back(transformed_vertexes[leading_vertex_index]);
+            }
+        }
+#warning finish implementing load_wavefront_obj_file
+        else
+            throw Wavefront_obj_parse_error(
+                filename, line_number, "unimplemented command: " + std::string(command));
     }
     return retval;
 }
@@ -277,28 +587,23 @@ int test_main(int argc, char **argv)
     } shutdown_sdl;
     const char *vertex_shader_filename = "test-files/tri.vert.spv";
     const char *fragment_shader_filename = "test-files/tri.frag.spv";
-    const char *vertex_count_str = "633";
+    const char *vertexes_filename = "test-files/demo-text.obj";
     if(argc > 1)
     {
         if(argc != 4 || argv[1][0] == '-' || argv[2][0] == '-' || argv[3][0] == '-')
         {
-            std::cerr << "usage: demo [<file.vert.spv> <file.frag.spv> <vertex count>]\n";
+            std::cerr << "usage: demo [<file.vert.spv> <file.frag.spv> <vertexes.obj>]\n";
             return 1;
         }
         vertex_shader_filename = argv[1];
         fragment_shader_filename = argv[2];
-        vertex_count_str = argv[3];
+        vertexes_filename = argv[3];
     }
     try
     {
-        auto vertex_count = parse_unsigned_integer<std::uint64_t>(vertex_count_str);
-        if(!vertex_count)
-            throw std::runtime_error("invalid value for vertex count, must be a decimal integer");
-        constexpr auto max_vertex_count = 50000000;
-        if(*vertex_count > max_vertex_count)
-            throw std::runtime_error("vertex count is too large");
         auto vertex_shader = load_shader(vertex_shader_filename);
         auto fragment_shader = load_shader(fragment_shader_filename);
+        auto vertexes = load_wavefront_obj_file(vertexes_filename);
         auto pipeline_layout = make_pipeline_layout();
         constexpr std::size_t main_color_attachment_index = 0;
         constexpr std::size_t attachment_count = main_color_attachment_index + 1;
@@ -370,14 +675,35 @@ int test_main(int argc, char **argv)
             .pName = "main",
             .pSpecializationInfo = nullptr,
         };
+        constexpr std::size_t vertex_input_buffer_binding_index = 0;
+        constexpr std::size_t binding_count = vertex_input_buffer_binding_index + 1;
+        constexpr std::size_t vertex_input_binding_description_count = 1;
+        VkVertexInputBindingDescription
+            vertex_input_binding_descriptions[vertex_input_binding_description_count] = {
+                {
+                    .binding = vertex_input_buffer_binding_index,
+                    .stride = sizeof(Vertex_input_struct),
+                    .inputRate = VK_VERTEX_INPUT_RATE_VERTEX,
+                },
+            };
+        constexpr std::size_t vertex_input_attribute_description_count = 1;
+        VkVertexInputAttributeDescription
+            vertex_input_attribute_descriptions[vertex_input_attribute_description_count] = {
+                {
+                    .location = Vertex_input_struct::position_location,
+                    .binding = vertex_input_buffer_binding_index,
+                    .format = Vertex_input_struct::position_format,
+                    .offset = offsetof(Vertex_input_struct, position),
+                },
+            };
         VkPipelineVertexInputStateCreateInfo pipeline_vertex_input_state_create_info = {
             .sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
             .pNext = nullptr,
             .flags = 0,
-            .vertexBindingDescriptionCount = 0,
-            .pVertexBindingDescriptions = nullptr,
-            .vertexAttributeDescriptionCount = 0,
-            .pVertexAttributeDescriptions = nullptr,
+            .vertexBindingDescriptionCount = vertex_input_binding_description_count,
+            .pVertexBindingDescriptions = vertex_input_binding_descriptions,
+            .vertexAttributeDescriptionCount = vertex_input_attribute_description_count,
+            .pVertexAttributeDescriptions = vertex_input_attribute_descriptions,
         };
         VkPipelineInputAssemblyStateCreateInfo pipeline_input_assembly_state_create_info = {
             .sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
@@ -528,9 +854,13 @@ int test_main(int argc, char **argv)
         clear_color.float32[3] = 1;
         color_attachment.clear(clear_color);
         constexpr std::uint32_t vertex_start_index = 0;
-        std::uint32_t vertex_end_index = *vertex_count;
+        std::uint32_t vertex_end_index = vertexes.size();
         constexpr std::uint32_t instance_id = 0;
-        graphics_pipeline->run(vertex_start_index, vertex_end_index, instance_id, color_attachment);
+        void *bindings[binding_count] = {
+            vertexes.data(),
+        };
+        graphics_pipeline->run(
+            vertex_start_index, vertex_end_index, instance_id, color_attachment, bindings);
         typedef std::uint32_t Pixel_type;
         // check Pixel_type
         static_assert(std::is_void<util::void_t<decltype(graphics_pipeline->run_fragment_shader(

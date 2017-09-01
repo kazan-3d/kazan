@@ -101,6 +101,7 @@ llvm_wrapper::Module Pipeline::optimize_module(llvm_wrapper::Module module,
             ::LLVMAddSCCPPass(manager.get());
             ::LLVMAddAggressiveDCEPass(manager.get());
             ::LLVMAddLICMPass(manager.get());
+            ::LLVMAddIndVarSimplifyPass(manager.get());
             ::LLVMAddCFGSimplificationPass(manager.get());
             ::LLVMAddReassociatePass(manager.get());
             ::LLVMAddInstructionCombiningPass(manager.get());
@@ -126,6 +127,8 @@ llvm_wrapper::Module Pipeline::optimize_module(llvm_wrapper::Module module,
             ::LLVMAddCFGSimplificationPass(manager.get());
             ::LLVMAddPromoteMemoryToRegisterPass(manager.get());
             ::LLVMAddScalarReplAggregatesPass(manager.get());
+            ::LLVMAddLICMPass(manager.get());
+            ::LLVMAddIndVarSimplifyPass(manager.get());
             ::LLVMAddReassociatePass(manager.get());
             ::LLVMAddInstructionCombiningPass(manager.get());
             ::LLVMAddLoopUnrollPass(manager.get());
@@ -409,7 +412,8 @@ void Graphics_pipeline::dump_vertex_shader_output_struct(const void *output_stru
 void Graphics_pipeline::run(std::uint32_t vertex_start_index,
                             std::uint32_t vertex_end_index,
                             std::uint32_t instance_id,
-                            const image::Image &color_attachment)
+                            const image::Image &color_attachment,
+                            void *const *bindings)
 {
     typedef std::uint32_t Pixel_type;
     assert(color_attachment.descriptor.tiling == VK_IMAGE_TILING_LINEAR);
@@ -616,7 +620,8 @@ void Graphics_pipeline::run(std::uint32_t vertex_start_index,
         run_vertex_shader(current_vertex_start_index,
                           current_vertex_start_index + chunk_size,
                           instance_id,
-                          chunk_vertex_buffer.get());
+                          chunk_vertex_buffer.get(),
+                          bindings);
         const unsigned char *current_vertex =
             chunk_vertex_buffer.get() + vertex_shader_position_output_offset;
         triangles.clear();
@@ -919,13 +924,16 @@ std::unique_ptr<Graphics_pipeline> Graphics_pipeline::make(
             }
             std::cerr << dump_callbacks.ss.str() << std::endl;
         }
+        assert(create_info.pVertexInputState);
+        assert(create_info.pVertexInputState->sType == VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO);
         auto compiled_shader = spirv_to_llvm::spirv_to_llvm(implementation->llvm_context.get(),
                                                             llvm_target_machine.get(),
                                                             shader_module->words(),
                                                             shader_module->word_count(),
                                                             implementation->compiled_shaders.size(),
                                                             execution_model,
-                                                            stage_info.pName);
+                                                            stage_info.pName,
+                                                            create_info.pVertexInputState);
         std::cerr << "Translation to LLVM succeeded." << std::endl;
         ::LLVMDumpModule(compiled_shader.module.get());
         bool failed =

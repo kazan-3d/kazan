@@ -34,6 +34,7 @@
 #include <cstddef>
 #include "llvm_wrapper/llvm_wrapper.h"
 #include "util/string_view.h"
+#include "vulkan/vulkan.h"
 
 namespace vulkan_cpu
 {
@@ -615,7 +616,8 @@ Converted_module spirv_to_llvm(::LLVMContextRef context,
                                std::size_t shader_size,
                                std::uint64_t shader_id,
                                spirv::Execution_model execution_model,
-                               util::string_view entry_point_name);
+                               util::string_view entry_point_name,
+                               const VkPipelineVertexInputStateCreateInfo *vertex_input_state);
 }
 }
 

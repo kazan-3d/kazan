@@ -383,19 +383,65 @@ void Struct_type_descriptor::complete_type()
                                    + std::string(get_enumerant_name(decoration.value)));
         }
         auto member_type = member.type->get_or_make_type();
+        std::size_t size = ::LLVMABISizeOfType(target_data, member_type.type);
+        struct Member_type_visitor : public Type_descriptor::Type_visitor
+        {
+            LLVM_type_and_alignment &member_type;
+            std::size_t &size;
+            Struct_type_descriptor *this_;
+            virtual void visit(Simple_type_descriptor &type) override
+            {
+#warning finish implementing member type
+            }
+            virtual void visit(Vector_type_descriptor &type) override
+            {
+#warning finish implementing member type
+            }
+            virtual void visit(Matrix_type_descriptor &type) override
+            {
+#warning finish implementing member type
+                throw Parser_error(this_->instruction_start_index,
+                                   this_->instruction_start_index,
+                                   "unimplemented member type");
+            }
+            virtual void visit(Array_type_descriptor &type) override
+            {
+#warning finish implementing member type
+            }
+            virtual void visit(Pointer_type_descriptor &type) override
+            {
+#warning finish implementing member type
+            }
+            virtual void visit(Function_type_descriptor &type) override
+            {
+#warning finish implementing member type
+            }
+            virtual void visit(Struct_type_descriptor &type) override
+            {
+#warning finish implementing member type
+                if(::LLVMIsOpaqueStruct(member_type.type))
+                    throw Parser_error(this_->instruction_start_index,
+                                       this_->instruction_start_index,
+                                       "recursive struct has infinite size");
+            }
+            explicit Member_type_visitor(LLVM_type_and_alignment &member_type,
+                                         std::size_t &size,
+                                         Struct_type_descriptor *this_) noexcept
+                : member_type(member_type),
+                  size(size),
+                  this_(this_)
+            {
+            }
+        };
+        member.type->visit(Member_type_visitor(member_type, size, this));
         if(::LLVMGetTypeKind(member_type.type) == ::LLVMStructTypeKind
            && ::LLVMIsOpaqueStruct(member_type.type))
         {
-            if(dynamic_cast<const Struct_type_descriptor *>(member.type.get()))
-                throw Parser_error(instruction_start_index,
-                                   instruction_start_index,
-                                   "recursive struct has infinite size");
             throw Parser_error(instruction_start_index,
                                instruction_start_index,
                                "struct can't have opaque struct members");
         }
         assert(is_power_of_2(member_type.alignment));
-        std::size_t size = ::LLVMABISizeOfType(target_data, member_type.type);
         if(member_type.alignment > total_alignment)
             total_alignment = member_type.alignment;
         member_descriptors.push_back(
@@ -450,17 +496,24 @@ void Spirv_to_llvm::handle_header(unsigned version_number_major,
         id_states.resize(id_bound - 1);
     }
 }
-
-Converted_module spirv_to_llvm(::LLVMContextRef context,
-                               ::LLVMTargetMachineRef target_machine,
-                               const spirv::Word *shader_words,
-                               std::size_t shader_size,
-                               std::uint64_t shader_id,
-                               spirv::Execution_model execution_model,
-                               util::string_view entry_point_name)
-{
-    return Spirv_to_llvm(context, target_machine, shader_id, execution_model, entry_point_name)
-        .run(shader_words, shader_size);
 }
+
+spirv_to_llvm::Converted_module spirv_to_llvm::spirv_to_llvm(
+    ::LLVMContextRef context,
+    ::LLVMTargetMachineRef target_machine,
+    const spirv::Word *shader_words,
+    std::size_t shader_size,
+    std::uint64_t shader_id,
+    spirv::Execution_model execution_model,
+    util::string_view entry_point_name,
+    const VkPipelineVertexInputStateCreateInfo *vertex_input_state)
+{
+    return Spirv_to_llvm(context,
+                         target_machine,
+                         shader_id,
+                         execution_model,
+                         entry_point_name,
+                         vertex_input_state)
+        .run(shader_words, shader_size);
 }
 }

@@ -880,9 +880,23 @@ void Spirv_to_llvm::handle_instruction_op_constant_composite(Op_constant_composi
     }
     case Stage::generate_code:
     {
+        auto type = get_type(instruction.result_type, instruction_start_index);
+        auto llvm_type = type->get_or_make_type();
         auto &state = get_id_state(instruction.result);
-        state.value = Value(state.constant->get_or_make_value(),
-                            get_type(instruction.result_type, instruction_start_index));
+        auto global = ::LLVMAddGlobal(module.get(), llvm_type.type, "");
+        ::LLVMSetAlignment(global, llvm_type.alignment);
+        ::LLVMSetGlobalConstant(global, true);
+        ::LLVMSetInitializer(global, state.constant->get_or_make_value());
+        ::LLVMSetLinkage(global, ::LLVMInternalLinkage);
+        ::LLVMSetUnnamedAddr(global, true);
+        assert(!current_function_id);
+        auto set_value_fn = [this, &state, global, type, llvm_type]()
+        {
+            auto load = ::LLVMBuildLoad(builder.get(), global, "");
+            ::LLVMSetAlignment(load, llvm_type.alignment);
+            state.value = Value(load, type);
+        };
+        function_entry_block_handlers.push_back(set_value_fn);
         break;
     }
     }
@@ -991,6 +1005,7 @@ void Spirv_to_llvm::handle_instruction_op_function(Op_function instruction,
         auto function = ::LLVMAddFunction(
             module.get(), function_name.c_str(), function_type->get_or_make_type().type);
         llvm_wrapper::Module::set_function_target_machine(function, target_machine);
+        ::LLVMSetLinkage(function, ::LLVMInternalLinkage);
         state.function = Function_state(function_type, function, std::move(function_name));
         break;
     }

@@ -232,6 +232,7 @@ private:
     spirv::Execution_model execution_model;
     util::string_view entry_point_name;
     Op_entry_point_state *entry_point_state_pointer = nullptr;
+    const VkPipelineVertexInputStateCreateInfo *vertex_input_state;
 
 private:
     Id_state &get_id_state(spirv::Id id)
@@ -248,7 +249,8 @@ private:
             throw spirv::Parser_error(
                 instruction_start_index, instruction_start_index, "id is not a type");
         if(!retval)
-            throw spirv::Parser_error(instruction_start_index, instruction_start_index, "type mismatch");
+            throw spirv::Parser_error(
+                instruction_start_index, instruction_start_index, "type mismatch");
         return retval;
     }
     unsigned long long get_unsigned_integer_constant(spirv::Id id,
@@ -263,8 +265,8 @@ private:
             auto llvm_type = type->get_or_make_type();
             if(::LLVMGetTypeKind(llvm_type.type) != ::LLVMIntegerTypeKind)
                 throw spirv::Parser_error(instruction_start_index,
-                                   instruction_start_index,
-                                   "id is not a constant integer");
+                                          instruction_start_index,
+                                          "id is not a constant integer");
         }
         else
         {
@@ -284,8 +286,8 @@ private:
             auto llvm_type = type->get_or_make_type();
             if(::LLVMGetTypeKind(llvm_type.type) != ::LLVMIntegerTypeKind)
                 throw spirv::Parser_error(instruction_start_index,
-                                   instruction_start_index,
-                                   "id is not a constant integer");
+                                          instruction_start_index,
+                                          "id is not a constant integer");
         }
         else
         {
@@ -351,25 +353,26 @@ private:
                    || entry_point.entry_point.execution_model != execution_model)
                     continue;
                 if(entry_point_state_pointer)
-                    throw spirv::Parser_error(entry_point.instruction_start_index,
-                                       entry_point.instruction_start_index,
-                                       "duplicate entry point: "
-                                           + std::string(spirv::get_enumerant_name(execution_model))
-                                           + " \""
-                                           + std::string(entry_point_name)
-                                           + "\"");
+                    throw spirv::Parser_error(
+                        entry_point.instruction_start_index,
+                        entry_point.instruction_start_index,
+                        "duplicate entry point: "
+                            + std::string(spirv::get_enumerant_name(execution_model))
+                            + " \""
+                            + std::string(entry_point_name)
+                            + "\"");
                 entry_point_state_pointer = &entry_point;
             }
         }
         if(entry_point_state_pointer)
             return *entry_point_state_pointer;
         throw spirv::Parser_error(0,
-                           0,
-                           "can't find entry point: "
-                               + std::string(spirv::get_enumerant_name(execution_model))
-                               + " \""
-                               + std::string(entry_point_name)
-                               + "\"");
+                                  0,
+                                  "can't find entry point: "
+                                      + std::string(spirv::get_enumerant_name(execution_model))
+                                      + " \""
+                                      + std::string(entry_point_name)
+                                      + "\"");
     }
 
 public:
@@ -377,13 +380,15 @@ public:
                            ::LLVMTargetMachineRef target_machine,
                            std::uint64_t shader_id,
                            spirv::Execution_model execution_model,
-                           util::string_view entry_point_name)
+                           util::string_view entry_point_name,
+                           const VkPipelineVertexInputStateCreateInfo *vertex_input_state)
         : context(context),
           target_machine(target_machine),
           shader_id(shader_id),
           stage(),
           execution_model(execution_model),
-          entry_point_name(entry_point_name)
+          entry_point_name(entry_point_name),
+          vertex_input_state(vertex_input_state)
     {
         {
             std::ostringstream ss;
@@ -395,35 +400,36 @@ public:
         target_data = ::LLVMGetModuleDataLayout(module.get());
         builder = llvm_wrapper::Builder::create(context);
         constexpr std::size_t no_instruction_index = 0;
-        io_struct =
-            std::make_shared<Struct_type_descriptor>(std::vector<spirv::Decoration_with_parameters>{},
-                                                     context,
-                                                     target_data,
-                                                     get_prefixed_name("Io_struct", true).c_str(),
-                                                     no_instruction_index);
+        io_struct = std::make_shared<Struct_type_descriptor>(
+            std::vector<spirv::Decoration_with_parameters>{},
+            context,
+            target_data,
+            get_prefixed_name("Io_struct", true).c_str(),
+            no_instruction_index);
         assert(implicit_function_arguments.size() == 1);
         static_assert(io_struct_argument_index == 0, "");
         implicit_function_arguments[io_struct_argument_index] =
-            std::make_shared<Pointer_type_descriptor>(std::vector<spirv::Decoration_with_parameters>{},
-                                                      io_struct,
-                                                      no_instruction_index,
-                                                      target_data);
-        inputs_struct =
-            std::make_shared<Struct_type_descriptor>(std::vector<spirv::Decoration_with_parameters>{},
-                                                     context,
-                                                     target_data,
-                                                     get_prefixed_name("Inputs", true).c_str(),
-                                                     no_instruction_index);
+            std::make_shared<Pointer_type_descriptor>(
+                std::vector<spirv::Decoration_with_parameters>{},
+                io_struct,
+                no_instruction_index,
+                target_data);
+        inputs_struct = std::make_shared<Struct_type_descriptor>(
+            std::vector<spirv::Decoration_with_parameters>{},
+            context,
+            target_data,
+            get_prefixed_name("Inputs", true).c_str(),
+            no_instruction_index);
         inputs_member = io_struct->add_member(Struct_type_descriptor::Member(
             {},
             std::make_shared<Pointer_type_descriptor>(
                 std::vector<spirv::Decoration_with_parameters>{}, inputs_struct, 0, target_data)));
-        outputs_struct =
-            std::make_shared<Struct_type_descriptor>(std::vector<spirv::Decoration_with_parameters>{},
-                                                     context,
-                                                     target_data,
-                                                     get_prefixed_name("Outputs", true).c_str(),
-                                                     no_instruction_index);
+        outputs_struct = std::make_shared<Struct_type_descriptor>(
+            std::vector<spirv::Decoration_with_parameters>{},
+            context,
+            target_data,
+            get_prefixed_name("Outputs", true).c_str(),
+            no_instruction_index);
         outputs_struct_pointer_type = std::make_shared<Pointer_type_descriptor>(
             std::vector<spirv::Decoration_with_parameters>{}, outputs_struct, 0, target_data);
         outputs_member =
@@ -432,7 +438,7 @@ public:
     ::LLVMValueRef generate_vertex_entry_function(Op_entry_point_state &entry_point,
                                                   ::LLVMValueRef main_function);
     ::LLVMValueRef generate_fragment_entry_function(Op_entry_point_state &entry_point,
-                                                  ::LLVMValueRef main_function);
+                                                    ::LLVMValueRef main_function);
     std::string generate_entry_function(Op_entry_point_state &entry_point,
                                         ::LLVMValueRef main_function)
     {
@@ -444,37 +450,42 @@ public:
             break;
         case spirv::Execution_model::tessellation_control:
 #warning implement execution model
-            throw spirv::Parser_error(entry_point.instruction_start_index,
-                               entry_point.instruction_start_index,
-                               "unimplemented execution model: "
-                                   + std::string(spirv::get_enumerant_name(execution_model)));
+            throw spirv::Parser_error(
+                entry_point.instruction_start_index,
+                entry_point.instruction_start_index,
+                "unimplemented execution model: "
+                    + std::string(spirv::get_enumerant_name(execution_model)));
         case spirv::Execution_model::tessellation_evaluation:
 #warning implement execution model
-            throw spirv::Parser_error(entry_point.instruction_start_index,
-                               entry_point.instruction_start_index,
-                               "unimplemented execution model: "
-                                   + std::string(spirv::get_enumerant_name(execution_model)));
+            throw spirv::Parser_error(
+                entry_point.instruction_start_index,
+                entry_point.instruction_start_index,
+                "unimplemented execution model: "
+                    + std::string(spirv::get_enumerant_name(execution_model)));
         case spirv::Execution_model::geometry:
 #warning implement execution model
-            throw spirv::Parser_error(entry_point.instruction_start_index,
-                               entry_point.instruction_start_index,
-                               "unimplemented execution model: "
-                                   + std::string(spirv::get_enumerant_name(execution_model)));
+            throw spirv::Parser_error(
+                entry_point.instruction_start_index,
+                entry_point.instruction_start_index,
+                "unimplemented execution model: "
+                    + std::string(spirv::get_enumerant_name(execution_model)));
         case spirv::Execution_model::fragment:
             entry_function = generate_fragment_entry_function(entry_point, main_function);
             break;
         case spirv::Execution_model::gl_compute:
 #warning implement execution model
-            throw spirv::Parser_error(entry_point.instruction_start_index,
-                               entry_point.instruction_start_index,
-                               "unimplemented execution model: "
-                                   + std::string(spirv::get_enumerant_name(execution_model)));
+            throw spirv::Parser_error(
+                entry_point.instruction_start_index,
+                entry_point.instruction_start_index,
+                "unimplemented execution model: "
+                    + std::string(spirv::get_enumerant_name(execution_model)));
         case spirv::Execution_model::kernel:
             // TODO: implement execution model as extension
-            throw spirv::Parser_error(entry_point.instruction_start_index,
-                               entry_point.instruction_start_index,
-                               "unimplemented execution model: "
-                                   + std::string(spirv::get_enumerant_name(execution_model)));
+            throw spirv::Parser_error(
+                entry_point.instruction_start_index,
+                entry_point.instruction_start_index,
+                "unimplemented execution model: "
+                    + std::string(spirv::get_enumerant_name(execution_model)));
         }
         assert(entry_function);
         return ::LLVMGetValueName(entry_function);
@@ -495,8 +506,8 @@ public:
         auto &entry_point_id_state = get_id_state(entry_point_state.entry_point.entry_point);
         if(!entry_point_id_state.function)
             throw spirv::Parser_error(entry_point_state.instruction_start_index,
-                               entry_point_state.instruction_start_index,
-                               "No definition for function referenced in OpEntryPoint");
+                                      entry_point_state.instruction_start_index,
+                                      "No definition for function referenced in OpEntryPoint");
         auto entry_function_name =
             generate_entry_function(entry_point_state, entry_point_id_state.function->function);
         return Converted_module(std::move(module),

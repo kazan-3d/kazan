@@ -206,16 +206,19 @@ public:
     typedef void (*Vertex_shader_function)(std::uint32_t vertex_start_index,
                                            std::uint32_t vertex_end_index,
                                            std::uint32_t instance_id,
-                                           void *output_buffer);
+                                           void *output_buffer,
+                                           void *const *bindings);
     typedef void (*Fragment_shader_function)(std::uint32_t *color_attachment_pixel);
 
 public:
     void run_vertex_shader(std::uint32_t vertex_start_index,
                            std::uint32_t vertex_end_index,
                            std::uint32_t instance_id,
-                           void *output_buffer) const noexcept
+                           void *output_buffer,
+                           void *const *input_bindings) const noexcept
     {
-        vertex_shader_function(vertex_start_index, vertex_end_index, instance_id, output_buffer);
+        vertex_shader_function(
+            vertex_start_index, vertex_end_index, instance_id, output_buffer, input_bindings);
     }
     std::size_t get_vertex_shader_output_struct_size() const noexcept
     {
@@ -229,7 +232,8 @@ public:
     void run(std::uint32_t vertex_start_index,
              std::uint32_t vertex_end_index,
              std::uint32_t instance_id,
-             const image::Image &color_attachment);
+             const image::Image &color_attachment,
+             void *const *bindings);
     static std::unique_ptr<Graphics_pipeline> make(Pipeline_cache *pipeline_cache,
                                                    const VkGraphicsPipelineCreateInfo &create_info);
     static std::unique_ptr<Graphics_pipeline> move_from_handle(VkPipeline pipeline) noexcept
