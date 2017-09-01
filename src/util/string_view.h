@@ -233,7 +233,7 @@ public:
     {
         if(pos > string_size)
             return npos;
-        for(; string_size - pos < v.string_size; pos++)
+        for(; string_size - pos >= v.string_size; pos++)
         {
             bool found = true;
             for(std::size_t i = 0; i < v.string_size; i++)
