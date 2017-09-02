@@ -18,12 +18,12 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 #
-cmake_minimum_required(VERSION 3.1 FATAL_ERROR)
+cmake_minimum_required(VERSION 3.3 FATAL_ERROR)
 
 set(sources llvm_wrapper.cpp
             orc_compile_stack.cpp)
 add_library(vulkan_cpu_llvm_wrapper STATIC ${sources})
-if(1)
+if(0)
 llvm_map_components_to_libnames(llvm_libraries core native analysis orcjit mcjit nativecodegen ipo scalaropts vectorize)
 else()
 set(llvm_libraries LLVM)

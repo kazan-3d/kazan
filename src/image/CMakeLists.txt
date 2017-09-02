@@ -18,7 +18,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 #
-cmake_minimum_required(VERSION 3.1 FATAL_ERROR)
+cmake_minimum_required(VERSION 3.3 FATAL_ERROR)
 set(sources image.cpp) 
 add_library(vulkan_cpu_image STATIC ${sources})
 target_link_libraries(vulkan_cpu_image vulkan_cpu_util vulkan_cpu_llvm_wrapper vulkan_cpu_vulkan)
