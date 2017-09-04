@@ -460,7 +460,7 @@ constexpr bool operator>(basic_string_view<Char_type, Traits_type> a,
     return a.compare(b) > 0;
 }
 
-#define QUICK_SHELL_UTIL_STRING_VIEW_GENERATE_EXTRA_COMPARE_OPERATORS_NO_ALLOCATOR(...) \
+#define VULKAN_CPU_UTIL_STRING_VIEW_GENERATE_EXTRA_COMPARE_OPERATORS_NO_ALLOCATOR(...) \
     template <typename Char_type, typename Traits_type>                                 \
     bool operator==(__VA_ARGS__) noexcept                                               \
     {                                                                                   \
@@ -503,7 +503,7 @@ constexpr bool operator>(basic_string_view<Char_type, Traits_type> a,
                          static_cast<basic_string_view<Char_type, Traits_type>>(b));    \
     }
 
-#define QUICK_SHELL_UTIL_STRING_VIEW_GENERATE_EXTRA_COMPARE_OPERATORS_WITH_ALLOCATOR(...) \
+#define VULKAN_CPU_UTIL_STRING_VIEW_GENERATE_EXTRA_COMPARE_OPERATORS_WITH_ALLOCATOR(...) \
     template <typename Char_type, typename Traits_type, typename Allocator>               \
     bool operator==(__VA_ARGS__) noexcept                                                 \
     {                                                                                     \
@@ -546,18 +546,18 @@ constexpr bool operator>(basic_string_view<Char_type, Traits_type> a,
                          static_cast<basic_string_view<Char_type, Traits_type>>(b));      \
     }
 
-QUICK_SHELL_UTIL_STRING_VIEW_GENERATE_EXTRA_COMPARE_OPERATORS_NO_ALLOCATOR(
+VULKAN_CPU_UTIL_STRING_VIEW_GENERATE_EXTRA_COMPARE_OPERATORS_NO_ALLOCATOR(
     const Char_type *a, basic_string_view<Char_type, Traits_type> b)
-QUICK_SHELL_UTIL_STRING_VIEW_GENERATE_EXTRA_COMPARE_OPERATORS_NO_ALLOCATOR(
+VULKAN_CPU_UTIL_STRING_VIEW_GENERATE_EXTRA_COMPARE_OPERATORS_NO_ALLOCATOR(
     basic_string_view<Char_type, Traits_type> a, const Char_type *b)
-QUICK_SHELL_UTIL_STRING_VIEW_GENERATE_EXTRA_COMPARE_OPERATORS_WITH_ALLOCATOR(
+VULKAN_CPU_UTIL_STRING_VIEW_GENERATE_EXTRA_COMPARE_OPERATORS_WITH_ALLOCATOR(
     basic_string_view<Char_type, Traits_type> a,
     std::basic_string<Char_type, Traits_type, Allocator> b)
-QUICK_SHELL_UTIL_STRING_VIEW_GENERATE_EXTRA_COMPARE_OPERATORS_WITH_ALLOCATOR(
+VULKAN_CPU_UTIL_STRING_VIEW_GENERATE_EXTRA_COMPARE_OPERATORS_WITH_ALLOCATOR(
     std::basic_string<Char_type, Traits_type, Allocator> a,
     basic_string_view<Char_type, Traits_type> b)
-#undef QUICK_SHELL_UTIL_STRING_VIEW_GENERATE_EXTRA_COMPARE_OPERATORS_NO_ALLOCATOR
-#undef QUICK_SHELL_UTIL_STRING_VIEW_GENERATE_EXTRA_COMPARE_OPERATORS_WITH_ALLOCATOR
+#undef VULKAN_CPU_UTIL_STRING_VIEW_GENERATE_EXTRA_COMPARE_OPERATORS_NO_ALLOCATOR
+#undef VULKAN_CPU_UTIL_STRING_VIEW_GENERATE_EXTRA_COMPARE_OPERATORS_WITH_ALLOCATOR
 
 template <typename Char_type, typename Traits_type>
 std::basic_ostream<Char_type, Traits_type> &operator<<(
