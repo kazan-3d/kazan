@@ -1,0 +1,7 @@
+{
+    "file_format_version": "1.0.0",
+    "ICD": {
+        "library_path": "$<TARGET_FILE:vulkan_cpu_vulkan_icd>",
+        "api_version": "1.0.58"
+    }
+}

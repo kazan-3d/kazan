@@ -19,7 +19,12 @@
 # SOFTWARE.
 #
 cmake_minimum_required(VERSION 3.3 FATAL_ERROR)
-set(sources vulkan.cpp
-            api_objects.cpp)
-add_library(vulkan_cpu_vulkan STATIC ${sources})
-target_compile_definitions(vulkan_cpu_vulkan PUBLIC VK_NO_PROTOTYPES)
+set(sources vulkan_icd.cpp)
+add_library(vulkan_cpu_vulkan_icd MODULE ${sources})
+target_link_libraries(vulkan_cpu_vulkan_icd
+                      vulkan_cpu_vulkan
+                      vulkan_cpu_util)
+file(GENERATE OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/vulkan_cpu_vulkan_icd.json INPUT ${CMAKE_CURRENT_SOURCE_DIR}/vulkan_cpu_vulkan_icd.json.in)
+if(UNIX AND NOT CYGWIN)
+    target_link_libraries(vulkan_cpu_vulkan_icd -Wl,--no-undefined)
+endif()

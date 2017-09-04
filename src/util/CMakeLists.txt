@@ -38,6 +38,7 @@ set(sources bit_intrinsics.cpp
             optional.cpp
             soft_float.cpp
             string_view.cpp
+            system_memory_info.cpp
             variant.cpp
             void_t.cpp)
 add_library(vulkan_cpu_util STATIC ${sources})
