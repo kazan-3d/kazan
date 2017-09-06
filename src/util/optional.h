@@ -35,7 +35,7 @@
 #include "in_place.h"
 #include "is_swappable.h"
 
-namespace vulkan_cpu
+namespace kazan
 {
 namespace util
 {
@@ -916,7 +916,7 @@ struct optional_hash<T, false>
 namespace std
 {
 template <typename T>
-struct hash<vulkan_cpu::util::optional<T>> : public vulkan_cpu::util::detail::optional_hash<T>
+struct hash<kazan::util::optional<T>> : public kazan::util::detail::optional_hash<T>
 {
 };
 }

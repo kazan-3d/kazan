@@ -30,7 +30,7 @@
 #include <iterator>
 #include <stdexcept>
 
-namespace vulkan_cpu
+namespace kazan
 {
 namespace util
 {

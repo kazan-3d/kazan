@@ -1,7 +1,7 @@
 # GSOC 2017 Landing Page
 
 The code produced as part of GSOC is available here: [gsoc-2017 tag](https://github.com/programmerjake/vulkan-cpu/tree/gsoc-2017)  
-I've probably done more work on the code since GSOC, available here: [master branch](https://github.com/programmerjake/vulkan-cpu/tree/master)
+I've probably done more work on the code since GSOC, available here: [master branch](https://github.com/kazan-3d/kazan/tree/master)
 
 ## State of code at end of GSOC
 

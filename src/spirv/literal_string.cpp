@@ -22,7 +22,7 @@
  */
 #include "literal_string.h"
 
-namespace vulkan_cpu
+namespace kazan
 {
 namespace spirv
 {

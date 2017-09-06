@@ -38,7 +38,7 @@
 // derived from
 // https://github.com/programmerjake/hashlife-voxels/blob/0dd91021a5b9caeffb7849b2114dca89204876bd/util/bitset.h
 
-namespace vulkan_cpu
+namespace kazan
 {
 namespace util
 {
@@ -605,9 +605,9 @@ constexpr std::size_t bitset<Bit_count>::npos;
 namespace std
 {
 template <std::size_t Bit_count>
-struct hash<vulkan_cpu::util::bitset<Bit_count>>
+struct hash<kazan::util::bitset<Bit_count>>
 {
-    constexpr std::size_t operator()(const vulkan_cpu::util::bitset<Bit_count> &v) const noexcept
+    constexpr std::size_t operator()(const kazan::util::bitset<Bit_count> &v) const noexcept
     {
         return v.hash();
     }

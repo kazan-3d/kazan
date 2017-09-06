@@ -24,7 +24,7 @@
 #ifndef UTIL_COPY_CV_REF_H_
 #define UTIL_COPY_CV_REF_H_
 
-namespace vulkan_cpu
+namespace kazan
 {
 namespace util
 {

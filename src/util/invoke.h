@@ -29,7 +29,7 @@
 #include <functional>
 #include "void_t.h"
 
-namespace vulkan_cpu
+namespace kazan
 {
 namespace util
 {

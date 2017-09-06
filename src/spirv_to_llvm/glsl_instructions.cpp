@@ -22,7 +22,7 @@
  */
 #include "spirv_to_llvm_implementation.h"
 
-namespace vulkan_cpu
+namespace kazan
 {
 namespace spirv_to_llvm
 {
@@ -839,4 +839,3 @@ void Spirv_to_llvm::handle_instruction_glsl_std_450_op_n_clamp(Glsl_std_450_op_n
 }
 }
 }
-

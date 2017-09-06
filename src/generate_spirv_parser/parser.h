@@ -34,7 +34,7 @@
 #include "json/parser.h"
 #include "util/filesystem.h"
 
-namespace vulkan_cpu
+namespace kazan
 {
 namespace generate_spirv_parser
 {
@@ -111,7 +111,8 @@ public:
     }
 };
 
-std::shared_ptr<std::vector<ast::Json_file>> read_required_files(const util::filesystem::path &dir_path);
+std::shared_ptr<std::vector<ast::Json_file>> read_required_files(
+    const util::filesystem::path &dir_path);
 
 ast::Top_level parse(std::vector<ast::Json_file> &&json_files);
 }

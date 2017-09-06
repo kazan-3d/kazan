@@ -34,7 +34,7 @@
 #include <cstdio>
 namespace
 {
-using namespace vulkan_cpu::util::soft_float;
+using namespace kazan::util::soft_float;
 [[gnu::unused]] std::string hexValue(const ExtendedFloat &v)
 {
     if(v.isNaN())

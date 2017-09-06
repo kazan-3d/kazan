@@ -32,7 +32,7 @@
 #include <list>
 #include <iostream>
 
-namespace vulkan_cpu
+namespace kazan
 {
 namespace spirv_to_llvm
 {
@@ -42,7 +42,7 @@ enum class Stage
     generate_code,
 };
 
-vulkan_cpu_util_generate_enum_traits(Stage, Stage::calculate_types, Stage::generate_code);
+kazan_util_generate_enum_traits(Stage, Stage::calculate_types, Stage::generate_code);
 
 static_assert(util::Enum_traits<Stage>::is_compact, "");
 

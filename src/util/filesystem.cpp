@@ -45,7 +45,7 @@
 #error filesystem is not implemented for your operating system
 #endif
 
-namespace vulkan_cpu
+namespace kazan
 {
 namespace util
 {
@@ -432,7 +432,7 @@ void directory_iterator::increment(std::shared_ptr<Implementation> &implementati
 }
 
 #if 0 // change to 1 to test filesystem::path
-namespace vulkan_cpu
+namespace kazan
 {
 namespace util
 {

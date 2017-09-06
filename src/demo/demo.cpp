@@ -41,7 +41,7 @@
 #error wrong SDL varsion
 #endif
 
-namespace vulkan_cpu
+namespace kazan
 {
 namespace test
 {
@@ -921,5 +921,5 @@ int test_main(int argc, char **argv)
 
 int main(int argc, char **argv)
 {
-    return vulkan_cpu::test::test_main(argc, argv);
+    return kazan::test::test_main(argc, argv);
 }

@@ -30,7 +30,7 @@
 #include <iosfwd>
 #include "util/filesystem.h"
 
-namespace vulkan_cpu
+namespace kazan
 {
 namespace json
 {

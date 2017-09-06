@@ -27,7 +27,7 @@
 #include "spirv/spirv.h"
 #include "util/enum.h"
 
-namespace vulkan_cpu
+namespace kazan
 {
 namespace vulkan
 {

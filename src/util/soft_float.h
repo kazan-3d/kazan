@@ -32,7 +32,7 @@
 #include <cassert>
 #include "bit_intrinsics.h"
 
-namespace vulkan_cpu
+namespace kazan
 {
 namespace util
 {
@@ -576,7 +576,8 @@ struct ExtendedFloat final // modeled after IEEE754 standard
             mantissaField |= 0x400U; // add in implicit 1
         else
             exponentField = 1;
-        return ExtendedFloat(mantissaField, static_cast<int>(exponentField) - 15 - 10 + exponentBias() + 63, sign);
+        return ExtendedFloat(
+            mantissaField, static_cast<int>(exponentField) - 15 - 10 + exponentBias() + 63, sign);
     }
     explicit operator long double() const noexcept
     {

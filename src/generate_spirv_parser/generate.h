@@ -36,7 +36,7 @@
 #include <utility>
 #include <cassert>
 
-namespace vulkan_cpu
+namespace kazan
 {
 namespace generate_spirv_parser
 {
@@ -206,8 +206,8 @@ private:
     void write_signed_integer(std::int64_t value, unsigned base = 10);
     void write_literal(util::string_view value)
     {
-        *this << escape_char << literal_command << static_cast<std::uint64_t>(value.size()) << escape_char << value
-              << escape_char;
+        *this << escape_char << literal_command << static_cast<std::uint64_t>(value.size())
+              << escape_char << value << escape_char;
     }
 
 public:

@@ -39,7 +39,7 @@
 #include "util/optional.h"
 #include "location.h"
 
-namespace vulkan_cpu
+namespace kazan
 {
 namespace json
 {

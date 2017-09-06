@@ -45,7 +45,7 @@
 #include <chrono>
 #include <ratio>
 
-namespace vulkan_cpu
+namespace kazan
 {
 namespace util
 {

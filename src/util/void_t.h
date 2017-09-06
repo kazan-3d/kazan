@@ -24,7 +24,7 @@
 #ifndef UTIL_VOID_T_H_
 #define UTIL_VOID_T_H_
 
-namespace vulkan_cpu
+namespace kazan
 {
 namespace util
 {

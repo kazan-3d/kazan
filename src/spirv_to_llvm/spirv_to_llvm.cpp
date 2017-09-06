@@ -22,7 +22,7 @@
  */
 #include "spirv_to_llvm_implementation.h"
 
-namespace vulkan_cpu
+namespace kazan
 {
 namespace spirv_to_llvm
 {

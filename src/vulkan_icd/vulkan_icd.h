@@ -40,7 +40,7 @@ extern "C" VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL vk_icdGetInstanceProcAddr(Vk
 typedef PFN_vkVoidFunction (*VKAPI_PTR PFN_vk_icdGetInstanceProcAddr)(VkInstance instance,
                                                                       const char *pName);
 
-namespace vulkan_cpu
+namespace kazan
 {
 namespace vulkan_icd
 {

@@ -25,7 +25,7 @@
 
 #include "util/endian_config.h"
 
-namespace vulkan_cpu
+namespace kazan
 {
 namespace util
 {
@@ -33,7 +33,7 @@ enum class Endian
 {
     Little,
     Big,
-    Native = vulkan_cpu_util_endian_endian,
+    Native = kazan_util_endian_endian,
 };
 
 constexpr Endian endian = Endian::Native;

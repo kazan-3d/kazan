@@ -26,5 +26,5 @@ set(sources core_instructions.cpp
             opencl_instructions.cpp
             spirv_to_llvm.cpp
             vertex_entry_point.cpp)
-add_library(vulkan_cpu_spirv_to_llvm STATIC ${sources})
-target_link_libraries(vulkan_cpu_spirv_to_llvm vulkan_cpu_util vulkan_cpu_spirv vulkan_cpu_llvm_wrapper vulkan_cpu_pipeline)
+add_library(kazan_spirv_to_llvm STATIC ${sources})
+target_link_libraries(kazan_spirv_to_llvm kazan_util kazan_spirv kazan_llvm_wrapper kazan_pipeline)

@@ -24,7 +24,7 @@
 
 #ifdef __linux__
 #include <sys/sysinfo.h>
-namespace vulkan_cpu
+namespace kazan
 {
 namespace util
 {
@@ -43,7 +43,7 @@ System_memory_info System_memory_info::get()
 #elif defined(_WIN32)
 #include <windows.h>
 
-namespace vulkan_cpu
+namespace kazan
 {
 namespace util
 {

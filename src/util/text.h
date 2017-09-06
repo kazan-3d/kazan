@@ -36,7 +36,7 @@
 #include <cassert>
 #include "string_view.h"
 
-namespace vulkan_cpu
+namespace kazan
 {
 namespace util
 {

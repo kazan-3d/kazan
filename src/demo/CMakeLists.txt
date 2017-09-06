@@ -24,7 +24,7 @@ string(STRIP ${SDL2_LIBRARIES} libraries) # workaround SDL2 automake bug
 set(sources demo.cpp) 
 add_executable(demo ${sources})
 target_include_directories(demo PRIVATE ${SDL2_INCLUDE_DIRS})
-target_link_libraries(demo ${libraries} vulkan_cpu_spirv vulkan_cpu_util vulkan_cpu_pipeline vulkan_cpu_vulkan)
+target_link_libraries(demo ${libraries} kazan_spirv kazan_util kazan_pipeline kazan_vulkan)
 set_target_properties(demo PROPERTIES
                       C_VISIBILITY_PRESET hidden
                       CXX_VISIBILITY_PRESET hidden)

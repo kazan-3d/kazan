@@ -32,7 +32,7 @@
 #include <vector>
 #include <string>
 
-namespace vulkan_cpu
+namespace kazan
 {
 namespace generate_spirv_parser
 {
@@ -106,11 +106,10 @@ enum class Instructions_Instruction_Operands_Operand_Quantifier
     variable,
 };
 
-vulkan_cpu_util_generate_enum_traits(
-    Instructions_Instruction_Operands_Operand_Quantifier,
-    Instructions_Instruction_Operands_Operand_Quantifier::none,
-    Instructions_Instruction_Operands_Operand_Quantifier::optional,
-    Instructions_Instruction_Operands_Operand_Quantifier::variable);
+kazan_util_generate_enum_traits(Instructions_Instruction_Operands_Operand_Quantifier,
+                                Instructions_Instruction_Operands_Operand_Quantifier::none,
+                                Instructions_Instruction_Operands_Operand_Quantifier::optional,
+                                Instructions_Instruction_Operands_Operand_Quantifier::variable);
 
 struct Instructions
 {
@@ -180,12 +179,11 @@ struct Instructions
                     std::uint32_t opcode,
                     Operands operands,
                     Capabilities capabilities,
-                    Extensions extensions) noexcept
-            : opname(std::move(opname)),
-              opcode(opcode),
-              operands(std::move(operands)),
-              capabilities(std::move(capabilities)),
-              extensions(std::move(extensions))
+                    Extensions extensions) noexcept : opname(std::move(opname)),
+                                                      opcode(opcode),
+                                                      operands(std::move(operands)),
+                                                      capabilities(std::move(capabilities)),
+                                                      extensions(std::move(extensions))
         {
         }
         json::ast::Value to_json() const;
@@ -222,12 +220,12 @@ enum class Operand_kinds_Operand_kind_Category
     composite,
 };
 
-vulkan_cpu_util_generate_enum_traits(Operand_kinds_Operand_kind_Category,
-                                     Operand_kinds_Operand_kind_Category::bit_enum,
-                                     Operand_kinds_Operand_kind_Category::value_enum,
-                                     Operand_kinds_Operand_kind_Category::id,
-                                     Operand_kinds_Operand_kind_Category::literal,
-                                     Operand_kinds_Operand_kind_Category::composite);
+kazan_util_generate_enum_traits(Operand_kinds_Operand_kind_Category,
+                                Operand_kinds_Operand_kind_Category::bit_enum,
+                                Operand_kinds_Operand_kind_Category::value_enum,
+                                Operand_kinds_Operand_kind_Category::id,
+                                Operand_kinds_Operand_kind_Category::literal,
+                                Operand_kinds_Operand_kind_Category::composite);
 
 enum class Operand_kinds_Operand_kind_Literal_kind
 {
@@ -238,7 +236,7 @@ enum class Operand_kinds_Operand_kind_Literal_kind
     literal_spec_constant_op_integer,
 };
 
-vulkan_cpu_util_generate_enum_traits(
+kazan_util_generate_enum_traits(
     Operand_kinds_Operand_kind_Literal_kind,
     Operand_kinds_Operand_kind_Literal_kind::literal_integer,
     Operand_kinds_Operand_kind_Literal_kind::literal_string,

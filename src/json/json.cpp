@@ -30,7 +30,7 @@
 #include <algorithm>
 #include "util/soft_float.h"
 
-namespace vulkan_cpu
+namespace kazan
 {
 namespace json
 {

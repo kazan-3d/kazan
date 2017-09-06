@@ -39,7 +39,7 @@
 #error Orc compile stack is not yet implemented for this version of LLVM
 #endif
 
-namespace vulkan_cpu
+namespace kazan
 {
 namespace llvm_wrapper
 {
@@ -115,12 +115,10 @@ private:
             }
 
         public:
-            void operator()(
-                llvm::orc::ObjectLinkingLayerBase::ObjSetHandleT,
-                const Object_set_wrapper
-                        &object_set,
-                const std::vector<std::unique_ptr<llvm::RuntimeDyld::LoadedObjectInfo>>
-                    &load_result)
+            void operator()(llvm::orc::ObjectLinkingLayerBase::ObjSetHandleT,
+                            const Object_set_wrapper &object_set,
+                            const std::vector<std::unique_ptr<llvm::RuntimeDyld::LoadedObjectInfo>>
+                                &load_result)
             {
                 assert(object_set.size() == load_result.size());
                 for(std::size_t i = 0; i < object_set.size(); i++)
@@ -193,8 +191,9 @@ private:
             auto retval = create_module_handle();
             auto &handle = handle_map[retval];
             auto object_set_iter = object_sets.insert(object_sets.end(), std::move(object_set));
-            handle = object_linking_layer.addObjectSet(
-                Object_set_wrapper(*object_set_iter), std::move(memory_manager), std::move(symbol_resolver));
+            handle = object_linking_layer.addObjectSet(Object_set_wrapper(*object_set_iter),
+                                                       std::move(memory_manager),
+                                                       std::move(symbol_resolver));
             return retval;
         }
 
@@ -203,7 +202,9 @@ private:
         std::vector<std::shared_ptr<llvm::JITEventListener>> jit_event_listener_list;
         llvm::orc::ObjectLinkingLayer<On_loaded_functor> object_linking_layer;
         std::unordered_map<Module_handle, decltype(object_linking_layer)::ObjSetHandleT> handle_map;
-        std::list<std::vector<std::unique_ptr<llvm::object::OwningBinary<llvm::object::ObjectFile>>>> object_sets;
+        std::
+            list<std::vector<std::unique_ptr<llvm::object::OwningBinary<llvm::object::ObjectFile>>>>
+                object_sets;
         std::unordered_multiset<const llvm::object::ObjectFile *> loaded_object_set;
     };
     typedef std::function<std::unique_ptr<llvm::Module>(std::unique_ptr<llvm::Module>)>

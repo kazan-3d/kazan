@@ -27,7 +27,7 @@
 #include <fstream>
 #include <algorithm>
 
-namespace vulkan_cpu
+namespace kazan
 {
 namespace json
 {

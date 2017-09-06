@@ -23,5 +23,5 @@ set(sources json.cpp
             location.cpp
             parser.cpp
             source.cpp)
-add_library(vulkan_cpu_json STATIC ${sources})
-target_link_libraries(vulkan_cpu_json vulkan_cpu_util)
+add_library(kazan_json STATIC ${sources})
+target_link_libraries(kazan_json kazan_util)

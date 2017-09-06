@@ -32,7 +32,7 @@
 #include <cassert>
 #include <chrono>
 
-namespace vulkan_cpu
+namespace kazan
 {
 namespace vulkan
 {
@@ -41,7 +41,7 @@ enum class Supported_extension
     Not_supported,
 };
 
-vulkan_cpu_util_generate_enum_traits(Supported_extension, Supported_extension::Not_supported);
+kazan_util_generate_enum_traits(Supported_extension, Supported_extension::Not_supported);
 
 typedef util::Enum_set<Supported_extension> Supported_extensions;
 
@@ -152,7 +152,7 @@ struct Vulkan_physical_device
               .vendorID = 0x12345678UL,
               .deviceID = 0,
               .deviceType = VK_PHYSICAL_DEVICE_TYPE_CPU,
-              .deviceName = "Vulkan-CPU Device",
+              .deviceName = "Kazan Software Renderer",
 #warning calculate the correct value of pipelineCacheUUID as the hash of the target cpu info and the hashed source code
               .pipelineCacheUUID = {},
               .limits =

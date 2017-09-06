@@ -22,7 +22,7 @@
  */
 #include "spirv_to_llvm_implementation.h"
 
-namespace vulkan_cpu
+namespace kazan
 {
 namespace spirv_to_llvm
 {
@@ -129,9 +129,8 @@ using namespace spirv;
                         if(built_in)
                             throw Parser_error(
                                 0, 0, "multiple BuiltIn decorations on the same variable");
-                        built_in =
-                            util::get<Decoration_built_in_parameters>(decoration.parameters)
-                                .built_in;
+                        built_in = util::get<Decoration_built_in_parameters>(decoration.parameters)
+                                       .built_in;
                         continue;
                     case Decoration::no_perspective:
 #warning finish implementing Decoration::no_perspective
@@ -248,11 +247,10 @@ using namespace spirv;
 #warning finish implementing Decoration::secondary_viewport_relative_nv
                         break;
                     }
-                    throw Parser_error(
-                        0,
-                        0,
-                        "unimplemented member decoration on shader input variable: "
-                            + std::string(get_enumerant_name(decoration.value)));
+                    throw Parser_error(0,
+                                       0,
+                                       "unimplemented member decoration on shader input variable: "
+                                           + std::string(get_enumerant_name(decoration.value)));
                 }
                 if(!built_in)
                     throw Parser_error(
@@ -431,9 +429,9 @@ using namespace spirv;
                         break;
                     }
                     throw Parser_error(0,
-                                              0,
-                                              "unimplemented built in shader input variable: "
-                                                  + std::string(get_enumerant_name(*built_in)));
+                                       0,
+                                       "unimplemented built in shader input variable: "
+                                           + std::string(get_enumerant_name(*built_in)));
                 } while(false);
             }
         }
@@ -539,9 +537,8 @@ using namespace spirv;
                         if(location)
                             throw Parser_error(
                                 0, 0, "multiple Location decorations on the same variable");
-                        location =
-                            util::get<Decoration_location_parameters>(decoration.parameters)
-                                .location;
+                        location = util::get<Decoration_location_parameters>(decoration.parameters)
+                                       .location;
                         continue;
                     case Decoration::component:
 #warning finish implementing Decoration::component
@@ -607,11 +604,10 @@ using namespace spirv;
 #warning finish implementing Decoration::secondary_viewport_relative_nv
                         break;
                     }
-                    throw Parser_error(
-                        0,
-                        0,
-                        "unimplemented member decoration on shader output variable: "
-                            + std::string(get_enumerant_name(decoration.value)));
+                    throw Parser_error(0,
+                                       0,
+                                       "unimplemented member decoration on shader output variable: "
+                                           + std::string(get_enumerant_name(decoration.value)));
                 }
                 if(!location)
                     throw Parser_error(
@@ -628,8 +624,7 @@ using namespace spirv;
                 auto callback = [llvm_output_member_type, &output_color, this, output_pointer]()
                 {
                     if(output_color)
-                        throw Parser_error(
-                            0, 0, "duplicate fragment shader output variable");
+                        throw Parser_error(0, 0, "duplicate fragment shader output variable");
                     output_color = ::LLVMBuildLoad(builder.get(), output_pointer, "output_color");
                     ::LLVMSetAlignment(output_color, llvm_output_member_type.alignment);
                 };

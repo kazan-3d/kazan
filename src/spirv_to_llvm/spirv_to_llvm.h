@@ -36,7 +36,7 @@
 #include "util/string_view.h"
 #include "vulkan/vulkan.h"
 
-namespace vulkan_cpu
+namespace kazan
 {
 namespace spirv_to_llvm
 {

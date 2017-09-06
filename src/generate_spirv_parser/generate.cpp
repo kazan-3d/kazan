@@ -33,7 +33,7 @@
 #include <list>
 #include <deque>
 
-namespace vulkan_cpu
+namespace kazan
 {
 namespace generate_spirv_parser
 {
@@ -382,38 +382,38 @@ enum class Output_part
     struct_closing,
 };
 
-vulkan_cpu_util_generate_enum_traits(Output_part,
-                                     Output_part::file_comments,
-                                     Output_part::include_guard_start,
-                                     Output_part::includes,
-                                     Output_part::namespaces_start,
-                                     Output_part::basic_types,
-                                     Output_part::basic_constants,
-                                     Output_part::id_types,
-                                     Output_part::enum_definitions,
-                                     Output_part::enum_properties_definitions,
-                                     Output_part::literal_types,
-                                     Output_part::enum_structs,
-                                     Output_part::composite_types,
-                                     Output_part::instruction_structs,
-                                     Output_part::instruction_variant,
-                                     Output_part::parse_error_class,
-                                     Output_part::parser_callbacks_class,
-                                     Output_part::dump_callbacks_class,
-                                     Output_part::parser_class,
-                                     Output_part::namespaces_end,
-                                     Output_part::include_guard_end,
-                                     Output_part::struct_opening,
-                                     Output_part::struct_members,
-                                     Output_part::struct_default_constructor,
-                                     Output_part::struct_default_constructor_initializers,
-                                     Output_part::struct_default_constructor_body,
-                                     Output_part::struct_fill_constructor_start,
-                                     Output_part::struct_fill_constructor_args,
-                                     Output_part::struct_fill_constructor_args_end,
-                                     Output_part::struct_fill_constructor_initializers,
-                                     Output_part::struct_fill_constructor_body,
-                                     Output_part::struct_closing);
+kazan_util_generate_enum_traits(Output_part,
+                                Output_part::file_comments,
+                                Output_part::include_guard_start,
+                                Output_part::includes,
+                                Output_part::namespaces_start,
+                                Output_part::basic_types,
+                                Output_part::basic_constants,
+                                Output_part::id_types,
+                                Output_part::enum_definitions,
+                                Output_part::enum_properties_definitions,
+                                Output_part::literal_types,
+                                Output_part::enum_structs,
+                                Output_part::composite_types,
+                                Output_part::instruction_structs,
+                                Output_part::instruction_variant,
+                                Output_part::parse_error_class,
+                                Output_part::parser_callbacks_class,
+                                Output_part::dump_callbacks_class,
+                                Output_part::parser_class,
+                                Output_part::namespaces_end,
+                                Output_part::include_guard_end,
+                                Output_part::struct_opening,
+                                Output_part::struct_members,
+                                Output_part::struct_default_constructor,
+                                Output_part::struct_default_constructor_initializers,
+                                Output_part::struct_default_constructor_body,
+                                Output_part::struct_fill_constructor_start,
+                                Output_part::struct_fill_constructor_args,
+                                Output_part::struct_fill_constructor_args_end,
+                                Output_part::struct_fill_constructor_initializers,
+                                Output_part::struct_fill_constructor_body,
+                                Output_part::struct_closing);
 
 static_assert(util::Enum_traits<Output_part>::is_compact,
               "mismatch between declaration and generate enum traits");
@@ -671,7 +671,7 @@ private:
             file_comments << automatically_generated_file_warning_comment
                           << state.top_level.copyright;
             namespaces_start << R"(
-namespace vulkan_cpu
+namespace kazan
 {
 namespace spirv
 {
@@ -891,7 +891,7 @@ constexpr util::string_view get_enumerant_name()"
                 }
                 enum_definitions << R"(@-};
 
-vulkan_cpu_util_generate_enum_traits()"
+kazan_util_generate_enum_traits()"
                                  << enumeration.cpp_name;
                 std::unordered_set<std::uint32_t> values;
                 for(auto &enumerant : enumeration.enumerants)

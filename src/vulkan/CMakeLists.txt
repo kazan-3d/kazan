@@ -21,5 +21,5 @@
 cmake_minimum_required(VERSION 3.3 FATAL_ERROR)
 set(sources vulkan.cpp
             api_objects.cpp)
-add_library(vulkan_cpu_vulkan STATIC ${sources})
-target_compile_definitions(vulkan_cpu_vulkan PUBLIC VK_NO_PROTOTYPES)
+add_library(kazan_vulkan STATIC ${sources})
+target_compile_definitions(kazan_vulkan PUBLIC VK_NO_PROTOTYPES)

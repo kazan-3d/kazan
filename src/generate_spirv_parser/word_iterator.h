@@ -28,7 +28,7 @@
 #include "util/optional.h"
 #include <iterator>
 
-namespace vulkan_cpu
+namespace kazan
 {
 namespace generate_spirv_parser
 {

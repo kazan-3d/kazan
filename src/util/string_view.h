@@ -32,7 +32,7 @@
 #include <stdexcept>
 #include <ostream>
 
-namespace vulkan_cpu
+namespace kazan
 {
 namespace util
 {
@@ -460,104 +460,104 @@ constexpr bool operator>(basic_string_view<Char_type, Traits_type> a,
     return a.compare(b) > 0;
 }
 
-#define VULKAN_CPU_UTIL_STRING_VIEW_GENERATE_EXTRA_COMPARE_OPERATORS_NO_ALLOCATOR(...) \
-    template <typename Char_type, typename Traits_type>                                 \
-    bool operator==(__VA_ARGS__) noexcept                                               \
-    {                                                                                   \
-        return operator==(static_cast<basic_string_view<Char_type, Traits_type>>(a),    \
-                          static_cast<basic_string_view<Char_type, Traits_type>>(b));   \
-    }                                                                                   \
-                                                                                        \
-    template <typename Char_type, typename Traits_type>                                 \
-    bool operator!=(__VA_ARGS__) noexcept                                               \
-    {                                                                                   \
-        return operator!=(static_cast<basic_string_view<Char_type, Traits_type>>(a),    \
-                          static_cast<basic_string_view<Char_type, Traits_type>>(b));   \
-    }                                                                                   \
-                                                                                        \
-    template <typename Char_type, typename Traits_type>                                 \
-    bool operator<=(__VA_ARGS__) noexcept                                               \
-    {                                                                                   \
-        return operator<=(static_cast<basic_string_view<Char_type, Traits_type>>(a),    \
-                          static_cast<basic_string_view<Char_type, Traits_type>>(b));   \
-    }                                                                                   \
-                                                                                        \
-    template <typename Char_type, typename Traits_type>                                 \
-    bool operator>=(__VA_ARGS__) noexcept                                               \
-    {                                                                                   \
-        return operator>=(static_cast<basic_string_view<Char_type, Traits_type>>(a),    \
-                          static_cast<basic_string_view<Char_type, Traits_type>>(b));   \
-    }                                                                                   \
-                                                                                        \
-    template <typename Char_type, typename Traits_type>                                 \
-    bool operator<(__VA_ARGS__) noexcept                                                \
-    {                                                                                   \
-        return operator<(static_cast<basic_string_view<Char_type, Traits_type>>(a),     \
-                         static_cast<basic_string_view<Char_type, Traits_type>>(b));    \
-    }                                                                                   \
-                                                                                        \
-    template <typename Char_type, typename Traits_type>                                 \
-    bool operator>(__VA_ARGS__) noexcept                                                \
-    {                                                                                   \
-        return operator>(static_cast<basic_string_view<Char_type, Traits_type>>(a),     \
-                         static_cast<basic_string_view<Char_type, Traits_type>>(b));    \
+#define KAZAN_UTIL_STRING_VIEW_GENERATE_EXTRA_COMPARE_OPERATORS_NO_ALLOCATOR(...)     \
+    template <typename Char_type, typename Traits_type>                               \
+    bool operator==(__VA_ARGS__) noexcept                                             \
+    {                                                                                 \
+        return operator==(static_cast<basic_string_view<Char_type, Traits_type>>(a),  \
+                          static_cast<basic_string_view<Char_type, Traits_type>>(b)); \
+    }                                                                                 \
+                                                                                      \
+    template <typename Char_type, typename Traits_type>                               \
+    bool operator!=(__VA_ARGS__) noexcept                                             \
+    {                                                                                 \
+        return operator!=(static_cast<basic_string_view<Char_type, Traits_type>>(a),  \
+                          static_cast<basic_string_view<Char_type, Traits_type>>(b)); \
+    }                                                                                 \
+                                                                                      \
+    template <typename Char_type, typename Traits_type>                               \
+    bool operator<=(__VA_ARGS__) noexcept                                             \
+    {                                                                                 \
+        return operator<=(static_cast<basic_string_view<Char_type, Traits_type>>(a),  \
+                          static_cast<basic_string_view<Char_type, Traits_type>>(b)); \
+    }                                                                                 \
+                                                                                      \
+    template <typename Char_type, typename Traits_type>                               \
+    bool operator>=(__VA_ARGS__) noexcept                                             \
+    {                                                                                 \
+        return operator>=(static_cast<basic_string_view<Char_type, Traits_type>>(a),  \
+                          static_cast<basic_string_view<Char_type, Traits_type>>(b)); \
+    }                                                                                 \
+                                                                                      \
+    template <typename Char_type, typename Traits_type>                               \
+    bool operator<(__VA_ARGS__) noexcept                                              \
+    {                                                                                 \
+        return operator<(static_cast<basic_string_view<Char_type, Traits_type>>(a),   \
+                         static_cast<basic_string_view<Char_type, Traits_type>>(b));  \
+    }                                                                                 \
+                                                                                      \
+    template <typename Char_type, typename Traits_type>                               \
+    bool operator>(__VA_ARGS__) noexcept                                              \
+    {                                                                                 \
+        return operator>(static_cast<basic_string_view<Char_type, Traits_type>>(a),   \
+                         static_cast<basic_string_view<Char_type, Traits_type>>(b));  \
     }
 
-#define VULKAN_CPU_UTIL_STRING_VIEW_GENERATE_EXTRA_COMPARE_OPERATORS_WITH_ALLOCATOR(...) \
-    template <typename Char_type, typename Traits_type, typename Allocator>               \
-    bool operator==(__VA_ARGS__) noexcept                                                 \
-    {                                                                                     \
-        return operator==(static_cast<basic_string_view<Char_type, Traits_type>>(a),      \
-                          static_cast<basic_string_view<Char_type, Traits_type>>(b));     \
-    }                                                                                     \
-                                                                                          \
-    template <typename Char_type, typename Traits_type, typename Allocator>               \
-    bool operator!=(__VA_ARGS__) noexcept                                                 \
-    {                                                                                     \
-        return operator!=(static_cast<basic_string_view<Char_type, Traits_type>>(a),      \
-                          static_cast<basic_string_view<Char_type, Traits_type>>(b));     \
-    }                                                                                     \
-                                                                                          \
-    template <typename Char_type, typename Traits_type, typename Allocator>               \
-    bool operator<=(__VA_ARGS__) noexcept                                                 \
-    {                                                                                     \
-        return operator<=(static_cast<basic_string_view<Char_type, Traits_type>>(a),      \
-                          static_cast<basic_string_view<Char_type, Traits_type>>(b));     \
-    }                                                                                     \
-                                                                                          \
-    template <typename Char_type, typename Traits_type, typename Allocator>               \
-    bool operator>=(__VA_ARGS__) noexcept                                                 \
-    {                                                                                     \
-        return operator>=(static_cast<basic_string_view<Char_type, Traits_type>>(a),      \
-                          static_cast<basic_string_view<Char_type, Traits_type>>(b));     \
-    }                                                                                     \
-                                                                                          \
-    template <typename Char_type, typename Traits_type, typename Allocator>               \
-    bool operator<(__VA_ARGS__) noexcept                                                  \
-    {                                                                                     \
-        return operator<(static_cast<basic_string_view<Char_type, Traits_type>>(a),       \
-                         static_cast<basic_string_view<Char_type, Traits_type>>(b));      \
-    }                                                                                     \
-                                                                                          \
-    template <typename Char_type, typename Traits_type, typename Allocator>               \
-    bool operator>(__VA_ARGS__) noexcept                                                  \
-    {                                                                                     \
-        return operator>(static_cast<basic_string_view<Char_type, Traits_type>>(a),       \
-                         static_cast<basic_string_view<Char_type, Traits_type>>(b));      \
+#define KAZAN_UTIL_STRING_VIEW_GENERATE_EXTRA_COMPARE_OPERATORS_WITH_ALLOCATOR(...)   \
+    template <typename Char_type, typename Traits_type, typename Allocator>           \
+    bool operator==(__VA_ARGS__) noexcept                                             \
+    {                                                                                 \
+        return operator==(static_cast<basic_string_view<Char_type, Traits_type>>(a),  \
+                          static_cast<basic_string_view<Char_type, Traits_type>>(b)); \
+    }                                                                                 \
+                                                                                      \
+    template <typename Char_type, typename Traits_type, typename Allocator>           \
+    bool operator!=(__VA_ARGS__) noexcept                                             \
+    {                                                                                 \
+        return operator!=(static_cast<basic_string_view<Char_type, Traits_type>>(a),  \
+                          static_cast<basic_string_view<Char_type, Traits_type>>(b)); \
+    }                                                                                 \
+                                                                                      \
+    template <typename Char_type, typename Traits_type, typename Allocator>           \
+    bool operator<=(__VA_ARGS__) noexcept                                             \
+    {                                                                                 \
+        return operator<=(static_cast<basic_string_view<Char_type, Traits_type>>(a),  \
+                          static_cast<basic_string_view<Char_type, Traits_type>>(b)); \
+    }                                                                                 \
+                                                                                      \
+    template <typename Char_type, typename Traits_type, typename Allocator>           \
+    bool operator>=(__VA_ARGS__) noexcept                                             \
+    {                                                                                 \
+        return operator>=(static_cast<basic_string_view<Char_type, Traits_type>>(a),  \
+                          static_cast<basic_string_view<Char_type, Traits_type>>(b)); \
+    }                                                                                 \
+                                                                                      \
+    template <typename Char_type, typename Traits_type, typename Allocator>           \
+    bool operator<(__VA_ARGS__) noexcept                                              \
+    {                                                                                 \
+        return operator<(static_cast<basic_string_view<Char_type, Traits_type>>(a),   \
+                         static_cast<basic_string_view<Char_type, Traits_type>>(b));  \
+    }                                                                                 \
+                                                                                      \
+    template <typename Char_type, typename Traits_type, typename Allocator>           \
+    bool operator>(__VA_ARGS__) noexcept                                              \
+    {                                                                                 \
+        return operator>(static_cast<basic_string_view<Char_type, Traits_type>>(a),   \
+                         static_cast<basic_string_view<Char_type, Traits_type>>(b));  \
     }
 
-VULKAN_CPU_UTIL_STRING_VIEW_GENERATE_EXTRA_COMPARE_OPERATORS_NO_ALLOCATOR(
+KAZAN_UTIL_STRING_VIEW_GENERATE_EXTRA_COMPARE_OPERATORS_NO_ALLOCATOR(
     const Char_type *a, basic_string_view<Char_type, Traits_type> b)
-VULKAN_CPU_UTIL_STRING_VIEW_GENERATE_EXTRA_COMPARE_OPERATORS_NO_ALLOCATOR(
+KAZAN_UTIL_STRING_VIEW_GENERATE_EXTRA_COMPARE_OPERATORS_NO_ALLOCATOR(
     basic_string_view<Char_type, Traits_type> a, const Char_type *b)
-VULKAN_CPU_UTIL_STRING_VIEW_GENERATE_EXTRA_COMPARE_OPERATORS_WITH_ALLOCATOR(
+KAZAN_UTIL_STRING_VIEW_GENERATE_EXTRA_COMPARE_OPERATORS_WITH_ALLOCATOR(
     basic_string_view<Char_type, Traits_type> a,
     std::basic_string<Char_type, Traits_type, Allocator> b)
-VULKAN_CPU_UTIL_STRING_VIEW_GENERATE_EXTRA_COMPARE_OPERATORS_WITH_ALLOCATOR(
+KAZAN_UTIL_STRING_VIEW_GENERATE_EXTRA_COMPARE_OPERATORS_WITH_ALLOCATOR(
     std::basic_string<Char_type, Traits_type, Allocator> a,
     basic_string_view<Char_type, Traits_type> b)
-#undef VULKAN_CPU_UTIL_STRING_VIEW_GENERATE_EXTRA_COMPARE_OPERATORS_NO_ALLOCATOR
-#undef VULKAN_CPU_UTIL_STRING_VIEW_GENERATE_EXTRA_COMPARE_OPERATORS_WITH_ALLOCATOR
+#undef KAZAN_UTIL_STRING_VIEW_GENERATE_EXTRA_COMPARE_OPERATORS_NO_ALLOCATOR
+#undef KAZAN_UTIL_STRING_VIEW_GENERATE_EXTRA_COMPARE_OPERATORS_WITH_ALLOCATOR
 
 template <typename Char_type, typename Traits_type>
 std::basic_ostream<Char_type, Traits_type> &operator<<(
@@ -600,9 +600,9 @@ constexpr u32string_view operator"" _sv(const char32_t *str, std::size_t length)
 namespace std
 {
 template <typename Char_type, typename Traits_type>
-struct hash<vulkan_cpu::util::basic_string_view<Char_type, Traits_type>>
+struct hash<kazan::util::basic_string_view<Char_type, Traits_type>>
 {
-    std::size_t operator()(vulkan_cpu::util::basic_string_view<Char_type, Traits_type> v) const
+    std::size_t operator()(kazan::util::basic_string_view<Char_type, Traits_type> v) const
     {
         typedef std::basic_string<Char_type, Traits_type> stringType;
         return std::hash<stringType>(static_cast<stringType>(v));

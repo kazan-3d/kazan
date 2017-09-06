@@ -22,7 +22,7 @@
  */
 #include "instruction_properties.h"
 
-namespace vulkan_cpu
+namespace kazan
 {
 namespace generate_spirv_parser
 {

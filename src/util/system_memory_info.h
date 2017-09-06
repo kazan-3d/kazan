@@ -25,7 +25,7 @@
 
 #include <cstdint>
 
-namespace vulkan_cpu
+namespace kazan
 {
 namespace util
 {

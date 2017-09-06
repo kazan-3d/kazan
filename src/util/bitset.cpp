@@ -32,7 +32,7 @@
 #include <string>
 #include <utility>
 
-namespace vulkan_cpu
+namespace kazan
 {
 namespace util
 {

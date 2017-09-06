@@ -29,7 +29,7 @@
 #include <cstdlib>
 #include <list>
 
-namespace vulkan_cpu
+namespace kazan
 {
 namespace generate_spirv_parser
 {
@@ -751,7 +751,8 @@ ast::Extension_instruction_set parse_extension_instruction_set(json::ast::Value 
               != 0)
         throw Parse_error(top_level_value.location, {}, "file name is unrecognizable");
     auto instruction_set_name = file_name;
-    instruction_set_name.erase(instruction_set_name.size() - file_name_suffix.size(), file_name_suffix.size());
+    instruction_set_name.erase(instruction_set_name.size() - file_name_suffix.size(),
+                               file_name_suffix.size());
     instruction_set_name.erase(0, file_name_prefix.size());
     if(top_level_value.get_value_kind() != json::ast::Value_kind::object)
         throw Parse_error(top_level_value.location, {}, "top level value is not an object");
@@ -797,7 +798,8 @@ ast::Extension_instruction_set parse_extension_instruction_set(json::ast::Value 
             revision, top_level_value.location, nullptr, "missing revision"),
         get_value_or_throw_parse_error(
             std::move(instructions), top_level_value.location, nullptr, "missing instructions"));
-    std::cerr << "Parsed extension instruction set: " << import_name << " from " << file_name << std::endl;
+    std::cerr << "Parsed extension instruction set: " << import_name << " from " << file_name
+              << std::endl;
     return retval;
 }
 }

@@ -32,7 +32,7 @@
 #include <vector>
 #include <iostream>
 
-namespace vulkan_cpu
+namespace kazan
 {
 namespace pipeline
 {
@@ -925,7 +925,8 @@ std::unique_ptr<Graphics_pipeline> Graphics_pipeline::make(
             std::cerr << dump_callbacks.ss.str() << std::endl;
         }
         assert(create_info.pVertexInputState);
-        assert(create_info.pVertexInputState->sType == VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO);
+        assert(create_info.pVertexInputState->sType
+               == VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO);
         auto compiled_shader = spirv_to_llvm::spirv_to_llvm(implementation->llvm_context.get(),
                                                             llvm_target_machine.get(),
                                                             shader_module->words(),

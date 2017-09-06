@@ -34,7 +34,7 @@
 #include "util/endian.h"
 #include "util/string_view.h"
 
-namespace vulkan_cpu
+namespace kazan
 {
 namespace spirv
 {

@@ -24,7 +24,7 @@
 #include "util/optional.h"
 #include <iostream>
 
-namespace vulkan_cpu
+namespace kazan
 {
 namespace vulkan
 {

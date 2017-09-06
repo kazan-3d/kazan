@@ -20,11 +20,11 @@
 #
 cmake_minimum_required(VERSION 3.3 FATAL_ERROR)
 set(sources vulkan_icd.cpp)
-add_library(vulkan_cpu_vulkan_icd MODULE ${sources})
-target_link_libraries(vulkan_cpu_vulkan_icd
-                      vulkan_cpu_vulkan
-                      vulkan_cpu_util)
-file(GENERATE OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/vulkan_cpu_vulkan_icd.json INPUT ${CMAKE_CURRENT_SOURCE_DIR}/vulkan_cpu_vulkan_icd.json.in)
+add_library(kazan_vulkan_icd MODULE ${sources})
+target_link_libraries(kazan_vulkan_icd
+                      kazan_vulkan
+                      kazan_util)
+file(GENERATE OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/kazan_vulkan_icd.json INPUT ${CMAKE_CURRENT_SOURCE_DIR}/kazan_vulkan_icd.json.in)
 if(UNIX AND NOT CYGWIN)
-    target_link_libraries(vulkan_cpu_vulkan_icd -Wl,--no-undefined)
+    target_link_libraries(kazan_vulkan_icd -Wl,--no-undefined)
 endif()

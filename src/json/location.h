@@ -28,7 +28,7 @@
 #include <string>
 #include <iosfwd>
 
-namespace vulkan_cpu
+namespace kazan
 {
 namespace json
 {

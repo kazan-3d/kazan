@@ -23,7 +23,6 @@
 #ifndef UTIL_ENDIAN_CONFIG_H_
 #define UTIL_ENDIAN_CONFIG_H_
 
-#define vulkan_cpu_util_endian_endian @UTIL_ENDIAN@
+#define kazan_util_endian_endian @UTIL_ENDIAN@
 
 #endif /* UTIL_ENDIAN_CONFIG_H_ */
-

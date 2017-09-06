@@ -26,7 +26,7 @@
 
 #include <cstddef>
 
-namespace vulkan_cpu
+namespace kazan
 {
 namespace util
 {

@@ -29,7 +29,7 @@
 #include <cstdint>
 #include "util/enum.h"
 
-namespace vulkan_cpu
+namespace kazan
 {
 namespace image
 {

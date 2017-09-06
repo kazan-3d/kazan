@@ -23,7 +23,7 @@
 #include "spirv_to_llvm_implementation.h"
 #include <unordered_map>
 
-namespace vulkan_cpu
+namespace kazan
 {
 namespace spirv_to_llvm
 {

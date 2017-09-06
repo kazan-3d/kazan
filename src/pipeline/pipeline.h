@@ -33,7 +33,7 @@
 #include "spirv/spirv.h"
 #include "image/image.h"
 
-namespace vulkan_cpu
+namespace kazan
 {
 namespace pipeline
 {

@@ -26,7 +26,7 @@ set(CMAKE_C_VISIBILITY_PRESET hidden)
 set(CMAKE_CXX_VISIBILITY_PRESET hidden)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
-project(vulkan-cpu CXX C)
+project(kazan CXX C)
 if(NOT ${CMAKE_CXX_COMPILER_ID} MATCHES "Clang")
   message(FATAL_ERROR "compiler is not clang")
 endif()

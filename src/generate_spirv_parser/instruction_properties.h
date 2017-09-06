@@ -28,7 +28,7 @@
 #include <cstdint>
 #include <cassert>
 
-namespace vulkan_cpu
+namespace kazan
 {
 namespace generate_spirv_parser
 {

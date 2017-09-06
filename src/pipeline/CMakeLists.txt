@@ -21,11 +21,11 @@
 cmake_minimum_required(VERSION 3.3 FATAL_ERROR)
 
 set(sources pipeline.cpp)
-add_library(vulkan_cpu_pipeline STATIC ${sources})
-target_link_libraries(vulkan_cpu_pipeline vulkan_cpu_spirv_to_llvm
-                                          vulkan_cpu_json
-                                          vulkan_cpu_util
-                                          vulkan_cpu_spirv
-                                          vulkan_cpu_llvm_wrapper
-                                          vulkan_cpu_vulkan
-                                          vulkan_cpu_image)
+add_library(kazan_pipeline STATIC ${sources})
+target_link_libraries(kazan_pipeline kazan_spirv_to_llvm
+                                     kazan_json
+                                     kazan_util
+                                     kazan_spirv
+                                     kazan_llvm_wrapper
+                                     kazan_vulkan
+                                     kazan_image)

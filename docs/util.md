@@ -26,7 +26,7 @@ Get machine [endianness](https://en.wikipedia.org/wiki/Endianness).
 
 Utility functions and types for `enum`s.
 
-To use, you need to call the `vulkan_cpu_util_generate_enum_traits` macro at namespace scope after the definition of the `enum`:
+To use, you need to call the `kazan_util_generate_enum_traits` macro at namespace scope after the definition of the `enum`:
 
     enum class My_enum // class keyword is optional
     {
@@ -35,7 +35,7 @@ To use, you need to call the `vulkan_cpu_util_generate_enum_traits` macro at nam
         Value_3 = Value_1, // allows duplicate values
     };
 
-    vulkan_cpu_util_generate_enum_traits(My_enum,
+    kazan_util_generate_enum_traits(My_enum,
         My_enum::Value_1,
         My_enum::Value_2,
         My_enum::Value_3);

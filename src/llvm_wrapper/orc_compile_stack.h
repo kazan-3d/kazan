@@ -28,7 +28,7 @@
 #include <utility>
 #include <functional>
 
-namespace vulkan_cpu
+namespace kazan
 {
 namespace llvm_wrapper
 {

@@ -22,7 +22,7 @@
  */
 #include "patch.h"
 
-namespace vulkan_cpu
+namespace kazan
 {
 namespace generate_spirv_parser
 {

@@ -28,7 +28,7 @@
 #include <type_traits>
 #include "is_referenceable.h"
 
-namespace vulkan_cpu_util_is_swappable_unrelated_namespace
+namespace kazan_util_is_swappable_unrelated_namespace
 {
 using std::swap;
 template <typename T, typename U, bool Is_Void = std::is_void<T>::value || std::is_void<T>::value>
@@ -68,14 +68,14 @@ struct Is_nothrow_swappable_with<T, U, false>
 };
 }
 
-namespace vulkan_cpu
+namespace kazan
 {
 namespace util
 {
 template <typename T, typename U>
 struct is_swappable_with
     : public std::integral_constant<bool,
-                                    vulkan_cpu_util_is_swappable_unrelated_namespace::
+                                    kazan_util_is_swappable_unrelated_namespace::
                                         Is_swappable_with<T, U>::value>
 {
 };
@@ -86,7 +86,7 @@ constexpr bool is_swappable_with_v = is_swappable_with<T, U>::value;
 template <typename T, typename U>
 struct is_nothrow_swappable_with
     : public std::integral_constant<bool,
-                                    vulkan_cpu_util_is_swappable_unrelated_namespace::
+                                    kazan_util_is_swappable_unrelated_namespace::
                                         Is_nothrow_swappable_with<T, U>::value>
 {
 };

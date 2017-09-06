@@ -20,5 +20,5 @@
 #
 cmake_minimum_required(VERSION 3.3 FATAL_ERROR)
 set(sources image.cpp) 
-add_library(vulkan_cpu_image STATIC ${sources})
-target_link_libraries(vulkan_cpu_image vulkan_cpu_util vulkan_cpu_llvm_wrapper vulkan_cpu_vulkan)
+add_library(kazan_image STATIC ${sources})
+target_link_libraries(kazan_image kazan_util kazan_llvm_wrapper kazan_vulkan)

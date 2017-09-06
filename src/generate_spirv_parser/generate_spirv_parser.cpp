@@ -28,7 +28,7 @@
 #include "generate.h"
 #include "patch.h"
 
-namespace vulkan_cpu
+namespace kazan
 {
 namespace generate_spirv_parser
 {
@@ -48,7 +48,7 @@ int generate_spirv_parser_main(int argc, char **argv)
     }
     try
     {
-        std::shared_ptr<std::vector<ast::Json_file>> required_files; // outside of try so 
+        std::shared_ptr<std::vector<ast::Json_file>> required_files; // outside of try so
         try
         {
             required_files = parser::read_required_files(std::move(input_directory));
@@ -84,5 +84,5 @@ int generate_spirv_parser_main(int argc, char **argv)
 
 int main(int argc, char **argv)
 {
-    return vulkan_cpu::generate_spirv_parser::generate_spirv_parser_main(argc, argv);
+    return kazan::generate_spirv_parser::generate_spirv_parser_main(argc, argv);
 }

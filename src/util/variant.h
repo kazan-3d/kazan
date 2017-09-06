@@ -36,7 +36,7 @@
 #include "is_swappable.h"
 #include "invoke.h"
 
-namespace vulkan_cpu
+namespace kazan
 {
 namespace util
 {
@@ -312,7 +312,7 @@ template <typename... Types>
 using Variant_values =
     Variant_values_implementation<variant_is_trivially_destructible<Types...>(), Types...>;
 
-#define VULKAN_CPU_UTIL_VARIANT_VALUES(Is_Trivially_Destructible, Destructor)                     \
+#define KAZAN_UTIL_VARIANT_VALUES(Is_Trivially_Destructible, Destructor)                          \
     template <typename T, typename... Types>                                                      \
     union Variant_values_implementation<Is_Trivially_Destructible, T, Types...>                   \
     {                                                                                             \
@@ -490,9 +490,9 @@ using Variant_values =
         Destructor                                                                                \
     };
 
-VULKAN_CPU_UTIL_VARIANT_VALUES(true, ~Variant_values_implementation() = default;)
-VULKAN_CPU_UTIL_VARIANT_VALUES(false, ~Variant_values_implementation(){})
-#undef VULKAN_CPU_UTIL_VARIANT_VALUES
+KAZAN_UTIL_VARIANT_VALUES(true, ~Variant_values_implementation() = default;)
+KAZAN_UTIL_VARIANT_VALUES(false, ~Variant_values_implementation(){})
+#undef KAZAN_UTIL_VARIANT_VALUES
 
 template <std::size_t Index, typename... Types>
 struct Variant_get;
@@ -543,7 +543,7 @@ struct Variant_get<Index, T, Types...>
     }
 };
 
-#define VULKAN_CPU_UTIL_VARIANT_DISPATCH(Const, Ref)                                               \
+#define KAZAN_UTIL_VARIANT_DISPATCH(Const, Ref)                                                    \
     template <std::size_t Index,                                                                   \
               typename Return_Type,                                                                \
               typename Fn,                                                                         \
@@ -645,11 +645,11 @@ struct Variant_get<Index, T, Types...>
             std::forward<Args>(args)...);                                                          \
     }
 
-VULKAN_CPU_UTIL_VARIANT_DISPATCH(, &)
-VULKAN_CPU_UTIL_VARIANT_DISPATCH(const, &)
-VULKAN_CPU_UTIL_VARIANT_DISPATCH(, &&)
-VULKAN_CPU_UTIL_VARIANT_DISPATCH(const, &&)
-#undef VULKAN_CPU_UTIL_VARIANT_DISPATCH
+KAZAN_UTIL_VARIANT_DISPATCH(, &)
+KAZAN_UTIL_VARIANT_DISPATCH(const, &)
+KAZAN_UTIL_VARIANT_DISPATCH(, &&)
+KAZAN_UTIL_VARIANT_DISPATCH(const, &&)
+#undef KAZAN_UTIL_VARIANT_DISPATCH
 
 template <std::size_t Type_Count>
 struct Variant_index_type
@@ -705,15 +705,15 @@ template <bool Is_Trivially_Destructible,
           typename... Types>
 struct Variant_base;
 
-#define VULKAN_CPU_UTIL_VARIANT_BASE_DESTRUCTOR_false \
-    ~Variant_base()                                   \
-    {                                                 \
-        values.destruct(index_value.get());           \
+#define KAZAN_UTIL_VARIANT_BASE_DESTRUCTOR_false \
+    ~Variant_base()                              \
+    {                                            \
+        values.destruct(index_value.get());      \
     }
 
-#define VULKAN_CPU_UTIL_VARIANT_BASE_DESTRUCTOR_true ~Variant_base() = default;
+#define KAZAN_UTIL_VARIANT_BASE_DESTRUCTOR_true ~Variant_base() = default;
 
-#define VULKAN_CPU_UTIL_VARIANT_BASE_COPY_CONSTRUCTOR_true                \
+#define KAZAN_UTIL_VARIANT_BASE_COPY_CONSTRUCTOR_true                     \
     Variant_base(const Variant_base &rt) noexcept(                        \
         Variant_values<Types...>::is_nothrow_copy_constructible)          \
         : values(in_place_index<variant_npos>), index_value(variant_npos) \
@@ -722,10 +722,10 @@ struct Variant_base;
         index_value = rt.index_value;                                     \
     }
 
-#define VULKAN_CPU_UTIL_VARIANT_BASE_COPY_CONSTRUCTOR_false \
+#define KAZAN_UTIL_VARIANT_BASE_COPY_CONSTRUCTOR_false \
     Variant_base(const Variant_base &rt) = delete;
 
-#define VULKAN_CPU_UTIL_VARIANT_BASE_MOVE_CONSTRUCTOR_true                 \
+#define KAZAN_UTIL_VARIANT_BASE_MOVE_CONSTRUCTOR_true                      \
     Variant_base(Variant_base &&rt) noexcept(                              \
         Variant_values<Types...>::is_nothrow_move_constructible)           \
         : values(in_place_index<variant_npos>), index_value(variant_npos)  \
@@ -734,10 +734,9 @@ struct Variant_base;
         index_value = rt.index_value;                                      \
     }
 
-#define VULKAN_CPU_UTIL_VARIANT_BASE_MOVE_CONSTRUCTOR_false \
-    Variant_base(Variant_base &&rt) = delete;
+#define KAZAN_UTIL_VARIANT_BASE_MOVE_CONSTRUCTOR_false Variant_base(Variant_base &&rt) = delete;
 
-#define VULKAN_CPU_UTIL_VARIANT_BASE_COPY_ASSIGN_OP_true                      \
+#define KAZAN_UTIL_VARIANT_BASE_COPY_ASSIGN_OP_true                           \
     Variant_base &operator=(const Variant_base &rt) noexcept(                 \
         Variant_values<Types...>::is_nothrow_copy_assignable)                 \
     {                                                                         \
@@ -755,10 +754,10 @@ struct Variant_base;
         return *this;                                                         \
     }
 
-#define VULKAN_CPU_UTIL_VARIANT_BASE_COPY_ASSIGN_OP_false \
+#define KAZAN_UTIL_VARIANT_BASE_COPY_ASSIGN_OP_false \
     Variant_base &operator=(const Variant_base &rt) = delete;
 
-#define VULKAN_CPU_UTIL_VARIANT_BASE_MOVE_ASSIGN_OP_true                       \
+#define KAZAN_UTIL_VARIANT_BASE_MOVE_ASSIGN_OP_true                            \
     Variant_base &operator=(Variant_base &&rt) noexcept(                       \
         Variant_values<Types...>::is_nothrow_move_assignable)                  \
     {                                                                          \
@@ -776,71 +775,68 @@ struct Variant_base;
         return *this;                                                          \
     }
 
-#define VULKAN_CPU_UTIL_VARIANT_BASE_MOVE_ASSIGN_OP_false \
+#define KAZAN_UTIL_VARIANT_BASE_MOVE_ASSIGN_OP_false \
     Variant_base &operator=(Variant_base &&rt) = delete;
 
-#define VULKAN_CPU_UTIL_VARIANT_BASE0(Is_Trivially_Destructible,                         \
-                                      Is_Copy_Constructible,                             \
-                                      Is_Move_Constructible,                             \
-                                      Is_Copy_Assignable,                                \
-                                      Is_Move_Assignable)                                \
-    template <typename... Types>                                                         \
-    struct Variant_base<Is_Trivially_Destructible,                                       \
-                        Is_Copy_Constructible,                                           \
-                        Is_Move_Constructible,                                           \
-                        Is_Copy_Assignable,                                              \
-                        Is_Move_Assignable,                                              \
-                        Types...>                                                        \
-    {                                                                                    \
-        Variant_values<Types...> values;                                                 \
-        Variant_index_type<sizeof...(Types)> index_value;                                \
-        template <typename... Args>                                                      \
-        constexpr Variant_base(                                                          \
-            Variant_base_construct_tag,                                                  \
-            std::size_t index_value,                                                     \
-            Args &&... args) noexcept(noexcept(new(std::declval<void *>())               \
-                                                   Variant_values<Types...>(             \
-                                                       std::declval<Args>()...)))        \
-            : values(std::forward<Args>(args)...), index_value(index_value)              \
-        {                                                                                \
-        }                                                                                \
-        VULKAN_CPU_UTIL_VARIANT_BASE_DESTRUCTOR_##Is_Trivially_Destructible              \
-            VULKAN_CPU_UTIL_VARIANT_BASE_COPY_CONSTRUCTOR_##Is_Copy_Constructible        \
-                VULKAN_CPU_UTIL_VARIANT_BASE_MOVE_CONSTRUCTOR_##Is_Move_Constructible    \
-                    VULKAN_CPU_UTIL_VARIANT_BASE_COPY_ASSIGN_OP_##Is_Copy_Assignable     \
-                        VULKAN_CPU_UTIL_VARIANT_BASE_MOVE_ASSIGN_OP_##Is_Move_Assignable \
+#define KAZAN_UTIL_VARIANT_BASE0(Is_Trivially_Destructible,                         \
+                                 Is_Copy_Constructible,                             \
+                                 Is_Move_Constructible,                             \
+                                 Is_Copy_Assignable,                                \
+                                 Is_Move_Assignable)                                \
+    template <typename... Types>                                                    \
+    struct Variant_base<Is_Trivially_Destructible,                                  \
+                        Is_Copy_Constructible,                                      \
+                        Is_Move_Constructible,                                      \
+                        Is_Copy_Assignable,                                         \
+                        Is_Move_Assignable,                                         \
+                        Types...>                                                   \
+    {                                                                               \
+        Variant_values<Types...> values;                                            \
+        Variant_index_type<sizeof...(Types)> index_value;                           \
+        template <typename... Args>                                                 \
+        constexpr Variant_base(                                                     \
+            Variant_base_construct_tag,                                             \
+            std::size_t index_value,                                                \
+            Args &&... args) noexcept(noexcept(new(std::declval<void *>())          \
+                                                   Variant_values<Types...>(        \
+                                                       std::declval<Args>()...)))   \
+            : values(std::forward<Args>(args)...), index_value(index_value)         \
+        {                                                                           \
+        }                                                                           \
+        KAZAN_UTIL_VARIANT_BASE_DESTRUCTOR_##Is_Trivially_Destructible              \
+            KAZAN_UTIL_VARIANT_BASE_COPY_CONSTRUCTOR_##Is_Copy_Constructible        \
+                KAZAN_UTIL_VARIANT_BASE_MOVE_CONSTRUCTOR_##Is_Move_Constructible    \
+                    KAZAN_UTIL_VARIANT_BASE_COPY_ASSIGN_OP_##Is_Copy_Assignable     \
+                        KAZAN_UTIL_VARIANT_BASE_MOVE_ASSIGN_OP_##Is_Move_Assignable \
     };
 
-#define VULKAN_CPU_UTIL_VARIANT_BASE1(                                                    \
+#define KAZAN_UTIL_VARIANT_BASE1(                                                         \
     Is_Copy_Constructible, Is_Move_Constructible, Is_Copy_Assignable, Is_Move_Assignable) \
-    VULKAN_CPU_UTIL_VARIANT_BASE0(false,                                                  \
-                                  Is_Copy_Constructible,                                  \
-                                  Is_Move_Constructible,                                  \
-                                  Is_Copy_Assignable,                                     \
-                                  Is_Move_Assignable)                                     \
-    VULKAN_CPU_UTIL_VARIANT_BASE0(true,                                                   \
-                                  Is_Copy_Constructible,                                  \
-                                  Is_Move_Constructible,                                  \
-                                  Is_Copy_Assignable,                                     \
-                                  Is_Move_Assignable)
+    KAZAN_UTIL_VARIANT_BASE0(false,                                                       \
+                             Is_Copy_Constructible,                                       \
+                             Is_Move_Constructible,                                       \
+                             Is_Copy_Assignable,                                          \
+                             Is_Move_Assignable)                                          \
+    KAZAN_UTIL_VARIANT_BASE0(true,                                                        \
+                             Is_Copy_Constructible,                                       \
+                             Is_Move_Constructible,                                       \
+                             Is_Copy_Assignable,                                          \
+                             Is_Move_Assignable)
 
-#define VULKAN_CPU_UTIL_VARIANT_BASE2(                                        \
-    Is_Move_Constructible, Is_Copy_Assignable, Is_Move_Assignable)            \
-    VULKAN_CPU_UTIL_VARIANT_BASE1(                                            \
-        false, Is_Move_Constructible, Is_Copy_Assignable, Is_Move_Assignable) \
-    VULKAN_CPU_UTIL_VARIANT_BASE1(                                            \
-        true, Is_Move_Constructible, Is_Copy_Assignable, Is_Move_Assignable)
+#define KAZAN_UTIL_VARIANT_BASE2(Is_Move_Constructible, Is_Copy_Assignable, Is_Move_Assignable)    \
+    KAZAN_UTIL_VARIANT_BASE1(false, Is_Move_Constructible, Is_Copy_Assignable, Is_Move_Assignable) \
+    KAZAN_UTIL_VARIANT_BASE1(true, Is_Move_Constructible, Is_Copy_Assignable, Is_Move_Assignable)
 
-#define VULKAN_CPU_UTIL_VARIANT_BASE3(Is_Copy_Assignable, Is_Move_Assignable)    \
-    VULKAN_CPU_UTIL_VARIANT_BASE2(false, Is_Copy_Assignable, Is_Move_Assignable) \
-    VULKAN_CPU_UTIL_VARIANT_BASE2(true, Is_Copy_Assignable, Is_Move_Assignable)
+#define KAZAN_UTIL_VARIANT_BASE3(Is_Copy_Assignable, Is_Move_Assignable)    \
+    KAZAN_UTIL_VARIANT_BASE2(false, Is_Copy_Assignable, Is_Move_Assignable) \
+    KAZAN_UTIL_VARIANT_BASE2(true, Is_Copy_Assignable, Is_Move_Assignable)
 
-#define VULKAN_CPU_UTIL_VARIANT_BASE4(Is_Move_Assignable)    \
-    VULKAN_CPU_UTIL_VARIANT_BASE3(false, Is_Move_Assignable) \
-    VULKAN_CPU_UTIL_VARIANT_BASE3(true, Is_Move_Assignable)
+#define KAZAN_UTIL_VARIANT_BASE4(Is_Move_Assignable)    \
+    KAZAN_UTIL_VARIANT_BASE3(false, Is_Move_Assignable) \
+    KAZAN_UTIL_VARIANT_BASE3(true, Is_Move_Assignable)
 
-VULKAN_CPU_UTIL_VARIANT_BASE4(false)
-VULKAN_CPU_UTIL_VARIANT_BASE4(true)
+KAZAN_UTIL_VARIANT_BASE4(false)
+KAZAN_UTIL_VARIANT_BASE4(true)
 
 template <typename T>
 struct Variant_is_in_place_index
@@ -1393,23 +1389,23 @@ auto visit(Fn &&fn, Variants &&... variants)
 namespace std
 {
 template <>
-struct hash<vulkan_cpu::util::monostate>
+struct hash<kazan::util::monostate>
 {
-    constexpr std::size_t operator()(vulkan_cpu::util::monostate) const noexcept
+    constexpr std::size_t operator()(kazan::util::monostate) const noexcept
     {
         return 5546275UL;
     }
 };
 
 template <typename... Types>
-struct hash<vulkan_cpu::util::variant<Types...>>
+struct hash<kazan::util::variant<Types...>>
 {
-    constexpr std::size_t operator()(const vulkan_cpu::util::variant<Types...> &v) const
+    constexpr std::size_t operator()(const kazan::util::variant<Types...> &v) const
     {
         if(v.valueless_by_exception())
             return 10285473UL;
         return v.index() * 1414729UL
-               + vulkan_cpu::util::visit(
+               + kazan::util::visit(
                      [](const auto &v) -> std::size_t
                      {
                          return std::hash<typename std::decay<decltype(v)>::type>()(v);
@@ -1418,12 +1414,12 @@ struct hash<vulkan_cpu::util::variant<Types...>>
     }
 };
 
-template <typename... Types,
-          typename = typename std::
-              enable_if<vulkan_cpu::util::detail::Variant_values<Types...>::is_swappable>::type>
-inline void
-    swap(vulkan_cpu::util::variant<Types...> &l, vulkan_cpu::util::variant<Types...> &r) noexcept(
-        vulkan_cpu::util::detail::Variant_values<Types...>::is_nothrow_swappable)
+template <
+    typename... Types,
+    typename =
+        typename std::enable_if<kazan::util::detail::Variant_values<Types...>::is_swappable>::type>
+inline void swap(kazan::util::variant<Types...> &l, kazan::util::variant<Types...> &r) noexcept(
+    kazan::util::detail::Variant_values<Types...>::is_nothrow_swappable)
 {
     l.swap(r);
 }

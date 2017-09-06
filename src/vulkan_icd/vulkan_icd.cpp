@@ -25,7 +25,7 @@
 #include <initializer_list>
 #include <iostream>
 
-using namespace vulkan_cpu;
+using namespace kazan;
 
 #ifdef __ELF__
 #define DLLEXPORT_ATTR(original_attributes) \
@@ -1319,7 +1319,7 @@ extern "C" VKAPI_ATTR void VKAPI_CALL vkCmdExecuteCommands(VkCommandBuffer comma
 #warning finish implementing vkCmdExecuteCommands
     assert(!"vkCmdExecuteCommands is not implemented");
 }
-namespace vulkan_cpu
+namespace kazan
 {
 namespace vulkan_icd
 {

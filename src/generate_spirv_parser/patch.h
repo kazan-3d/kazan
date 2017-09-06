@@ -28,7 +28,7 @@
 #include <ostream>
 #include <memory>
 
-namespace vulkan_cpu
+namespace kazan
 {
 namespace generate_spirv_parser
 {
@@ -52,6 +52,7 @@ struct Ast_patches
     struct Add_image_operands_grad_parameter_names final : public Ast_patch
     {
         using Ast_patch::Ast_patch;
+
     protected:
         virtual bool apply(ast::Top_level &top_level) const override;
 
