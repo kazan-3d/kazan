@@ -106,10 +106,12 @@ extern "C" VKAPI_ATTR VkResult VKAPI_CALL vkEnumeratePhysicalDevices(
 }
 
 extern "C" VKAPI_ATTR void VKAPI_CALL vkGetPhysicalDeviceFeatures(
-    VkPhysicalDevice physicalDevice, VkPhysicalDeviceFeatures *pFeatures)
+    VkPhysicalDevice physical_device, VkPhysicalDeviceFeatures *features)
 {
-#warning finish implementing vkGetPhysicalDeviceFeatures
-    assert(!"vkGetPhysicalDeviceFeatures is not implemented");
+    assert(physical_device);
+    assert(features);
+    auto *physical_device_pointer = vulkan::Vulkan_physical_device::from_handle(physical_device);
+    *features = physical_device_pointer->features;
 }
 
 extern "C" VKAPI_ATTR void VKAPI_CALL vkGetPhysicalDeviceFormatProperties(
@@ -142,19 +144,26 @@ extern "C" VKAPI_ATTR void VKAPI_CALL vkGetPhysicalDeviceProperties(
 }
 
 extern "C" VKAPI_ATTR void VKAPI_CALL
-    vkGetPhysicalDeviceQueueFamilyProperties(VkPhysicalDevice physicalDevice,
-                                             uint32_t *pQueueFamilyPropertyCount,
-                                             VkQueueFamilyProperties *pQueueFamilyProperties)
+    vkGetPhysicalDeviceQueueFamilyProperties(VkPhysicalDevice physical_device,
+                                             uint32_t *queue_family_property_count,
+                                             VkQueueFamilyProperties *queue_family_properties)
 {
-#warning finish implementing vkGetPhysicalDeviceQueueFamilyProperties
-    assert(!"vkGetPhysicalDeviceQueueFamilyProperties is not implemented");
+    assert(physical_device);
+    auto *physical_device_pointer = vulkan::Vulkan_physical_device::from_handle(physical_device);
+    vulkan_icd::vulkan_enumerate_list_helper(
+        queue_family_property_count,
+        queue_family_properties,
+        physical_device_pointer->queue_family_properties,
+        vulkan::Vulkan_physical_device::queue_family_property_count);
 }
 
 extern "C" VKAPI_ATTR void VKAPI_CALL vkGetPhysicalDeviceMemoryProperties(
-    VkPhysicalDevice physicalDevice, VkPhysicalDeviceMemoryProperties *pMemoryProperties)
+    VkPhysicalDevice physical_device, VkPhysicalDeviceMemoryProperties *memory_properties)
 {
-#warning finish implementing vkGetPhysicalDeviceMemoryProperties
-    assert(!"vkGetPhysicalDeviceMemoryProperties is not implemented");
+    assert(physical_device);
+    assert(memory_properties);
+    auto *physical_device_pointer = vulkan::Vulkan_physical_device::from_handle(physical_device);
+    *memory_properties = physical_device_pointer->memory_properties;
 }
 
 extern "C" VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL vkGetDeviceProcAddr(VkDevice device,
@@ -164,22 +173,32 @@ extern "C" VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL vkGetDeviceProcAddr(VkDevice
         name, vulkan_icd::Vulkan_loader_interface::Procedure_address_scope::Device);
 }
 
-extern "C" VKAPI_ATTR VkResult VKAPI_CALL vkCreateDevice(VkPhysicalDevice physicalDevice,
-                                                         const VkDeviceCreateInfo *pCreateInfo,
+extern "C" VKAPI_ATTR VkResult VKAPI_CALL vkCreateDevice(VkPhysicalDevice physical_device,
+                                                         const VkDeviceCreateInfo *create_info,
                                                          const VkAllocationCallbacks *allocator,
-                                                         VkDevice *pDevice)
+                                                         VkDevice *device)
 {
     validate_allocator(allocator);
-#warning finish implementing vkCreateDevice
-    assert(!"vkCreateDevice is not implemented");
+    assert(create_info);
+    assert(physical_device);
+    return vulkan_icd::catch_exceptions_and_return_result(
+        [&]()
+        {
+            auto create_result = vulkan::Vulkan_device::create(
+                *vulkan::Vulkan_physical_device::from_handle(physical_device), *create_info);
+            if(util::holds_alternative<VkResult>(create_result))
+                return util::get<VkResult>(create_result);
+            *device = move_to_handle(
+                util::get<std::unique_ptr<vulkan::Vulkan_device>>(std::move(create_result)));
+            return VK_SUCCESS;
+        });
 }
 
 extern "C" VKAPI_ATTR void VKAPI_CALL vkDestroyDevice(VkDevice device,
                                                       const VkAllocationCallbacks *allocator)
 {
     validate_allocator(allocator);
-#warning finish implementing vkDestroyDevice
-    assert(!"vkDestroyDevice is not implemented");
+    vulkan::Vulkan_device::move_from_handle(device).reset();
 }
 
 extern "C" VKAPI_ATTR VkResult VKAPI_CALL
@@ -1525,8 +1544,9 @@ VkResult Vulkan_loader_interface::enumerate_instance_extension_properties(
     const char *layer_name, uint32_t *property_count, VkExtensionProperties *properties) noexcept
 {
     assert(layer_name == nullptr);
-    static constexpr std::initializer_list<VkExtensionProperties> extensions = {};
-    return vulkan_enumerate_list_helper(property_count, properties, extensions);
+    static constexpr auto extensions = vulkan::get_extensions<vulkan::Extension_scope::Instance>();
+    return vulkan_enumerate_list_helper(
+        property_count, properties, extensions.data(), extensions.size());
 }
 
 VkResult Vulkan_loader_interface::enumerate_device_extension_properties(
@@ -1536,9 +1556,10 @@ VkResult Vulkan_loader_interface::enumerate_device_extension_properties(
     VkExtensionProperties *properties) noexcept
 {
     assert(layer_name == nullptr);
-    assert(physical_device != nullptr);
-    static constexpr std::initializer_list<VkExtensionProperties> extensions = {};
-    return vulkan_enumerate_list_helper(property_count, properties, extensions);
+    assert(physical_device != VK_NULL_HANDLE);
+    static constexpr auto extensions = vulkan::get_extensions<vulkan::Extension_scope::Device>();
+    return vulkan_enumerate_list_helper(
+        property_count, properties, extensions.data(), extensions.size());
 }
 }
 

@@ -28,9 +28,12 @@
 #include "util/enum.h"
 #include "util/string_view.h"
 #include "util/variant.h"
+#include "util/system_memory_info.h"
+#include "util/constexpr_array.h"
 #include <memory>
 #include <cassert>
 #include <chrono>
+#include <limits>
 
 namespace kazan
 {
@@ -63,16 +66,37 @@ constexpr Extension_scope get_extension_scope(Supported_extension extension) noe
     return Extension_scope::Not_supported;
 }
 
-constexpr util::string_view get_extension_name(Supported_extension extension) noexcept
+constexpr VkExtensionProperties get_extension_properties(Supported_extension extension) noexcept
 {
-    using namespace util::string_view_literals;
     switch(extension)
     {
     case Supported_extension::Not_supported:
-        return ""_sv;
+        return {};
     }
     assert(!"unknown extension");
-    return ""_sv;
+    return {};
+}
+
+constexpr std::size_t get_extension_count(Extension_scope scope) noexcept
+{
+    std::size_t retval = 0;
+    for(auto extension : util::Enum_traits<Supported_extension>::values)
+        if(get_extension_scope(extension) == scope)
+            retval++;
+    return retval;
+}
+
+template <Extension_scope Scope>
+constexpr util::Constexpr_array<VkExtensionProperties, get_extension_count(Scope)>
+    get_extensions() noexcept
+{
+    util::Constexpr_array<VkExtensionProperties, get_extension_count(Scope)> retval{};
+    std::size_t index = 0;
+    for(auto extension : util::Enum_traits<Supported_extension>::values)
+        if(get_extension_scope(extension) == Scope)
+            retval[index++] = get_extension_properties(extension);
+    assert(index == retval.size());
+    return retval;
 }
 
 constexpr Supported_extensions get_extension_dependencies(Supported_extension extension) noexcept
@@ -94,7 +118,7 @@ inline Supported_extension parse_extension_name(util::string_view name) noexcept
     {
         if(extension == Supported_extension::Not_supported)
             continue;
-        if(get_extension_name(extension) == name)
+        if(get_extension_properties(extension).extensionName == name)
             return extension;
     }
     return Supported_extension::Not_supported;
@@ -143,6 +167,23 @@ struct Vulkan_physical_device
 {
     Vulkan_instance &instance;
     VkPhysicalDeviceProperties properties;
+    static constexpr std::size_t queue_family_property_count = 1;
+    VkQueueFamilyProperties queue_family_properties[queue_family_property_count];
+    VkPhysicalDeviceMemoryProperties memory_properties;
+    VkPhysicalDeviceFeatures features;
+    static VkDeviceSize calculate_heap_size() noexcept
+    {
+        std::uintmax_t total_usable_ram = util::System_memory_info::get().total_usable_ram;
+        constexpr std::uintmax_t transition_memory_size = 4ULL << 30; // 4 GiB
+        std::uintmax_t heap_size;
+        if(total_usable_ram >= transition_memory_size)
+            heap_size = total_usable_ram * 3 / 4;
+        else
+            heap_size = total_usable_ram / 2;
+        if(heap_size > std::numeric_limits<VkDeviceSize>::max())
+            heap_size = std::numeric_limits<VkDeviceSize>::max();
+        return heap_size;
+    }
     Vulkan_physical_device(Vulkan_instance &instance) noexcept
         : instance(instance),
           properties{
@@ -157,10 +198,10 @@ struct Vulkan_physical_device
               .pipelineCacheUUID = {},
               .limits =
                   {
-                      .maxImageDimension1D = 1UL << 23,
-                      .maxImageDimension2D = 1UL << 23,
-                      .maxImageDimension3D = 1UL << 23,
-                      .maxImageDimensionCube = 1UL << 23,
+                      .maxImageDimension1D = 1UL << 20,
+                      .maxImageDimension2D = 1UL << 20,
+                      .maxImageDimension3D = 1UL << 20,
+                      .maxImageDimensionCube = 1UL << 20,
                       .maxImageArrayLayers = static_cast<std::uint32_t>(-1),
                       .maxTexelBufferElements = static_cast<std::uint32_t>(-1),
                       .maxUniformBufferRange = static_cast<std::uint32_t>(-1),
@@ -232,9 +273,12 @@ struct Vulkan_physical_device
                       .maxViewports = 1,
                       .maxViewportDimensions =
                           {
-                              1UL << 23, 1UL << 23,
+                              1UL << 20, 1UL << 20,
                           },
-                      .viewportBoundsRange = {-1.0f * (1UL << 23), 1UL << 23},
+                      .viewportBoundsRange =
+                          {
+                              static_cast<float>(-1) * (1UL << 21), 1UL << 21,
+                          },
                       .viewportSubPixelBits = 16,
                       .minMemoryMapAlignment = 64,
                       .minTexelBufferOffsetAlignment = alignof(std::max_align_t),
@@ -247,8 +291,8 @@ struct Vulkan_physical_device
                       .minInterpolationOffset = 0,
                       .maxInterpolationOffset = 0,
                       .subPixelInterpolationOffsetBits = 0,
-                      .maxFramebufferWidth = 1UL << 23,
-                      .maxFramebufferHeight = 1UL << 23,
+                      .maxFramebufferWidth = 1UL << 20,
+                      .maxFramebufferHeight = 1UL << 20,
                       .maxFramebufferLayers = static_cast<std::uint32_t>(-1),
 #warning fix up sample counts after adding multisampling
                       .framebufferColorSampleCounts = VK_SAMPLE_COUNT_1_BIT,
@@ -297,6 +341,96 @@ struct Vulkan_physical_device
                       .residencyAlignedMipSize = false,
                       .residencyNonResidentStrict = false,
                   },
+          },
+          queue_family_properties{
+              {
+                  .queueFlags = VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_COMPUTE_BIT,
+                  .queueCount = 1,
+                  .timestampValidBits = std::numeric_limits<std::chrono::steady_clock::rep>::digits
+                                        + 1, // 1 extra for sign bit
+                  .minImageTransferGranularity =
+                      {
+                          1, 1, 1,
+                      },
+              },
+          },
+          memory_properties{
+              .memoryTypeCount = 1,
+              .memoryTypes =
+                  {
+                      {
+                          .propertyFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT
+                                           | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT
+                                           | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
+                                           | VK_MEMORY_PROPERTY_HOST_CACHED_BIT,
+                          .heapIndex = 0,
+                      },
+                  },
+              .memoryHeapCount = 1,
+              .memoryHeaps =
+                  {
+                      {
+                          .size = calculate_heap_size(), .flags = VK_MEMORY_HEAP_DEVICE_LOCAL_BIT,
+                      },
+                  },
+          },
+          features{
+#warning implement robust buffer access
+              .robustBufferAccess = false,
+              .fullDrawIndexUint32 = true,
+              .imageCubeArray = false,
+              .independentBlend = true,
+              .geometryShader = false,
+              .tessellationShader = false,
+              .sampleRateShading = false,
+              .dualSrcBlend = false,
+              .logicOp = false,
+              .multiDrawIndirect = true,
+              .drawIndirectFirstInstance = true,
+              .depthClamp = false,
+              .depthBiasClamp = false,
+              .fillModeNonSolid = false,
+              .depthBounds = false,
+              .wideLines = false,
+              .largePoints = false,
+              .alphaToOne = false,
+              .multiViewport = false,
+              .samplerAnisotropy = false,
+              .textureCompressionETC2 = false,
+              .textureCompressionASTC_LDR = false,
+              .textureCompressionBC = false,
+              .occlusionQueryPrecise = false,
+              .pipelineStatisticsQuery = false,
+              .vertexPipelineStoresAndAtomics = false,
+              .fragmentStoresAndAtomics = false,
+              .shaderTessellationAndGeometryPointSize = false,
+              .shaderImageGatherExtended = false,
+              .shaderStorageImageExtendedFormats = false,
+              .shaderStorageImageMultisample = false,
+              .shaderStorageImageReadWithoutFormat = false,
+              .shaderStorageImageWriteWithoutFormat = false,
+              .shaderUniformBufferArrayDynamicIndexing = true,
+              .shaderSampledImageArrayDynamicIndexing = true,
+              .shaderStorageBufferArrayDynamicIndexing = true,
+              .shaderStorageImageArrayDynamicIndexing = true,
+              .shaderClipDistance = false,
+              .shaderCullDistance = false,
+              .shaderFloat64 = false,
+              .shaderInt64 = true,
+              .shaderInt16 = false,
+              .shaderResourceResidency = false,
+              .shaderResourceMinLod = false,
+              .sparseBinding = false,
+              .sparseResidencyBuffer = false,
+              .sparseResidencyImage2D = false,
+              .sparseResidencyImage3D = false,
+              .sparseResidency2Samples = false,
+              .sparseResidency4Samples = false,
+              .sparseResidency8Samples = false,
+              .sparseResidency16Samples = false,
+              .sparseResidencyAliased = false,
+              .variableMultisampleRate = false,
+              .inheritedQueries = false,
           }
     {
     }
@@ -356,6 +490,27 @@ struct Vulkan_instance : public Vulkan_dispatchable_object<Vulkan_instance, VkIn
     static util::variant<std::unique_ptr<Vulkan_instance>, VkResult> create(
         const VkInstanceCreateInfo &create_info);
 #warning finish implementing Vulkan_instance
+};
+
+struct Vulkan_device : public Vulkan_dispatchable_object<Vulkan_device, VkDevice>
+{
+    struct Queue
+    {
+    };
+    Vulkan_instance &instance;
+    Vulkan_physical_device &physical_device;
+    VkPhysicalDeviceFeatures enabled_features;
+    static constexpr std::size_t queue_count = 1;
+    Queue queues[queue_count];
+    explicit Vulkan_device(Vulkan_physical_device &physical_device,
+                           const VkPhysicalDeviceFeatures &enabled_features) noexcept
+        : instance(physical_device.instance),
+          physical_device(physical_device),
+          enabled_features(enabled_features)
+    {
+    }
+    static util::variant<std::unique_ptr<Vulkan_device>, VkResult> create(
+        Vulkan_physical_device &physical_device, const VkDeviceCreateInfo &create_info);
 };
 }
 }
