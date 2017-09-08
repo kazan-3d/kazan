@@ -478,6 +478,7 @@ public:
 namespace detail
 {
 template <typename T,
+          typename Mapped_type,
           std::size_t Entry_count,
           bool Is_Trivially_Destructible = std::is_trivially_destructible<T>::value,
           bool Is_Trivially_Copyable = std::is_trivially_copyable<T>::value>
@@ -544,14 +545,15 @@ struct Enum_map_base
     }
     Enum_map_base &operator=(const Enum_map_base &rt) noexcept(
         noexcept(new(std::declval<void *>()) T(std::declval<const T &>()))
-        && noexcept(std::declval<T &>() = std::declval<const T &>()))
+        && noexcept(std::declval<Mapped_type &>() = std::declval<const Mapped_type &>()))
     {
         auto either_full = full_entries | rt.full_entries;
         for(std::size_t index = either_full.find_first(true); index != Bits::npos;
             index = either_full.find_first(true, index + 1))
             if(rt.full_entries[index])
                 if(full_entries[index])
-                    entries[index].full_value = rt.entries[index].full_value;
+                    std::get<1>(entries[index].full_value) =
+                        std::get<1>(rt.entries[index].full_value);
                 else
                     emplace_at_index(index, rt.entries[index].full_value);
             else
@@ -560,14 +562,15 @@ struct Enum_map_base
     }
     Enum_map_base &operator=(Enum_map_base &&rt) noexcept(
         noexcept(new(std::declval<void *>()) T(std::declval<T &&>()))
-        && noexcept(std::declval<T &>() = std::declval<T &&>()))
+        && noexcept(std::declval<Mapped_type &>() = std::declval<Mapped_type &&>()))
     {
         auto either_full = full_entries | rt.full_entries;
         for(std::size_t index = either_full.find_first(true); index != Bits::npos;
             index = either_full.find_first(true, index + 1))
             if(rt.full_entries[index])
                 if(full_entries[index])
-                    entries[index].full_value = std::move(rt.entries[index].full_value);
+                    std::get<1>(entries[index].full_value) =
+                        std::move(std::get<1>(rt.entries[index].full_value));
                 else
                     emplace_at_index(index, std::move(rt.entries[index].full_value));
             else
@@ -586,8 +589,8 @@ struct Enum_map_base
     }
 };
 
-template <typename T, std::size_t Entry_count>
-struct Enum_map_base<T, Entry_count, true, false>
+template <typename T, typename Mapped_type, std::size_t Entry_count>
+struct Enum_map_base<T, Mapped_type, Entry_count, true, false>
 {
     union Entry_type
     {
@@ -646,14 +649,15 @@ struct Enum_map_base<T, Entry_count, true, false>
     }
     Enum_map_base &operator=(const Enum_map_base &rt) noexcept(
         noexcept(new(std::declval<void *>()) T(std::declval<const T &>()))
-        && noexcept(std::declval<T &>() = std::declval<const T &>()))
+        && noexcept(std::declval<Mapped_type &>() = std::declval<const Mapped_type &>()))
     {
         auto either_full = full_entries | rt.full_entries;
         for(std::size_t index = either_full.find_first(true); index != Bits::npos;
             index = either_full.find_first(true, index + 1))
             if(rt.full_entries[index])
                 if(full_entries[index])
-                    entries[index].full_value = rt.entries[index].full_value;
+                    std::get<1>(entries[index].full_value) =
+                        std::get<1>(rt.entries[index].full_value);
                 else
                     emplace_at_index(index, rt.entries[index].full_value);
             else
@@ -662,14 +666,15 @@ struct Enum_map_base<T, Entry_count, true, false>
     }
     Enum_map_base &operator=(Enum_map_base &&rt) noexcept(
         noexcept(new(std::declval<void *>()) T(std::declval<T &&>()))
-        && noexcept(std::declval<T &>() = std::declval<T &&>()))
+        && noexcept(std::declval<Mapped_type &>() = std::declval<Mapped_type &&>()))
     {
         auto either_full = full_entries | rt.full_entries;
         for(std::size_t index = either_full.find_first(true); index != Bits::npos;
             index = either_full.find_first(true, index + 1))
             if(rt.full_entries[index])
                 if(full_entries[index])
-                    entries[index].full_value = std::move(rt.entries[index].full_value);
+                    std::get<1>(entries[index].full_value) =
+                        std::move(std::get<1>(rt.entries[index].full_value));
                 else
                     emplace_at_index(index, std::move(rt.entries[index].full_value));
             else
@@ -685,8 +690,8 @@ struct Enum_map_base<T, Entry_count, true, false>
     ~Enum_map_base() = default;
 };
 
-template <typename T, std::size_t Entry_count>
-struct Enum_map_base<T, Entry_count, true, true>
+template <typename T, typename Mapped_type, std::size_t Entry_count>
+struct Enum_map_base<T, Mapped_type, Entry_count, true, true>
 {
     union Entry_type
     {
@@ -717,8 +722,40 @@ struct Enum_map_base<T, Entry_count, true, true>
     }
     constexpr Enum_map_base(const Enum_map_base &rt) noexcept = default;
     constexpr Enum_map_base(Enum_map_base &&rt) noexcept = default;
-    constexpr Enum_map_base &operator=(const Enum_map_base &rt) noexcept = default;
-    constexpr Enum_map_base &operator=(Enum_map_base &&rt) noexcept = default;
+    Enum_map_base &operator=(const Enum_map_base &rt) noexcept(
+        noexcept(new(std::declval<void *>()) T(std::declval<const T &>()))
+        && noexcept(std::declval<Mapped_type &>() = std::declval<const Mapped_type &>()))
+    {
+        auto either_full = full_entries | rt.full_entries;
+        for(std::size_t index = either_full.find_first(true); index != Bits::npos;
+            index = either_full.find_first(true, index + 1))
+            if(rt.full_entries[index])
+                if(full_entries[index])
+                    std::get<1>(entries[index].full_value) =
+                        std::get<1>(rt.entries[index].full_value);
+                else
+                    emplace_at_index(index, rt.entries[index].full_value);
+            else
+                erase_at_index(index);
+        return *this;
+    }
+    Enum_map_base &operator=(Enum_map_base &&rt) noexcept(
+        noexcept(new(std::declval<void *>()) T(std::declval<T &&>()))
+        && noexcept(std::declval<Mapped_type &>() = std::declval<Mapped_type &&>()))
+    {
+        auto either_full = full_entries | rt.full_entries;
+        for(std::size_t index = either_full.find_first(true); index != Bits::npos;
+            index = either_full.find_first(true, index + 1))
+            if(rt.full_entries[index])
+                if(full_entries[index])
+                    std::get<1>(entries[index].full_value) =
+                        std::move(std::get<1>(rt.entries[index].full_value));
+                else
+                    emplace_at_index(index, std::move(rt.entries[index].full_value));
+            else
+                erase_at_index(index);
+        return *this;
+    }
     constexpr void clear() noexcept
     {
         for(std::size_t index = full_entries.find_first(true); index != Bits::npos;
@@ -731,10 +768,11 @@ struct Enum_map_base<T, Entry_count, true, true>
 
 /** behaves like a std::map<K, V> */
 template <typename K, typename V>
-class Enum_map : private detail::Enum_map_base<std::pair<const K, V>, Enum_traits<K>::value_count>
+class Enum_map
+    : private detail::Enum_map_base<std::pair<const K, V>, V, Enum_traits<K>::value_count>
 {
 private:
-    typedef detail::Enum_map_base<std::pair<const K, V>, Enum_traits<K>::value_count> Base;
+    typedef detail::Enum_map_base<std::pair<const K, V>, V, Enum_traits<K>::value_count> Base;
 
 public:
     typedef K key_type;
