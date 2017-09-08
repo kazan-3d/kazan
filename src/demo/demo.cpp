@@ -489,7 +489,7 @@ std::vector<Vertex_input_struct> load_wavefront_obj_file(const char *filename)
                 {
                     std::size_t vertex_count = vertexes.size();
                     std::int64_t max_index = vertex_count;
-                    std::int64_t min_index = -vertex_count;
+                    std::int64_t min_index = -max_index;
                     auto vertex_index =
                         parse_signed_integer(vertex_index_str, max_index, min_index);
                     if(!vertex_index || *vertex_index == 0)

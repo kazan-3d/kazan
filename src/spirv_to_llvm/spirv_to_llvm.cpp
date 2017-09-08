@@ -496,6 +496,33 @@ void Spirv_to_llvm::handle_header(unsigned version_number_major,
         id_states.resize(id_bound - 1);
     }
 }
+
+namespace
+{
+#define DECLARE_LIBRARY_SYMBOL(name) \
+    static void library_symbol_##name() __attribute__((weakref(#name)));
+#ifdef __ARM_EABI__
+DECLARE_LIBRARY_SYMBOL(__aeabi_unwind_cpp_pr0)
+#endif
+}
+
+Jit_symbol_resolver::Resolved_symbol Jit_symbol_resolver::resolve(util::string_view name)
+{
+#define RESOLVE_LIBRARY_SYMBOL(symbol_name)                                            \
+    if(#symbol_name == name)                                                           \
+    {                                                                                  \
+        if(library_symbol_##symbol_name == nullptr)                                    \
+            throw std::runtime_error(                                                  \
+                "JIT symbol resolve error: library symbol not linked: " #symbol_name); \
+        return library_symbol_##symbol_name;                                           \
+    }
+
+#ifdef __ARM_EABI__
+    RESOLVE_LIBRARY_SYMBOL(__aeabi_unwind_cpp_pr0)
+#endif
+#warning finish implementing
+    return nullptr;
+}
 }
 
 spirv_to_llvm::Converted_module spirv_to_llvm::spirv_to_llvm(

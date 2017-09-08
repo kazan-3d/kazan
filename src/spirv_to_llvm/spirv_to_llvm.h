@@ -591,11 +591,7 @@ struct Converted_module
 struct Jit_symbol_resolver
 {
     typedef void (*Resolved_symbol)();
-    Resolved_symbol resolve(util::string_view name)
-    {
-#warning finish implementing
-        return nullptr;
-    }
+    Resolved_symbol resolve(util::string_view name);
     static std::uint64_t resolve(const char *name, void *user_data) noexcept
     {
         return reinterpret_cast<std::uint64_t>(
