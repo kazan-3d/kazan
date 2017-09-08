@@ -115,10 +115,11 @@ extern "C" VKAPI_ATTR void VKAPI_CALL vkGetPhysicalDeviceFeatures(
 }
 
 extern "C" VKAPI_ATTR void VKAPI_CALL vkGetPhysicalDeviceFormatProperties(
-    VkPhysicalDevice physicalDevice, VkFormat format, VkFormatProperties *pFormatProperties)
+    VkPhysicalDevice physical_device, VkFormat format, VkFormatProperties *format_properties)
 {
-#warning finish implementing vkGetPhysicalDeviceFormatProperties
-    assert(!"vkGetPhysicalDeviceFormatProperties is not implemented");
+    assert(physical_device);
+    assert(format_properties);
+    *format_properties = vulkan::get_format_properties(format);
 }
 
 extern "C" VKAPI_ATTR VkResult VKAPI_CALL
@@ -237,8 +238,13 @@ extern "C" VKAPI_ATTR VkResult VKAPI_CALL vkQueueWaitIdle(VkQueue queue)
 
 extern "C" VKAPI_ATTR VkResult VKAPI_CALL vkDeviceWaitIdle(VkDevice device)
 {
-#warning finish implementing vkDeviceWaitIdle
-    assert(!"vkDeviceWaitIdle is not implemented");
+    return vulkan_icd::catch_exceptions_and_return_result(
+        [&]()
+        {
+            auto device_pointer = vulkan::Vulkan_device::from_handle(device);
+            device_pointer->wait_idle();
+            return VK_SUCCESS;
+        });
 }
 
 extern "C" VKAPI_ATTR VkResult VKAPI_CALL

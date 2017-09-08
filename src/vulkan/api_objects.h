@@ -124,6 +124,950 @@ inline Supported_extension parse_extension_name(util::string_view name) noexcept
     return Supported_extension::Not_supported;
 }
 
+constexpr VkFormatProperties get_format_properties(VkFormat format) noexcept
+{
+    switch(format)
+    {
+    case VK_FORMAT_UNDEFINED:
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_R4G4_UNORM_PACK8:
+#warning implement VK_FORMAT_R4G4_UNORM_PACK8
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_R4G4B4A4_UNORM_PACK16:
+#warning implement VK_FORMAT_R4G4B4A4_UNORM_PACK16
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_B4G4R4A4_UNORM_PACK16:
+#warning implement VK_FORMAT_B4G4R4A4_UNORM_PACK16
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_R5G6B5_UNORM_PACK16:
+#warning implement VK_FORMAT_R5G6B5_UNORM_PACK16
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_B5G6R5_UNORM_PACK16:
+#warning implement VK_FORMAT_B5G6R5_UNORM_PACK16
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_R5G5B5A1_UNORM_PACK16:
+#warning implement VK_FORMAT_R5G5B5A1_UNORM_PACK16
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_B5G5R5A1_UNORM_PACK16:
+#warning implement VK_FORMAT_B5G5R5A1_UNORM_PACK16
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_A1R5G5B5_UNORM_PACK16:
+#warning implement VK_FORMAT_A1R5G5B5_UNORM_PACK16
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_R8_UNORM:
+#warning implement VK_FORMAT_R8_UNORM
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_R8_SNORM:
+#warning implement VK_FORMAT_R8_SNORM
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_R8_USCALED:
+#warning implement VK_FORMAT_R8_USCALED
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_R8_SSCALED:
+#warning implement VK_FORMAT_R8_SSCALED
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_R8_UINT:
+#warning implement VK_FORMAT_R8_UINT
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_R8_SINT:
+#warning implement VK_FORMAT_R8_SINT
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_R8_SRGB:
+#warning implement VK_FORMAT_R8_SRGB
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_R8G8_UNORM:
+#warning implement VK_FORMAT_R8G8_UNORM
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_R8G8_SNORM:
+#warning implement VK_FORMAT_R8G8_SNORM
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_R8G8_USCALED:
+#warning implement VK_FORMAT_R8G8_USCALED
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_R8G8_SSCALED:
+#warning implement VK_FORMAT_R8G8_SSCALED
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_R8G8_UINT:
+#warning implement VK_FORMAT_R8G8_UINT
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_R8G8_SINT:
+#warning implement VK_FORMAT_R8G8_SINT
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_R8G8_SRGB:
+#warning implement VK_FORMAT_R8G8_SRGB
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_R8G8B8_UNORM:
+#warning implement VK_FORMAT_R8G8B8_UNORM
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_R8G8B8_SNORM:
+#warning implement VK_FORMAT_R8G8B8_SNORM
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_R8G8B8_USCALED:
+#warning implement VK_FORMAT_R8G8B8_USCALED
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_R8G8B8_SSCALED:
+#warning implement VK_FORMAT_R8G8B8_SSCALED
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_R8G8B8_UINT:
+#warning implement VK_FORMAT_R8G8B8_UINT
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_R8G8B8_SINT:
+#warning implement VK_FORMAT_R8G8B8_SINT
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_R8G8B8_SRGB:
+#warning implement VK_FORMAT_R8G8B8_SRGB
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_B8G8R8_UNORM:
+#warning implement VK_FORMAT_B8G8R8_UNORM
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_B8G8R8_SNORM:
+#warning implement VK_FORMAT_B8G8R8_SNORM
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_B8G8R8_USCALED:
+#warning implement VK_FORMAT_B8G8R8_USCALED
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_B8G8R8_SSCALED:
+#warning implement VK_FORMAT_B8G8R8_SSCALED
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_B8G8R8_UINT:
+#warning implement VK_FORMAT_B8G8R8_UINT
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_B8G8R8_SINT:
+#warning implement VK_FORMAT_B8G8R8_SINT
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_B8G8R8_SRGB:
+#warning implement VK_FORMAT_B8G8R8_SRGB
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_R8G8B8A8_UNORM:
+#warning implement VK_FORMAT_R8G8B8A8_UNORM
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_R8G8B8A8_SNORM:
+#warning implement VK_FORMAT_R8G8B8A8_SNORM
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_R8G8B8A8_USCALED:
+#warning implement VK_FORMAT_R8G8B8A8_USCALED
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_R8G8B8A8_SSCALED:
+#warning implement VK_FORMAT_R8G8B8A8_SSCALED
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_R8G8B8A8_UINT:
+#warning implement VK_FORMAT_R8G8B8A8_UINT
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_R8G8B8A8_SINT:
+#warning implement VK_FORMAT_R8G8B8A8_SINT
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_R8G8B8A8_SRGB:
+#warning implement VK_FORMAT_R8G8B8A8_SRGB
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_B8G8R8A8_UNORM:
+#warning implement VK_FORMAT_B8G8R8A8_UNORM
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_B8G8R8A8_SNORM:
+#warning implement VK_FORMAT_B8G8R8A8_SNORM
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_B8G8R8A8_USCALED:
+#warning implement VK_FORMAT_B8G8R8A8_USCALED
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_B8G8R8A8_SSCALED:
+#warning implement VK_FORMAT_B8G8R8A8_SSCALED
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_B8G8R8A8_UINT:
+#warning implement VK_FORMAT_B8G8R8A8_UINT
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_B8G8R8A8_SINT:
+#warning implement VK_FORMAT_B8G8R8A8_SINT
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_B8G8R8A8_SRGB:
+#warning implement VK_FORMAT_B8G8R8A8_SRGB
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_A8B8G8R8_UNORM_PACK32:
+#warning implement VK_FORMAT_A8B8G8R8_UNORM_PACK32
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_A8B8G8R8_SNORM_PACK32:
+#warning implement VK_FORMAT_A8B8G8R8_SNORM_PACK32
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_A8B8G8R8_USCALED_PACK32:
+#warning implement VK_FORMAT_A8B8G8R8_USCALED_PACK32
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_A8B8G8R8_SSCALED_PACK32:
+#warning implement VK_FORMAT_A8B8G8R8_SSCALED_PACK32
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_A8B8G8R8_UINT_PACK32:
+#warning implement VK_FORMAT_A8B8G8R8_UINT_PACK32
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_A8B8G8R8_SINT_PACK32:
+#warning implement VK_FORMAT_A8B8G8R8_SINT_PACK32
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_A8B8G8R8_SRGB_PACK32:
+#warning implement VK_FORMAT_A8B8G8R8_SRGB_PACK32
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_A2R10G10B10_UNORM_PACK32:
+#warning implement VK_FORMAT_A2R10G10B10_UNORM_PACK32
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_A2R10G10B10_SNORM_PACK32:
+#warning implement VK_FORMAT_A2R10G10B10_SNORM_PACK32
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_A2R10G10B10_USCALED_PACK32:
+#warning implement VK_FORMAT_A2R10G10B10_USCALED_PACK32
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_A2R10G10B10_SSCALED_PACK32:
+#warning implement VK_FORMAT_A2R10G10B10_SSCALED_PACK32
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_A2R10G10B10_UINT_PACK32:
+#warning implement VK_FORMAT_A2R10G10B10_UINT_PACK32
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_A2R10G10B10_SINT_PACK32:
+#warning implement VK_FORMAT_A2R10G10B10_SINT_PACK32
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_A2B10G10R10_UNORM_PACK32:
+#warning implement VK_FORMAT_A2B10G10R10_UNORM_PACK32
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_A2B10G10R10_SNORM_PACK32:
+#warning implement VK_FORMAT_A2B10G10R10_SNORM_PACK32
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_A2B10G10R10_USCALED_PACK32:
+#warning implement VK_FORMAT_A2B10G10R10_USCALED_PACK32
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_A2B10G10R10_SSCALED_PACK32:
+#warning implement VK_FORMAT_A2B10G10R10_SSCALED_PACK32
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_A2B10G10R10_UINT_PACK32:
+#warning implement VK_FORMAT_A2B10G10R10_UINT_PACK32
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_A2B10G10R10_SINT_PACK32:
+#warning implement VK_FORMAT_A2B10G10R10_SINT_PACK32
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_R16_UNORM:
+#warning implement VK_FORMAT_R16_UNORM
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_R16_SNORM:
+#warning implement VK_FORMAT_R16_SNORM
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_R16_USCALED:
+#warning implement VK_FORMAT_R16_USCALED
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_R16_SSCALED:
+#warning implement VK_FORMAT_R16_SSCALED
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_R16_UINT:
+#warning implement VK_FORMAT_R16_UINT
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_R16_SINT:
+#warning implement VK_FORMAT_R16_SINT
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_R16_SFLOAT:
+#warning implement VK_FORMAT_R16_SFLOAT
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_R16G16_UNORM:
+#warning implement VK_FORMAT_R16G16_UNORM
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_R16G16_SNORM:
+#warning implement VK_FORMAT_R16G16_SNORM
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_R16G16_USCALED:
+#warning implement VK_FORMAT_R16G16_USCALED
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_R16G16_SSCALED:
+#warning implement VK_FORMAT_R16G16_SSCALED
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_R16G16_UINT:
+#warning implement VK_FORMAT_R16G16_UINT
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_R16G16_SINT:
+#warning implement VK_FORMAT_R16G16_SINT
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_R16G16_SFLOAT:
+#warning implement VK_FORMAT_R16G16_SFLOAT
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_R16G16B16_UNORM:
+#warning implement VK_FORMAT_R16G16B16_UNORM
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_R16G16B16_SNORM:
+#warning implement VK_FORMAT_R16G16B16_SNORM
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_R16G16B16_USCALED:
+#warning implement VK_FORMAT_R16G16B16_USCALED
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_R16G16B16_SSCALED:
+#warning implement VK_FORMAT_R16G16B16_SSCALED
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_R16G16B16_UINT:
+#warning implement VK_FORMAT_R16G16B16_UINT
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_R16G16B16_SINT:
+#warning implement VK_FORMAT_R16G16B16_SINT
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_R16G16B16_SFLOAT:
+#warning implement VK_FORMAT_R16G16B16_SFLOAT
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_R16G16B16A16_UNORM:
+#warning implement VK_FORMAT_R16G16B16A16_UNORM
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_R16G16B16A16_SNORM:
+#warning implement VK_FORMAT_R16G16B16A16_SNORM
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_R16G16B16A16_USCALED:
+#warning implement VK_FORMAT_R16G16B16A16_USCALED
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_R16G16B16A16_SSCALED:
+#warning implement VK_FORMAT_R16G16B16A16_SSCALED
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_R16G16B16A16_UINT:
+#warning implement VK_FORMAT_R16G16B16A16_UINT
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_R16G16B16A16_SINT:
+#warning implement VK_FORMAT_R16G16B16A16_SINT
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_R16G16B16A16_SFLOAT:
+#warning implement VK_FORMAT_R16G16B16A16_SFLOAT
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_R32_UINT:
+#warning implement VK_FORMAT_R32_UINT
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_R32_SINT:
+#warning implement VK_FORMAT_R32_SINT
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_R32_SFLOAT:
+#warning implement VK_FORMAT_R32_SFLOAT
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_R32G32_UINT:
+#warning implement VK_FORMAT_R32G32_UINT
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_R32G32_SINT:
+#warning implement VK_FORMAT_R32G32_SINT
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_R32G32_SFLOAT:
+#warning implement VK_FORMAT_R32G32_SFLOAT
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_R32G32B32_UINT:
+#warning implement VK_FORMAT_R32G32B32_UINT
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_R32G32B32_SINT:
+#warning implement VK_FORMAT_R32G32B32_SINT
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_R32G32B32_SFLOAT:
+#warning implement VK_FORMAT_R32G32B32_SFLOAT
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_R32G32B32A32_UINT:
+#warning implement VK_FORMAT_R32G32B32A32_UINT
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_R32G32B32A32_SINT:
+#warning implement VK_FORMAT_R32G32B32A32_SINT
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_R32G32B32A32_SFLOAT:
+#warning implement VK_FORMAT_R32G32B32A32_SFLOAT
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_R64_UINT:
+#warning implement VK_FORMAT_R64_UINT
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_R64_SINT:
+#warning implement VK_FORMAT_R64_SINT
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_R64_SFLOAT:
+#warning implement VK_FORMAT_R64_SFLOAT
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_R64G64_UINT:
+#warning implement VK_FORMAT_R64G64_UINT
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_R64G64_SINT:
+#warning implement VK_FORMAT_R64G64_SINT
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_R64G64_SFLOAT:
+#warning implement VK_FORMAT_R64G64_SFLOAT
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_R64G64B64_UINT:
+#warning implement VK_FORMAT_R64G64B64_UINT
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_R64G64B64_SINT:
+#warning implement VK_FORMAT_R64G64B64_SINT
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_R64G64B64_SFLOAT:
+#warning implement VK_FORMAT_R64G64B64_SFLOAT
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_R64G64B64A64_UINT:
+#warning implement VK_FORMAT_R64G64B64A64_UINT
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_R64G64B64A64_SINT:
+#warning implement VK_FORMAT_R64G64B64A64_SINT
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_R64G64B64A64_SFLOAT:
+#warning implement VK_FORMAT_R64G64B64A64_SFLOAT
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_B10G11R11_UFLOAT_PACK32:
+#warning implement VK_FORMAT_B10G11R11_UFLOAT_PACK32
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_E5B9G9R9_UFLOAT_PACK32:
+#warning implement VK_FORMAT_E5B9G9R9_UFLOAT_PACK32
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_D16_UNORM:
+#warning implement VK_FORMAT_D16_UNORM
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_X8_D24_UNORM_PACK32:
+#warning implement VK_FORMAT_X8_D24_UNORM_PACK32
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_D32_SFLOAT:
+#warning implement VK_FORMAT_D32_SFLOAT
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_S8_UINT:
+#warning implement VK_FORMAT_S8_UINT
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_D16_UNORM_S8_UINT:
+#warning implement VK_FORMAT_D16_UNORM_S8_UINT
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_D24_UNORM_S8_UINT:
+#warning implement VK_FORMAT_D24_UNORM_S8_UINT
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_D32_SFLOAT_S8_UINT:
+#warning implement VK_FORMAT_D32_SFLOAT_S8_UINT
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_BC1_RGB_UNORM_BLOCK:
+#warning implement VK_FORMAT_BC1_RGB_UNORM_BLOCK
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_BC1_RGB_SRGB_BLOCK:
+#warning implement VK_FORMAT_BC1_RGB_SRGB_BLOCK
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_BC1_RGBA_UNORM_BLOCK:
+#warning implement VK_FORMAT_BC1_RGBA_UNORM_BLOCK
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_BC1_RGBA_SRGB_BLOCK:
+#warning implement VK_FORMAT_BC1_RGBA_SRGB_BLOCK
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_BC2_UNORM_BLOCK:
+#warning implement VK_FORMAT_BC2_UNORM_BLOCK
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_BC2_SRGB_BLOCK:
+#warning implement VK_FORMAT_BC2_SRGB_BLOCK
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_BC3_UNORM_BLOCK:
+#warning implement VK_FORMAT_BC3_UNORM_BLOCK
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_BC3_SRGB_BLOCK:
+#warning implement VK_FORMAT_BC3_SRGB_BLOCK
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_BC4_UNORM_BLOCK:
+#warning implement VK_FORMAT_BC4_UNORM_BLOCK
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_BC4_SNORM_BLOCK:
+#warning implement VK_FORMAT_BC4_SNORM_BLOCK
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_BC5_UNORM_BLOCK:
+#warning implement VK_FORMAT_BC5_UNORM_BLOCK
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_BC5_SNORM_BLOCK:
+#warning implement VK_FORMAT_BC5_SNORM_BLOCK
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_BC6H_UFLOAT_BLOCK:
+#warning implement VK_FORMAT_BC6H_UFLOAT_BLOCK
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_BC6H_SFLOAT_BLOCK:
+#warning implement VK_FORMAT_BC6H_SFLOAT_BLOCK
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_BC7_UNORM_BLOCK:
+#warning implement VK_FORMAT_BC7_UNORM_BLOCK
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_BC7_SRGB_BLOCK:
+#warning implement VK_FORMAT_BC7_SRGB_BLOCK
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_ETC2_R8G8B8_UNORM_BLOCK:
+#warning implement VK_FORMAT_ETC2_R8G8B8_UNORM_BLOCK
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_ETC2_R8G8B8_SRGB_BLOCK:
+#warning implement VK_FORMAT_ETC2_R8G8B8_SRGB_BLOCK
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_ETC2_R8G8B8A1_UNORM_BLOCK:
+#warning implement VK_FORMAT_ETC2_R8G8B8A1_UNORM_BLOCK
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_ETC2_R8G8B8A1_SRGB_BLOCK:
+#warning implement VK_FORMAT_ETC2_R8G8B8A1_SRGB_BLOCK
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_ETC2_R8G8B8A8_UNORM_BLOCK:
+#warning implement VK_FORMAT_ETC2_R8G8B8A8_UNORM_BLOCK
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_ETC2_R8G8B8A8_SRGB_BLOCK:
+#warning implement VK_FORMAT_ETC2_R8G8B8A8_SRGB_BLOCK
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_EAC_R11_UNORM_BLOCK:
+#warning implement VK_FORMAT_EAC_R11_UNORM_BLOCK
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_EAC_R11_SNORM_BLOCK:
+#warning implement VK_FORMAT_EAC_R11_SNORM_BLOCK
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_EAC_R11G11_UNORM_BLOCK:
+#warning implement VK_FORMAT_EAC_R11G11_UNORM_BLOCK
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_EAC_R11G11_SNORM_BLOCK:
+#warning implement VK_FORMAT_EAC_R11G11_SNORM_BLOCK
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_ASTC_4x4_UNORM_BLOCK:
+#warning implement VK_FORMAT_ASTC_4x4_UNORM_BLOCK
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_ASTC_4x4_SRGB_BLOCK:
+#warning implement VK_FORMAT_ASTC_4x4_SRGB_BLOCK
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_ASTC_5x4_UNORM_BLOCK:
+#warning implement VK_FORMAT_ASTC_5x4_UNORM_BLOCK
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_ASTC_5x4_SRGB_BLOCK:
+#warning implement VK_FORMAT_ASTC_5x4_SRGB_BLOCK
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_ASTC_5x5_UNORM_BLOCK:
+#warning implement VK_FORMAT_ASTC_5x5_UNORM_BLOCK
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_ASTC_5x5_SRGB_BLOCK:
+#warning implement VK_FORMAT_ASTC_5x5_SRGB_BLOCK
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_ASTC_6x5_UNORM_BLOCK:
+#warning implement VK_FORMAT_ASTC_6x5_UNORM_BLOCK
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_ASTC_6x5_SRGB_BLOCK:
+#warning implement VK_FORMAT_ASTC_6x5_SRGB_BLOCK
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_ASTC_6x6_UNORM_BLOCK:
+#warning implement VK_FORMAT_ASTC_6x6_UNORM_BLOCK
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_ASTC_6x6_SRGB_BLOCK:
+#warning implement VK_FORMAT_ASTC_6x6_SRGB_BLOCK
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_ASTC_8x5_UNORM_BLOCK:
+#warning implement VK_FORMAT_ASTC_8x5_UNORM_BLOCK
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_ASTC_8x5_SRGB_BLOCK:
+#warning implement VK_FORMAT_ASTC_8x5_SRGB_BLOCK
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_ASTC_8x6_UNORM_BLOCK:
+#warning implement VK_FORMAT_ASTC_8x6_UNORM_BLOCK
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_ASTC_8x6_SRGB_BLOCK:
+#warning implement VK_FORMAT_ASTC_8x6_SRGB_BLOCK
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_ASTC_8x8_UNORM_BLOCK:
+#warning implement VK_FORMAT_ASTC_8x8_UNORM_BLOCK
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_ASTC_8x8_SRGB_BLOCK:
+#warning implement VK_FORMAT_ASTC_8x8_SRGB_BLOCK
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_ASTC_10x5_UNORM_BLOCK:
+#warning implement VK_FORMAT_ASTC_10x5_UNORM_BLOCK
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_ASTC_10x5_SRGB_BLOCK:
+#warning implement VK_FORMAT_ASTC_10x5_SRGB_BLOCK
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_ASTC_10x6_UNORM_BLOCK:
+#warning implement VK_FORMAT_ASTC_10x6_UNORM_BLOCK
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_ASTC_10x6_SRGB_BLOCK:
+#warning implement VK_FORMAT_ASTC_10x6_SRGB_BLOCK
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_ASTC_10x8_UNORM_BLOCK:
+#warning implement VK_FORMAT_ASTC_10x8_UNORM_BLOCK
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_ASTC_10x8_SRGB_BLOCK:
+#warning implement VK_FORMAT_ASTC_10x8_SRGB_BLOCK
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_ASTC_10x10_UNORM_BLOCK:
+#warning implement VK_FORMAT_ASTC_10x10_UNORM_BLOCK
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_ASTC_10x10_SRGB_BLOCK:
+#warning implement VK_FORMAT_ASTC_10x10_SRGB_BLOCK
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_ASTC_12x10_UNORM_BLOCK:
+#warning implement VK_FORMAT_ASTC_12x10_UNORM_BLOCK
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_ASTC_12x10_SRGB_BLOCK:
+#warning implement VK_FORMAT_ASTC_12x10_SRGB_BLOCK
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_ASTC_12x12_UNORM_BLOCK:
+#warning implement VK_FORMAT_ASTC_12x12_UNORM_BLOCK
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_ASTC_12x12_SRGB_BLOCK:
+#warning implement VK_FORMAT_ASTC_12x12_SRGB_BLOCK
+        return {
+            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+        };
+    case VK_FORMAT_PVRTC1_2BPP_UNORM_BLOCK_IMG:
+    case VK_FORMAT_PVRTC1_4BPP_UNORM_BLOCK_IMG:
+    case VK_FORMAT_PVRTC2_2BPP_UNORM_BLOCK_IMG:
+    case VK_FORMAT_PVRTC2_4BPP_UNORM_BLOCK_IMG:
+    case VK_FORMAT_PVRTC1_2BPP_SRGB_BLOCK_IMG:
+    case VK_FORMAT_PVRTC1_4BPP_SRGB_BLOCK_IMG:
+    case VK_FORMAT_PVRTC2_2BPP_SRGB_BLOCK_IMG:
+    case VK_FORMAT_PVRTC2_4BPP_SRGB_BLOCK_IMG:
+    case VK_FORMAT_RANGE_SIZE:
+    case VK_FORMAT_MAX_ENUM:
+        break;
+    }
+    assert(!"invalid format enum");
+    return {};
+}
+
 template <typename Object_type, typename Vulkan_handle_type>
 struct Vulkan_dispatchable_object
 {
@@ -508,6 +1452,10 @@ struct Vulkan_device : public Vulkan_dispatchable_object<Vulkan_device, VkDevice
           physical_device(physical_device),
           enabled_features(enabled_features)
     {
+    }
+    void wait_idle()
+    {
+#warning implement Vulkan_device::wait_idle
     }
     static util::variant<std::unique_ptr<Vulkan_device>, VkResult> create(
         Vulkan_physical_device &physical_device, const VkDeviceCreateInfo &create_info);
