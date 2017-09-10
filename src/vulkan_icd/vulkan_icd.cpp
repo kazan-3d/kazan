@@ -170,8 +170,13 @@ extern "C" VKAPI_ATTR void VKAPI_CALL vkGetPhysicalDeviceMemoryProperties(
 extern "C" VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL vkGetDeviceProcAddr(VkDevice device,
                                                                         const char *name)
 {
+    assert(device);
+    auto *device_pointer = vulkan::Vulkan_device::from_handle(device);
     return vulkan_icd::Vulkan_loader_interface::get()->get_procedure_address(
-        name, vulkan_icd::Vulkan_loader_interface::Procedure_address_scope::Device);
+        name,
+        vulkan_icd::Vulkan_loader_interface::Procedure_address_scope::Device,
+        &device_pointer->instance,
+        device_pointer);
 }
 
 extern "C" VKAPI_ATTR VkResult VKAPI_CALL vkCreateDevice(VkPhysicalDevice physical_device,
@@ -210,6 +215,20 @@ extern "C" VKAPI_ATTR VkResult VKAPI_CALL
 {
     return vulkan_icd::Vulkan_loader_interface::get()->enumerate_device_extension_properties(
         physical_device, layer_name, property_count, properties);
+}
+
+extern "C" VKAPI_ATTR VkResult VKAPI_CALL
+    vkEnumerateInstanceLayerProperties(uint32_t *pPropertyCount, VkLayerProperties *pProperties)
+{
+#warning finish implementing vkEnumerateInstanceLayerProperties
+    assert(!"vkEnumerateInstanceLayerProperties is not implemented");
+}
+
+extern "C" VKAPI_ATTR VkResult VKAPI_CALL vkEnumerateDeviceLayerProperties(
+    VkPhysicalDevice physicalDevice, uint32_t *pPropertyCount, VkLayerProperties *pProperties)
+{
+#warning finish implementing vkEnumerateDeviceLayerProperties
+    assert(!"vkEnumerateDeviceLayerProperties is not implemented");
 }
 
 extern "C" VKAPI_ATTR void VKAPI_CALL vkGetDeviceQueue(VkDevice device,
@@ -1344,6 +1363,77 @@ extern "C" VKAPI_ATTR void VKAPI_CALL vkCmdExecuteCommands(VkCommandBuffer comma
 #warning finish implementing vkCmdExecuteCommands
     assert(!"vkCmdExecuteCommands is not implemented");
 }
+
+extern "C" VKAPI_ATTR void VKAPI_CALL vkDestroySurfaceKHR(VkInstance instance,
+                                                          VkSurfaceKHR surface,
+                                                          const VkAllocationCallbacks *allocator)
+{
+    validate_allocator(allocator);
+#warning finish implementing vkDestroySurfaceKHR
+    assert(!"vkDestroySurfaceKHR is not implemented");
+}
+
+extern "C" VKAPI_ATTR VkResult VKAPI_CALL
+    vkGetPhysicalDeviceSurfaceSupportKHR(VkPhysicalDevice physicalDevice,
+                                         uint32_t queueFamilyIndex,
+                                         VkSurfaceKHR surface,
+                                         VkBool32 *pSupported)
+{
+#warning finish implementing vkGetPhysicalDeviceSurfaceSupportKHR
+    assert(!"vkGetPhysicalDeviceSurfaceSupportKHR is not implemented");
+}
+
+extern "C" VKAPI_ATTR VkResult VKAPI_CALL
+    vkGetPhysicalDeviceSurfaceCapabilitiesKHR(VkPhysicalDevice physicalDevice,
+                                              VkSurfaceKHR surface,
+                                              VkSurfaceCapabilitiesKHR *pSurfaceCapabilities)
+{
+#warning finish implementing vkGetPhysicalDeviceSurfaceCapabilitiesKHR
+    assert(!"vkGetPhysicalDeviceSurfaceCapabilitiesKHR is not implemented");
+}
+
+extern "C" VKAPI_ATTR VkResult VKAPI_CALL
+    vkGetPhysicalDeviceSurfaceFormatsKHR(VkPhysicalDevice physicalDevice,
+                                         VkSurfaceKHR surface,
+                                         uint32_t *pSurfaceFormatCount,
+                                         VkSurfaceFormatKHR *pSurfaceFormats)
+{
+#warning finish implementing vkGetPhysicalDeviceSurfaceFormatsKHR
+    assert(!"vkGetPhysicalDeviceSurfaceFormatsKHR is not implemented");
+}
+
+extern "C" VKAPI_ATTR VkResult VKAPI_CALL
+    vkGetPhysicalDeviceSurfacePresentModesKHR(VkPhysicalDevice physicalDevice,
+                                              VkSurfaceKHR surface,
+                                              uint32_t *pPresentModeCount,
+                                              VkPresentModeKHR *pPresentModes)
+{
+#warning finish implementing vkGetPhysicalDeviceSurfacePresentModesKHR
+    assert(!"vkGetPhysicalDeviceSurfacePresentModesKHR is not implemented");
+}
+
+#ifdef VK_USE_PLATFORM_XCB_KHR
+extern "C" VKAPI_ATTR VkResult VKAPI_CALL
+    vkCreateXcbSurfaceKHR(VkInstance instance,
+                          const VkXcbSurfaceCreateInfoKHR *pCreateInfo,
+                          const VkAllocationCallbacks *pAllocator,
+                          VkSurfaceKHR *pSurface)
+{
+#warning finish implementing vkCreateXcbSurfaceKHR
+    assert(!"vkCreateXcbSurfaceKHR is not implemented");
+}
+
+extern "C" VKAPI_ATTR VkBool32 VKAPI_CALL
+    vkGetPhysicalDeviceXcbPresentationSupportKHR(VkPhysicalDevice physicalDevice,
+                                                 uint32_t queueFamilyIndex,
+                                                 xcb_connection_t *connection,
+                                                 xcb_visualid_t visual_id)
+{
+#warning finish implementing vkGetPhysicalDeviceXcbPresentationSupportKHR
+    assert(!"vkGetPhysicalDeviceXcbPresentationSupportKHR is not implemented");
+}
+#endif
+
 namespace kazan
 {
 namespace vulkan_icd
@@ -1355,13 +1445,40 @@ Vulkan_loader_interface *Vulkan_loader_interface::get() noexcept
 }
 
 PFN_vkVoidFunction Vulkan_loader_interface::get_procedure_address(
-    const char *name, Procedure_address_scope scope) noexcept
+    const char *name,
+    Procedure_address_scope scope,
+    vulkan::Vulkan_instance *instance,
+    vulkan::Vulkan_device *device) noexcept
 {
     using namespace util::string_view_literals;
     assert(name != "vkEnumerateInstanceLayerProperties"_sv
            && "shouldn't be called, implemented by the vulkan loader");
     assert(name != "vkEnumerateDeviceLayerProperties"_sv
            && "shouldn't be called, implemented by the vulkan loader");
+    vulkan::Supported_extensions enabled_or_available_extensions{};
+    switch(scope)
+    {
+    case Procedure_address_scope::Library:
+        assert(!instance);
+        assert(!device);
+        // can't use any extension functions at library scope
+        break;
+    case Procedure_address_scope::Instance:
+        assert(instance);
+        assert(!device);
+        enabled_or_available_extensions = instance->extensions;
+        for(auto extension : util::Enum_traits<vulkan::Supported_extension>::values)
+            if(vulkan::get_extension_scope(extension) == vulkan::Extension_scope::Device)
+                enabled_or_available_extensions.insert(extension);
+        break;
+    case Procedure_address_scope::Device:
+        assert(instance);
+        assert(device);
+        enabled_or_available_extensions = device->extensions;
+        break;
+    }
+
+// INSTANCE_SCOPE_* is used for device scope functions as well
 
 #define LIBRARY_SCOPE_FUNCTION(function_name)                     \
     do                                                            \
@@ -1377,9 +1494,41 @@ PFN_vkVoidFunction Vulkan_loader_interface::get_procedure_address(
             return reinterpret_cast<PFN_vkVoidFunction>(                             \
                 static_cast<PFN_##function_name>(function_name));                    \
     } while(0)
+#define INSTANCE_SCOPE_EXTENSION_FUNCTION(function_name, extension)                              \
+    do                                                                                           \
+    {                                                                                            \
+        if(scope != Procedure_address_scope::Library                                             \
+           && enabled_or_available_extensions.count(vulkan::Supported_extension::extension) != 0 \
+           && name == #function_name##_sv)                                                       \
+            return reinterpret_cast<PFN_vkVoidFunction>(                                         \
+                static_cast<PFN_##function_name>(function_name));                                \
+    } while(0)
+// for functions implemented by the vulkan loader that shouldn't reach the ICD
+#define LIBRARY_SCOPE_FUNCTION_IN_LOADER(function_name)                     \
+    do                                                                      \
+    {                                                                       \
+        assert(name != #function_name##_sv                                  \
+               && "shouldn't be called, implemented by the vulkan loader"); \
+    } while(0)
+#define INSTANCE_SCOPE_FUNCTION_IN_LOADER(function_name)                                  \
+    do                                                                                    \
+    {                                                                                     \
+        assert((scope == Procedure_address_scope::Library || name != #function_name##_sv) \
+               && "shouldn't be called, implemented by the vulkan loader");               \
+    } while(0)
+#define INSTANCE_SCOPE_EXTENSION_FUNCTION_IN_LOADER(function_name, extension)                      \
+    do                                                                                             \
+    {                                                                                              \
+        assert(                                                                                    \
+            (scope == Procedure_address_scope::Library                                             \
+             || enabled_or_available_extensions.count(vulkan::Supported_extension::extension) == 0 \
+             || name != #function_name##_sv)                                                       \
+            && "shouldn't be called, implemented by the vulkan loader");                           \
+    } while(0)
 
     LIBRARY_SCOPE_FUNCTION(vkEnumerateInstanceExtensionProperties);
     LIBRARY_SCOPE_FUNCTION(vkCreateInstance);
+    LIBRARY_SCOPE_FUNCTION(vkEnumerateInstanceLayerProperties);
     INSTANCE_SCOPE_FUNCTION(vkDestroyInstance);
     INSTANCE_SCOPE_FUNCTION(vkEnumeratePhysicalDevices);
     INSTANCE_SCOPE_FUNCTION(vkGetPhysicalDeviceFeatures);
@@ -1393,6 +1542,7 @@ PFN_vkVoidFunction Vulkan_loader_interface::get_procedure_address(
     INSTANCE_SCOPE_FUNCTION(vkCreateDevice);
     INSTANCE_SCOPE_FUNCTION(vkDestroyDevice);
     INSTANCE_SCOPE_FUNCTION(vkEnumerateDeviceExtensionProperties);
+    INSTANCE_SCOPE_FUNCTION(vkEnumerateDeviceLayerProperties);
     INSTANCE_SCOPE_FUNCTION(vkGetDeviceQueue);
     INSTANCE_SCOPE_FUNCTION(vkQueueSubmit);
     INSTANCE_SCOPE_FUNCTION(vkQueueWaitIdle);
@@ -1513,9 +1663,20 @@ PFN_vkVoidFunction Vulkan_loader_interface::get_procedure_address(
     INSTANCE_SCOPE_FUNCTION(vkCmdNextSubpass);
     INSTANCE_SCOPE_FUNCTION(vkCmdEndRenderPass);
     INSTANCE_SCOPE_FUNCTION(vkCmdExecuteCommands);
+    INSTANCE_SCOPE_EXTENSION_FUNCTION(vkDestroySurfaceKHR, KHR_surface);
+    INSTANCE_SCOPE_EXTENSION_FUNCTION(vkGetPhysicalDeviceSurfaceSupportKHR, KHR_surface);
+    INSTANCE_SCOPE_EXTENSION_FUNCTION(vkGetPhysicalDeviceSurfaceCapabilitiesKHR, KHR_surface);
+    INSTANCE_SCOPE_EXTENSION_FUNCTION(vkGetPhysicalDeviceSurfaceFormatsKHR, KHR_surface);
+    INSTANCE_SCOPE_EXTENSION_FUNCTION(vkGetPhysicalDeviceSurfacePresentModesKHR, KHR_surface);
+#ifdef VK_USE_PLATFORM_XCB_KHR
+    INSTANCE_SCOPE_EXTENSION_FUNCTION(vkCreateXcbSurfaceKHR, KHR_xcb_surface);
+    INSTANCE_SCOPE_EXTENSION_FUNCTION(vkGetPhysicalDeviceXcbPresentationSupportKHR,
+                                      KHR_xcb_surface);
+#endif
 
 #undef LIBRARY_SCOPE_FUNCTION
 #undef INSTANCE_SCOPE_FUNCTION
+#undef INSTANCE_SCOPE_EXTENSION_FUNCTION
     return nullptr;
 }
 
@@ -1523,8 +1684,11 @@ PFN_vkVoidFunction Vulkan_loader_interface::get_instance_proc_addr(VkInstance in
                                                                    const char *name) noexcept
 {
     if(!instance)
-        return get_procedure_address(name, Procedure_address_scope::Library);
-    return get_procedure_address(name, Procedure_address_scope::Instance);
+        return get_procedure_address(name, Procedure_address_scope::Library, nullptr, nullptr);
+    return get_procedure_address(name,
+                                 Procedure_address_scope::Instance,
+                                 vulkan::Vulkan_instance::from_handle(instance),
+                                 nullptr);
 }
 
 VkResult Vulkan_loader_interface::create_instance(const VkInstanceCreateInfo *create_info,

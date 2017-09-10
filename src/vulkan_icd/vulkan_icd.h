@@ -79,7 +79,9 @@ public:
         Device
     };
     PFN_vkVoidFunction get_procedure_address(const char *name,
-                                             Procedure_address_scope scope) noexcept;
+                                             Procedure_address_scope scope,
+                                             vulkan::Vulkan_instance *instance,
+                                             vulkan::Vulkan_device *device) noexcept;
     PFN_vkVoidFunction get_instance_proc_addr(VkInstance instance, const char *name) noexcept;
     VkResult create_instance(const VkInstanceCreateInfo *create_info,
                              const VkAllocationCallbacks *allocator,

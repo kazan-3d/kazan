@@ -38,7 +38,11 @@ util::variant<std::unique_ptr<Vulkan_instance>, VkResult> Vulkan_instance::creat
     {
         auto extension = parse_extension_name(create_info.ppEnabledExtensionNames[i]);
         if(extension == Supported_extension::Not_supported)
+        {
+            std::cerr << "Error: unsupported extension passed to vkCreateInstance: "
+                      << create_info.ppEnabledExtensionNames[i] << std::endl;
             return VK_ERROR_EXTENSION_NOT_PRESENT;
+        }
         if(get_extension_scope(extension) != Extension_scope::Instance)
         {
             std::cerr << "Error: device extension passed to vkCreateInstance: "
@@ -96,7 +100,11 @@ util::variant<std::unique_ptr<Vulkan_device>, VkResult> Vulkan_device::create(
     {
         auto extension = parse_extension_name(create_info.ppEnabledExtensionNames[i]);
         if(extension == Supported_extension::Not_supported)
+        {
+            std::cerr << "Error: unsupported extension passed to vkCreateDevice: "
+                      << create_info.ppEnabledExtensionNames[i] << std::endl;
             return VK_ERROR_EXTENSION_NOT_PRESENT;
+        }
         if(get_extension_scope(extension) != Extension_scope::Device)
         {
             std::cerr << "Error: instance extension passed to vkCreateDevice: "
@@ -126,6 +134,9 @@ util::variant<std::unique_ptr<Vulkan_device>, VkResult> Vulkan_device::create(
             }
         }
     }
+    // add enabled instance extensions
+    for(auto extension : physical_device.instance.extensions)
+        extensions.insert(extension);
     VkPhysicalDeviceFeatures enabled_features = {};
     if(create_info.pEnabledFeatures)
         enabled_features = *create_info.pEnabledFeatures;
@@ -344,7 +355,7 @@ util::variant<std::unique_ptr<Vulkan_device>, VkResult> Vulkan_device::create(
     assert(create_info.pQueueCreateInfos[0].sType == VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO);
     assert(create_info.pQueueCreateInfos[0].queueFamilyIndex == 0);
     assert(create_info.pQueueCreateInfos[0].queueCount == 1);
-    return std::make_unique<Vulkan_device>(physical_device, enabled_features);
+    return std::make_unique<Vulkan_device>(physical_device, enabled_features, extensions);
 }
 }
 }
