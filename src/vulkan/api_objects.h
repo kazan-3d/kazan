@@ -1164,8 +1164,7 @@ struct Vulkan_physical_device
           properties{
               .apiVersion = VK_MAKE_VERSION(1, 0, VK_HEADER_VERSION),
               .driverVersion = 0,
-#warning change vendorID to the correct value
-              .vendorID = 0x12345678UL,
+              .vendorID = 0x10003UL,
               .deviceID = 0,
               .deviceType = VK_PHYSICAL_DEVICE_TYPE_CPU,
               .deviceName = "Kazan Software Renderer",
