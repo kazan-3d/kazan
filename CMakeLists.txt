@@ -34,7 +34,7 @@ string(STRIP ${SDL2_LIBRARIES} libraries) # workaround SDL2 automake bug
 target_include_directories(main PRIVATE ${SDL2_INCLUDE_DIRS})
 target_link_libraries(main ${libraries})
 
-find_package(XCB REQUIRED)
+find_package(XCB REQUIRED COMPONENTS xcb xcb-shm)
 target_include_directories(main PRIVATE ${XCB_INCLUDE_DIRS})
 target_link_libraries(main ${XCB_LIBRARIES})
 

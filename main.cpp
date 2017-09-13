@@ -25,6 +25,9 @@
 #include <SDL_syswm.h>
 #include <X11/Xlib-xcb.h>
 #include <xcb/xcb.h>
+#include <sys/types.h>
+#include <sys/ipc.h>
+#include <sys/shm.h>
 #include <xcb/shm.h>
 #include <xcb/present.h>
 #include <stdexcept>
@@ -34,6 +37,7 @@
 #include <cassert>
 #include <list>
 #include <utility>
+#include <vector>
 
 #ifndef SDL_VIDEO_DRIVER_X11
 #error SDL was not built with X11 support
@@ -96,29 +100,9 @@ private:
         Get_window_attributes_reply;
     typedef std::unique_ptr<xcb_query_tree_reply_t, Free_functor<xcb_query_tree_reply_t>>
         Query_tree_reply;
-    struct Presentable_image : public Image
-    {
-        Presentable_image(std::shared_ptr<void> pixels,
-                          std::size_t row_pitch,
-                          std::size_t width,
-                          std::size_t height,
-                          std::size_t pixel_size,
-                          std::uint32_t red_mask,
-                          std::uint32_t green_mask,
-                          std::uint32_t blue_mask,
-                          std::uint32_t alpha_mask)
-            : Image(std::move(pixels),
-                    row_pitch,
-                    width,
-                    height,
-                    pixel_size,
-                    red_mask,
-                    green_mask,
-                    blue_mask,
-                    alpha_mask)
-        {
-        }
-    };
+    typedef std::unique_ptr<xcb_shm_query_version_reply_t,
+                            Free_functor<xcb_shm_query_version_reply_t>> Shm_query_version_reply;
+    typedef std::unique_ptr<xcb_generic_error_t, Free_functor<xcb_generic_error_t>> Generic_error;
     template <typename Id_type,
               xcb_void_cookie_t (*free_function)(xcb_connection_t *connection, Id_type id)>
     class Server_object
@@ -166,6 +150,103 @@ private:
         }
     };
     typedef Server_object<xcb_gcontext_t, &xcb_free_gc> Gc;
+    typedef Server_object<xcb_pixmap_t, &xcb_free_pixmap> Pixmap;
+    typedef Server_object<xcb_shm_seg_t, &xcb_shm_detach> Server_shm_seg;
+    class Shared_memory_segment
+    {
+    private:
+        int value;
+
+    public:
+        constexpr Shared_memory_segment() noexcept : value(-1)
+        {
+        }
+        constexpr Shared_memory_segment(std::nullptr_t) noexcept : Shared_memory_segment()
+        {
+        }
+        explicit Shared_memory_segment(int value) noexcept : value(value)
+        {
+        }
+        static Shared_memory_segment create(std::size_t size, int flags = IPC_CREAT | 0777)
+        {
+            Shared_memory_segment retval(shmget(IPC_PRIVATE, size, flags));
+            if(!retval)
+                throw std::runtime_error("shmget failed");
+            return retval;
+        }
+        void swap(Shared_memory_segment &other) noexcept
+        {
+            using std::swap;
+            swap(value, other.value);
+        }
+        Shared_memory_segment(Shared_memory_segment &&rt) noexcept : Shared_memory_segment()
+        {
+            swap(rt);
+        }
+        Shared_memory_segment &operator=(Shared_memory_segment rt) noexcept
+        {
+            swap(rt);
+            return *this;
+        }
+        ~Shared_memory_segment() noexcept
+        {
+            if(*this)
+                shmctl(value, IPC_RMID, nullptr);
+        }
+        explicit operator bool() const noexcept
+        {
+            return value != -1;
+        }
+        std::shared_ptr<void> map()
+        {
+            assert(*this);
+            void *memory = shmat(value, nullptr, 0);
+            if(memory == reinterpret_cast<void *>(-1))
+                throw std::runtime_error("shmat failed");
+            return std::shared_ptr<void>(memory,
+                                         [](void *memory) noexcept
+                                         {
+                                             shmdt(memory);
+                                         });
+        }
+        int get() const noexcept
+        {
+            return value;
+        }
+    };
+    struct Presentable_image : public Image
+    {
+        Shared_memory_segment shared_memory_segment;
+        Server_shm_seg server_shm_seg;
+        Pixmap pixmap;
+        xcb_void_cookie_t copy_area_cookie{};
+        Presentable_image(std::shared_ptr<void> pixels,
+                          std::size_t row_pitch,
+                          std::size_t width,
+                          std::size_t height,
+                          std::size_t pixel_size,
+                          std::uint32_t red_mask,
+                          std::uint32_t green_mask,
+                          std::uint32_t blue_mask,
+                          std::uint32_t alpha_mask,
+                          Shared_memory_segment shared_memory_segment,
+                          Server_shm_seg server_shm_seg,
+                          Pixmap pixmap)
+            : Image(std::move(pixels),
+                    row_pitch,
+                    width,
+                    height,
+                    pixel_size,
+                    red_mask,
+                    green_mask,
+                    blue_mask,
+                    alpha_mask),
+              shared_memory_segment(std::move(shared_memory_segment)),
+              server_shm_seg(std::move(server_shm_seg)),
+              pixmap(std::move(pixmap))
+        {
+        }
+    };
 
 public:
     class Image_handle
@@ -207,7 +288,10 @@ private:
     }
 
 public:
-    Image_presenter(xcb_connection_t *connection, xcb_window_t window, std::size_t image_count)
+    Image_presenter(xcb_connection_t *connection,
+                    xcb_window_t window,
+                    std::size_t image_count,
+                    bool allow_shm)
         : connection(connection),
           window(window),
           image_count(image_count),
@@ -218,7 +302,9 @@ public:
           gc(),
           window_depth()
     {
-        auto mit_shm_cookie = query_extension(connection, "MIT-SHM");
+        xcb_query_extension_cookie_t mit_shm_cookie;
+        if(allow_shm)
+            mit_shm_cookie = query_extension(connection, "MIT-SHM");
         auto get_geometry_cookie = xcb_get_geometry(connection, window);
         auto get_window_attributes_cookie = xcb_get_window_attributes(connection, window);
         auto query_tree_cookie = xcb_query_tree(connection, window);
@@ -228,9 +314,15 @@ public:
         };
         xcb_create_gc(connection, gc_id, window, XCB_GC_GRAPHICS_EXPOSURES, gc_params);
         gc = Gc(gc_id, connection);
-        auto mit_shm_reply =
-            Query_extension_reply(xcb_query_extension_reply(connection, mit_shm_cookie, nullptr));
-        shm_is_supported = mit_shm_reply && mit_shm_reply->present;
+        if(allow_shm)
+        {
+            auto mit_shm_reply = Query_extension_reply(
+                xcb_query_extension_reply(connection, mit_shm_cookie, nullptr));
+            shm_is_supported = mit_shm_reply && mit_shm_reply->present;
+        }
+        xcb_shm_query_version_cookie_t shm_query_version_cookie{};
+        if(shm_is_supported)
+            shm_query_version_cookie = xcb_shm_query_version(connection);
         auto get_geometry_reply =
             Get_geometry_reply(xcb_get_geometry_reply(connection, get_geometry_cookie, nullptr));
         if(!get_geometry_reply)
@@ -336,25 +428,91 @@ public:
         std::size_t padded_scanline_size =
             (unpadded_scanline_size + scanline_alignment - 1U) & ~(scanline_alignment - 1U);
         std::size_t image_size = padded_scanline_size * image_height;
-        for(std::size_t i = 0; i < image_count; i++)
+        if(shm_is_supported)
         {
-#warning implement using shared memory
-            auto pixels = std::shared_ptr<unsigned char>(new unsigned char[image_size],
-                                                         [](unsigned char *p) noexcept
-                                                         {
-                                                             delete[] p;
-                                                         });
-            free_list.push_back(Presentable_image(pixels,
-                                                  padded_scanline_size,
-                                                  image_width,
-                                                  image_height,
-                                                  image_pixel_size,
-                                                  red_mask,
-                                                  green_mask,
-                                                  blue_mask,
-                                                  alpha_mask));
+            auto shm_query_version_reply = Shm_query_version_reply(
+                xcb_shm_query_version_reply(connection, shm_query_version_cookie, nullptr));
+            if(!shm_query_version_reply || !shm_query_version_reply->shared_pixmaps
+               || shm_query_version_reply->pixmap_format != XCB_IMAGE_FORMAT_Z_PIXMAP)
+            {
+                std::cerr << "shared memory pixmaps are not supported, falling back to using core "
+                             "X protocol"
+                          << std::endl;
+                shm_is_supported = false;
+            }
         }
-#warning finish implementing Image_presenter::Image_presenter
+        while(true)
+        {
+            bool shm_failed = false;
+            for(std::size_t i = 0; i < image_count; i++)
+            {
+                Shared_memory_segment shared_memory_segment;
+                std::shared_ptr<void> pixels;
+                Server_shm_seg server_shm_seg;
+                Pixmap pixmap;
+                if(shm_is_supported)
+                {
+                    shared_memory_segment = Shared_memory_segment::create(image_size);
+                    pixels = shared_memory_segment.map();
+                    auto seg_id = xcb_generate_id(connection);
+                    auto shm_attach_cookie = xcb_shm_attach_checked(
+                        connection, seg_id, shared_memory_segment.get(), false);
+                    auto error = Generic_error(xcb_request_check(connection, shm_attach_cookie));
+                    if(error)
+                    {
+                        shm_failed = true;
+                        break;
+                    }
+                    server_shm_seg = Server_shm_seg(seg_id, connection);
+                    auto pixmap_id = xcb_generate_id(connection);
+                    error = Generic_error(
+                        xcb_request_check(connection,
+                                          xcb_shm_create_pixmap_checked(connection,
+                                                                        pixmap_id,
+                                                                        window,
+                                                                        image_width,
+                                                                        image_height,
+                                                                        window_depth,
+                                                                        server_shm_seg.get(),
+                                                                        0)));
+                    if(error)
+                    {
+                        shm_failed = true;
+                        break;
+                    }
+                    pixmap = Pixmap(pixmap_id, connection);
+                }
+                else
+                {
+                    pixels = std::shared_ptr<unsigned char>(new unsigned char[image_size],
+                                                            [](unsigned char *p) noexcept
+                                                            {
+                                                                delete[] p;
+                                                            });
+                }
+                free_list.push_back(Presentable_image(std::move(pixels),
+                                                      padded_scanline_size,
+                                                      image_width,
+                                                      image_height,
+                                                      image_pixel_size,
+                                                      red_mask,
+                                                      green_mask,
+                                                      blue_mask,
+                                                      alpha_mask,
+                                                      std::move(shared_memory_segment),
+                                                      std::move(server_shm_seg),
+                                                      std::move(pixmap)));
+            }
+            if(shm_failed)
+            {
+                std::cerr << "using shared memory failed, falling back to using core X protocol"
+                          << std::endl;
+                shm_is_supported = false;
+                free_list.clear();
+                continue;
+            }
+            break;
+        }
     }
     Image_handle get_next_image()
     {
@@ -366,8 +524,17 @@ public:
                 filling_list.splice(filling_list.end(), free_list, retval.iter);
                 return retval;
             }
-            throw std::runtime_error("Image_presenter::get_next_image is not implemented");
-#warning finish implementing Image_presenter::get_next_image
+            if(!presenting_list.empty())
+            {
+                assert(shm_is_supported);
+                auto iter = presenting_list.begin();
+                auto &image = *iter;
+                // wait for the xcb_copy_area request to finish
+                auto error = Generic_error(xcb_request_check(connection, image.copy_area_cookie));
+                free_list.splice(free_list.end(), presenting_list, iter);
+                continue;
+            }
+            throw std::runtime_error("Image_presenter is out of images");
         }
     }
     void present_image(Image_handle image_handle)
@@ -375,25 +542,40 @@ public:
         assert(image_handle.iter == filling_list.begin() && "images presented out of order");
         presenting_list.splice(presenting_list.end(), filling_list, image_handle.iter);
         auto &image = *image_handle.iter;
-#warning implement using shared memory
-        std::size_t image_size = image.height * image.row_pitch;
-        assert(static_cast<std::uint32_t>(image_size) == image_size);
-        xcb_put_image(connection,
-                      XCB_IMAGE_FORMAT_Z_PIXMAP,
-                      window,
-                      gc.get(),
-                      image.width,
-                      image.height,
-                      0,
-                      0,
-                      0,
-                      window_depth,
-                      image_size,
-                      static_cast<const std::uint8_t *>(image.pixels.get()));
-        // we don't have to keep the memory unmodified for xcb, so we move the image to the free
-        // list right away
-        free_list.splice(free_list.end(), presenting_list, image_handle.iter);
-#warning finish implementing Image_presenter::present_image
+        if(shm_is_supported)
+        {
+            image.copy_area_cookie = xcb_copy_area_checked(connection,
+                                                           image.pixmap.get(),
+                                                           window,
+                                                           gc.get(),
+                                                           0,
+                                                           0,
+                                                           0,
+                                                           0,
+                                                           image.width,
+                                                           image.height);
+        }
+        else
+        {
+            std::size_t image_size = image.height * image.row_pitch;
+            assert(static_cast<std::uint32_t>(image_size) == image_size);
+            xcb_put_image(connection,
+                          XCB_IMAGE_FORMAT_Z_PIXMAP,
+                          window,
+                          gc.get(),
+                          image.width,
+                          image.height,
+                          0,
+                          0,
+                          0,
+                          window_depth,
+                          image_size,
+                          static_cast<const std::uint8_t *>(image.pixels.get()));
+            // we don't have to keep the memory unmodified for xcb, so we move the image to the free
+            // list right away
+            free_list.splice(free_list.end(), presenting_list, image_handle.iter);
+        }
+        xcb_flush(connection);
     }
 };
 
@@ -422,6 +604,7 @@ int main()
             SDL_Quit();
         }
     } shutdown_sdl;
+    SDL_SetHint(SDL_HINT_RENDER_DRIVER, "software");
     auto *window = SDL_CreateWindow("XCB Present Test",
                                     SDL_WINDOWPOS_UNDEFINED,
                                     SDL_WINDOWPOS_UNDEFINED,
@@ -458,7 +641,8 @@ int main()
         std::size_t image_count = 3;
         Image_presenter image_presenter(XGetXCBConnection(wm_info.info.x11.display),
                                         static_cast<xcb_window_t>(wm_info.info.x11.window),
-                                        image_count);
+                                        image_count,
+                                        true);
         SDL_Event event;
         auto last_fps_report_ticks = SDL_GetTicks();
         std::size_t frame_count = 0;
