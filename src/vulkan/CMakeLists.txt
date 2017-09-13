@@ -24,8 +24,39 @@ set(sources vulkan.cpp
 add_library(kazan_vulkan STATIC ${sources})
 target_compile_definitions(kazan_vulkan PUBLIC VK_NO_PROTOTYPES)
 if(UNIX AND NOT CYGWIN AND NOT CMAKE_SYSTEM_NAME STREQUAL "Android")
-    target_compile_definitions(kazan_vulkan PUBLIC VK_USE_PLATFORM_XCB_KHR)
-    target_compile_definitions(kazan_vulkan PUBLIC VK_USE_PLATFORM_WAYLAND_KHR)
+    set(USE_X11 1)
+    # set(USE_WAYLAND 1) # wayland support is not implemented yet
 elseif(WIN32)
+    set(USE_WIN32 1)
+endif()
+
+if(USE_X11)
+    target_compile_definitions(kazan_vulkan PUBLIC VK_USE_PLATFORM_XCB_KHR)
+    target_compile_definitions(kazan_vulkan PUBLIC VK_USE_PLATFORM_XLIB_KHR)
+
+    message("CMAKE_MODULE_PATH: " ${CMAKE_MODULE_PATH})
+
+    find_package(XCB REQUIRED COMPONENTS xcb xcb-shm)
+    target_include_directories(kazan_vulkan PUBLIC ${XCB_INCLUDE_DIRS})
+    target_link_libraries(kazan_vulkan ${XCB_LIBRARIES})
+
+    find_package(X11_XCB REQUIRED)
+    target_include_directories(kazan_vulkan PUBLIC ${X11_XCB_INCLUDE_DIRS})
+    target_link_libraries(kazan_vulkan ${X11_XCB_LIBRARIES})
+
+    find_package(X11 REQUIRED)
+    target_include_directories(kazan_vulkan PUBLIC ${X11_INCLUDE_DIRS})
+    target_link_libraries(kazan_vulkan ${X11_LIBRARIES})
+endif()
+
+if(USE_WAYLAND)
+    target_compile_definitions(kazan_vulkan PUBLIC VK_USE_PLATFORM_WAYLAND_KHR)
+    find_package(Wayland REQUIRED)
+    target_include_directories(kazan_vulkan PUBLIC ${WAYLAND_INCLUDE_DIR})
+    target_link_libraries(kazan_vulkan ${WAYLAND_LIBRARIES})
+    target_compile_definitions(kazan_vulkan ${WAYLAND_DEFINITIONS})
+endif()
+
+if(USE_WIN32)
     target_compile_definitions(kazan_vulkan PUBLIC VK_USE_PLATFORM_WIN32_KHR)
 endif()

@@ -19,7 +19,9 @@
 # SOFTWARE.
 #
 cmake_minimum_required(VERSION 3.3 FATAL_ERROR)
-set(sources vulkan_icd.cpp)
+set(sources vulkan_icd.cpp
+            wsi.cpp
+            x11_wsi.cpp)
 add_library(kazan_vulkan_icd MODULE ${sources})
 target_link_libraries(kazan_vulkan_icd
                       kazan_vulkan

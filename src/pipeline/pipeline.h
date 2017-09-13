@@ -30,6 +30,7 @@
 #include <cstring>
 #include "llvm_wrapper/llvm_wrapper.h"
 #include "vulkan/vulkan.h"
+#include "vulkan/remove_xlib_macros.h"
 #include "spirv/spirv.h"
 #include "image/image.h"
 

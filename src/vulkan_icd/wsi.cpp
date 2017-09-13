@@ -20,5 +20,36 @@
  * SOFTWARE.
  *
  */
-#include "vulkan/vulkan.h"
-#include "vulkan/remove_xlib_macros.h"
+#include "wsi.h"
+#include <initializer_list>
+
+namespace kazan
+{
+namespace vulkan_icd
+{
+Wsi::Wsi_list Wsi::get_all() noexcept
+{
+    static const std::initializer_list<const Wsi *> wsi_list = {
+#ifdef VK_USE_PLATFORM_XCB_KHR
+        &Xcb_wsi::get(),
+#endif
+#ifdef VK_USE_PLATFORM_XLIB_KHR
+        &Xlib_wsi::get(),
+#endif
+#ifdef VK_USE_PLATFORM_WAYLAND_KHR
+        &Wayland_wsi::get(),
+#endif
+#ifdef VK_USE_PLATFORM_MIR_KHR
+        &Mir_wsi::get(),
+#endif
+#ifdef VK_USE_PLATFORM_ANDROID_KHR
+        &Android_wsi::get(),
+#endif
+#ifdef VK_USE_PLATFORM_WIN32_KHR
+        &Win32_wsi::get(),
+#endif
+    };
+    return Wsi_list(wsi_list.begin(), wsi_list.size());
+}
+}
+}

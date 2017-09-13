@@ -25,6 +25,7 @@
 
 #include "vulkan/vulkan.h"
 #include "vulkan/vk_icd.h"
+#include "vulkan/remove_xlib_macros.h"
 #include "util/enum.h"
 #include "util/string_view.h"
 #include "util/variant.h"

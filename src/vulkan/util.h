@@ -24,6 +24,7 @@
 #define VULKAN_UTIL_H_
 
 #include "vulkan/vulkan.h"
+#include "vulkan/remove_xlib_macros.h"
 #include "spirv/spirv.h"
 #include "util/enum.h"
 

@@ -25,6 +25,7 @@
 
 #include "vulkan/vulkan.h"
 #include "vulkan/vk_icd.h"
+#include "vulkan/remove_xlib_macros.h"
 #include "vulkan/api_objects.h"
 #include <type_traits>
 #include <cstdint>

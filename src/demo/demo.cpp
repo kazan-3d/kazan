@@ -35,6 +35,7 @@
 #include "util/string_view.h"
 #include "pipeline/pipeline.h"
 #include "vulkan/vulkan.h"
+#include "vulkan/remove_xlib_macros.h"
 #include "util/void_t.h"
 
 #if SDL_MAJOR_VERSION != 2

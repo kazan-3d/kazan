@@ -1,3 +1,4 @@
+#!/bin/bash
 # Copyright 2017 Jacob Lifshay
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -18,35 +19,24 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 #
-cmake_minimum_required(VERSION 3.3 FATAL_ERROR)
 
-set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake")
-
-set(CMAKE_CXX_STANDARD 14)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_C_VISIBILITY_PRESET hidden)
-set(CMAKE_CXX_VISIBILITY_PRESET hidden)
-set(CMAKE_POSITION_INDEPENDENT_CODE ON)
-
-project(kazan CXX C)
-if(NOT ${CMAKE_CXX_COMPILER_ID} MATCHES "Clang")
-    message(FATAL_ERROR "compiler is not clang")
-endif()
-if(NOT ${CMAKE_C_COMPILER_ID} MATCHES "Clang")
-    message(FATAL_ERROR "compiler is not clang")
-endif()
-
-find_package(LLVM REQUIRED CONFIG)
-if(LLVM_PACKAGE_VERSION VERSION_LESS 4.0)
-    message(FATAL_ERROR "unsupported version of llvm; requires version 4.0 or greater")
-endif()
-if(NOT LLVM_ENABLE_THREADS)
-    message(FATAL_ERROR "llvm was not built multi-threaded")
-endif()
-include_directories(${LLVM_INCLUDE_DIRS})
-add_definitions(${LLVM_DEFINITIONS})
-if(WIN32)
-    add_definitions(NOMINMAX)
-endif()
-add_compile_options(-Wall -ftemplate-depth=1024 -Werror "-Wno-error=#warnings")
-add_subdirectory(src)
+printf "#include <X11/Xlib.h>\n#include <X11/Xlib-xcb.h>\n" |
+clang++ -std=c++14 -E -dD -x c++ -o - - |
+grep '^#' |
+{
+    mapfile -t lines
+    filename=""
+    for line in "${lines[@]}"; do
+        if [[ "$line" =~ ^'# '[0-9]+' "'([^\"]*)'"'.* ]]; then # line number indicator
+            filename="${BASH_REMATCH[1]}"
+        elif [[ "$line" =~ ^'#define '([a-zA-Z0-9_]+) ]]; then
+            macro="${BASH_REMATCH[1]}"
+            if [[ ! "$filename" =~ ^'/usr/include/X11' || "$macro" =~ ^'_'[A-Z] || "$macro" =~ '__' || "$macro" =~ '_H'$ ]]; then
+                continue
+            fi
+            echo "$macro"
+        fi
+    done
+} |
+sort |
+sed 's/\(.*\)/#ifdef \1\n#undef \1\n#endif/'

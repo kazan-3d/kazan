@@ -24,6 +24,7 @@
 #define IMAGE_IMAGE_H_
 
 #include "vulkan/vulkan.h"
+#include "vulkan/remove_xlib_macros.h"
 #include <memory>
 #include <cassert>
 #include <cstdint>

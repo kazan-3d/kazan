@@ -35,6 +35,7 @@
 #include "llvm_wrapper/llvm_wrapper.h"
 #include "util/string_view.h"
 #include "vulkan/vulkan.h"
+#include "vulkan/remove_xlib_macros.h"
 
 namespace kazan
 {
