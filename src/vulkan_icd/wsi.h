@@ -28,6 +28,7 @@
 #include "vulkan/remove_xlib_macros.h"
 #include <type_traits>
 #include <cstdint>
+#include <vector>
 
 namespace kazan
 {
@@ -87,6 +88,9 @@ struct Wsi
     }
     virtual void destroy_surface(VkIcdSurfaceBase *surface) const noexcept = 0;
     virtual VkResult get_surface_support(VkIcdSurfaceBase *surface, VkBool32 &supported) const = 0;
+    virtual VkResult get_surface_formats(VkIcdSurfaceBase *surface, std::vector<VkSurfaceFormatKHR> &surface_formats) const = 0;
+    virtual VkResult get_present_modes(VkIcdSurfaceBase *surface, std::vector<VkPresentModeKHR> &present_modes) const = 0;
+    virtual VkResult get_surface_capabilities(VkIcdSurfaceBase *surface, VkSurfaceCapabilitiesKHR &capabilities) const = 0;
 };
 
 static_assert(std::is_trivially_destructible<Wsi>::value,
@@ -103,6 +107,9 @@ struct Xcb_wsi final : public Wsi
     VkIcdSurfaceBase *create_surface(const VkXcbSurfaceCreateInfoKHR &create_info) const;
     virtual void destroy_surface(VkIcdSurfaceBase *surface) const noexcept override;
     virtual VkResult get_surface_support(VkIcdSurfaceBase *surface, VkBool32 &supported) const override;
+    virtual VkResult get_surface_formats(VkIcdSurfaceBase *surface, std::vector<VkSurfaceFormatKHR> &surface_formats) const override;
+    virtual VkResult get_present_modes(VkIcdSurfaceBase *surface, std::vector<VkPresentModeKHR> &present_modes) const override;
+    virtual VkResult get_surface_capabilities(VkIcdSurfaceBase *surface, VkSurfaceCapabilitiesKHR &capabilities) const override;
     static const Xcb_wsi &get() noexcept;
 };
 #endif
@@ -118,6 +125,9 @@ struct Xlib_wsi final : public Wsi
     VkIcdSurfaceBase *create_surface(const VkXlibSurfaceCreateInfoKHR &create_info) const;
     virtual void destroy_surface(VkIcdSurfaceBase *surface) const noexcept override;
     virtual VkResult get_surface_support(VkIcdSurfaceBase *surface, VkBool32 &supported) const override;
+    virtual VkResult get_surface_formats(VkIcdSurfaceBase *surface, std::vector<VkSurfaceFormatKHR> &surface_formats) const override;
+    virtual VkResult get_present_modes(VkIcdSurfaceBase *surface, std::vector<VkPresentModeKHR> &present_modes) const override;
+    virtual VkResult get_surface_capabilities(VkIcdSurfaceBase *surface, VkSurfaceCapabilitiesKHR &capabilities) const override;
     static const Xlib_wsi &get() noexcept;
 };
 #endif
@@ -134,6 +144,9 @@ struct Wayland_wsi final : public Wsi
     VkIcdSurfaceBase *create_surface(const VkWaylandSurfaceCreateInfoKHR &create_info) const;
     virtual void destroy_surface(VkIcdSurfaceBase *surface) const noexcept override;
     virtual VkResult get_surface_support(VkIcdSurfaceBase *surface, VkBool32 &supported) const override;
+    virtual VkResult get_surface_formats(VkIcdSurfaceBase *surface, std::vector<VkSurfaceFormatKHR> &surface_formats) const override;
+    virtual VkResult get_present_modes(VkIcdSurfaceBase *surface, std::vector<VkPresentModeKHR> &present_modes) const override;
+    virtual VkResult get_surface_capabilities(VkIcdSurfaceBase *surface, VkSurfaceCapabilitiesKHR &capabilities) const override;
     static const Wayland_wsi &get() noexcept;
 };
 #endif
@@ -158,6 +171,9 @@ struct Win32_wsi final : public Wsi
     VkIcdSurfaceBase *create_surface(const VkWin32SurfaceCreateInfoKHR &create_info) const;
     virtual void destroy_surface(VkIcdSurfaceBase *surface) const noexcept override;
     virtual VkResult get_surface_support(VkIcdSurfaceBase *surface, VkBool32 &supported) const override;
+    virtual VkResult get_surface_formats(VkIcdSurfaceBase *surface, std::vector<VkSurfaceFormatKHR> &surface_formats) const override;
+    virtual VkResult get_present_modes(VkIcdSurfaceBase *surface, std::vector<VkPresentModeKHR> &present_modes) const override;
+    virtual VkResult get_surface_capabilities(VkIcdSurfaceBase *surface, VkSurfaceCapabilitiesKHR &capabilities) const override;
     static const Win32_wsi &get() noexcept;
 };
 #endif

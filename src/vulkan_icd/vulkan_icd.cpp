@@ -24,6 +24,7 @@
 #include "util/string_view.h"
 #include <initializer_list>
 #include <iostream>
+#include "wsi.h"
 
 using namespace kazan;
 
@@ -1384,32 +1385,75 @@ extern "C" VKAPI_ATTR VkResult VKAPI_CALL
 }
 
 extern "C" VKAPI_ATTR VkResult VKAPI_CALL
-    vkGetPhysicalDeviceSurfaceCapabilitiesKHR(VkPhysicalDevice physicalDevice,
+    vkGetPhysicalDeviceSurfaceCapabilitiesKHR(VkPhysicalDevice physical_device,
                                               VkSurfaceKHR surface,
-                                              VkSurfaceCapabilitiesKHR *pSurfaceCapabilities)
+                                              VkSurfaceCapabilitiesKHR *surface_capabilities)
 {
-#warning finish implementing vkGetPhysicalDeviceSurfaceCapabilitiesKHR
-    assert(!"vkGetPhysicalDeviceSurfaceCapabilitiesKHR is not implemented");
+    assert(physical_device);
+    assert(surface);
+    return vulkan_icd::catch_exceptions_and_return_result(
+        [&]()
+        {
+            auto *surface_base = reinterpret_cast<VkIcdSurfaceBase *>(surface);
+            auto *wsi = vulkan_icd::Wsi::find(surface_base->platform);
+            assert(wsi);
+            VkSurfaceCapabilitiesKHR capabilities{};
+            auto result = wsi->get_surface_capabilities(surface_base, capabilities);
+            if(result != VK_SUCCESS)
+                return result;
+            *surface_capabilities = capabilities;
+            return VK_SUCCESS;
+        });
 }
 
 extern "C" VKAPI_ATTR VkResult VKAPI_CALL
-    vkGetPhysicalDeviceSurfaceFormatsKHR(VkPhysicalDevice physicalDevice,
+    vkGetPhysicalDeviceSurfaceFormatsKHR(VkPhysicalDevice physical_device,
                                          VkSurfaceKHR surface,
-                                         uint32_t *pSurfaceFormatCount,
-                                         VkSurfaceFormatKHR *pSurfaceFormats)
+                                         uint32_t *surface_format_count,
+                                         VkSurfaceFormatKHR *surface_formats)
 {
-#warning finish implementing vkGetPhysicalDeviceSurfaceFormatsKHR
-    assert(!"vkGetPhysicalDeviceSurfaceFormatsKHR is not implemented");
+    assert(physical_device);
+    assert(surface);
+    return vulkan_icd::catch_exceptions_and_return_result(
+        [&]()
+        {
+            auto *surface_base = reinterpret_cast<VkIcdSurfaceBase *>(surface);
+            auto *wsi = vulkan_icd::Wsi::find(surface_base->platform);
+            assert(wsi);
+            std::vector<VkSurfaceFormatKHR> surface_formats_vector;
+            auto result = wsi->get_surface_formats(surface_base, surface_formats_vector);
+            if(result != VK_SUCCESS)
+                return result;
+            return vulkan_icd::vulkan_enumerate_list_helper(surface_format_count,
+                                                            surface_formats,
+                                                            surface_formats_vector.data(),
+                                                            surface_formats_vector.size());
+        });
 }
 
 extern "C" VKAPI_ATTR VkResult VKAPI_CALL
-    vkGetPhysicalDeviceSurfacePresentModesKHR(VkPhysicalDevice physicalDevice,
+    vkGetPhysicalDeviceSurfacePresentModesKHR(VkPhysicalDevice physical_device,
                                               VkSurfaceKHR surface,
-                                              uint32_t *pPresentModeCount,
-                                              VkPresentModeKHR *pPresentModes)
+                                              uint32_t *present_mode_count,
+                                              VkPresentModeKHR *present_modes)
 {
-#warning finish implementing vkGetPhysicalDeviceSurfacePresentModesKHR
-    assert(!"vkGetPhysicalDeviceSurfacePresentModesKHR is not implemented");
+    assert(physical_device);
+    assert(surface);
+    return vulkan_icd::catch_exceptions_and_return_result(
+        [&]()
+        {
+            auto *surface_base = reinterpret_cast<VkIcdSurfaceBase *>(surface);
+            auto *wsi = vulkan_icd::Wsi::find(surface_base->platform);
+            assert(wsi);
+            std::vector<VkPresentModeKHR> present_modes_vector;
+            auto result = wsi->get_present_modes(surface_base, present_modes_vector);
+            if(result != VK_SUCCESS)
+                return result;
+            return vulkan_icd::vulkan_enumerate_list_helper(present_mode_count,
+                                                            present_modes,
+                                                            present_modes_vector.data(),
+                                                            present_modes_vector.size());
+        });
 }
 
 #ifdef VK_USE_PLATFORM_XCB_KHR

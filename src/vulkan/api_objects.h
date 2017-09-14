@@ -45,12 +45,14 @@ enum class Supported_extension
     Not_supported,
     KHR_surface,
     KHR_xcb_surface,
+    KHR_xlib_surface,
 };
 
 kazan_util_generate_enum_traits(Supported_extension,
                                 Supported_extension::Not_supported,
                                 Supported_extension::KHR_surface,
-                                Supported_extension::KHR_xcb_surface);
+                                Supported_extension::KHR_xcb_surface,
+                                Supported_extension::KHR_xlib_surface);
 
 typedef util::Enum_set<Supported_extension> Supported_extensions;
 
@@ -71,6 +73,12 @@ constexpr Extension_scope get_extension_scope(Supported_extension extension) noe
         return Extension_scope::Instance;
     case Supported_extension::KHR_xcb_surface:
 #ifdef VK_USE_PLATFORM_XCB_KHR
+        return Extension_scope::Instance;
+#else
+        return Extension_scope::Not_supported;
+#endif
+    case Supported_extension::KHR_xlib_surface:
+#ifdef VK_USE_PLATFORM_XLIB_KHR
         return Extension_scope::Instance;
 #else
         return Extension_scope::Not_supported;
@@ -96,6 +104,15 @@ constexpr VkExtensionProperties get_extension_properties(Supported_extension ext
         return {
             .extensionName = VK_KHR_XCB_SURFACE_EXTENSION_NAME,
             .specVersion = VK_KHR_XCB_SURFACE_SPEC_VERSION,
+        };
+#else
+        return {};
+#endif
+    case Supported_extension::KHR_xlib_surface:
+#ifdef VK_USE_PLATFORM_XLIB_KHR
+        return {
+            .extensionName = VK_KHR_XLIB_SURFACE_EXTENSION_NAME,
+            .specVersion = VK_KHR_XLIB_SURFACE_SPEC_VERSION,
         };
 #else
         return {};
@@ -136,6 +153,8 @@ constexpr Supported_extensions get_extension_dependencies(Supported_extension ex
     case Supported_extension::KHR_surface:
         return {};
     case Supported_extension::KHR_xcb_surface:
+        return {Supported_extension::KHR_surface};
+    case Supported_extension::KHR_xlib_surface:
         return {Supported_extension::KHR_surface};
     }
     assert(!"unknown extension");
