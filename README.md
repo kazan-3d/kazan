@@ -14,7 +14,7 @@ Work-in-progress for Vulkan implementation on cpu
 
 ## Build under Ubuntu 16.04 (xenial)
 
-    sudo apt install git clang-4.0 build-essential cmake ninja-build llvm-4.0-dev libsdl2-dev curl imagemagick libxcb-shm0-dev libxcb1-dev libx11-dev libx11-xcb-dev
+    sudo apt install git clang-4.0 build-essential cmake ninja-build llvm-4.0-dev libsdl2-dev libxcb-shm0-dev libxcb1-dev libx11-dev libx11-xcb-dev
     git clone https://github.com/kazan-3d/kazan.git
     cd kazan
     mkdir build
