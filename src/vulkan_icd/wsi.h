@@ -26,6 +26,8 @@
 #include "vulkan/vulkan.h"
 #include "vulkan/vk_icd.h"
 #include "vulkan/remove_xlib_macros.h"
+#include "vulkan/api_objects.h"
+#include "util/variant.h"
 #include <type_traits>
 #include <cstdint>
 #include <vector>
@@ -34,6 +36,22 @@ namespace kazan
 {
 namespace vulkan_icd
 {
+struct Wsi;
+
+class Vulkan_swapchain
+    : public vulkan::Vulkan_nondispatchable_object<Vulkan_swapchain, VkSwapchainKHR>
+{
+public:
+    std::vector<std::unique_ptr<vulkan::Vulkan_image>> images;
+
+public:
+    explicit Vulkan_swapchain(std::vector<std::unique_ptr<vulkan::Vulkan_image>> images) noexcept
+        : images(std::move(images))
+    {
+    }
+    virtual ~Vulkan_swapchain() = default;
+};
+
 struct Wsi
 {
     class Wsi_list
@@ -87,10 +105,15 @@ struct Wsi
     {
     }
     virtual void destroy_surface(VkIcdSurfaceBase *surface) const noexcept = 0;
-    virtual VkResult get_surface_support(VkIcdSurfaceBase *surface, VkBool32 &supported) const = 0;
-    virtual VkResult get_surface_formats(VkIcdSurfaceBase *surface, std::vector<VkSurfaceFormatKHR> &surface_formats) const = 0;
-    virtual VkResult get_present_modes(VkIcdSurfaceBase *surface, std::vector<VkPresentModeKHR> &present_modes) const = 0;
-    virtual VkResult get_surface_capabilities(VkIcdSurfaceBase *surface, VkSurfaceCapabilitiesKHR &capabilities) const = 0;
+    virtual VkResult get_surface_support(VkIcdSurfaceBase *surface, bool &supported) const = 0;
+    virtual VkResult get_surface_formats(
+        VkIcdSurfaceBase *surface, std::vector<VkSurfaceFormatKHR> &surface_formats) const = 0;
+    virtual VkResult get_present_modes(VkIcdSurfaceBase *surface,
+                                       std::vector<VkPresentModeKHR> &present_modes) const = 0;
+    virtual VkResult get_surface_capabilities(VkIcdSurfaceBase *surface,
+                                              VkSurfaceCapabilitiesKHR &capabilities) const = 0;
+    virtual util::variant<VkResult, std::unique_ptr<Vulkan_swapchain>> create_swapchain(
+        vulkan::Vulkan_device &device, const VkSwapchainCreateInfoKHR &create_info) const = 0;
 };
 
 static_assert(std::is_trivially_destructible<Wsi>::value,
@@ -106,10 +129,15 @@ struct Xcb_wsi final : public Wsi
     struct Implementation;
     VkIcdSurfaceBase *create_surface(const VkXcbSurfaceCreateInfoKHR &create_info) const;
     virtual void destroy_surface(VkIcdSurfaceBase *surface) const noexcept override;
-    virtual VkResult get_surface_support(VkIcdSurfaceBase *surface, VkBool32 &supported) const override;
-    virtual VkResult get_surface_formats(VkIcdSurfaceBase *surface, std::vector<VkSurfaceFormatKHR> &surface_formats) const override;
-    virtual VkResult get_present_modes(VkIcdSurfaceBase *surface, std::vector<VkPresentModeKHR> &present_modes) const override;
-    virtual VkResult get_surface_capabilities(VkIcdSurfaceBase *surface, VkSurfaceCapabilitiesKHR &capabilities) const override;
+    virtual VkResult get_surface_support(VkIcdSurfaceBase *surface, bool &supported) const override;
+    virtual VkResult get_surface_formats(
+        VkIcdSurfaceBase *surface, std::vector<VkSurfaceFormatKHR> &surface_formats) const override;
+    virtual VkResult get_present_modes(VkIcdSurfaceBase *surface,
+                                       std::vector<VkPresentModeKHR> &present_modes) const override;
+    virtual VkResult get_surface_capabilities(
+        VkIcdSurfaceBase *surface, VkSurfaceCapabilitiesKHR &capabilities) const override;
+    virtual util::variant<VkResult, std::unique_ptr<Vulkan_swapchain>> create_swapchain(
+        vulkan::Vulkan_device &device, const VkSwapchainCreateInfoKHR &create_info) const override;
     static const Xcb_wsi &get() noexcept;
 };
 #endif
@@ -124,10 +152,15 @@ struct Xlib_wsi final : public Wsi
     struct Implementation;
     VkIcdSurfaceBase *create_surface(const VkXlibSurfaceCreateInfoKHR &create_info) const;
     virtual void destroy_surface(VkIcdSurfaceBase *surface) const noexcept override;
-    virtual VkResult get_surface_support(VkIcdSurfaceBase *surface, VkBool32 &supported) const override;
-    virtual VkResult get_surface_formats(VkIcdSurfaceBase *surface, std::vector<VkSurfaceFormatKHR> &surface_formats) const override;
-    virtual VkResult get_present_modes(VkIcdSurfaceBase *surface, std::vector<VkPresentModeKHR> &present_modes) const override;
-    virtual VkResult get_surface_capabilities(VkIcdSurfaceBase *surface, VkSurfaceCapabilitiesKHR &capabilities) const override;
+    virtual VkResult get_surface_support(VkIcdSurfaceBase *surface, bool &supported) const override;
+    virtual VkResult get_surface_formats(
+        VkIcdSurfaceBase *surface, std::vector<VkSurfaceFormatKHR> &surface_formats) const override;
+    virtual VkResult get_present_modes(VkIcdSurfaceBase *surface,
+                                       std::vector<VkPresentModeKHR> &present_modes) const override;
+    virtual VkResult get_surface_capabilities(
+        VkIcdSurfaceBase *surface, VkSurfaceCapabilitiesKHR &capabilities) const override;
+    virtual util::variant<VkResult, std::unique_ptr<Vulkan_swapchain>> create_swapchain(
+        vulkan::Vulkan_device &device, const VkSwapchainCreateInfoKHR &create_info) const override;
     static const Xlib_wsi &get() noexcept;
 };
 #endif
@@ -143,10 +176,15 @@ struct Wayland_wsi final : public Wsi
     struct Implementation;
     VkIcdSurfaceBase *create_surface(const VkWaylandSurfaceCreateInfoKHR &create_info) const;
     virtual void destroy_surface(VkIcdSurfaceBase *surface) const noexcept override;
-    virtual VkResult get_surface_support(VkIcdSurfaceBase *surface, VkBool32 &supported) const override;
-    virtual VkResult get_surface_formats(VkIcdSurfaceBase *surface, std::vector<VkSurfaceFormatKHR> &surface_formats) const override;
-    virtual VkResult get_present_modes(VkIcdSurfaceBase *surface, std::vector<VkPresentModeKHR> &present_modes) const override;
-    virtual VkResult get_surface_capabilities(VkIcdSurfaceBase *surface, VkSurfaceCapabilitiesKHR &capabilities) const override;
+    virtual VkResult get_surface_support(VkIcdSurfaceBase *surface, bool &supported) const override;
+    virtual VkResult get_surface_formats(
+        VkIcdSurfaceBase *surface, std::vector<VkSurfaceFormatKHR> &surface_formats) const override;
+    virtual VkResult get_present_modes(VkIcdSurfaceBase *surface,
+                                       std::vector<VkPresentModeKHR> &present_modes) const override;
+    virtual VkResult get_surface_capabilities(
+        VkIcdSurfaceBase *surface, VkSurfaceCapabilitiesKHR &capabilities) const override;
+    virtual util::variant<VkResult, std::unique_ptr<Vulkan_swapchain>> create_swapchain(
+        vulkan::Vulkan_device &device, const VkSwapchainCreateInfoKHR &create_info) const override;
     static const Wayland_wsi &get() noexcept;
 };
 #endif
@@ -170,10 +208,15 @@ struct Win32_wsi final : public Wsi
     struct Implementation;
     VkIcdSurfaceBase *create_surface(const VkWin32SurfaceCreateInfoKHR &create_info) const;
     virtual void destroy_surface(VkIcdSurfaceBase *surface) const noexcept override;
-    virtual VkResult get_surface_support(VkIcdSurfaceBase *surface, VkBool32 &supported) const override;
-    virtual VkResult get_surface_formats(VkIcdSurfaceBase *surface, std::vector<VkSurfaceFormatKHR> &surface_formats) const override;
-    virtual VkResult get_present_modes(VkIcdSurfaceBase *surface, std::vector<VkPresentModeKHR> &present_modes) const override;
-    virtual VkResult get_surface_capabilities(VkIcdSurfaceBase *surface, VkSurfaceCapabilitiesKHR &capabilities) const override;
+    virtual VkResult get_surface_support(VkIcdSurfaceBase *surface, bool &supported) const override;
+    virtual VkResult get_surface_formats(
+        VkIcdSurfaceBase *surface, std::vector<VkSurfaceFormatKHR> &surface_formats) const override;
+    virtual VkResult get_present_modes(VkIcdSurfaceBase *surface,
+                                       std::vector<VkPresentModeKHR> &present_modes) const override;
+    virtual VkResult get_surface_capabilities(
+        VkIcdSurfaceBase *surface, VkSurfaceCapabilitiesKHR &capabilities) const override;
+    virtual util::variant<VkResult, std::unique_ptr<Vulkan_swapchain>> create_swapchain(
+        vulkan::Vulkan_device &device, const VkSwapchainCreateInfoKHR &create_info) const override;
     static const Win32_wsi &get() noexcept;
 };
 #endif

@@ -33,6 +33,10 @@
 #include <cstdlib>
 #include <memory>
 #include <cstring>
+#include <iostream>
+#include <list>
+#include <utility>
+#include <algorithm>
 #include "util/optional.h"
 
 namespace kazan
@@ -213,8 +217,11 @@ struct Xcb_wsi::Implementation
         std::uint32_t image_width;
         std::uint32_t image_height;
         Surface_format_group surface_format_group;
-        std::vector<VkPresentModeKHR> present_modes;
+        util::optional<std::vector<VkPresentModeKHR>> present_modes;
         VkSurfaceCapabilitiesKHR capabilities;
+        std::size_t image_pixel_size;
+        std::size_t scanline_alignment;
+        xcb_shm_query_version_cookie_t shm_query_version_cookie;
         Start_setup_results(Gc gc,
                             bool shm_is_supported,
                             unsigned window_depth,
@@ -222,7 +229,10 @@ struct Xcb_wsi::Implementation
                             std::uint32_t image_height,
                             Surface_format_group surface_format_group,
                             std::vector<VkPresentModeKHR> present_modes,
-                            const VkSurfaceCapabilitiesKHR &capabilities) noexcept
+                            const VkSurfaceCapabilitiesKHR &capabilities,
+                            std::size_t image_pixel_size,
+                            std::size_t scanline_alignment,
+                            xcb_shm_query_version_cookie_t shm_query_version_cookie) noexcept
             : status(Status::Success),
               gc(std::move(gc)),
               shm_is_supported(shm_is_supported),
@@ -231,21 +241,31 @@ struct Xcb_wsi::Implementation
               image_height(image_height),
               surface_format_group(surface_format_group),
               present_modes(std::move(present_modes)),
-              capabilities(capabilities)
+              capabilities(capabilities),
+              image_pixel_size(image_pixel_size),
+              scanline_alignment(scanline_alignment),
+              shm_query_version_cookie(shm_query_version_cookie)
         {
         }
-        Start_setup_results(Status status) noexcept : status(status),
-                                                      gc(),
-                                                      shm_is_supported(),
-                                                      window_depth(),
-                                                      surface_format_group(),
-                                                      present_modes(),
-                                                      capabilities{}
+        constexpr Start_setup_results(Status status) noexcept : status(status),
+                                                                gc(),
+                                                                shm_is_supported(),
+                                                                window_depth(),
+                                                                image_width(),
+                                                                image_height(),
+                                                                surface_format_group(),
+                                                                present_modes(),
+                                                                capabilities{},
+                                                                image_pixel_size(),
+                                                                scanline_alignment(),
+                                                                shm_query_version_cookie()
         {
             assert(status != Status::Success);
         }
     };
-    static Start_setup_results start_setup(xcb_connection_t *connection, xcb_window_t window)
+    static Start_setup_results start_setup(xcb_connection_t *connection,
+                                           xcb_window_t window,
+                                           bool is_full_setup)
     {
         auto mit_shm_cookie = query_extension(connection, "MIT-SHM");
         auto get_geometry_cookie = xcb_get_geometry(connection, window);
@@ -261,7 +281,7 @@ struct Xcb_wsi::Implementation
             Query_extension_reply(xcb_query_extension_reply(connection, mit_shm_cookie, nullptr));
         bool shm_is_supported = mit_shm_reply && mit_shm_reply->present;
         xcb_shm_query_version_cookie_t shm_query_version_cookie{};
-        if(shm_is_supported)
+        if(shm_is_supported && is_full_setup)
             shm_query_version_cookie = xcb_shm_query_version(connection);
         auto get_geometry_reply =
             Get_geometry_reply(xcb_get_geometry_reply(connection, get_geometry_cookie, nullptr));
@@ -410,8 +430,156 @@ struct Xcb_wsi::Implementation
                                    image_height,
                                    surface_format_group,
                                    present_modes,
-                                   capabilities);
+                                   capabilities,
+                                   image_pixel_size,
+                                   scanline_alignment,
+                                   shm_query_version_cookie);
     }
+    struct Swapchain final : public Vulkan_swapchain
+    {
+        struct Swapchain_image final : public vulkan::Vulkan_image
+        {
+            std::shared_ptr<void> pixels;
+            std::size_t row_pitch;
+            std::uint32_t width;
+            std::uint32_t height;
+            std::size_t pixel_size;
+            Shared_memory_segment shared_memory_segment;
+            Server_shm_seg server_shm_seg;
+            Pixmap pixmap;
+            std::list<Swapchain_image *>::iterator iter;
+            Swapchain_image(std::shared_ptr<void> pixels,
+                            std::size_t row_pitch,
+                            std::uint32_t width,
+                            std::uint32_t height,
+                            std::size_t pixel_size,
+                            Shared_memory_segment shared_memory_segment,
+                            Server_shm_seg server_shm_seg,
+                            Pixmap pixmap,
+                            std::list<Swapchain_image *>::iterator iter) noexcept
+                : pixels(std::move(pixels)),
+                  row_pitch(row_pitch),
+                  width(width),
+                  height(height),
+                  pixel_size(pixel_size),
+                  shared_memory_segment(std::move(shared_memory_segment)),
+                  server_shm_seg(std::move(server_shm_seg)),
+                  pixmap(std::move(pixmap)),
+                  iter(iter)
+            {
+            }
+        };
+        xcb_connection_t *connection;
+        xcb_window_t window;
+        bool shm_is_supported;
+        std::list<Swapchain_image *> free_list;
+        explicit Swapchain(Start_setup_results start_setup_results,
+                           xcb_connection_t *connection,
+                           xcb_window_t window,
+                           const VkSwapchainCreateInfoKHR &create_info)
+            : Vulkan_swapchain({}),
+              connection(connection),
+              window(window),
+              shm_is_supported(start_setup_results.shm_is_supported)
+        {
+            std::size_t unpadded_scanline_size =
+                start_setup_results.image_pixel_size * start_setup_results.image_width;
+            std::size_t padded_scanline_size =
+                (unpadded_scanline_size + start_setup_results.scanline_alignment - 1U)
+                & ~(start_setup_results.scanline_alignment - 1U);
+            std::size_t image_size = padded_scanline_size * start_setup_results.image_height;
+            if(shm_is_supported)
+            {
+                auto shm_query_version_reply = Shm_query_version_reply(xcb_shm_query_version_reply(
+                    connection, start_setup_results.shm_query_version_cookie, nullptr));
+                if(!shm_query_version_reply || !shm_query_version_reply->shared_pixmaps
+                   || shm_query_version_reply->pixmap_format != XCB_IMAGE_FORMAT_Z_PIXMAP)
+                {
+                    std::cerr
+                        << "shared memory pixmaps are not supported, falling back to using core "
+                           "X protocol"
+                        << std::endl;
+                    shm_is_supported = false;
+                }
+            }
+            auto image_count = std::max<std::uint32_t>(create_info.minImageCount, 2);
+            while(true)
+            {
+                bool shm_failed = false;
+                for(std::uint32_t i = 0; i < image_count; i++)
+                {
+                    Shared_memory_segment shared_memory_segment;
+                    std::shared_ptr<void> pixels;
+                    Server_shm_seg server_shm_seg;
+                    Pixmap pixmap;
+                    if(shm_is_supported)
+                    {
+                        shared_memory_segment = Shared_memory_segment::create(image_size);
+                        pixels = shared_memory_segment.map();
+                        auto seg_id = xcb_generate_id(connection);
+                        auto shm_attach_cookie = xcb_shm_attach_checked(
+                            connection, seg_id, shared_memory_segment.get(), false);
+                        auto error =
+                            Generic_error(xcb_request_check(connection, shm_attach_cookie));
+                        if(error)
+                        {
+                            shm_failed = true;
+                            break;
+                        }
+                        server_shm_seg = Server_shm_seg(seg_id, connection);
+                        auto pixmap_id = xcb_generate_id(connection);
+                        error = Generic_error(xcb_request_check(
+                            connection,
+                            xcb_shm_create_pixmap_checked(connection,
+                                                          pixmap_id,
+                                                          window,
+                                                          start_setup_results.image_width,
+                                                          start_setup_results.image_height,
+                                                          start_setup_results.window_depth,
+                                                          server_shm_seg.get(),
+                                                          0)));
+                        if(error)
+                        {
+                            shm_failed = true;
+                            break;
+                        }
+                        pixmap = Pixmap(pixmap_id, connection);
+                    }
+                    else
+                    {
+                        pixels = std::shared_ptr<unsigned char>(new unsigned char[image_size],
+                                                                [](unsigned char *p) noexcept
+                                                                {
+                                                                    delete[] p;
+                                                                });
+                    }
+                    auto image_iter = free_list.insert(free_list.end(), nullptr);
+                    auto image =
+                        std::make_unique<Swapchain_image>(std::move(pixels),
+                                                          padded_scanline_size,
+                                                          start_setup_results.image_width,
+                                                          start_setup_results.image_height,
+                                                          start_setup_results.image_pixel_size,
+                                                          std::move(shared_memory_segment),
+                                                          std::move(server_shm_seg),
+                                                          std::move(pixmap),
+                                                          image_iter);
+                    *image_iter = image.get();
+                    images.push_back(std::move(image));
+                }
+                if(shm_failed)
+                {
+                    std::cerr << "using shared memory failed, falling back to using core X protocol"
+                              << std::endl;
+                    shm_is_supported = false;
+                    free_list.clear();
+                    images.clear();
+                    continue;
+                }
+                break;
+            }
+        }
+    };
 };
 
 VkIcdSurfaceBase *Xcb_wsi::create_surface(const VkXcbSurfaceCreateInfoKHR &create_info) const
@@ -433,10 +601,10 @@ void Xcb_wsi::destroy_surface(VkIcdSurfaceBase *surface) const noexcept
     delete reinterpret_cast<Surface_type *>(surface);
 }
 
-VkResult Xcb_wsi::get_surface_support(VkIcdSurfaceBase *surface_, VkBool32 &supported) const
+VkResult Xcb_wsi::get_surface_support(VkIcdSurfaceBase *surface_, bool &supported) const
 {
     auto &surface = *reinterpret_cast<Surface_type *>(surface_);
-    switch(Implementation::start_setup(surface.connection, surface.window).status)
+    switch(Implementation::start_setup(surface.connection, surface.window, false).status)
     {
     case Implementation::Start_setup_results::Status::Bad_surface:
         return VK_ERROR_SURFACE_LOST_KHR;
@@ -455,7 +623,8 @@ VkResult Xcb_wsi::get_surface_formats(VkIcdSurfaceBase *surface_,
                                       std::vector<VkSurfaceFormatKHR> &surface_formats) const
 {
     auto &surface = *reinterpret_cast<Surface_type *>(surface_);
-    auto start_setup_result = Implementation::start_setup(surface.connection, surface.window);
+    auto start_setup_result =
+        Implementation::start_setup(surface.connection, surface.window, false);
     switch(start_setup_result.status)
     {
     case Implementation::Start_setup_results::Status::Bad_surface:
@@ -490,14 +659,15 @@ VkResult Xcb_wsi::get_present_modes(VkIcdSurfaceBase *surface_,
                                     std::vector<VkPresentModeKHR> &present_modes) const
 {
     auto &surface = *reinterpret_cast<Surface_type *>(surface_);
-    auto start_setup_result = Implementation::start_setup(surface.connection, surface.window);
+    auto start_setup_result =
+        Implementation::start_setup(surface.connection, surface.window, false);
     switch(start_setup_result.status)
     {
     case Implementation::Start_setup_results::Status::Bad_surface:
     case Implementation::Start_setup_results::Status::No_support:
         return VK_ERROR_SURFACE_LOST_KHR;
     case Implementation::Start_setup_results::Status::Success:
-        present_modes = std::move(start_setup_result.present_modes);
+        present_modes = std::move(start_setup_result.present_modes.value());
         return VK_SUCCESS;
     }
     assert(!"unreachable");
@@ -508,7 +678,8 @@ VkResult Xcb_wsi::get_surface_capabilities(VkIcdSurfaceBase *surface_,
                                            VkSurfaceCapabilitiesKHR &capabilities) const
 {
     auto &surface = *reinterpret_cast<Surface_type *>(surface_);
-    auto start_setup_result = Implementation::start_setup(surface.connection, surface.window);
+    auto start_setup_result =
+        Implementation::start_setup(surface.connection, surface.window, false);
     switch(start_setup_result.status)
     {
     case Implementation::Start_setup_results::Status::Bad_surface:
@@ -520,6 +691,18 @@ VkResult Xcb_wsi::get_surface_capabilities(VkIcdSurfaceBase *surface_,
     }
     assert(!"unreachable");
     return {};
+}
+
+util::variant<VkResult, std::unique_ptr<Vulkan_swapchain>> Xcb_wsi::create_swapchain(
+    vulkan::Vulkan_device &device, const VkSwapchainCreateInfoKHR &create_info) const
+{
+#warning finish implementing Xcb_wsi::create_swapchain
+    auto &surface = *reinterpret_cast<Surface_type *>(create_info.surface);
+    return std::make_unique<Implementation::Swapchain>(
+        Implementation::start_setup(surface.connection, surface.window, true),
+        surface.connection,
+        surface.window,
+        create_info);
 }
 
 const Xcb_wsi &Xcb_wsi::get() noexcept
@@ -572,7 +755,7 @@ void Xlib_wsi::destroy_surface(VkIcdSurfaceBase *surface) const noexcept
     delete reinterpret_cast<Surface_type *>(surface);
 }
 
-VkResult Xlib_wsi::get_surface_support(VkIcdSurfaceBase *surface_, VkBool32 &supported) const
+VkResult Xlib_wsi::get_surface_support(VkIcdSurfaceBase *surface_, bool &supported) const
 {
     auto &surface = *reinterpret_cast<Surface_type *>(surface_);
     auto xcb_surface = Implementation::get_xcb_surface(surface);
@@ -605,6 +788,17 @@ VkResult Xlib_wsi::get_surface_capabilities(VkIcdSurfaceBase *surface_,
     auto xcb_surface = Implementation::get_xcb_surface(surface);
     return Xcb_wsi::get().get_surface_capabilities(
         reinterpret_cast<VkIcdSurfaceBase *>(&xcb_surface), capabilities);
+}
+
+util::variant<VkResult, std::unique_ptr<Vulkan_swapchain>> Xlib_wsi::create_swapchain(
+    vulkan::Vulkan_device &device, const VkSwapchainCreateInfoKHR &create_info) const
+{
+    assert(create_info.surface);
+    auto &surface = *reinterpret_cast<Surface_type *>(create_info.surface);
+    auto xcb_surface = Implementation::get_xcb_surface(surface);
+    VkSwapchainCreateInfoKHR xcb_create_info = create_info;
+    xcb_create_info.surface = reinterpret_cast<VkSurfaceKHR>(&xcb_surface);
+    return Xcb_wsi::get().create_swapchain(device, xcb_create_info);
 }
 
 const Xlib_wsi &Xlib_wsi::get() noexcept

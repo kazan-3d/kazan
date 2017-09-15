@@ -233,12 +233,17 @@ extern "C" VKAPI_ATTR VkResult VKAPI_CALL vkEnumerateDeviceLayerProperties(
 }
 
 extern "C" VKAPI_ATTR void VKAPI_CALL vkGetDeviceQueue(VkDevice device,
-                                                       uint32_t queueFamilyIndex,
-                                                       uint32_t queueIndex,
-                                                       VkQueue *pQueue)
+                                                       uint32_t queue_family_index,
+                                                       uint32_t queue_index,
+                                                       VkQueue *queue)
 {
-#warning finish implementing vkGetDeviceQueue
-    assert(!"vkGetDeviceQueue is not implemented");
+    assert(device);
+    assert(queue_family_index < vulkan::Vulkan_physical_device::queue_family_property_count);
+    assert(queue_index < vulkan::Vulkan_device::queue_count);
+    assert(queue);
+    auto *device_pointer = vulkan::Vulkan_device::from_handle(device);
+    static_assert(vulkan::Vulkan_device::queue_count == 1, "");
+    *queue = to_handle(&device_pointer->queues[0]);
 }
 
 extern "C" VKAPI_ATTR VkResult VKAPI_CALL vkQueueSubmit(VkQueue queue,
@@ -435,13 +440,22 @@ extern "C" VKAPI_ATTR VkResult VKAPI_CALL vkWaitForFences(VkDevice device,
 
 extern "C" VKAPI_ATTR VkResult VKAPI_CALL
     vkCreateSemaphore(VkDevice device,
-                      const VkSemaphoreCreateInfo *pCreateInfo,
+                      const VkSemaphoreCreateInfo *create_info,
                       const VkAllocationCallbacks *allocator,
-                      VkSemaphore *pSemaphore)
+                      VkSemaphore *semaphore)
 {
     validate_allocator(allocator);
-#warning finish implementing vkCreateSemaphore
-    assert(!"vkCreateSemaphore is not implemented");
+    assert(device);
+    assert(create_info);
+    assert(semaphore);
+    return vulkan_icd::catch_exceptions_and_return_result(
+        [&]()
+        {
+            auto create_result = vulkan::Vulkan_semaphore::create(
+                *vulkan::Vulkan_device::from_handle(device), *create_info);
+            *semaphore = move_to_handle(std::move(create_result));
+            return VK_SUCCESS;
+        });
 }
 
 extern "C" VKAPI_ATTR void VKAPI_CALL vkDestroySemaphore(VkDevice device,
@@ -449,8 +463,8 @@ extern "C" VKAPI_ATTR void VKAPI_CALL vkDestroySemaphore(VkDevice device,
                                                          const VkAllocationCallbacks *allocator)
 {
     validate_allocator(allocator);
-#warning finish implementing vkDestroySemaphore
-    assert(!"vkDestroySemaphore is not implemented");
+    assert(device);
+    vulkan::Vulkan_semaphore::move_from_handle(semaphore).reset();
 }
 
 extern "C" VKAPI_ATTR VkResult VKAPI_CALL vkCreateEvent(VkDevice device,
@@ -1375,13 +1389,28 @@ extern "C" VKAPI_ATTR void VKAPI_CALL vkDestroySurfaceKHR(VkInstance instance,
 }
 
 extern "C" VKAPI_ATTR VkResult VKAPI_CALL
-    vkGetPhysicalDeviceSurfaceSupportKHR(VkPhysicalDevice physicalDevice,
-                                         uint32_t queueFamilyIndex,
+    vkGetPhysicalDeviceSurfaceSupportKHR(VkPhysicalDevice physical_device,
+                                         uint32_t queue_family_index,
                                          VkSurfaceKHR surface,
-                                         VkBool32 *pSupported)
+                                         VkBool32 *supported)
 {
-#warning finish implementing vkGetPhysicalDeviceSurfaceSupportKHR
-    assert(!"vkGetPhysicalDeviceSurfaceSupportKHR is not implemented");
+    assert(physical_device);
+    assert(queue_family_index < vulkan::Vulkan_physical_device::queue_family_property_count);
+    assert(surface);
+    assert(supported);
+    return vulkan_icd::catch_exceptions_and_return_result(
+        [&]()
+        {
+            auto *surface_base = reinterpret_cast<VkIcdSurfaceBase *>(surface);
+            auto *wsi = vulkan_icd::Wsi::find(surface_base->platform);
+            assert(wsi);
+            bool is_supported{};
+            auto result = wsi->get_surface_support(surface_base, is_supported);
+            if(result != VK_SUCCESS)
+                return result;
+            *supported = is_supported;
+            return VK_SUCCESS;
+        });
 }
 
 extern "C" VKAPI_ATTR VkResult VKAPI_CALL
@@ -1477,6 +1506,100 @@ extern "C" VKAPI_ATTR VkBool32 VKAPI_CALL
     assert(!"vkGetPhysicalDeviceXcbPresentationSupportKHR is not implemented");
 }
 #endif
+
+#ifdef VK_USE_PLATFORM_XLIB_KHR
+extern "C" VKAPI_ATTR VkResult VKAPI_CALL
+    vkCreateXlibSurfaceKHR(VkInstance instance,
+                           const VkXlibSurfaceCreateInfoKHR *pCreateInfo,
+                           const VkAllocationCallbacks *pAllocator,
+                           VkSurfaceKHR *pSurface)
+{
+#warning finish implementing vkCreateXlibSurfaceKHR
+    assert(!"vkCreateXlibSurfaceKHR is not implemented");
+}
+
+extern "C" VKAPI_ATTR VkBool32 VKAPI_CALL vkGetPhysicalDeviceXlibPresentationSupportKHR(
+    VkPhysicalDevice physicalDevice, uint32_t queueFamilyIndex, Display *dpy, VisualID visualID)
+{
+#warning finish implementing vkGetPhysicalDeviceXlibPresentationSupportKHR
+    assert(!"vkGetPhysicalDeviceXlibPresentationSupportKHR is not implemented");
+}
+#endif
+
+extern "C" VKAPI_ATTR VkResult VKAPI_CALL
+    vkCreateSwapchainKHR(VkDevice device,
+                         const VkSwapchainCreateInfoKHR *create_info,
+                         const VkAllocationCallbacks *allocator,
+                         VkSwapchainKHR *swapchain)
+{
+    validate_allocator(allocator);
+    assert(device);
+    assert(create_info);
+    assert(swapchain);
+    return vulkan_icd::catch_exceptions_and_return_result(
+        [&]()
+        {
+            assert(create_info->sType == VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR);
+            auto *surface_base = reinterpret_cast<VkIcdSurfaceBase *>(create_info->surface);
+            auto *wsi = vulkan_icd::Wsi::find(surface_base->platform);
+            assert(wsi);
+            auto create_result =
+                wsi->create_swapchain(*vulkan::Vulkan_device::from_handle(device), *create_info);
+            if(util::holds_alternative<VkResult>(create_result))
+                return util::get<VkResult>(create_result);
+            *swapchain = move_to_handle(
+                util::get<std::unique_ptr<vulkan_icd::Vulkan_swapchain>>(std::move(create_result)));
+            return VK_SUCCESS;
+        });
+}
+
+extern "C" VKAPI_ATTR void VKAPI_CALL vkDestroySwapchainKHR(VkDevice device,
+                                                            VkSwapchainKHR swapchain,
+                                                            const VkAllocationCallbacks *allocator)
+{
+    validate_allocator(allocator);
+    assert(device);
+    assert(swapchain);
+    vulkan_icd::Vulkan_swapchain::move_from_handle(swapchain).reset();
+}
+
+extern "C" VKAPI_ATTR VkResult VKAPI_CALL vkGetSwapchainImagesKHR(VkDevice device,
+                                                                  VkSwapchainKHR swapchain,
+                                                                  uint32_t *swapchain_image_count,
+                                                                  VkImage *swapchain_images)
+{
+    assert(device);
+    assert(swapchain);
+    return vulkan_icd::catch_exceptions_and_return_result(
+        [&]()
+        {
+            auto *swapchain_pointer = vulkan_icd::Vulkan_swapchain::from_handle(swapchain);
+            std::vector<VkImage> images;
+            images.reserve(swapchain_pointer->images.size());
+            for(auto &image : swapchain_pointer->images)
+                images.push_back(to_handle(image.get()));
+            return vulkan_icd::vulkan_enumerate_list_helper(
+                swapchain_image_count, swapchain_images, images.data(), images.size());
+        });
+}
+
+extern "C" VKAPI_ATTR VkResult VKAPI_CALL vkAcquireNextImageKHR(VkDevice device,
+                                                                VkSwapchainKHR swapchain,
+                                                                uint64_t timeout,
+                                                                VkSemaphore semaphore,
+                                                                VkFence fence,
+                                                                uint32_t *pImageIndex)
+{
+#warning finish implementing vkAcquireNextImageKHR
+    assert(!"vkAcquireNextImageKHR is not implemented");
+}
+
+extern "C" VKAPI_ATTR VkResult VKAPI_CALL vkQueuePresentKHR(VkQueue queue,
+                                                            const VkPresentInfoKHR *pPresentInfo)
+{
+#warning finish implementing vkQueuePresentKHR
+    assert(!"vkQueuePresentKHR is not implemented");
+}
 
 namespace kazan
 {
@@ -1717,6 +1840,16 @@ PFN_vkVoidFunction Vulkan_loader_interface::get_procedure_address(
     INSTANCE_SCOPE_EXTENSION_FUNCTION(vkGetPhysicalDeviceXcbPresentationSupportKHR,
                                       KHR_xcb_surface);
 #endif
+#ifdef VK_USE_PLATFORM_XLIB_KHR
+    INSTANCE_SCOPE_EXTENSION_FUNCTION(vkCreateXlibSurfaceKHR, KHR_xlib_surface);
+    INSTANCE_SCOPE_EXTENSION_FUNCTION(vkGetPhysicalDeviceXlibPresentationSupportKHR,
+                                      KHR_xlib_surface);
+#endif
+    INSTANCE_SCOPE_EXTENSION_FUNCTION(vkCreateSwapchainKHR, KHR_swapchain);
+    INSTANCE_SCOPE_EXTENSION_FUNCTION(vkDestroySwapchainKHR, KHR_swapchain);
+    INSTANCE_SCOPE_EXTENSION_FUNCTION(vkGetSwapchainImagesKHR, KHR_swapchain);
+    INSTANCE_SCOPE_EXTENSION_FUNCTION(vkAcquireNextImageKHR, KHR_swapchain);
+    INSTANCE_SCOPE_EXTENSION_FUNCTION(vkQueuePresentKHR, KHR_swapchain);
 
 #undef LIBRARY_SCOPE_FUNCTION
 #undef INSTANCE_SCOPE_FUNCTION

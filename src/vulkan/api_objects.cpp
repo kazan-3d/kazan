@@ -357,5 +357,19 @@ util::variant<std::unique_ptr<Vulkan_device>, VkResult> Vulkan_device::create(
     assert(create_info.pQueueCreateInfos[0].queueCount == 1);
     return std::make_unique<Vulkan_device>(physical_device, enabled_features, extensions);
 }
+
+std::unique_ptr<Vulkan_semaphore> Vulkan_semaphore::create(Vulkan_device &device,
+                                                           const VkSemaphoreCreateInfo &create_info)
+{
+    assert(create_info.sType == VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO);
+    assert(create_info.flags == 0);
+    return std::make_unique<Vulkan_semaphore>();
+}
+
+std::unique_ptr<Vulkan_image> Vulkan_image::create(Vulkan_device &device, const VkImageCreateInfo &create_info)
+{
+#warning finish implementing Vulkan_image::create
+    return std::make_unique<Vulkan_image>();
+}
 }
 }

@@ -46,13 +46,15 @@ enum class Supported_extension
     KHR_surface,
     KHR_xcb_surface,
     KHR_xlib_surface,
+    KHR_swapchain,
 };
 
 kazan_util_generate_enum_traits(Supported_extension,
                                 Supported_extension::Not_supported,
                                 Supported_extension::KHR_surface,
                                 Supported_extension::KHR_xcb_surface,
-                                Supported_extension::KHR_xlib_surface);
+                                Supported_extension::KHR_xlib_surface,
+                                Supported_extension::KHR_swapchain);
 
 typedef util::Enum_set<Supported_extension> Supported_extensions;
 
@@ -83,6 +85,8 @@ constexpr Extension_scope get_extension_scope(Supported_extension extension) noe
 #else
         return Extension_scope::Not_supported;
 #endif
+    case Supported_extension::KHR_swapchain:
+        return Extension_scope::Device;
     }
     assert(!"unknown extension");
     return Extension_scope::Not_supported;
@@ -117,6 +121,11 @@ constexpr VkExtensionProperties get_extension_properties(Supported_extension ext
 #else
         return {};
 #endif
+    case Supported_extension::KHR_swapchain:
+        return {
+            .extensionName = VK_KHR_SWAPCHAIN_EXTENSION_NAME,
+            .specVersion = VK_KHR_SWAPCHAIN_SPEC_VERSION,
+        };
     }
     assert(!"unknown extension");
     return {};
@@ -155,6 +164,8 @@ constexpr Supported_extensions get_extension_dependencies(Supported_extension ex
     case Supported_extension::KHR_xcb_surface:
         return {Supported_extension::KHR_surface};
     case Supported_extension::KHR_xlib_surface:
+        return {Supported_extension::KHR_surface};
+    case Supported_extension::KHR_swapchain:
         return {Supported_extension::KHR_surface};
     }
     assert(!"unknown extension");
@@ -1135,6 +1146,21 @@ struct Vulkan_dispatchable_object
     }
 };
 
+template <typename Object_type, typename Vulkan_handle_type>
+struct Vulkan_nondispatchable_object
+{
+    typedef Vulkan_handle_type Vulkan_handle;
+    typedef Object_type Object;
+    static Object_type *from_handle(Vulkan_handle_type v) noexcept
+    {
+        return static_cast<Object_type *>(reinterpret_cast<Vulkan_nondispatchable_object *>(v));
+    }
+    static std::unique_ptr<Object_type> move_from_handle(Vulkan_handle_type v) noexcept
+    {
+        return std::unique_ptr<Object_type>(from_handle(v));
+    }
+};
+
 template <typename Object_type>
 typename std::
     enable_if<std::is_base_of<Vulkan_dispatchable_object<Object_type,
@@ -1153,6 +1179,19 @@ decltype(to_handle(static_cast<Object_type *>(nullptr))) move_to_handle(
     std::unique_ptr<Object_type> v) noexcept
 {
     return to_handle(v.release());
+}
+
+template <typename Object_type, typename = void>
+typename std::
+    enable_if<std::is_base_of<Vulkan_nondispatchable_object<Object_type,
+                                                            typename Object_type::Vulkan_handle>,
+                              Object_type>::value,
+              typename Object_type::Vulkan_handle>::type
+    to_handle(Object_type *object) noexcept
+{
+    return reinterpret_cast<typename Object_type::Vulkan_handle>(
+        static_cast<Vulkan_nondispatchable_object<Object_type, typename Object_type::Vulkan_handle>
+                        *>(object));
 }
 
 struct Vulkan_instance;
@@ -1488,8 +1527,16 @@ struct Vulkan_instance : public Vulkan_dispatchable_object<Vulkan_instance, VkIn
 
 struct Vulkan_device : public Vulkan_dispatchable_object<Vulkan_device, VkDevice>
 {
-    struct Queue
+    struct Queue : public Vulkan_dispatchable_object<Queue, VkQueue>
     {
+        Vulkan_instance &instance;
+        Vulkan_physical_device &physical_device;
+        Vulkan_device &device;
+        explicit Queue(Vulkan_device &device) noexcept : instance(device.instance),
+                                                         physical_device(device.physical_device),
+                                                         device(device)
+        {
+        }
     };
     Vulkan_instance &instance;
     Vulkan_physical_device &physical_device;
@@ -1503,6 +1550,7 @@ struct Vulkan_device : public Vulkan_dispatchable_object<Vulkan_device, VkDevice
         : instance(physical_device.instance),
           physical_device(physical_device),
           enabled_features(enabled_features),
+          queues{Queue(*this)},
           extensions(extensions)
     {
     }
@@ -1512,6 +1560,20 @@ struct Vulkan_device : public Vulkan_dispatchable_object<Vulkan_device, VkDevice
     }
     static util::variant<std::unique_ptr<Vulkan_device>, VkResult> create(
         Vulkan_physical_device &physical_device, const VkDeviceCreateInfo &create_info);
+};
+
+struct Vulkan_semaphore : public Vulkan_nondispatchable_object<Vulkan_semaphore, VkSemaphore>
+{
+    static std::unique_ptr<Vulkan_semaphore> create(Vulkan_device &device,
+                                                    const VkSemaphoreCreateInfo &create_info);
+};
+
+struct Vulkan_image : public Vulkan_nondispatchable_object<Vulkan_image, VkImage>
+{
+    virtual ~Vulkan_image() = default;
+#warning finish implementing Vulkan_image
+    static std::unique_ptr<Vulkan_image> create(Vulkan_device &device,
+                                                const VkImageCreateInfo &create_info);
 };
 }
 }
