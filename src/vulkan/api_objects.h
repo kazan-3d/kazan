@@ -1601,7 +1601,10 @@ private:
             while(wait_count != 0)
             {
                 if(end_time)
-                    cond.wait_until(lock_it, *end_time);
+                {
+                    if(cond.wait_until(lock_it, *end_time) == std::cv_status::timeout)
+                        break;
+                }
                 else
                     cond.wait(lock_it);
             }
