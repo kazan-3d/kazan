@@ -396,13 +396,22 @@ extern "C" VKAPI_ATTR VkResult VKAPI_CALL vkQueueBindSparse(VkQueue queue,
 }
 
 extern "C" VKAPI_ATTR VkResult VKAPI_CALL vkCreateFence(VkDevice device,
-                                                        const VkFenceCreateInfo *pCreateInfo,
+                                                        const VkFenceCreateInfo *create_info,
                                                         const VkAllocationCallbacks *allocator,
-                                                        VkFence *pFence)
+                                                        VkFence *fence)
 {
     validate_allocator(allocator);
-#warning finish implementing vkCreateFence
-    assert(!"vkCreateFence is not implemented");
+    assert(device);
+    assert(create_info);
+    assert(fence);
+    return vulkan_icd::catch_exceptions_and_return_result(
+        [&]()
+        {
+            auto create_result = vulkan::Vulkan_fence::create(
+                *vulkan::Vulkan_device::from_handle(device), *create_info);
+            *fence = move_to_handle(std::move(create_result));
+            return VK_SUCCESS;
+        });
 }
 
 extern "C" VKAPI_ATTR void VKAPI_CALL vkDestroyFence(VkDevice device,
@@ -410,32 +419,50 @@ extern "C" VKAPI_ATTR void VKAPI_CALL vkDestroyFence(VkDevice device,
                                                      const VkAllocationCallbacks *allocator)
 {
     validate_allocator(allocator);
-#warning finish implementing vkDestroyFence
-    assert(!"vkDestroyFence is not implemented");
+    assert(device);
+    vulkan::Vulkan_fence::move_from_handle(fence).reset();
 }
 
 extern "C" VKAPI_ATTR VkResult VKAPI_CALL vkResetFences(VkDevice device,
-                                                        uint32_t fenceCount,
-                                                        const VkFence *pFences)
+                                                        uint32_t fence_count,
+                                                        const VkFence *fences)
 {
-#warning finish implementing vkResetFences
-    assert(!"vkResetFences is not implemented");
+    assert(device);
+    assert(fences);
+    return vulkan_icd::catch_exceptions_and_return_result(
+        [&]()
+        {
+            for(std::uint32_t i = 0; i < fence_count; i++)
+                vulkan::Vulkan_fence::from_handle(fences[i])->reset();
+            return VK_SUCCESS;
+        });
 }
 
 extern "C" VKAPI_ATTR VkResult VKAPI_CALL vkGetFenceStatus(VkDevice device, VkFence fence)
 {
-#warning finish implementing vkGetFenceStatus
-    assert(!"vkGetFenceStatus is not implemented");
+    assert(device);
+    assert(fence);
+    return vulkan_icd::catch_exceptions_and_return_result(
+        [&]()
+        {
+            return vulkan::Vulkan_fence::from_handle(fence)->is_signaled() ? VK_SUCCESS :
+                                                                             VK_NOT_READY;
+        });
 }
 
 extern "C" VKAPI_ATTR VkResult VKAPI_CALL vkWaitForFences(VkDevice device,
-                                                          uint32_t fenceCount,
-                                                          const VkFence *pFences,
-                                                          VkBool32 waitAll,
+                                                          uint32_t fence_count,
+                                                          const VkFence *fences,
+                                                          VkBool32 wait_all,
                                                           uint64_t timeout)
 {
-#warning finish implementing vkWaitForFences
-    assert(!"vkWaitForFences is not implemented");
+    assert(device);
+    assert(fences);
+    return vulkan_icd::catch_exceptions_and_return_result(
+        [&]()
+        {
+            return vulkan::Vulkan_fence::wait_multiple(fence_count, fences, wait_all, timeout);
+        });
 }
 
 extern "C" VKAPI_ATTR VkResult VKAPI_CALL
@@ -883,48 +910,76 @@ extern "C" VKAPI_ATTR void VKAPI_CALL vkGetRenderAreaGranularity(VkDevice device
 
 extern "C" VKAPI_ATTR VkResult VKAPI_CALL
     vkCreateCommandPool(VkDevice device,
-                        const VkCommandPoolCreateInfo *pCreateInfo,
+                        const VkCommandPoolCreateInfo *create_info,
                         const VkAllocationCallbacks *allocator,
-                        VkCommandPool *pCommandPool)
+                        VkCommandPool *command_pool)
 {
     validate_allocator(allocator);
-#warning finish implementing vkCreateCommandPool
-    assert(!"vkCreateCommandPool is not implemented");
+    assert(device);
+    assert(create_info);
+    assert(command_pool);
+    return vulkan_icd::catch_exceptions_and_return_result(
+        [&]()
+        {
+            auto create_result = vulkan::Vulkan_command_pool::create(
+                *vulkan::Vulkan_device::from_handle(device), *create_info);
+            *command_pool = move_to_handle(std::move(create_result));
+            return VK_SUCCESS;
+        });
 }
 
 extern "C" VKAPI_ATTR void VKAPI_CALL vkDestroyCommandPool(VkDevice device,
-                                                           VkCommandPool commandPool,
+                                                           VkCommandPool command_pool,
                                                            const VkAllocationCallbacks *allocator)
 {
     validate_allocator(allocator);
-#warning finish implementing vkDestroyCommandPool
-    assert(!"vkDestroyCommandPool is not implemented");
+    assert(device);
+    assert(command_pool);
+    vulkan::Vulkan_command_pool::move_from_handle(command_pool).reset();
 }
 
 extern "C" VKAPI_ATTR VkResult VKAPI_CALL vkResetCommandPool(VkDevice device,
-                                                             VkCommandPool commandPool,
+                                                             VkCommandPool command_pool,
                                                              VkCommandPoolResetFlags flags)
 {
-#warning finish implementing vkResetCommandPool
-    assert(!"vkResetCommandPool is not implemented");
+    assert(device);
+    assert(command_pool);
+    return vulkan_icd::catch_exceptions_and_return_result(
+        [&]()
+        {
+            vulkan::Vulkan_command_pool::from_handle(command_pool)->reset(flags);
+            return VK_SUCCESS;
+        });
 }
 
 extern "C" VKAPI_ATTR VkResult VKAPI_CALL
     vkAllocateCommandBuffers(VkDevice device,
-                             const VkCommandBufferAllocateInfo *pAllocateInfo,
-                             VkCommandBuffer *pCommandBuffers)
+                             const VkCommandBufferAllocateInfo *allocate_info,
+                             VkCommandBuffer *command_buffers)
 {
-#warning finish implementing vkAllocateCommandBuffers
-    assert(!"vkAllocateCommandBuffers is not implemented");
+    assert(device);
+    assert(allocate_info);
+    assert(command_buffers);
+    return vulkan_icd::catch_exceptions_and_return_result(
+        [&]()
+        {
+            vulkan::Vulkan_command_pool::from_handle(allocate_info->commandPool)
+                ->allocate_multiple(
+                    *vulkan::Vulkan_device::from_handle(device), *allocate_info, command_buffers);
+            return VK_SUCCESS;
+        });
 }
 
 extern "C" VKAPI_ATTR void VKAPI_CALL vkFreeCommandBuffers(VkDevice device,
-                                                           VkCommandPool commandPool,
-                                                           uint32_t commandBufferCount,
-                                                           const VkCommandBuffer *pCommandBuffers)
+                                                           VkCommandPool command_pool,
+                                                           uint32_t command_buffer_count,
+                                                           const VkCommandBuffer *command_buffers)
 {
-#warning finish implementing vkFreeCommandBuffers
-    assert(!"vkFreeCommandBuffers is not implemented");
+    assert(device);
+    assert(command_pool);
+    assert(command_buffers);
+    vulkan::Vulkan_command_pool::from_handle(command_pool)
+        ->free_multiple(command_buffers, command_buffer_count);
 }
 
 extern "C" VKAPI_ATTR VkResult VKAPI_CALL

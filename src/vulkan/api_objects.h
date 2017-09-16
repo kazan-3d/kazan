@@ -31,10 +31,16 @@
 #include "util/variant.h"
 #include "util/system_memory_info.h"
 #include "util/constexpr_array.h"
+#include "util/optional.h"
 #include <memory>
 #include <cassert>
 #include <chrono>
 #include <limits>
+#include <vector>
+#include <list>
+#include <mutex>
+#include <condition_variable>
+#include <chrono>
 
 namespace kazan
 {
@@ -1568,12 +1574,135 @@ struct Vulkan_semaphore : public Vulkan_nondispatchable_object<Vulkan_semaphore,
                                                     const VkSemaphoreCreateInfo &create_info);
 };
 
+class Vulkan_fence : public Vulkan_nondispatchable_object<Vulkan_fence, VkFence>
+{
+private:
+    struct Waiter
+    {
+        std::mutex lock;
+        std::condition_variable cond;
+        std::uint32_t wait_count;
+        explicit Waiter(std::uint32_t wait_count) : lock(), cond(), wait_count(wait_count)
+        {
+        }
+        void notify(bool notify_condition_variable)
+        {
+            std::unique_lock<std::mutex> lock_it(lock);
+            if(wait_count != 0)
+            {
+                wait_count--;
+                if(notify_condition_variable && wait_count == 0)
+                    cond.notify_all();
+            }
+        }
+        bool wait(util::optional<std::chrono::steady_clock::time_point> end_time)
+        {
+            std::unique_lock<std::mutex> lock_it(lock);
+            while(wait_count != 0)
+            {
+                if(end_time)
+                    cond.wait_until(lock_it, *end_time);
+                else
+                    cond.wait(lock_it);
+            }
+            return wait_count == 0;
+        }
+    };
+
+private:
+    std::mutex lock;
+    bool signaled;
+    std::list<Waiter *> waiters;
+
+public:
+    explicit Vulkan_fence(VkFenceCreateFlags flags)
+        : lock(), signaled(flags & VK_FENCE_CREATE_SIGNALED_BIT), waiters()
+    {
+    }
+    bool is_signaled()
+    {
+        std::unique_lock<std::mutex> lock_it(lock);
+        return signaled;
+    }
+    void set_signaled(bool new_signaled)
+    {
+        std::unique_lock<std::mutex> lock_it(lock);
+        if(signaled == new_signaled)
+            return;
+        signaled = new_signaled;
+        if(new_signaled)
+        {
+            for(auto *waiter : waiters)
+                waiter->notify(true);
+        }
+    }
+    void signal()
+    {
+        set_signaled(true);
+    }
+    void reset()
+    {
+        set_signaled(false);
+    }
+    static VkResult wait_multiple(std::uint32_t fence_count,
+                                  const VkFence *fences,
+                                  bool wait_for_all,
+                                  std::uint64_t timeout);
+    static std::unique_ptr<Vulkan_fence> create(Vulkan_device &device,
+                                                const VkFenceCreateInfo &create_info);
+};
+
 struct Vulkan_image : public Vulkan_nondispatchable_object<Vulkan_image, VkImage>
 {
     virtual ~Vulkan_image() = default;
 #warning finish implementing Vulkan_image
     static std::unique_ptr<Vulkan_image> create(Vulkan_device &device,
                                                 const VkImageCreateInfo &create_info);
+};
+
+struct Vulkan_command_pool;
+
+struct Vulkan_command_buffer
+    : public Vulkan_dispatchable_object<Vulkan_command_buffer, VkCommandBuffer>
+{
+    std::list<std::unique_ptr<Vulkan_command_buffer>>::iterator iter;
+    Vulkan_command_pool &command_pool;
+    Vulkan_device &device;
+    Vulkan_command_buffer(std::list<std::unique_ptr<Vulkan_command_buffer>>::iterator iter,
+                          Vulkan_command_pool &command_pool,
+                          Vulkan_device &device) noexcept;
+    void reset(VkCommandPoolResetFlags flags);
+#warning finish implementing Vulkan_command_buffer
+};
+
+struct Vulkan_command_pool
+    : public Vulkan_nondispatchable_object<Vulkan_command_pool, VkCommandPool>
+{
+    std::list<std::unique_ptr<Vulkan_command_buffer>> command_buffers;
+    void reset(VkCommandPoolResetFlags flags)
+    {
+        for(auto &command_buffer : command_buffers)
+            command_buffer->reset(flags);
+    }
+    void allocate_multiple(Vulkan_device &device,
+                           const VkCommandBufferAllocateInfo &allocate_info,
+                           VkCommandBuffer *allocated_command_buffers);
+    void free_command_buffer(VkCommandBuffer command_buffer_handle) noexcept
+    {
+        if(!command_buffer_handle)
+            return;
+        auto *command_buffer = Vulkan_command_buffer::from_handle(command_buffer_handle);
+        assert(&command_buffer->command_pool == this);
+        command_buffers.erase(command_buffer->iter);
+    }
+    void free_multiple(const VkCommandBuffer *allocated_command_buffers,
+                       std::uint32_t command_buffer_count) noexcept
+    {
+        for(std::uint32_t i = 0; i < command_buffer_count; i++)
+            free_command_buffer(allocated_command_buffers[i]);
+    }
+    static std::unique_ptr<Vulkan_command_pool> create(Vulkan_device &device,
+                                                       const VkCommandPoolCreateInfo &create_info);
 };
 }
 }

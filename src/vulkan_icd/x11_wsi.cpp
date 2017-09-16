@@ -398,7 +398,7 @@ struct Xcb_wsi::Implementation
             VK_PRESENT_MODE_FIFO_KHR, VK_PRESENT_MODE_IMMEDIATE_KHR,
         };
         VkSurfaceCapabilitiesKHR capabilities = {
-            .minImageCount = 1,
+            .minImageCount = 2,
             .maxImageCount = 0,
             .currentExtent =
                 {
@@ -482,6 +482,46 @@ struct Xcb_wsi::Implementation
               window(window),
               shm_is_supported(start_setup_results.shm_is_supported)
         {
+            assert(create_info.sType == VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR);
+#warning formats other than VK_FORMAT_B8G8R8A8_UNORM are unimplemented
+            assert(create_info.imageFormat == VK_FORMAT_B8G8R8A8_UNORM);
+            assert(create_info.imageColorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR);
+            assert(create_info.imageExtent.width == start_setup_results.image_width);
+            assert(create_info.imageExtent.height == start_setup_results.image_height);
+            assert(create_info.imageArrayLayers
+                   <= start_setup_results.capabilities.maxImageArrayLayers);
+            assert(create_info.imageArrayLayers != 0);
+            assert((create_info.imageUsage & ~start_setup_results.capabilities.supportedUsageFlags)
+                   == 0);
+            assert(create_info.preTransform == start_setup_results.capabilities.currentTransform);
+            assert((create_info.compositeAlpha
+                    & ~start_setup_results.capabilities.supportedCompositeAlpha)
+                   == 0);
+            const char *warning_message_present_mode_name = nullptr;
+            switch(create_info.presentMode)
+            {
+            case VK_PRESENT_MODE_IMMEDIATE_KHR:
+                break;
+            case VK_PRESENT_MODE_FIFO_KHR:
+                warning_message_present_mode_name = "FIFO";
+                break;
+            case VK_PRESENT_MODE_MAILBOX_KHR:
+                warning_message_present_mode_name = "MAILBOX";
+                break;
+            case VK_PRESENT_MODE_FIFO_RELAXED_KHR:
+                warning_message_present_mode_name = "FIFO_RELAXED";
+                break;
+            case VK_PRESENT_MODE_SHARED_DEMAND_REFRESH_KHR:
+            case VK_PRESENT_MODE_SHARED_CONTINUOUS_REFRESH_KHR:
+            case VK_PRESENT_MODE_RANGE_SIZE_KHR:
+            case VK_PRESENT_MODE_MAX_ENUM_KHR:
+                assert(!"bad present mode");
+                break;
+            }
+            if(warning_message_present_mode_name)
+                std::cerr << warning_message_present_mode_name
+                          << " present mode is not implemented; falling back to IMMEDIATE"
+                          << std::endl;
             std::size_t unpadded_scanline_size =
                 start_setup_results.image_pixel_size * start_setup_results.image_width;
             std::size_t padded_scanline_size =
@@ -636,11 +676,16 @@ VkResult Xcb_wsi::get_surface_formats(VkIcdSurfaceBase *surface_,
         switch(start_setup_result.surface_format_group)
         {
         case Implementation::Surface_format_group::B8G8R8A8:
-            surface_formats = {
+            surface_formats =
+            {
+#if 1
+#warning implement VK_FORMAT_B8G8R8A8_SRGB
+#else
                 {
                     .format = VK_FORMAT_B8G8R8A8_SRGB,
                     .colorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR,
                 },
+#endif
                 {
                     .format = VK_FORMAT_B8G8R8A8_UNORM,
                     .colorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR,

@@ -23,6 +23,9 @@
 #include "api_objects.h"
 #include "util/optional.h"
 #include <iostream>
+#include <type_traits>
+#include <vector>
+#include <algorithm>
 
 namespace kazan
 {
@@ -366,10 +369,152 @@ std::unique_ptr<Vulkan_semaphore> Vulkan_semaphore::create(Vulkan_device &device
     return std::make_unique<Vulkan_semaphore>();
 }
 
-std::unique_ptr<Vulkan_image> Vulkan_image::create(Vulkan_device &device, const VkImageCreateInfo &create_info)
+VkResult Vulkan_fence::wait_multiple(std::uint32_t fence_count,
+                                     const VkFence *fences,
+                                     bool wait_for_all,
+                                     std::uint64_t timeout)
+{
+    if(fence_count == 0)
+        return VK_SUCCESS;
+    assert(fences);
+
+    typedef std::chrono::steady_clock::duration Duration;
+    typedef std::chrono::steady_clock::time_point Time_point;
+
+    // assume anything over 1000000 hours is
+    // infinite; 1000000 hours is about 114
+    // years, however, it's still way less than
+    // 2^63 nanoseconds, so we won't overflow
+    constexpr std::chrono::hours max_wait_time(1000000);
+    util::optional<Duration> wait_duration; // nullopt means infinite timeout
+    if(timeout <= static_cast<std::uint64_t>(
+                      std::chrono::duration_cast<std::chrono::nanoseconds>(max_wait_time).count()))
+    {
+        wait_duration = std::chrono::duration_cast<Duration>(std::chrono::nanoseconds(timeout));
+        if(wait_duration->count() == 0 && timeout != 0)
+            wait_duration = Duration(1); // round up so we will sleep some
+    }
+    if(wait_duration && wait_duration->count() == 0)
+    {
+        bool found = false;
+        bool search_for = !wait_for_all;
+        for(std::uint32_t i = 0; i < fence_count; i++)
+        {
+            assert(fences[i]);
+            if(from_handle(fences[i])->is_signaled() == search_for)
+            {
+                found = true;
+                break;
+            }
+        }
+        if(found && wait_for_all)
+            return VK_TIMEOUT;
+        if(!found && !wait_for_all)
+            return VK_TIMEOUT;
+        return VK_SUCCESS;
+    }
+    auto start_time = std::chrono::steady_clock::now();
+    util::optional<Time_point> end_time; // nullopt means infinite timeout
+    if(wait_duration && (start_time.time_since_epoch().count() <= 0
+                         || Duration::max() - start_time.time_since_epoch() >= *wait_duration))
+        end_time = start_time + *wait_duration;
+    Waiter waiter(wait_for_all ? fence_count : 1);
+    std::vector<std::list<Waiter *>::iterator> iters;
+    iters.reserve(fence_count);
+    struct Fence_cleanup
+    {
+        std::vector<std::list<Waiter *>::iterator> &iters;
+        const VkFence *fences;
+        ~Fence_cleanup()
+        {
+            for(std::uint32_t i = 0; i < iters.size(); i++)
+            {
+                auto *fence = from_handle(fences[i]);
+                assert(fence);
+                std::unique_lock<std::mutex> lock_it(fence->lock);
+                fence->waiters.erase(iters[i]);
+            }
+        }
+    } cleanup = {
+        .iters = iters, .fences = fences,
+    };
+    for(std::uint32_t i = 0; i < fence_count; i++)
+    {
+        auto *fence = from_handle(fences[i]);
+        assert(fence);
+        std::unique_lock<std::mutex> lock_it(fence->lock);
+        iters.push_back(fence->waiters.insert(fence->waiters.end(), &waiter));
+        if(fence->signaled)
+            waiter.notify(false);
+    }
+    assert(iters.size() == fence_count);
+    return waiter.wait(end_time) ? VK_SUCCESS : VK_TIMEOUT;
+}
+
+std::unique_ptr<Vulkan_fence> Vulkan_fence::create(Vulkan_device &device,
+                                                   const VkFenceCreateInfo &create_info)
+{
+    assert(create_info.sType == VK_STRUCTURE_TYPE_FENCE_CREATE_INFO);
+    assert((create_info.flags & ~VK_FENCE_CREATE_SIGNALED_BIT) == 0);
+    return std::make_unique<Vulkan_fence>(create_info.flags);
+}
+
+std::unique_ptr<Vulkan_image> Vulkan_image::create(Vulkan_device &device,
+                                                   const VkImageCreateInfo &create_info)
 {
 #warning finish implementing Vulkan_image::create
     return std::make_unique<Vulkan_image>();
+}
+
+Vulkan_command_buffer::Vulkan_command_buffer(
+    std::list<std::unique_ptr<Vulkan_command_buffer>>::iterator iter,
+    Vulkan_command_pool &command_pool,
+    Vulkan_device &device) noexcept : iter(iter),
+                                      command_pool(command_pool),
+                                      device(device)
+{
+}
+
+void Vulkan_command_buffer::reset(VkCommandPoolResetFlags flags)
+{
+#warning finish implementing Vulkan_command_buffer::reset
+}
+
+void Vulkan_command_pool::allocate_multiple(Vulkan_device &device,
+                                            const VkCommandBufferAllocateInfo &allocate_info,
+                                            VkCommandBuffer *allocated_command_buffers)
+{
+    std::uint32_t command_buffer_count = allocate_info.commandBufferCount;
+    try
+    {
+        std::list<std::unique_ptr<Vulkan_command_buffer>> current_command_buffers;
+        for(std::uint32_t i = 0; i < command_buffer_count; i++)
+        {
+            auto iter = current_command_buffers.emplace(current_command_buffers.end());
+            auto command_buffer = std::make_unique<Vulkan_command_buffer>(iter, *this, device);
+            allocated_command_buffers[i] = to_handle(command_buffer.get());
+            *iter = std::move(command_buffer);
+        }
+        command_buffers.splice(command_buffers.end(), current_command_buffers);
+    }
+    catch(...)
+    {
+        for(std::uint32_t i = 0; i < command_buffer_count; i++)
+            allocated_command_buffers[i] = VK_NULL_HANDLE;
+        throw;
+    }
+}
+
+std::unique_ptr<Vulkan_command_pool> Vulkan_command_pool::create(
+    Vulkan_device &device, const VkCommandPoolCreateInfo &create_info)
+{
+    assert(create_info.sType == VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO);
+    assert(create_info.queueFamilyIndex < Vulkan_physical_device::queue_family_property_count);
+    assert((create_info.flags
+            & ~(VK_COMMAND_POOL_CREATE_TRANSIENT_BIT
+                | VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT))
+           == 0);
+    return std::make_unique<Vulkan_command_pool>();
 }
 }
 }
