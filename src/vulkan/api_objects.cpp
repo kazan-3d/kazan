@@ -473,8 +473,8 @@ void Vulkan_image::clear(VkClearColorValue color) noexcept
     assert(descriptor.format == VK_FORMAT_B8G8R8A8_UNORM && "unimplemented image format");
     assert(descriptor.mip_levels == 1 && "mipmapping is unimplemented");
     assert(descriptor.array_layers == 1 && "array images are unimplemented");
-    assert(descriptor.tiling == VK_IMAGE_TILING_LINEAR
-           && "non-linear image tiling is unimplemented");
+#warning implement non-linear image tiling
+
     union
     {
         std::uint8_t bytes[4];

@@ -32,6 +32,7 @@
 #include "util/system_memory_info.h"
 #include "util/constexpr_array.h"
 #include "util/optional.h"
+#include "util/circular_queue.h"
 #include <memory>
 #include <cassert>
 #include <chrono>
@@ -41,6 +42,7 @@
 #include <mutex>
 #include <condition_variable>
 #include <chrono>
+#include <thread>
 
 namespace kazan
 {
@@ -1531,46 +1533,14 @@ struct Vulkan_instance : public Vulkan_dispatchable_object<Vulkan_instance, VkIn
 #warning finish implementing Vulkan_instance
 };
 
-struct Vulkan_device : public Vulkan_dispatchable_object<Vulkan_device, VkDevice>
-{
-    struct Queue : public Vulkan_dispatchable_object<Queue, VkQueue>
-    {
-        Vulkan_instance &instance;
-        Vulkan_physical_device &physical_device;
-        Vulkan_device &device;
-        explicit Queue(Vulkan_device &device) noexcept : instance(device.instance),
-                                                         physical_device(device.physical_device),
-                                                         device(device)
-        {
-        }
-    };
-    Vulkan_instance &instance;
-    Vulkan_physical_device &physical_device;
-    VkPhysicalDeviceFeatures enabled_features;
-    static constexpr std::size_t queue_count = 1;
-    Queue queues[queue_count];
-    Supported_extensions extensions; // includes both device and instance extensions
-    explicit Vulkan_device(Vulkan_physical_device &physical_device,
-                           const VkPhysicalDeviceFeatures &enabled_features,
-                           const Supported_extensions &extensions) noexcept
-        : instance(physical_device.instance),
-          physical_device(physical_device),
-          enabled_features(enabled_features),
-          queues{Queue(*this)},
-          extensions(extensions)
-    {
-    }
-    void wait_idle()
-    {
-#warning implement Vulkan_device::wait_idle
-    }
-    static util::variant<std::unique_ptr<Vulkan_device>, VkResult> create(
-        Vulkan_physical_device &physical_device, const VkDeviceCreateInfo &create_info);
-};
+struct Vulkan_device;
 
 struct Vulkan_semaphore : public Vulkan_nondispatchable_object<Vulkan_semaphore, VkSemaphore>
 {
     void signal() // empty function for if semaphores are needed later
+    {
+    }
+    void wait() // empty function for if semaphores are needed later
     {
     }
     static std::unique_ptr<Vulkan_semaphore> create(Vulkan_device &device,
@@ -1654,8 +1624,148 @@ public:
                                   const VkFence *fences,
                                   bool wait_for_all,
                                   std::uint64_t timeout);
+    VkResult wait(std::uint64_t timeout)
+    {
+        constexpr std::size_t fence_count = 1;
+        VkFence fences[fence_count] = {
+            to_handle(this),
+        };
+        return wait_multiple(fence_count, fences, true, timeout);
+    }
     static std::unique_ptr<Vulkan_fence> create(Vulkan_device &device,
                                                 const VkFenceCreateInfo &create_info);
+};
+
+struct Vulkan_device : public Vulkan_dispatchable_object<Vulkan_device, VkDevice>
+{
+    struct Job
+    {
+        virtual ~Job() = default;
+        virtual void run() noexcept = 0;
+    };
+    class Queue : public Vulkan_dispatchable_object<Queue, VkQueue>
+    {
+    private:
+        std::mutex mutex;
+        std::condition_variable cond;
+        util::Static_circular_deque<std::unique_ptr<Job>, 0x10> jobs;
+        std::thread executor_thread;
+        bool quit;
+        bool running_job;
+
+    private:
+        void thread_fn() noexcept
+        {
+            std::unique_lock<std::mutex> lock(mutex);
+            while(true)
+            {
+                if(jobs.empty())
+                {
+                    if(quit)
+                        return;
+                    cond.wait(lock);
+                    continue;
+                }
+                auto job = std::move(jobs.front());
+                bool was_full = jobs.full();
+                jobs.pop_front();
+                if(was_full)
+                    cond.notify_all();
+                running_job = true;
+                lock.unlock();
+                job->run();
+                lock.lock();
+                running_job = false;
+            }
+        }
+
+    public:
+        Queue() : mutex(), cond(), jobs(), executor_thread(), quit(false), running_job(false)
+        {
+            executor_thread = std::thread(&Queue::thread_fn, this);
+        }
+        ~Queue()
+        {
+            std::unique_lock<std::mutex> lock(mutex);
+            quit = true;
+            cond.notify_all();
+            lock.unlock();
+            executor_thread.join();
+        }
+
+    private:
+        bool is_idle(std::unique_lock<std::mutex> &lock)
+        {
+            if(!jobs.empty())
+                return false;
+            if(running_job)
+                return false;
+            return true;
+        }
+
+    public:
+        bool is_idle()
+        {
+            std::unique_lock<std::mutex> lock(mutex);
+            return is_idle(lock);
+        }
+        void wait_idle()
+        {
+            std::unique_lock<std::mutex> lock(mutex);
+            while(!is_idle(lock))
+                cond.wait(lock);
+        }
+        void queue_job(std::unique_ptr<Job> job)
+        {
+            std::unique_lock<std::mutex> lock(mutex);
+            while(jobs.full())
+                cond.wait(lock);
+            bool was_idle = is_idle(lock);
+            jobs.push_back(std::move(job));
+            if(was_idle)
+                cond.notify_all();
+        }
+        void queue_fence_signal(Vulkan_fence &fence)
+        {
+            struct Signal_fence_job final : public Job
+            {
+                Vulkan_fence &fence;
+                explicit Signal_fence_job(Vulkan_fence &fence) noexcept : fence(fence)
+                {
+                }
+                virtual void run() noexcept override
+                {
+                    fence.signal();
+                }
+            };
+            queue_job(std::make_unique<Signal_fence_job>(fence));
+        }
+    };
+    Vulkan_instance &instance;
+    Vulkan_physical_device &physical_device;
+    VkPhysicalDeviceFeatures enabled_features;
+    static constexpr std::size_t queue_count = 1;
+    std::unique_ptr<Queue> queues[queue_count];
+    Supported_extensions extensions; // includes both device and instance extensions
+    explicit Vulkan_device(Vulkan_physical_device &physical_device,
+                           const VkPhysicalDeviceFeatures &enabled_features,
+                           const Supported_extensions &extensions) noexcept
+        : instance(physical_device.instance),
+          physical_device(physical_device),
+          enabled_features(enabled_features),
+          queues{},
+          extensions(extensions)
+    {
+        for(auto &queue : queues)
+            queue = std::make_unique<Queue>();
+    }
+    void wait_idle()
+    {
+        for(auto &queue : queues)
+            queue->wait_idle();
+    }
+    static util::variant<std::unique_ptr<Vulkan_device>, VkResult> create(
+        Vulkan_physical_device &physical_device, const VkDeviceCreateInfo &create_info);
 };
 
 struct Vulkan_image_descriptor

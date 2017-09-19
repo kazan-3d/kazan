@@ -22,6 +22,8 @@ cmake_minimum_required(VERSION 3.3 FATAL_ERROR)
 set(sources vulkan.cpp
             api_objects.cpp)
 add_library(kazan_vulkan STATIC ${sources})
+target_link_libraries(kazan_vulkan
+                      Threads::Threads)
 target_compile_definitions(kazan_vulkan PUBLIC VK_NO_PROTOTYPES)
 if(UNIX AND NOT CYGWIN AND NOT CMAKE_SYSTEM_NAME STREQUAL "Android")
     set(USE_X11 1)

@@ -245,26 +245,98 @@ extern "C" VKAPI_ATTR void VKAPI_CALL vkGetDeviceQueue(VkDevice device,
     assert(queue);
     auto *device_pointer = vulkan::Vulkan_device::from_handle(device);
     static_assert(vulkan::Vulkan_device::queue_count == 1, "");
-    *queue = to_handle(&device_pointer->queues[0]);
+    *queue = to_handle(device_pointer->queues[0].get());
 }
 
 extern "C" VKAPI_ATTR VkResult VKAPI_CALL vkQueueSubmit(VkQueue queue,
-                                                        uint32_t submitCount,
-                                                        const VkSubmitInfo *pSubmits,
+                                                        uint32_t submit_count,
+                                                        const VkSubmitInfo *submits,
                                                         VkFence fence)
 {
-#warning finish implementing vkQueueSubmit
-    assert(!"vkQueueSubmit is not implemented");
+    assert(queue);
+    assert(submit_count == 0 || submits);
+    return vulkan_icd::catch_exceptions_and_return_result(
+        [&]()
+        {
+            auto queue_pointer = vulkan::Vulkan_device::Queue::from_handle(queue);
+            for(std::size_t i = 0; i < submit_count; i++)
+            {
+                auto &submission = submits[i];
+                assert(submission.sType == VK_STRUCTURE_TYPE_SUBMIT_INFO);
+                struct Run_submission_job final : public vulkan::Vulkan_device::Job
+                {
+                    std::vector<vulkan::Vulkan_semaphore *> wait_semaphores;
+                    std::vector<vulkan::Vulkan_command_buffer *> command_buffers;
+                    std::vector<vulkan::Vulkan_semaphore *> signal_semaphores;
+                    Run_submission_job(
+                        std::vector<vulkan::Vulkan_semaphore *> wait_semaphores,
+                        std::vector<vulkan::Vulkan_command_buffer *> command_buffers,
+                        std::vector<vulkan::Vulkan_semaphore *> signal_semaphores) noexcept
+                        : wait_semaphores(std::move(wait_semaphores)),
+                          command_buffers(std::move(command_buffers)),
+                          signal_semaphores(std::move(signal_semaphores))
+                    {
+                    }
+                    virtual void run() noexcept override
+                    {
+                        for(auto &i : wait_semaphores)
+                            i->wait();
+                        for(auto &i : command_buffers)
+                            i->run();
+                        for(auto &i : signal_semaphores)
+                            i->signal();
+                    }
+                };
+                std::vector<vulkan::Vulkan_semaphore *> wait_semaphores;
+                wait_semaphores.reserve(submission.waitSemaphoreCount);
+                for(std::uint32_t i = 0; i < submission.waitSemaphoreCount; i++)
+                {
+                    assert(submission.pWaitSemaphores[i]);
+                    wait_semaphores.push_back(
+                        vulkan::Vulkan_semaphore::from_handle(submission.pWaitSemaphores[i]));
+                }
+                std::vector<vulkan::Vulkan_command_buffer *> command_buffers;
+                command_buffers.reserve(submission.commandBufferCount);
+                for(std::uint32_t i = 0; i < submission.commandBufferCount; i++)
+                {
+                    assert(submission.pCommandBuffers[i]);
+                    command_buffers.push_back(
+                        vulkan::Vulkan_command_buffer::from_handle(submission.pCommandBuffers[i]));
+                }
+                std::vector<vulkan::Vulkan_semaphore *> signal_semaphores;
+                signal_semaphores.reserve(submission.signalSemaphoreCount);
+                for(std::uint32_t i = 0; i < submission.signalSemaphoreCount; i++)
+                {
+                    assert(submission.pSignalSemaphores[i]);
+                    signal_semaphores.push_back(
+                        vulkan::Vulkan_semaphore::from_handle(submission.pSignalSemaphores[i]));
+                }
+                queue_pointer->queue_job(
+                    std::make_unique<Run_submission_job>(std::move(wait_semaphores),
+                                                         std::move(command_buffers),
+                                                         std::move(signal_semaphores)));
+            }
+            if(fence)
+                queue_pointer->queue_fence_signal(*vulkan::Vulkan_fence::from_handle(fence));
+            return VK_SUCCESS;
+        });
 }
 
 extern "C" VKAPI_ATTR VkResult VKAPI_CALL vkQueueWaitIdle(VkQueue queue)
 {
-#warning finish implementing vkQueueWaitIdle
-    assert(!"vkQueueWaitIdle is not implemented");
+    assert(queue);
+    return vulkan_icd::catch_exceptions_and_return_result(
+        [&]()
+        {
+            auto queue_pointer = vulkan::Vulkan_device::Queue::from_handle(queue);
+            queue_pointer->wait_idle();
+            return VK_SUCCESS;
+        });
 }
 
 extern "C" VKAPI_ATTR VkResult VKAPI_CALL vkDeviceWaitIdle(VkDevice device)
 {
+    assert(device);
     return vulkan_icd::catch_exceptions_and_return_result(
         [&]()
         {
@@ -1770,10 +1842,69 @@ extern "C" VKAPI_ATTR VkResult VKAPI_CALL vkAcquireNextImageKHR(VkDevice device,
 }
 
 extern "C" VKAPI_ATTR VkResult VKAPI_CALL vkQueuePresentKHR(VkQueue queue,
-                                                            const VkPresentInfoKHR *pPresentInfo)
+                                                            const VkPresentInfoKHR *present_info)
 {
-#warning finish implementing vkQueuePresentKHR
-    assert(!"vkQueuePresentKHR is not implemented");
+    assert(queue);
+    assert(present_info);
+    assert(present_info->sType == VK_STRUCTURE_TYPE_PRESENT_INFO_KHR);
+    assert(present_info->waitSemaphoreCount == 0 || present_info->pWaitSemaphores);
+    assert(present_info->swapchainCount > 0);
+    assert(present_info->pSwapchains);
+    assert(present_info->pImageIndices);
+    return vulkan_icd::catch_exceptions_and_return_result(
+        [&]()
+        {
+            auto *queue_pointer = vulkan::Vulkan_device::Queue::from_handle(queue);
+            if(present_info->waitSemaphoreCount > 0)
+            {
+                std::vector<vulkan::Vulkan_semaphore *> semaphores;
+                semaphores.reserve(present_info->waitSemaphoreCount);
+                for(std::uint32_t i = 0; i < present_info->waitSemaphoreCount; i++)
+                {
+                    assert(present_info->pWaitSemaphores[i]);
+                    semaphores.push_back(
+                        vulkan::Vulkan_semaphore::from_handle(present_info->pWaitSemaphores[i]));
+                }
+                struct Wait_for_semaphores_job final : public vulkan::Vulkan_device::Job
+                {
+                    std::vector<vulkan::Vulkan_semaphore *> semaphores;
+                    explicit Wait_for_semaphores_job(
+                        std::vector<vulkan::Vulkan_semaphore *> semaphores) noexcept
+                        : semaphores(std::move(semaphores))
+                    {
+                    }
+                    virtual void run() noexcept override
+                    {
+                        for(auto &i : semaphores)
+                            i->wait();
+                    }
+                };
+                queue_pointer->queue_job(
+                    std::make_unique<Wait_for_semaphores_job>(std::move(semaphores)));
+            }
+            VkResult retval = VK_SUCCESS;
+            for(std::uint32_t i = 0; i < present_info->swapchainCount; i++)
+            {
+                auto *swapchain =
+                    vulkan_icd::Vulkan_swapchain::from_handle(present_info->pSwapchains[i]);
+                assert(swapchain);
+                VkResult present_result =
+                    swapchain->queue_present(present_info->pImageIndices[i], *queue_pointer);
+                if(present_result == VK_ERROR_DEVICE_LOST || retval == VK_ERROR_DEVICE_LOST)
+                    retval = VK_ERROR_DEVICE_LOST;
+                else if(present_result == VK_ERROR_SURFACE_LOST_KHR
+                        || retval == VK_ERROR_SURFACE_LOST_KHR)
+                    retval = VK_ERROR_SURFACE_LOST_KHR;
+                else if(present_result == VK_ERROR_OUT_OF_DATE_KHR
+                        || retval == VK_ERROR_OUT_OF_DATE_KHR)
+                    retval = VK_ERROR_OUT_OF_DATE_KHR;
+                else if(present_result == VK_SUBOPTIMAL_KHR || retval == VK_SUBOPTIMAL_KHR)
+                    retval = VK_SUBOPTIMAL_KHR;
+                if(present_info->pResults)
+                    present_info->pResults[i] = present_result;
+            }
+            return retval;
+        });
 }
 
 namespace kazan

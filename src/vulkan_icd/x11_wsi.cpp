@@ -501,6 +501,8 @@ struct Xcb_wsi::Implementation
         util::Static_circular_deque<std::size_t, max_swapchain_image_count> presenting_image_queue;
         std::uint32_t swapchain_width;
         std::uint32_t swapchain_height;
+        Gc gc;
+        unsigned window_depth;
         explicit Swapchain(Start_setup_results start_setup_results,
                            xcb_connection_t *connection,
                            xcb_window_t window,
@@ -510,7 +512,9 @@ struct Xcb_wsi::Implementation
               window(window),
               shm_is_supported(start_setup_results.shm_is_supported),
               status(Status::Good),
-              presenting_image_queue()
+              presenting_image_queue(),
+              gc(std::move(start_setup_results.gc)),
+              window_depth(start_setup_results.window_depth)
         {
             assert(create_info.sType == VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR);
 #warning formats other than VK_FORMAT_B8G8R8A8_UNORM are unimplemented
@@ -721,6 +725,65 @@ struct Xcb_wsi::Implementation
                     fence->signal();
                 return VK_SUCCESS;
             }
+        }
+        virtual VkResult queue_present(std::uint32_t image_index,
+                                       vulkan::Vulkan_device::Queue &queue) override
+        {
+            assert(image_index < images.size());
+            switch(status)
+            {
+            case Status::No_surface:
+            case Status::Setup_failed:
+                return VK_ERROR_SURFACE_LOST_KHR;
+            case Status::Out_of_date:
+                return VK_ERROR_OUT_OF_DATE_KHR;
+            case Status::Good:
+                break;
+            }
+            auto &image = get_image(image_index);
+            assert(image.owner == Image_owner::Application);
+            // wait for rendering to catch up
+            {
+                vulkan::Vulkan_fence fence(0);
+                queue.queue_fence_signal(fence);
+                fence.wait(-1);
+            }
+            
+            if(shm_is_supported)
+            {
+                xcb_copy_area(connection,
+                              image.pixmap.get(),
+                              window,
+                              gc.get(),
+                              0,
+                              0,
+                              0,
+                              0,
+                              swapchain_width,
+                              swapchain_height);
+            }
+            else
+            {
+                std::size_t image_size = image.descriptor.get_memory_size();
+                assert(static_cast<std::uint32_t>(image_size) == image_size);
+                xcb_put_image(connection,
+                              XCB_IMAGE_FORMAT_Z_PIXMAP,
+                              window,
+                              gc.get(),
+                              swapchain_width,
+                              swapchain_height,
+                              0,
+                              0,
+                              0,
+                              window_depth,
+                              image_size,
+                              static_cast<const std::uint8_t *>(image.memory.get()));
+            }
+            image.get_geometry_cookie = xcb_get_geometry(connection, window);
+            image.owner = Image_owner::Presentation_engine;
+            presenting_image_queue.push_back(image_index);
+            xcb_flush(connection);
+            return VK_SUCCESS;
         }
     };
 };

@@ -54,6 +54,7 @@ public:
                                         vulkan::Vulkan_semaphore *semaphore,
                                         vulkan::Vulkan_fence *fence,
                                         std::uint32_t &returned_image_index) = 0;
+    virtual VkResult queue_present(std::uint32_t image_index, vulkan::Vulkan_device::Queue &queue) = 0;
 };
 
 struct Wsi
