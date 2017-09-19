@@ -520,8 +520,6 @@ struct Xcb_wsi::Implementation
 #warning formats other than VK_FORMAT_B8G8R8A8_UNORM are unimplemented
             assert(create_info.imageFormat == VK_FORMAT_B8G8R8A8_UNORM);
             assert(create_info.imageColorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR);
-            assert(create_info.imageExtent.width == start_setup_results.image_width);
-            assert(create_info.imageExtent.height == start_setup_results.image_height);
             assert(create_info.imageArrayLayers
                    <= start_setup_results.capabilities.maxImageArrayLayers);
             assert(create_info.imageArrayLayers != 0);
@@ -539,6 +537,11 @@ struct Xcb_wsi::Implementation
                 return;
             case Start_setup_results::Status::Success:
                 break;
+            }
+            if(start_setup_results.image_width != create_info.imageExtent.width
+               || start_setup_results.image_height != create_info.imageExtent.height)
+            {
+                status = Status::Out_of_date;
             }
             start_setup_results.image_descriptor.format = create_info.imageFormat;
             swapchain_width = start_setup_results.image_width;
@@ -748,7 +751,7 @@ struct Xcb_wsi::Implementation
                 queue.queue_fence_signal(fence);
                 fence.wait(-1);
             }
-            
+
             if(shm_is_supported)
             {
                 xcb_copy_area(connection,
@@ -916,10 +919,10 @@ util::variant<VkResult, std::unique_ptr<Vulkan_swapchain>> Xcb_wsi::create_swapc
     switch(swapchain->status)
     {
     case Implementation::Swapchain::Status::Setup_failed:
-    case Implementation::Swapchain::Status::Out_of_date:
     case Implementation::Swapchain::Status::No_surface:
         return VK_ERROR_SURFACE_LOST_KHR;
     case Implementation::Swapchain::Status::Good:
+    case Implementation::Swapchain::Status::Out_of_date: // we'll return out of date later
         return swapchain;
     }
     assert(!"unreachable");
