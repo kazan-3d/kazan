@@ -211,7 +211,7 @@ void dump_words(const std::vector<spirv::Word> &words)
     dump_words(words.data(), words.size());
 }
 
-pipeline::Shader_module_handle load_shader(const char *filename)
+std::unique_ptr<pipeline::Shader_module> load_shader(const char *filename)
 {
     std::cerr << "loading " << filename << std::endl;
     auto file = load_file(filename);
@@ -226,10 +226,10 @@ pipeline::Shader_module_handle load_shader(const char *filename)
         .codeSize = file->size() * sizeof(spirv::Word),
         .pCode = file->data(),
     };
-    return pipeline::Shader_module_handle::make(shader_module_create_info);
+    return pipeline::Shader_module::make(shader_module_create_info);
 }
 
-pipeline::Pipeline_layout_handle make_pipeline_layout()
+std::unique_ptr<pipeline::Pipeline_layout> make_pipeline_layout()
 {
     VkPipelineLayoutCreateInfo pipeline_layout_create_info = {
         .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
@@ -240,7 +240,7 @@ pipeline::Pipeline_layout_handle make_pipeline_layout()
         .pushConstantRangeCount = 0,
         .pPushConstantRanges = nullptr,
     };
-    return pipeline::Pipeline_layout_handle::make(pipeline_layout_create_info);
+    return pipeline::Pipeline_layout::make(pipeline_layout_create_info);
 }
 
 template <typename Integer_type>
@@ -653,7 +653,7 @@ int test_main(int argc, char **argv)
             .dependencyCount = 0,
             .pDependencies = nullptr,
         };
-        auto render_pass = pipeline::Render_pass_handle::make(render_pass_create_info);
+        auto render_pass = pipeline::Render_pass::make(render_pass_create_info);
         constexpr std::size_t stage_index_vertex = 0;
         constexpr std::size_t stage_index_fragment = stage_index_vertex + 1;
         constexpr std::size_t stage_count = stage_index_fragment + 1;
@@ -663,7 +663,7 @@ int test_main(int argc, char **argv)
             .pNext = nullptr,
             .flags = 0,
             .stage = VK_SHADER_STAGE_VERTEX_BIT,
-            .module = pipeline::to_handle(vertex_shader.get()),
+            .module = to_handle(vertex_shader.get()),
             .pName = "main",
             .pSpecializationInfo = nullptr,
         };
@@ -672,7 +672,7 @@ int test_main(int argc, char **argv)
             .pNext = nullptr,
             .flags = 0,
             .stage = VK_SHADER_STAGE_FRAGMENT_BIT,
-            .module = pipeline::to_handle(fragment_shader.get()),
+            .module = to_handle(fragment_shader.get()),
             .pName = "main",
             .pSpecializationInfo = nullptr,
         };
@@ -817,8 +817,8 @@ int test_main(int argc, char **argv)
             .pDepthStencilState = nullptr,
             .pColorBlendState = &pipeline_color_blend_state_create_info,
             .pDynamicState = nullptr,
-            .layout = pipeline::to_handle(pipeline_layout.get()),
-            .renderPass = pipeline::to_handle(render_pass.get()),
+            .layout = to_handle(pipeline_layout.get()),
+            .renderPass = to_handle(render_pass.get()),
             .subpass = 0,
             .basePipelineHandle = VK_NULL_HANDLE,
             .basePipelineIndex = -1,
@@ -845,15 +845,15 @@ int test_main(int argc, char **argv)
             .pQueueFamilyIndices = nullptr,
             .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
         };
-        image::Image color_attachment(image::Image_descriptor(image_create_info),
-                                      image::allocate_memory_tag);
+        auto color_attachment = vulkan::Vulkan_image::create_with_memory(
+            vulkan::Vulkan_image_descriptor(image_create_info));
         VkClearColorValue clear_color;
         // set clear_color to opaque gray
         clear_color.float32[0] = 0.25;
         clear_color.float32[1] = 0.25;
         clear_color.float32[2] = 0.25;
         clear_color.float32[3] = 1;
-        color_attachment.clear(clear_color);
+        color_attachment->clear(clear_color);
         constexpr std::uint32_t vertex_start_index = 0;
         std::uint32_t vertex_end_index = vertexes.size();
         constexpr std::uint32_t instance_id = 0;
@@ -861,7 +861,7 @@ int test_main(int argc, char **argv)
             vertexes.data(),
         };
         graphics_pipeline->run(
-            vertex_start_index, vertex_end_index, instance_id, color_attachment, bindings);
+            vertex_start_index, vertex_end_index, instance_id, *color_attachment, bindings);
         typedef std::uint32_t Pixel_type;
         // check Pixel_type
         static_assert(std::is_void<util::void_t<decltype(graphics_pipeline->run_fragment_shader(
@@ -893,11 +893,11 @@ int test_main(int argc, char **argv)
             }
         };
         std::unique_ptr<SDL_Surface, Surface_deleter> surface(
-            SDL_CreateRGBSurfaceFrom(color_attachment.memory.get(),
+            SDL_CreateRGBSurfaceFrom(color_attachment->memory.get(),
                                      window_width,
                                      window_height,
                                      bits_per_pixel,
-                                     color_attachment.descriptor.get_memory_stride(),
+                                     color_attachment->descriptor.get_memory_stride(),
                                      rgba(0xFF, 0, 0, 0),
                                      rgba(0, 0xFF, 0, 0),
                                      rgba(0, 0, 0xFF, 0),

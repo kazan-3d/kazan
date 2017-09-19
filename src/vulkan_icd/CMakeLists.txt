@@ -24,6 +24,7 @@ set(sources vulkan_icd.cpp
             x11_wsi.cpp)
 add_library(kazan_vulkan_icd MODULE ${sources})
 target_link_libraries(kazan_vulkan_icd
+                      kazan_pipeline
                       kazan_vulkan
                       kazan_util)
 file(GENERATE OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/kazan_vulkan_icd.json INPUT ${CMAKE_CURRENT_SOURCE_DIR}/kazan_vulkan_icd.json.in)

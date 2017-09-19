@@ -1570,6 +1570,9 @@ struct Vulkan_device : public Vulkan_dispatchable_object<Vulkan_device, VkDevice
 
 struct Vulkan_semaphore : public Vulkan_nondispatchable_object<Vulkan_semaphore, VkSemaphore>
 {
+    void signal() // empty function for if semaphores are needed later
+    {
+    }
     static std::unique_ptr<Vulkan_semaphore> create(Vulkan_device &device,
                                                     const VkSemaphoreCreateInfo &create_info);
 };
@@ -1655,8 +1658,153 @@ public:
                                                 const VkFenceCreateInfo &create_info);
 };
 
+struct Vulkan_image_descriptor
+{
+    static constexpr VkImageCreateFlags supported_flags =
+        VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT | VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT;
+    VkImageCreateFlags flags;
+    VkImageType type;
+    VkFormat format;
+    VkExtent3D extent;
+    std::uint32_t mip_levels;
+    std::uint32_t array_layers;
+    static constexpr VkSampleCountFlags supported_samples = VK_SAMPLE_COUNT_1_BIT;
+    VkSampleCountFlagBits samples;
+    VkImageTiling tiling;
+    constexpr Vulkan_image_descriptor() noexcept : flags(),
+                                                   type(),
+                                                   format(),
+                                                   extent(),
+                                                   mip_levels(),
+                                                   array_layers(),
+                                                   samples(),
+                                                   tiling()
+    {
+    }
+    constexpr explicit Vulkan_image_descriptor(const VkImageCreateInfo &image_create_info) noexcept
+        : flags(image_create_info.flags),
+          type(image_create_info.imageType),
+          format(image_create_info.format),
+          extent(image_create_info.extent),
+          mip_levels(image_create_info.mipLevels),
+          array_layers(image_create_info.arrayLayers),
+          samples(image_create_info.samples),
+          tiling(image_create_info.tiling)
+    {
+        assert(image_create_info.sType == VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO);
+        assert((flags & ~supported_flags) == 0);
+        assert((samples & ~supported_samples) == 0);
+        assert(extent.width > 0);
+        assert(extent.height > 0);
+        assert(extent.depth > 0);
+
+#warning finish implementing Image
+        assert(type == VK_IMAGE_TYPE_2D && "unimplemented image type");
+        assert(extent.depth == 1);
+
+        assert(format == VK_FORMAT_B8G8R8A8_UNORM && "unimplemented image format");
+        assert(mip_levels == 1 && "mipmapping is unimplemented");
+        assert(array_layers == 1 && "array images are unimplemented");
+        assert(tiling == VK_IMAGE_TILING_LINEAR && "non-linear image tiling is unimplemented");
+        assert(image_create_info.initialLayout == VK_IMAGE_LAYOUT_UNDEFINED
+               && "preinitialized images are unimplemented");
+    }
+    constexpr Vulkan_image_descriptor(VkImageCreateFlags flags,
+                                      VkImageType type,
+                                      VkFormat format,
+                                      VkExtent3D extent,
+                                      std::uint32_t mip_levels,
+                                      std::uint32_t array_layers,
+                                      VkSampleCountFlagBits samples,
+                                      VkImageTiling tiling) noexcept : flags(flags),
+                                                                       type(type),
+                                                                       format(format),
+                                                                       extent(extent),
+                                                                       mip_levels(mip_levels),
+                                                                       array_layers(array_layers),
+                                                                       samples(samples),
+                                                                       tiling(tiling)
+    {
+    }
+    constexpr std::size_t get_memory_size() const noexcept
+    {
+#warning finish implementing Image
+        assert(samples == VK_SAMPLE_COUNT_1_BIT && "multisample images are unimplemented");
+        assert(extent.width > 0);
+        assert(extent.height > 0);
+        assert(extent.depth > 0);
+
+        assert(type == VK_IMAGE_TYPE_2D && "unimplemented image type");
+        assert(extent.depth == 1);
+
+        assert(format == VK_FORMAT_B8G8R8A8_UNORM && "unimplemented image format");
+        assert(mip_levels == 1 && "mipmapping is unimplemented");
+        assert(array_layers == 1 && "array images are unimplemented");
+        assert(tiling == VK_IMAGE_TILING_LINEAR && "non-linear image tiling is unimplemented");
+        std::size_t retval = sizeof(std::uint32_t);
+        retval *= extent.width;
+        retval *= extent.height;
+        return retval;
+    }
+    constexpr std::size_t get_memory_stride() const noexcept
+    {
+#warning finish implementing Image
+        assert(samples == VK_SAMPLE_COUNT_1_BIT && "multisample images are unimplemented");
+        assert(extent.width > 0);
+        assert(extent.height > 0);
+        assert(extent.depth > 0);
+
+        assert(type == VK_IMAGE_TYPE_2D && "unimplemented image type");
+        assert(extent.depth == 1);
+
+        assert(format == VK_FORMAT_B8G8R8A8_UNORM && "unimplemented image format");
+        assert(mip_levels == 1 && "mipmapping is unimplemented");
+        assert(array_layers == 1 && "array images are unimplemented");
+        assert(tiling == VK_IMAGE_TILING_LINEAR && "non-linear image tiling is unimplemented");
+        std::size_t retval = sizeof(std::uint32_t);
+        retval *= extent.width;
+        return retval;
+    }
+    constexpr std::size_t get_memory_pixel_size() const noexcept
+    {
+#warning finish implementing Image
+        assert(samples == VK_SAMPLE_COUNT_1_BIT && "multisample images are unimplemented");
+        assert(extent.width > 0);
+        assert(extent.height > 0);
+        assert(extent.depth > 0);
+
+        assert(type == VK_IMAGE_TYPE_2D && "unimplemented image type");
+        assert(extent.depth == 1);
+
+        assert(format == VK_FORMAT_B8G8R8A8_UNORM && "unimplemented image format");
+        assert(mip_levels == 1 && "mipmapping is unimplemented");
+        assert(array_layers == 1 && "array images are unimplemented");
+        assert(tiling == VK_IMAGE_TILING_LINEAR && "non-linear image tiling is unimplemented");
+        std::size_t retval = sizeof(std::uint32_t);
+        return retval;
+    }
+};
+
 struct Vulkan_image : public Vulkan_nondispatchable_object<Vulkan_image, VkImage>
 {
+    const Vulkan_image_descriptor descriptor;
+    std::shared_ptr<void> memory;
+    Vulkan_image(const Vulkan_image_descriptor &descriptor,
+                 std::shared_ptr<void> memory = nullptr) noexcept : descriptor(descriptor),
+                                                                    memory(std::move(memory))
+    {
+    }
+    static std::unique_ptr<Vulkan_image> create_with_memory(
+        const Vulkan_image_descriptor &descriptor)
+    {
+        std::shared_ptr<unsigned char> memory(new unsigned char[descriptor.get_memory_size()],
+                                              [](unsigned char *p) noexcept
+                                              {
+                                                  delete[] p;
+                                              });
+        return std::make_unique<Vulkan_image>(descriptor, std::move(memory));
+    }
+    void clear(VkClearColorValue color) noexcept;
     virtual ~Vulkan_image() = default;
 #warning finish implementing Vulkan_image
     static std::unique_ptr<Vulkan_image> create(Vulkan_device &device,
@@ -1668,14 +1816,58 @@ struct Vulkan_command_pool;
 struct Vulkan_command_buffer
     : public Vulkan_dispatchable_object<Vulkan_command_buffer, VkCommandBuffer>
 {
+    struct Running_state
+    {
+        const Vulkan_command_buffer &command_buffer;
+        Vulkan_device &device;
+        explicit Running_state(const Vulkan_command_buffer &command_buffer) noexcept
+            : command_buffer(command_buffer),
+              device(command_buffer.device)
+        {
+        }
+#warning finish implementing Vulkan_command_buffer
+    };
+    class Command
+    {
+    public:
+        virtual ~Command() = default;
+        virtual void run(Running_state &state) noexcept = 0;
+        virtual void on_record_end(Vulkan_command_buffer &command_buffer);
+    };
+    enum class Command_buffer_state
+    {
+        Initial,
+        Recording,
+        Executable,
+        Out_of_memory,
+    };
     std::list<std::unique_ptr<Vulkan_command_buffer>>::iterator iter;
     Vulkan_command_pool &command_pool;
     Vulkan_device &device;
+    std::vector<std::unique_ptr<Command>> commands;
+    Command_buffer_state state;
     Vulkan_command_buffer(std::list<std::unique_ptr<Vulkan_command_buffer>>::iterator iter,
                           Vulkan_command_pool &command_pool,
                           Vulkan_device &device) noexcept;
-    void reset(VkCommandPoolResetFlags flags);
-#warning finish implementing Vulkan_command_buffer
+    void reset(VkCommandBufferResetFlags flags);
+    void begin(const VkCommandBufferBeginInfo &begin_info);
+    template <typename Fn>
+    void record_command_and_keep_errors(Fn fn) noexcept
+    {
+        if(state == Command_buffer_state::Out_of_memory)
+            return;
+        assert(state == Command_buffer_state::Recording);
+        try
+        {
+            fn();
+        }
+        catch(std::bad_alloc &)
+        {
+            state = Command_buffer_state::Out_of_memory;
+        }
+    }
+    VkResult end() noexcept;
+    void run() const noexcept;
 };
 
 struct Vulkan_command_pool
@@ -1684,8 +1876,12 @@ struct Vulkan_command_pool
     std::list<std::unique_ptr<Vulkan_command_buffer>> command_buffers;
     void reset(VkCommandPoolResetFlags flags)
     {
+        VkCommandBufferResetFlags buffer_flags = 0;
+        assert((flags & ~(VK_COMMAND_POOL_RESET_RELEASE_RESOURCES_BIT)) == 0);
+        if(flags & VK_COMMAND_POOL_RESET_RELEASE_RESOURCES_BIT)
+            buffer_flags |= VK_COMMAND_BUFFER_RESET_RELEASE_RESOURCES_BIT;
         for(auto &command_buffer : command_buffers)
-            command_buffer->reset(flags);
+            command_buffer->reset(buffer_flags);
     }
     void allocate_multiple(Vulkan_device &device,
                            const VkCommandBufferAllocateInfo &allocate_info,

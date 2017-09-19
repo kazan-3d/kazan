@@ -50,6 +50,10 @@ public:
     {
     }
     virtual ~Vulkan_swapchain() = default;
+    virtual VkResult acquire_next_image(std::uint64_t timeout,
+                                        vulkan::Vulkan_semaphore *semaphore,
+                                        vulkan::Vulkan_fence *fence,
+                                        std::uint32_t &returned_image_index) = 0;
 };
 
 struct Wsi

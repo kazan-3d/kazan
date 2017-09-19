@@ -27,5 +27,4 @@ target_link_libraries(kazan_pipeline kazan_spirv_to_llvm
                                      kazan_util
                                      kazan_spirv
                                      kazan_llvm_wrapper
-                                     kazan_vulkan
-                                     kazan_image)
+                                     kazan_vulkan)

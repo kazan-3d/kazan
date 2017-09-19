@@ -459,25 +459,125 @@ std::unique_ptr<Vulkan_fence> Vulkan_fence::create(Vulkan_device &device,
     return std::make_unique<Vulkan_fence>(create_info.flags);
 }
 
+void Vulkan_image::clear(VkClearColorValue color) noexcept
+{
+    assert(memory);
+    assert(descriptor.samples == VK_SAMPLE_COUNT_1_BIT && "multisample images are unimplemented");
+    assert(descriptor.extent.width > 0);
+    assert(descriptor.extent.height > 0);
+    assert(descriptor.extent.depth > 0);
+
+    assert(descriptor.type == VK_IMAGE_TYPE_2D && "unimplemented image type");
+    assert(descriptor.extent.depth == 1);
+
+    assert(descriptor.format == VK_FORMAT_B8G8R8A8_UNORM && "unimplemented image format");
+    assert(descriptor.mip_levels == 1 && "mipmapping is unimplemented");
+    assert(descriptor.array_layers == 1 && "array images are unimplemented");
+    assert(descriptor.tiling == VK_IMAGE_TILING_LINEAR
+           && "non-linear image tiling is unimplemented");
+    union
+    {
+        std::uint8_t bytes[4];
+        std::uint32_t u32;
+    } clear_color;
+    float r_float = color.float32[0];
+    float g_float = color.float32[1];
+    float b_float = color.float32[2];
+    float a_float = color.float32[3];
+    auto float_to_byte = [](float v) noexcept->std::uint8_t
+    {
+        if(!(v >= 0))
+            v = 0;
+        else if(v > 1)
+            v = 1;
+        union
+        {
+            std::uint32_t i;
+            float f;
+        } u;
+        static_assert(sizeof(std::uint32_t) == sizeof(float), "");
+        u.f = 0x100;
+        u.i--; // u.f = nextafter(u.f, -1)
+        v *= u.f;
+        return (int)v;
+    };
+    clear_color.bytes[0] = float_to_byte(b_float);
+    clear_color.bytes[1] = float_to_byte(g_float);
+    clear_color.bytes[2] = float_to_byte(r_float);
+    clear_color.bytes[3] = float_to_byte(a_float);
+    std::size_t pixel_count =
+        static_cast<std::size_t>(descriptor.extent.width) * descriptor.extent.height;
+    std::uint32_t *pixels = static_cast<std::uint32_t *>(memory.get());
+    for(std::size_t i = 0; i < pixel_count; i++)
+    {
+        pixels[i] = clear_color.u32;
+    }
+}
+
 std::unique_ptr<Vulkan_image> Vulkan_image::create(Vulkan_device &device,
                                                    const VkImageCreateInfo &create_info)
 {
 #warning finish implementing Vulkan_image::create
-    return std::make_unique<Vulkan_image>();
+    return std::make_unique<Vulkan_image>(Vulkan_image_descriptor(create_info));
 }
+
+void Vulkan_command_buffer::Command::on_record_end(Vulkan_command_buffer &command_buffer)
+{
+    static_cast<void>(command_buffer);
+}
+
 
 Vulkan_command_buffer::Vulkan_command_buffer(
     std::list<std::unique_ptr<Vulkan_command_buffer>>::iterator iter,
     Vulkan_command_pool &command_pool,
     Vulkan_device &device) noexcept : iter(iter),
                                       command_pool(command_pool),
-                                      device(device)
+                                      device(device),
+                                      commands(),
+                                      state(Command_buffer_state::Initial)
 {
 }
 
-void Vulkan_command_buffer::reset(VkCommandPoolResetFlags flags)
+void Vulkan_command_buffer::reset(VkCommandBufferResetFlags flags)
 {
-#warning finish implementing Vulkan_command_buffer::reset
+    commands.clear();
+    state = Command_buffer_state::Initial;
+}
+
+void Vulkan_command_buffer::begin(const VkCommandBufferBeginInfo &begin_info)
+{
+    commands.clear();
+    state = Command_buffer_state::Recording;
+}
+
+VkResult Vulkan_command_buffer::end() noexcept
+{
+    if(state == Command_buffer_state::Out_of_memory)
+        return VK_ERROR_OUT_OF_HOST_MEMORY;
+    assert(state == Command_buffer_state::Recording);
+    try
+    {
+        for(auto &command : commands)
+        {
+            assert(command);
+            command->on_record_end(*this);
+        }
+    }
+    catch(std::bad_alloc &)
+    {
+        state = Command_buffer_state::Out_of_memory;
+        return VK_ERROR_OUT_OF_HOST_MEMORY;
+    }
+    state = Command_buffer_state::Executable;
+    return VK_SUCCESS;
+}
+
+void Vulkan_command_buffer::run() const noexcept
+{
+    assert(state == Command_buffer_state::Executable);
+    Running_state running_state(*this);
+    for(auto &command : commands)
+        command->run(running_state);
 }
 
 void Vulkan_command_pool::allocate_multiple(Vulkan_device &device,

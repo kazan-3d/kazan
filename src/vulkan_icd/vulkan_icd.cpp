@@ -24,7 +24,9 @@
 #include "util/string_view.h"
 #include <initializer_list>
 #include <iostream>
+#include <atomic>
 #include "wsi.h"
+#include "pipeline/pipeline.h"
 
 using namespace kazan;
 
@@ -983,23 +985,35 @@ extern "C" VKAPI_ATTR void VKAPI_CALL vkFreeCommandBuffers(VkDevice device,
 }
 
 extern "C" VKAPI_ATTR VkResult VKAPI_CALL
-    vkBeginCommandBuffer(VkCommandBuffer commandBuffer, const VkCommandBufferBeginInfo *pBeginInfo)
+    vkBeginCommandBuffer(VkCommandBuffer command_buffer, const VkCommandBufferBeginInfo *begin_info)
 {
-#warning finish implementing vkBeginCommandBuffer
-    assert(!"vkBeginCommandBuffer is not implemented");
+    assert(command_buffer);
+    assert(begin_info);
+    assert(begin_info->sType == VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO);
+    return vulkan_icd::catch_exceptions_and_return_result(
+        [&]()
+        {
+            vulkan::Vulkan_command_buffer::from_handle(command_buffer)->begin(*begin_info);
+            return VK_SUCCESS;
+        });
 }
 
-extern "C" VKAPI_ATTR VkResult VKAPI_CALL vkEndCommandBuffer(VkCommandBuffer commandBuffer)
+extern "C" VKAPI_ATTR VkResult VKAPI_CALL vkEndCommandBuffer(VkCommandBuffer command_buffer)
 {
-#warning finish implementing vkEndCommandBuffer
-    assert(!"vkEndCommandBuffer is not implemented");
+    assert(command_buffer);
+    return vulkan::Vulkan_command_buffer::from_handle(command_buffer)->end();
 }
 
-extern "C" VKAPI_ATTR VkResult VKAPI_CALL vkResetCommandBuffer(VkCommandBuffer commandBuffer,
+extern "C" VKAPI_ATTR VkResult VKAPI_CALL vkResetCommandBuffer(VkCommandBuffer command_buffer,
                                                                VkCommandBufferResetFlags flags)
 {
-#warning finish implementing vkResetCommandBuffer
-    assert(!"vkResetCommandBuffer is not implemented");
+    assert(command_buffer);
+    return vulkan_icd::catch_exceptions_and_return_result(
+        [&]()
+        {
+            vulkan::Vulkan_command_buffer::from_handle(command_buffer)->reset(flags);
+            return VK_SUCCESS;
+        });
 }
 
 extern "C" VKAPI_ATTR void VKAPI_CALL vkCmdBindPipeline(VkCommandBuffer commandBuffer,
@@ -1251,15 +1265,61 @@ extern "C" VKAPI_ATTR void VKAPI_CALL vkCmdFillBuffer(VkCommandBuffer commandBuf
     assert(!"vkCmdFillBuffer is not implemented");
 }
 
-extern "C" VKAPI_ATTR void VKAPI_CALL vkCmdClearColorImage(VkCommandBuffer commandBuffer,
+extern "C" VKAPI_ATTR void VKAPI_CALL vkCmdClearColorImage(VkCommandBuffer command_buffer,
                                                            VkImage image,
-                                                           VkImageLayout imageLayout,
-                                                           const VkClearColorValue *pColor,
-                                                           uint32_t rangeCount,
-                                                           const VkImageSubresourceRange *pRanges)
+                                                           VkImageLayout image_layout,
+                                                           const VkClearColorValue *color,
+                                                           uint32_t range_count,
+                                                           const VkImageSubresourceRange *ranges)
 {
-#warning finish implementing vkCmdClearColorImage
-    assert(!"vkCmdClearColorImage is not implemented");
+    assert(command_buffer);
+    assert(image);
+    assert(image_layout == VK_IMAGE_LAYOUT_GENERAL
+           || image_layout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+    assert(color);
+    assert(range_count > 0);
+    assert(ranges);
+    auto command_buffer_pointer = vulkan::Vulkan_command_buffer::from_handle(command_buffer);
+    command_buffer_pointer->record_command_and_keep_errors(
+        [&]()
+        {
+            auto image_pointer = vulkan::Vulkan_image::from_handle(image);
+            assert(range_count == 1
+                   && "vkCmdClearColorImage with multiple subresource ranges is not implemented");
+            for(std::uint32_t i = 0; i < range_count; i++)
+            {
+                auto &range = ranges[i];
+                assert(range.aspectMask == VK_IMAGE_ASPECT_COLOR_BIT);
+                assert(range.baseMipLevel == 0
+                       && (range.levelCount == image_pointer->descriptor.mip_levels
+                           || range.levelCount == VK_REMAINING_MIP_LEVELS)
+                       && "vkCmdClearColorImage with clearing only some of the mipmap levels is not implemented");
+                assert(range.baseArrayLayer == 0
+                       && (range.layerCount == image_pointer->descriptor.array_layers
+                           || range.layerCount == VK_REMAINING_ARRAY_LAYERS)
+                       && "vkCmdClearColorImage with clearing only some of the array layers is not implemented");
+                static_cast<void>(range);
+            }
+#warning finish implementing non-linear image layouts
+            struct Clear_command final : public vulkan::Vulkan_command_buffer::Command
+            {
+                VkClearColorValue clear_color;
+                vulkan::Vulkan_image *image;
+                Clear_command(const VkClearColorValue &clear_color,
+                              vulkan::Vulkan_image *image) noexcept : clear_color(clear_color),
+                                                                      image(image)
+                {
+                }
+                virtual void run(
+                    vulkan::Vulkan_command_buffer::Running_state &state) noexcept override
+                {
+                    static_cast<void>(state);
+                    image->clear(clear_color);
+                }
+            };
+            command_buffer_pointer->commands.push_back(
+                std::make_unique<Clear_command>(*color, image_pointer));
+        });
 }
 
 extern "C" VKAPI_ATTR void VKAPI_CALL
@@ -1330,19 +1390,68 @@ extern "C" VKAPI_ATTR void VKAPI_CALL
 }
 
 extern "C" VKAPI_ATTR void VKAPI_CALL
-    vkCmdPipelineBarrier(VkCommandBuffer commandBuffer,
-                         VkPipelineStageFlags srcStageMask,
-                         VkPipelineStageFlags dstStageMask,
-                         VkDependencyFlags dependencyFlags,
-                         uint32_t memoryBarrierCount,
-                         const VkMemoryBarrier *pMemoryBarriers,
-                         uint32_t bufferMemoryBarrierCount,
-                         const VkBufferMemoryBarrier *pBufferMemoryBarriers,
-                         uint32_t imageMemoryBarrierCount,
-                         const VkImageMemoryBarrier *pImageMemoryBarriers)
+    vkCmdPipelineBarrier(VkCommandBuffer command_buffer,
+                         VkPipelineStageFlags src_stage_mask,
+                         VkPipelineStageFlags dst_stage_mask,
+                         VkDependencyFlags dependency_flags,
+                         uint32_t memory_barrier_count,
+                         const VkMemoryBarrier *memory_barriers,
+                         uint32_t buffer_memory_barrier_count,
+                         const VkBufferMemoryBarrier *buffer_memory_barriers,
+                         uint32_t image_memory_barrier_count,
+                         const VkImageMemoryBarrier *image_memory_barriers)
 {
-#warning finish implementing vkCmdPipelineBarrier
-    assert(!"vkCmdPipelineBarrier is not implemented");
+    assert(command_buffer);
+    assert(src_stage_mask != 0);
+    assert(dst_stage_mask != 0);
+    assert((dependency_flags & ~VK_DEPENDENCY_BY_REGION_BIT) == 0);
+    assert(memory_barrier_count == 0 || memory_barriers);
+    assert(buffer_memory_barrier_count == 0 || buffer_memory_barriers);
+    assert(image_memory_barrier_count == 0 || image_memory_barriers);
+    auto command_buffer_pointer = vulkan::Vulkan_command_buffer::from_handle(command_buffer);
+    command_buffer_pointer->record_command_and_keep_errors(
+        [&]()
+        {
+            bool any_memory_barriers = false;
+            for(std::uint32_t i = 0; i < memory_barrier_count; i++)
+            {
+                auto &memory_barrier = memory_barriers[i];
+                assert(memory_barrier.sType == VK_STRUCTURE_TYPE_MEMORY_BARRIER);
+#warning finish implementing vkCmdPipelineBarrier for VkMemoryBarrier
+                assert(!"vkCmdPipelineBarrier for VkMemoryBarrier is not implemented");
+                any_memory_barriers = true;
+            }
+            for(std::uint32_t i = 0; i < buffer_memory_barrier_count; i++)
+            {
+                auto &buffer_memory_barrier = buffer_memory_barriers[i];
+                assert(buffer_memory_barrier.sType == VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER);
+#warning finish implementing vkCmdPipelineBarrier for VkBufferMemoryBarrier
+                assert(!"vkCmdPipelineBarrier for VkBufferMemoryBarrier is not implemented");
+                any_memory_barriers = true;
+            }
+            for(std::uint32_t i = 0; i < image_memory_barrier_count; i++)
+            {
+                auto &image_memory_barrier = image_memory_barriers[i];
+                assert(image_memory_barrier.sType == VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER);
+#warning finish implementing non-linear image layouts
+                any_memory_barriers = true;
+            }
+            if(any_memory_barriers)
+            {
+                struct Generic_memory_barrier_command final
+                    : public vulkan::Vulkan_command_buffer::Command
+                {
+                    void run(kazan::vulkan::Vulkan_command_buffer::Running_state
+                                 &state) noexcept override
+                    {
+                        static_cast<void>(state);
+                        std::atomic_thread_fence(std::memory_order_acq_rel);
+                    }
+                };
+                command_buffer_pointer->commands.push_back(
+                    std::make_unique<Generic_memory_barrier_command>());
+            }
+        });
 }
 
 extern "C" VKAPI_ATTR void VKAPI_CALL vkCmdBeginQuery(VkCommandBuffer commandBuffer,
@@ -1643,10 +1752,21 @@ extern "C" VKAPI_ATTR VkResult VKAPI_CALL vkAcquireNextImageKHR(VkDevice device,
                                                                 uint64_t timeout,
                                                                 VkSemaphore semaphore,
                                                                 VkFence fence,
-                                                                uint32_t *pImageIndex)
+                                                                uint32_t *image_index)
 {
-#warning finish implementing vkAcquireNextImageKHR
-    assert(!"vkAcquireNextImageKHR is not implemented");
+    assert(device);
+    assert(swapchain);
+    assert(image_index);
+    return vulkan_icd::catch_exceptions_and_return_result(
+        [&]()
+        {
+            auto *swapchain_pointer = vulkan_icd::Vulkan_swapchain::from_handle(swapchain);
+            return swapchain_pointer->acquire_next_image(
+                timeout,
+                vulkan::Vulkan_semaphore::from_handle(semaphore),
+                vulkan::Vulkan_fence::from_handle(fence),
+                *image_index);
+        });
 }
 
 extern "C" VKAPI_ATTR VkResult VKAPI_CALL vkQueuePresentKHR(VkQueue queue,

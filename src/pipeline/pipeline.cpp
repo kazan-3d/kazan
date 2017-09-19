@@ -36,49 +36,6 @@ namespace kazan
 {
 namespace pipeline
 {
-class Pipeline_cache
-{
-};
-
-void Api_object_deleter<Pipeline_cache>::operator()(Pipeline_cache *pipeline_cache) const noexcept
-{
-    delete pipeline_cache;
-}
-
-class Render_pass
-{
-};
-
-void Api_object_deleter<Render_pass>::operator()(Render_pass *render_pass) const noexcept
-{
-    delete render_pass;
-}
-
-template <>
-Render_pass_handle Render_pass_handle::make(const VkRenderPassCreateInfo &render_pass_create_info)
-{
-#warning finish implementing Render_pass_handle::make
-    return Render_pass_handle(new Render_pass());
-}
-
-class Pipeline_layout
-{
-};
-
-void Api_object_deleter<Pipeline_layout>::operator()(Pipeline_layout *pipeline_layout) const
-    noexcept
-{
-    delete pipeline_layout;
-}
-
-template <>
-Pipeline_layout_handle Pipeline_layout_handle::make(
-    const VkPipelineLayoutCreateInfo &pipeline_layout_create_info)
-{
-#warning finish implementing Pipeline_layout_handle::make
-    return Pipeline_layout_handle(new Pipeline_layout());
-}
-
 llvm_wrapper::Module Pipeline::optimize_module(llvm_wrapper::Module module,
                                                ::LLVMTargetMachineRef target_machine)
 {
@@ -412,14 +369,14 @@ void Graphics_pipeline::dump_vertex_shader_output_struct(const void *output_stru
 void Graphics_pipeline::run(std::uint32_t vertex_start_index,
                             std::uint32_t vertex_end_index,
                             std::uint32_t instance_id,
-                            const image::Image &color_attachment,
+                            const vulkan::Vulkan_image &color_attachment,
                             void *const *bindings)
 {
     typedef std::uint32_t Pixel_type;
     assert(color_attachment.descriptor.tiling == VK_IMAGE_TILING_LINEAR);
     std::size_t color_attachment_stride = color_attachment.descriptor.get_memory_stride();
     std::size_t color_attachment_pixel_size = color_attachment.descriptor.get_memory_pixel_size();
-    unsigned char *color_attachment_memory = color_attachment.memory.get();
+    void *color_attachment_memory = color_attachment.memory.get();
     float viewport_x_scale, viewport_x_offset, viewport_y_scale, viewport_y_offset,
         viewport_z_scale, viewport_z_offset;
     {
@@ -866,7 +823,7 @@ void Graphics_pipeline::run(std::uint32_t vertex_start_index,
                     if(inside)
                     {
                         auto *pixel = reinterpret_cast<Pixel_type *>(
-                            color_attachment_memory
+                            static_cast<unsigned char *>(color_attachment_memory)
                             + (static_cast<std::size_t>(x) * color_attachment_pixel_size
                                + static_cast<std::size_t>(y) * color_attachment_stride));
                         fs(pixel);
@@ -881,9 +838,9 @@ std::unique_ptr<Graphics_pipeline> Graphics_pipeline::make(
     Pipeline_cache *pipeline_cache, const VkGraphicsPipelineCreateInfo &create_info)
 {
     assert(create_info.sType == VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO);
-    auto *render_pass = Render_pass_handle::from_handle(create_info.renderPass);
+    auto *render_pass = Render_pass::from_handle(create_info.renderPass);
     assert(render_pass);
-    auto *pipeline_layout = Pipeline_layout_handle::from_handle(create_info.layout);
+    auto *pipeline_layout = Pipeline_layout::from_handle(create_info.layout);
     assert(pipeline_layout);
     if(create_info.flags & VK_PIPELINE_CREATE_DERIVATIVE_BIT)
     {
@@ -909,7 +866,7 @@ std::unique_ptr<Graphics_pipeline> Graphics_pipeline::make(
             std::get<1>(found_shader_stages.insert(execution_model));
         if(!added_to_found_shader_stages)
             throw std::runtime_error("duplicate shader stage");
-        auto *shader_module = Shader_module_handle::from_handle(stage_info.module);
+        auto *shader_module = Shader_module::from_handle(stage_info.module);
         assert(shader_module);
         {
             spirv::Dump_callbacks dump_callbacks;

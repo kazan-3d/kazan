@@ -37,7 +37,9 @@
 #include <list>
 #include <utility>
 #include <algorithm>
+#include <cstdlib>
 #include "util/optional.h"
+#include "util/circular_queue.h"
 
 namespace kazan
 {
@@ -45,6 +47,7 @@ namespace vulkan_icd
 {
 struct Xcb_wsi::Implementation
 {
+    static constexpr std::size_t max_swapchain_image_count = 16;
     static std::uint32_t u32_from_bytes(std::uint8_t b0,
                                         std::uint8_t b1,
                                         std::uint8_t b2,
@@ -222,6 +225,7 @@ struct Xcb_wsi::Implementation
         std::size_t image_pixel_size;
         std::size_t scanline_alignment;
         xcb_shm_query_version_cookie_t shm_query_version_cookie;
+        vulkan::Vulkan_image_descriptor image_descriptor;
         Start_setup_results(Gc gc,
                             bool shm_is_supported,
                             unsigned window_depth,
@@ -232,7 +236,8 @@ struct Xcb_wsi::Implementation
                             const VkSurfaceCapabilitiesKHR &capabilities,
                             std::size_t image_pixel_size,
                             std::size_t scanline_alignment,
-                            xcb_shm_query_version_cookie_t shm_query_version_cookie) noexcept
+                            xcb_shm_query_version_cookie_t shm_query_version_cookie,
+                            const vulkan::Vulkan_image_descriptor &image_descriptor) noexcept
             : status(Status::Success),
               gc(std::move(gc)),
               shm_is_supported(shm_is_supported),
@@ -244,7 +249,8 @@ struct Xcb_wsi::Implementation
               capabilities(capabilities),
               image_pixel_size(image_pixel_size),
               scanline_alignment(scanline_alignment),
-              shm_query_version_cookie(shm_query_version_cookie)
+              shm_query_version_cookie(shm_query_version_cookie),
+              image_descriptor(image_descriptor)
         {
         }
         constexpr Start_setup_results(Status status) noexcept : status(status),
@@ -258,7 +264,8 @@ struct Xcb_wsi::Implementation
                                                                 capabilities{},
                                                                 image_pixel_size(),
                                                                 scanline_alignment(),
-                                                                shm_query_version_cookie()
+                                                                shm_query_version_cookie(),
+                                                                image_descriptor()
         {
             assert(status != Status::Success);
         }
@@ -399,7 +406,7 @@ struct Xcb_wsi::Implementation
         };
         VkSurfaceCapabilitiesKHR capabilities = {
             .minImageCount = 2,
-            .maxImageCount = 0,
+            .maxImageCount = max_swapchain_image_count,
             .currentExtent =
                 {
                     .width = image_width, .height = image_height,
@@ -433,46 +440,67 @@ struct Xcb_wsi::Implementation
                                    capabilities,
                                    image_pixel_size,
                                    scanline_alignment,
-                                   shm_query_version_cookie);
+                                   shm_query_version_cookie,
+                                   vulkan::Vulkan_image_descriptor(
+                                       0,
+                                       VK_IMAGE_TYPE_2D,
+                                       VK_FORMAT_UNDEFINED,
+                                       VkExtent3D{
+                                           .width = image_width, .height = image_height, .depth = 1,
+                                       },
+                                       1,
+                                       1,
+                                       VK_SAMPLE_COUNT_1_BIT,
+                                       VK_IMAGE_TILING_OPTIMAL));
     }
     struct Swapchain final : public Vulkan_swapchain
     {
+        enum class Image_owner
+        {
+            Swapchain,
+            Application,
+            Presentation_engine,
+        };
+        enum class Status
+        {
+            Setup_failed,
+            No_surface,
+            Out_of_date,
+            Good,
+        };
         struct Swapchain_image final : public vulkan::Vulkan_image
         {
-            std::shared_ptr<void> pixels;
-            std::size_t row_pitch;
-            std::uint32_t width;
-            std::uint32_t height;
-            std::size_t pixel_size;
             Shared_memory_segment shared_memory_segment;
             Server_shm_seg server_shm_seg;
             Pixmap pixmap;
-            std::list<Swapchain_image *>::iterator iter;
-            Swapchain_image(std::shared_ptr<void> pixels,
-                            std::size_t row_pitch,
-                            std::uint32_t width,
-                            std::uint32_t height,
-                            std::size_t pixel_size,
+            Image_owner owner;
+            xcb_get_geometry_cookie_t get_geometry_cookie{};
+            Swapchain_image(const vulkan::Vulkan_image_descriptor &descriptor,
+                            std::shared_ptr<void> pixels,
                             Shared_memory_segment shared_memory_segment,
                             Server_shm_seg server_shm_seg,
-                            Pixmap pixmap,
-                            std::list<Swapchain_image *>::iterator iter) noexcept
-                : pixels(std::move(pixels)),
-                  row_pitch(row_pitch),
-                  width(width),
-                  height(height),
-                  pixel_size(pixel_size),
+                            Pixmap pixmap) noexcept
+                : Vulkan_image(descriptor, std::move(pixels)),
                   shared_memory_segment(std::move(shared_memory_segment)),
                   server_shm_seg(std::move(server_shm_seg)),
                   pixmap(std::move(pixmap)),
-                  iter(iter)
+                  owner(Image_owner::Swapchain)
             {
             }
         };
+        Swapchain_image &get_image(std::size_t index) noexcept
+        {
+            assert(index < images.size());
+            assert(dynamic_cast<Swapchain_image *>(images[index].get()));
+            return *static_cast<Swapchain_image *>(images[index].get());
+        }
         xcb_connection_t *connection;
         xcb_window_t window;
         bool shm_is_supported;
-        std::list<Swapchain_image *> free_list;
+        Status status;
+        util::Static_circular_deque<std::size_t, max_swapchain_image_count> presenting_image_queue;
+        std::uint32_t swapchain_width;
+        std::uint32_t swapchain_height;
         explicit Swapchain(Start_setup_results start_setup_results,
                            xcb_connection_t *connection,
                            xcb_window_t window,
@@ -480,7 +508,9 @@ struct Xcb_wsi::Implementation
             : Vulkan_swapchain({}),
               connection(connection),
               window(window),
-              shm_is_supported(start_setup_results.shm_is_supported)
+              shm_is_supported(start_setup_results.shm_is_supported),
+              status(Status::Good),
+              presenting_image_queue()
         {
             assert(create_info.sType == VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR);
 #warning formats other than VK_FORMAT_B8G8R8A8_UNORM are unimplemented
@@ -497,6 +527,18 @@ struct Xcb_wsi::Implementation
             assert((create_info.compositeAlpha
                     & ~start_setup_results.capabilities.supportedCompositeAlpha)
                    == 0);
+            switch(start_setup_results.status)
+            {
+            case Start_setup_results::Status::Bad_surface:
+            case Start_setup_results::Status::No_support:
+                status = Status::Setup_failed;
+                return;
+            case Start_setup_results::Status::Success:
+                break;
+            }
+            start_setup_results.image_descriptor.format = create_info.imageFormat;
+            swapchain_width = start_setup_results.image_width;
+            swapchain_height = start_setup_results.image_height;
             const char *warning_message_present_mode_name = nullptr;
             switch(create_info.presentMode)
             {
@@ -593,30 +635,91 @@ struct Xcb_wsi::Implementation
                                                                     delete[] p;
                                                                 });
                     }
-                    auto image_iter = free_list.insert(free_list.end(), nullptr);
-                    auto image =
-                        std::make_unique<Swapchain_image>(std::move(pixels),
-                                                          padded_scanline_size,
-                                                          start_setup_results.image_width,
-                                                          start_setup_results.image_height,
-                                                          start_setup_results.image_pixel_size,
+                    images.push_back(
+                        std::make_unique<Swapchain_image>(start_setup_results.image_descriptor,
+                                                          std::move(pixels),
                                                           std::move(shared_memory_segment),
                                                           std::move(server_shm_seg),
-                                                          std::move(pixmap),
-                                                          image_iter);
-                    *image_iter = image.get();
-                    images.push_back(std::move(image));
+                                                          std::move(pixmap)));
                 }
                 if(shm_failed)
                 {
                     std::cerr << "using shared memory failed, falling back to using core X protocol"
                               << std::endl;
                     shm_is_supported = false;
-                    free_list.clear();
                     images.clear();
                     continue;
                 }
                 break;
+            }
+        }
+        virtual VkResult acquire_next_image(std::uint64_t timeout,
+                                            vulkan::Vulkan_semaphore *semaphore,
+                                            vulkan::Vulkan_fence *fence,
+                                            std::uint32_t &returned_image_index) override
+        {
+#warning figure out how to use timeouts with xcb blocking for X server responses
+            switch(status)
+            {
+            case Status::No_surface:
+            case Status::Setup_failed:
+                return VK_ERROR_SURFACE_LOST_KHR;
+            case Status::Out_of_date:
+                return VK_ERROR_OUT_OF_DATE_KHR;
+            case Status::Good:
+                break;
+            }
+            while(true)
+            {
+                for(std::size_t i = 0; i < images.size(); i++)
+                {
+                    auto &image = get_image(i);
+                    if(image.owner == Image_owner::Swapchain)
+                    {
+                        image.owner = Image_owner::Application;
+                        returned_image_index = i;
+                        if(semaphore)
+                            semaphore->signal();
+                        if(fence)
+                            fence->signal();
+                        return VK_SUCCESS;
+                    }
+                }
+                if(presenting_image_queue.empty())
+                {
+                    std::cerr << "vkAcquireNextImageKHR called when application has already "
+                                 "acquired all swapchain images; aborting"
+                              << std::endl;
+                    std::abort();
+                }
+                assert(shm_is_supported);
+                std::size_t image_index = presenting_image_queue.front();
+                presenting_image_queue.pop_front();
+                auto &image = get_image(image_index);
+                // wait for the presentation request to finish
+                // we use a xcb_get_geometry command after the xcb_copy_area command, so we can wait
+                // on the xcb_get_geometry command since the X server processes commands in order
+                auto get_geometry_reply = Get_geometry_reply(
+                    xcb_get_geometry_reply(connection, image.get_geometry_cookie, nullptr));
+                image.owner = Image_owner::Swapchain;
+                if(!get_geometry_reply)
+                {
+                    status = Status::No_surface;
+                    return VK_ERROR_SURFACE_LOST_KHR;
+                }
+                if(get_geometry_reply->width != swapchain_width
+                   || get_geometry_reply->height != swapchain_height)
+                {
+                    status = Status::Out_of_date;
+                    return VK_ERROR_OUT_OF_DATE_KHR;
+                }
+                image.owner = Image_owner::Application;
+                returned_image_index = image_index;
+                if(semaphore)
+                    semaphore->signal();
+                if(fence)
+                    fence->signal();
+                return VK_SUCCESS;
             }
         }
     };
@@ -741,13 +844,23 @@ VkResult Xcb_wsi::get_surface_capabilities(VkIcdSurfaceBase *surface_,
 util::variant<VkResult, std::unique_ptr<Vulkan_swapchain>> Xcb_wsi::create_swapchain(
     vulkan::Vulkan_device &device, const VkSwapchainCreateInfoKHR &create_info) const
 {
-#warning finish implementing Xcb_wsi::create_swapchain
     auto &surface = *reinterpret_cast<Surface_type *>(create_info.surface);
-    return std::make_unique<Implementation::Swapchain>(
+    auto swapchain = std::make_unique<Implementation::Swapchain>(
         Implementation::start_setup(surface.connection, surface.window, true),
         surface.connection,
         surface.window,
         create_info);
+    switch(swapchain->status)
+    {
+    case Implementation::Swapchain::Status::Setup_failed:
+    case Implementation::Swapchain::Status::Out_of_date:
+    case Implementation::Swapchain::Status::No_surface:
+        return VK_ERROR_SURFACE_LOST_KHR;
+    case Implementation::Swapchain::Status::Good:
+        return swapchain;
+    }
+    assert(!"unreachable");
+    return {};
 }
 
 const Xcb_wsi &Xcb_wsi::get() noexcept
