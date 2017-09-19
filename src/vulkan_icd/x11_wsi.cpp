@@ -38,6 +38,7 @@
 #include <utility>
 #include <algorithm>
 #include <cstdlib>
+#include <atomic>
 #include "util/optional.h"
 #include "util/circular_queue.h"
 
@@ -552,14 +553,26 @@ struct Xcb_wsi::Implementation
             case VK_PRESENT_MODE_IMMEDIATE_KHR:
                 break;
             case VK_PRESENT_MODE_FIFO_KHR:
-                warning_message_present_mode_name = "FIFO";
+            {
+                static std::atomic_bool wrote_warning_message(false);
+                if(!wrote_warning_message.exchange(true, std::memory_order_relaxed))
+                    warning_message_present_mode_name = "FIFO";
                 break;
+            }
             case VK_PRESENT_MODE_MAILBOX_KHR:
-                warning_message_present_mode_name = "MAILBOX";
+            {
+                static std::atomic_bool wrote_warning_message(false);
+                if(!wrote_warning_message.exchange(true, std::memory_order_relaxed))
+                    warning_message_present_mode_name = "MAILBOX";
                 break;
+            }
             case VK_PRESENT_MODE_FIFO_RELAXED_KHR:
-                warning_message_present_mode_name = "FIFO_RELAXED";
+            {
+                static std::atomic_bool wrote_warning_message(false);
+                if(!wrote_warning_message.exchange(true, std::memory_order_relaxed))
+                    warning_message_present_mode_name = "FIFO_RELAXED";
                 break;
+            }
             case VK_PRESENT_MODE_SHARED_DEMAND_REFRESH_KHR:
             case VK_PRESENT_MODE_SHARED_CONTINUOUS_REFRESH_KHR:
             case VK_PRESENT_MODE_RANGE_SIZE_KHR:
