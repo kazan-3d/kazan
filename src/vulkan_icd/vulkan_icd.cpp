@@ -385,7 +385,9 @@ extern "C" VKAPI_ATTR VkResult VKAPI_CALL vkMapMemory(VkDevice device,
     assert(device);
     assert(memory);
     assert(data);
-    *data = static_cast<unsigned char *>(vulkan::Vulkan_device_memory::from_handle(memory)->memory.get()) + offset;
+    *data = static_cast<unsigned char *>(
+                vulkan::Vulkan_device_memory::from_handle(memory)->memory.get())
+            + offset;
     return VK_SUCCESS;
 }
 
@@ -428,10 +430,22 @@ extern "C" VKAPI_ATTR VkResult VKAPI_CALL vkBindBufferMemory(VkDevice device,
 extern "C" VKAPI_ATTR VkResult VKAPI_CALL vkBindImageMemory(VkDevice device,
                                                             VkImage image,
                                                             VkDeviceMemory memory,
-                                                            VkDeviceSize memoryOffset)
+                                                            VkDeviceSize memory_offset)
 {
-#warning finish implementing vkBindImageMemory
-    assert(!"vkBindImageMemory is not implemented");
+    assert(device);
+    assert(image);
+    assert(memory);
+    return vulkan_icd::catch_exceptions_and_return_result(
+        [&]()
+        {
+            auto *image_pointer = vulkan::Vulkan_image::from_handle(image);
+            auto *device_memory = vulkan::Vulkan_device_memory::from_handle(memory);
+            assert(!image_pointer->memory);
+            image_pointer->memory = std::shared_ptr<void>(
+                device_memory->memory,
+                static_cast<unsigned char *>(device_memory->memory.get()) + memory_offset);
+            return VK_SUCCESS;
+        });
 }
 
 extern "C" VKAPI_ATTR void VKAPI_CALL vkGetBufferMemoryRequirements(
@@ -447,7 +461,8 @@ extern "C" VKAPI_ATTR void VKAPI_CALL vkGetImageMemoryRequirements(
     assert(device);
     assert(image);
     assert(memory_requirements);
-    *memory_requirements = vulkan::Vulkan_image::from_handle(image)->descriptor.get_memory_requirements();
+    *memory_requirements =
+        vulkan::Vulkan_image::from_handle(image)->descriptor.get_memory_requirements();
 }
 
 extern "C" VKAPI_ATTR void VKAPI_CALL
