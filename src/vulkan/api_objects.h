@@ -33,6 +33,7 @@
 #include "util/constexpr_array.h"
 #include "util/optional.h"
 #include "util/circular_queue.h"
+#include "util/memory.h"
 #include <memory>
 #include <cassert>
 #include <chrono>
@@ -1519,6 +1520,35 @@ typename std::
                         *>(object));
 }
 
+struct Vulkan_device;
+
+struct Vulkan_device_memory
+    : public Vulkan_nondispatchable_object<Vulkan_device_memory, VkDeviceMemory>
+{
+    static constexpr std::size_t alignment = 64;
+    std::shared_ptr<void> memory;
+    explicit Vulkan_device_memory(std::shared_ptr<void> memory) noexcept : memory(std::move(memory))
+    {
+    }
+    static std::shared_ptr<void> allocate(VkDeviceSize size)
+    {
+        if(static_cast<std::size_t>(size) != size)
+            throw std::bad_alloc();
+        typedef util::Aligned_memory_allocator<alignment> Allocator;
+        return std::shared_ptr<void>(Allocator::allocate(size), Allocator::Deleter{});
+    }
+    static std::unique_ptr<Vulkan_device_memory> create(Vulkan_device &device,
+                                                        const VkMemoryAllocateInfo &allocate_info)
+    {
+        static_cast<void>(device);
+        assert(allocate_info.sType == VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO);
+        constexpr std::uint32_t main_memory_type_index = 0;
+        assert(allocate_info.memoryTypeIndex == main_memory_type_index);
+        assert(allocate_info.allocationSize != 0);
+        return std::make_unique<Vulkan_device_memory>(allocate(allocate_info.allocationSize));
+    }
+};
+
 struct Vulkan_instance;
 
 struct Vulkan_physical_device
@@ -1639,9 +1669,9 @@ struct Vulkan_physical_device
                           },
                       .viewportSubPixelBits = 16,
                       .minMemoryMapAlignment = 64,
-                      .minTexelBufferOffsetAlignment = alignof(std::max_align_t),
-                      .minUniformBufferOffsetAlignment = alignof(std::max_align_t),
-                      .minStorageBufferOffsetAlignment = alignof(std::max_align_t),
+                      .minTexelBufferOffsetAlignment = util::get_max_align_alignment(),
+                      .minUniformBufferOffsetAlignment = util::get_max_align_alignment(),
+                      .minStorageBufferOffsetAlignment = util::get_max_align_alignment(),
                       .minTexelOffset = std::numeric_limits<std::int32_t>::min(),
                       .maxTexelOffset = std::numeric_limits<std::int32_t>::max(),
                       .minTexelGatherOffset = 0,
@@ -1849,8 +1879,6 @@ struct Vulkan_instance : public Vulkan_dispatchable_object<Vulkan_instance, VkIn
         const VkInstanceCreateInfo &create_info);
 #warning finish implementing Vulkan_instance
 };
-
-struct Vulkan_device;
 
 struct Vulkan_semaphore : public Vulkan_nondispatchable_object<Vulkan_semaphore, VkSemaphore>
 {
@@ -2129,10 +2157,17 @@ struct Vulkan_image_descriptor
         assert(type == VK_IMAGE_TYPE_2D && "unimplemented image type");
         assert(extent.depth == 1);
 
-        assert(format == VK_FORMAT_B8G8R8A8_UNORM && "unimplemented image format");
+        switch(format)
+        {
+        case VK_FORMAT_B8G8R8A8_UNORM:
+        case VK_FORMAT_D32_SFLOAT_S8_UINT:
+        case VK_FORMAT_D32_SFLOAT:
+            break;
+        default:
+            assert(!"unimplemented image format");
+        }
         assert(mip_levels == 1 && "mipmapping is unimplemented");
         assert(array_layers == 1 && "array images are unimplemented");
-        assert(tiling == VK_IMAGE_TILING_LINEAR && "non-linear image tiling is unimplemented");
         assert(image_create_info.initialLayout == VK_IMAGE_LAYOUT_UNDEFINED
                && "preinitialized images are unimplemented");
     }
@@ -2153,7 +2188,88 @@ struct Vulkan_image_descriptor
                                                                        tiling(tiling)
     {
     }
-    constexpr std::size_t get_memory_size() const noexcept
+    struct Image_memory_properties
+    {
+        std::size_t array_layer_size;
+        std::size_t size;
+        std::size_t alignment = util::get_max_align_alignment();
+        static constexpr std::size_t max_subimage_count = 2;
+        std::size_t subimage_count;
+        struct Subimage
+        {
+            enum class Component
+            {
+                None,
+                Color,
+                Depth,
+                Stencil,
+            };
+            Component component;
+            std::size_t size;
+            std::size_t stride;
+            std::size_t pixel_size;
+            std::size_t offset_from_array_layer_start;
+            constexpr Subimage() noexcept : component(Component::None),
+                                            size(0),
+                                            stride(0),
+                                            pixel_size(0),
+                                            offset_from_array_layer_start(0)
+            {
+            }
+            constexpr Subimage(Component component,
+                               std::size_t size,
+                               std::size_t stride,
+                               std::size_t pixel_size,
+                               std::size_t offset_from_array_layer_start) noexcept
+                : component(component),
+                  size(size),
+                  stride(stride),
+                  pixel_size(pixel_size),
+                  offset_from_array_layer_start(offset_from_array_layer_start)
+            {
+            }
+        };
+        Subimage subimages[max_subimage_count];
+        constexpr Image_memory_properties(std::uint32_t array_layer_count,
+                                          const Subimage &subimage) noexcept
+            : array_layer_size(subimage.size),
+              size(array_layer_size *array_layer_count),
+              subimage_count(1),
+              subimages{subimage}
+        {
+        }
+        constexpr Image_memory_properties(std::uint32_t array_layer_count,
+                                          const Subimage &subimage0,
+                                          const Subimage &subimage1) noexcept
+            : array_layer_size(subimage0.size + subimage1.size),
+              size(array_layer_size *array_layer_count),
+              subimage_count(2),
+              subimages{subimage0, subimage1}
+        {
+            assert(subimage0.component != subimage1.component);
+        }
+        constexpr Subimage get_component(Subimage::Component component) const noexcept
+        {
+            for(std::size_t i = 0; i < subimage_count; i++)
+                if(subimages[i].component == component)
+                    return subimages[i];
+            assert(!"image component not found");
+            return {};
+        }
+        constexpr Subimage get_color_component() const noexcept
+        {
+            return get_component(Subimage::Component::Color);
+        }
+        constexpr Subimage get_depth_component() const noexcept
+        {
+            return get_component(Subimage::Component::Depth);
+        }
+        constexpr Subimage get_stencil_component() const noexcept
+        {
+            return get_component(Subimage::Component::Stencil);
+        }
+    };
+    constexpr Image_memory_properties get_memory_properties() const noexcept
     {
 #warning finish implementing Image
         assert(samples == VK_SAMPLE_COUNT_1_BIT && "multisample images are unimplemented");
@@ -2164,51 +2280,78 @@ struct Vulkan_image_descriptor
         assert(type == VK_IMAGE_TYPE_2D && "unimplemented image type");
         assert(extent.depth == 1);
 
-        assert(format == VK_FORMAT_B8G8R8A8_UNORM && "unimplemented image format");
         assert(mip_levels == 1 && "mipmapping is unimplemented");
         assert(array_layers == 1 && "array images are unimplemented");
-        assert(tiling == VK_IMAGE_TILING_LINEAR && "non-linear image tiling is unimplemented");
-        std::size_t retval = sizeof(std::uint32_t);
-        retval *= extent.width;
-        retval *= extent.height;
-        return retval;
+
+#warning implement non-linear image tiling
+        switch(format)
+        {
+        case VK_FORMAT_B8G8R8A8_UNORM:
+        {
+            std::size_t pixel_size = sizeof(std::uint32_t);
+            std::size_t stride = pixel_size * extent.width;
+            std::size_t subimage_size = stride * extent.height;
+            return Image_memory_properties(array_layers,
+                                           Image_memory_properties::Subimage(
+                                               Image_memory_properties::Subimage::Component::Color,
+                                               subimage_size,
+                                               stride,
+                                               pixel_size,
+                                               0));
+        }
+        case VK_FORMAT_D32_SFLOAT:
+        {
+            std::size_t pixel_size = sizeof(float);
+            std::size_t stride = pixel_size * extent.width;
+            std::size_t subimage_size = stride * extent.height;
+            return Image_memory_properties(array_layers,
+                                           Image_memory_properties::Subimage(
+                                               Image_memory_properties::Subimage::Component::Depth,
+                                               subimage_size,
+                                               stride,
+                                               pixel_size,
+                                               0));
+        }
+        case VK_FORMAT_D32_SFLOAT_S8_UINT:
+        {
+            std::size_t depth_pixel_size = sizeof(float);
+            std::size_t stencil_pixel_size = sizeof(std::uint8_t);
+            std::size_t depth_stride = depth_pixel_size * extent.width;
+            std::size_t stencil_stride = stencil_pixel_size * extent.width;
+            static_assert(sizeof(float) == 4, "");
+            // round stencil_stride up to multiple of sizeof(float)
+            stencil_stride = (stencil_stride + sizeof(float) - 1) & ~(sizeof(float) - 1);
+            std::size_t depth_subimage_size = depth_stride * extent.height;
+            std::size_t stencil_subimage_size = stencil_stride * extent.height;
+            return Image_memory_properties(
+                array_layers,
+                Image_memory_properties::Subimage(
+                    Image_memory_properties::Subimage::Component::Depth,
+                    depth_subimage_size,
+                    depth_stride,
+                    depth_pixel_size,
+                    0),
+                Image_memory_properties::Subimage(
+                    Image_memory_properties::Subimage::Component::Stencil,
+                    stencil_subimage_size,
+                    stencil_stride,
+                    stencil_pixel_size,
+                    depth_subimage_size));
+        }
+        default:
+            assert(!"unimplemented image format");
+            return Image_memory_properties(array_layers, {});
+        }
     }
-    constexpr std::size_t get_memory_stride() const noexcept
+    constexpr VkMemoryRequirements get_memory_requirements() const noexcept
     {
-#warning finish implementing Image
-        assert(samples == VK_SAMPLE_COUNT_1_BIT && "multisample images are unimplemented");
-        assert(extent.width > 0);
-        assert(extent.height > 0);
-        assert(extent.depth > 0);
-
-        assert(type == VK_IMAGE_TYPE_2D && "unimplemented image type");
-        assert(extent.depth == 1);
-
-        assert(format == VK_FORMAT_B8G8R8A8_UNORM && "unimplemented image format");
-        assert(mip_levels == 1 && "mipmapping is unimplemented");
-        assert(array_layers == 1 && "array images are unimplemented");
-        assert(tiling == VK_IMAGE_TILING_LINEAR && "non-linear image tiling is unimplemented");
-        std::size_t retval = sizeof(std::uint32_t);
-        retval *= extent.width;
-        return retval;
-    }
-    constexpr std::size_t get_memory_pixel_size() const noexcept
-    {
-#warning finish implementing Image
-        assert(samples == VK_SAMPLE_COUNT_1_BIT && "multisample images are unimplemented");
-        assert(extent.width > 0);
-        assert(extent.height > 0);
-        assert(extent.depth > 0);
-
-        assert(type == VK_IMAGE_TYPE_2D && "unimplemented image type");
-        assert(extent.depth == 1);
-
-        assert(format == VK_FORMAT_B8G8R8A8_UNORM && "unimplemented image format");
-        assert(mip_levels == 1 && "mipmapping is unimplemented");
-        assert(array_layers == 1 && "array images are unimplemented");
-        assert(tiling == VK_IMAGE_TILING_LINEAR && "non-linear image tiling is unimplemented");
-        std::size_t retval = sizeof(std::uint32_t);
-        return retval;
+        constexpr std::size_t main_memory_type_index = 0;
+        auto memory_properties = get_memory_properties();
+        return {
+            .size = memory_properties.size,
+            .alignment = memory_properties.alignment,
+            .memoryTypeBits = 1UL << main_memory_type_index,
+        };
     }
 };
 
@@ -2224,11 +2367,12 @@ struct Vulkan_image : public Vulkan_nondispatchable_object<Vulkan_image, VkImage
     static std::unique_ptr<Vulkan_image> create_with_memory(
         const Vulkan_image_descriptor &descriptor)
     {
-        std::shared_ptr<unsigned char> memory(new unsigned char[descriptor.get_memory_size()],
-                                              [](unsigned char *p) noexcept
-                                              {
-                                                  delete[] p;
-                                              });
+        std::shared_ptr<unsigned char> memory(
+            new unsigned char[descriptor.get_memory_properties().size],
+            [](unsigned char *p) noexcept
+            {
+                delete[] p;
+            });
         return std::make_unique<Vulkan_image>(descriptor, std::move(memory));
     }
     void clear(VkClearColorValue color) noexcept;
@@ -2236,6 +2380,30 @@ struct Vulkan_image : public Vulkan_nondispatchable_object<Vulkan_image, VkImage
 #warning finish implementing Vulkan_image
     static std::unique_ptr<Vulkan_image> create(Vulkan_device &device,
                                                 const VkImageCreateInfo &create_info);
+};
+
+struct Vulkan_image_view : public Vulkan_nondispatchable_object<Vulkan_image_view, VkImageView>
+{
+    Vulkan_image &base_image;
+    VkImageViewType view_type;
+    VkFormat format;
+    VkComponentMapping components;
+    VkImageSubresourceRange subresource_range;
+    Vulkan_image_view(Vulkan_image &base_image,
+                      VkImageViewType view_type,
+                      VkFormat format,
+                      const VkComponentMapping &components,
+                      const VkImageSubresourceRange &subresource_range) noexcept
+        : base_image(base_image),
+          view_type(view_type),
+          format(format),
+          components(components),
+          subresource_range(subresource_range)
+    {
+    }
+#warning finish implementing Vulkan_image_view
+    static std::unique_ptr<Vulkan_image_view> create(Vulkan_device &device,
+                                                     const VkImageViewCreateInfo &create_info);
 };
 
 struct Vulkan_command_pool;

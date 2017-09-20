@@ -892,16 +892,16 @@ int test_main(int argc, char **argv)
                 ::SDL_FreeSurface(v);
             }
         };
-        std::unique_ptr<SDL_Surface, Surface_deleter> surface(
-            SDL_CreateRGBSurfaceFrom(color_attachment->memory.get(),
-                                     window_width,
-                                     window_height,
-                                     bits_per_pixel,
-                                     color_attachment->descriptor.get_memory_stride(),
-                                     rgba(0xFF, 0, 0, 0),
-                                     rgba(0, 0xFF, 0, 0),
-                                     rgba(0, 0, 0xFF, 0),
-                                     rgba(0, 0, 0, 0xFF)));
+        std::unique_ptr<SDL_Surface, Surface_deleter> surface(SDL_CreateRGBSurfaceFrom(
+            color_attachment->memory.get(),
+            window_width,
+            window_height,
+            bits_per_pixel,
+            color_attachment->descriptor.get_memory_properties().get_color_component().stride,
+            rgba(0xFF, 0, 0, 0),
+            rgba(0, 0xFF, 0, 0),
+            rgba(0, 0, 0xFF, 0),
+            rgba(0, 0, 0, 0xFF)));
         if(!surface)
             throw std::runtime_error(std::string("SDL_CreateRGBSurfaceFrom failed: ")
                                      + SDL_GetError());

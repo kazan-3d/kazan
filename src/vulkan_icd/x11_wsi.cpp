@@ -780,7 +780,7 @@ struct Xcb_wsi::Implementation
             }
             else
             {
-                std::size_t image_size = image.descriptor.get_memory_size();
+                std::size_t image_size = image.descriptor.get_memory_properties().size;
                 assert(static_cast<std::uint32_t>(image_size) == image_size);
                 xcb_put_image(connection,
                               XCB_IMAGE_FORMAT_Z_PIXMAP,

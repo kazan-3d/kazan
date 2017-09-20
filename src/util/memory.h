@@ -31,8 +31,6 @@ namespace kazan
 {
 namespace util
 {
-namespace detail
-{
 constexpr std::size_t get_max_align_alignment() noexcept
 {
     using namespace std;
@@ -40,6 +38,8 @@ constexpr std::size_t get_max_align_alignment() noexcept
     return alignof(max_align_t);
 }
 
+namespace detail
+{
 template <std::size_t Alignment, bool Needs_adjusting = (Alignment > get_max_align_alignment())>
 struct Aligned_memory_allocator_base
 {

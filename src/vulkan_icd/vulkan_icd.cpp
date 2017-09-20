@@ -348,13 +348,22 @@ extern "C" VKAPI_ATTR VkResult VKAPI_CALL vkDeviceWaitIdle(VkDevice device)
 
 extern "C" VKAPI_ATTR VkResult VKAPI_CALL
     vkAllocateMemory(VkDevice device,
-                     const VkMemoryAllocateInfo *pAllocateInfo,
+                     const VkMemoryAllocateInfo *allocate_info,
                      const VkAllocationCallbacks *allocator,
-                     VkDeviceMemory *pMemory)
+                     VkDeviceMemory *memory)
 {
     validate_allocator(allocator);
-#warning finish implementing vkAllocateMemory
-    assert(!"vkAllocateMemory is not implemented");
+    assert(device);
+    assert(allocate_info);
+    assert(memory);
+    return vulkan_icd::catch_exceptions_and_return_result(
+        [&]()
+        {
+            auto create_result = vulkan::Vulkan_device_memory::create(
+                *vulkan::Vulkan_device::from_handle(device), *allocate_info);
+            *memory = move_to_handle(std::move(create_result));
+            return VK_SUCCESS;
+        });
 }
 
 extern "C" VKAPI_ATTR void VKAPI_CALL vkFreeMemory(VkDevice device,
@@ -362,8 +371,8 @@ extern "C" VKAPI_ATTR void VKAPI_CALL vkFreeMemory(VkDevice device,
                                                    const VkAllocationCallbacks *allocator)
 {
     validate_allocator(allocator);
-#warning finish implementing vkFreeMemory
-    assert(!"vkFreeMemory is not implemented");
+    assert(device);
+    vulkan::Vulkan_device_memory::move_from_handle(memory).reset();
 }
 
 extern "C" VKAPI_ATTR VkResult VKAPI_CALL vkMapMemory(VkDevice device,
@@ -371,16 +380,19 @@ extern "C" VKAPI_ATTR VkResult VKAPI_CALL vkMapMemory(VkDevice device,
                                                       VkDeviceSize offset,
                                                       VkDeviceSize size,
                                                       VkMemoryMapFlags flags,
-                                                      void **ppData)
+                                                      void **data)
 {
-#warning finish implementing vkMapMemory
-    assert(!"vkMapMemory is not implemented");
+    assert(device);
+    assert(memory);
+    assert(data);
+    *data = static_cast<unsigned char *>(vulkan::Vulkan_device_memory::from_handle(memory)->memory.get()) + offset;
+    return VK_SUCCESS;
 }
 
 extern "C" VKAPI_ATTR void VKAPI_CALL vkUnmapMemory(VkDevice device, VkDeviceMemory memory)
 {
-#warning finish implementing vkUnmapMemory
-    assert(!"vkUnmapMemory is not implemented");
+    assert(device);
+    assert(memory);
 }
 
 extern "C" VKAPI_ATTR VkResult VKAPI_CALL vkFlushMappedMemoryRanges(
@@ -430,10 +442,12 @@ extern "C" VKAPI_ATTR void VKAPI_CALL vkGetBufferMemoryRequirements(
 }
 
 extern "C" VKAPI_ATTR void VKAPI_CALL vkGetImageMemoryRequirements(
-    VkDevice device, VkImage image, VkMemoryRequirements *pMemoryRequirements)
+    VkDevice device, VkImage image, VkMemoryRequirements *memory_requirements)
 {
-#warning finish implementing vkGetImageMemoryRequirements
-    assert(!"vkGetImageMemoryRequirements is not implemented");
+    assert(device);
+    assert(image);
+    assert(memory_requirements);
+    *memory_requirements = vulkan::Vulkan_image::from_handle(image)->descriptor.get_memory_requirements();
 }
 
 extern "C" VKAPI_ATTR void VKAPI_CALL
@@ -677,13 +691,22 @@ extern "C" VKAPI_ATTR void VKAPI_CALL vkDestroyBufferView(VkDevice device,
 }
 
 extern "C" VKAPI_ATTR VkResult VKAPI_CALL vkCreateImage(VkDevice device,
-                                                        const VkImageCreateInfo *pCreateInfo,
+                                                        const VkImageCreateInfo *create_info,
                                                         const VkAllocationCallbacks *allocator,
-                                                        VkImage *pImage)
+                                                        VkImage *image)
 {
     validate_allocator(allocator);
-#warning finish implementing vkCreateImage
-    assert(!"vkCreateImage is not implemented");
+    assert(device);
+    assert(create_info);
+    assert(image);
+    return vulkan_icd::catch_exceptions_and_return_result(
+        [&]()
+        {
+            auto create_result = vulkan::Vulkan_image::create(
+                *vulkan::Vulkan_device::from_handle(device), *create_info);
+            *image = move_to_handle(std::move(create_result));
+            return VK_SUCCESS;
+        });
 }
 
 extern "C" VKAPI_ATTR void VKAPI_CALL vkDestroyImage(VkDevice device,
@@ -691,8 +714,8 @@ extern "C" VKAPI_ATTR void VKAPI_CALL vkDestroyImage(VkDevice device,
                                                      const VkAllocationCallbacks *allocator)
 {
     validate_allocator(allocator);
-#warning finish implementing vkDestroyImage
-    assert(!"vkDestroyImage is not implemented");
+    assert(device);
+    vulkan::Vulkan_image::move_from_handle(image).reset();
 }
 
 extern "C" VKAPI_ATTR void VKAPI_CALL
@@ -707,22 +730,31 @@ extern "C" VKAPI_ATTR void VKAPI_CALL
 
 extern "C" VKAPI_ATTR VkResult VKAPI_CALL
     vkCreateImageView(VkDevice device,
-                      const VkImageViewCreateInfo *pCreateInfo,
+                      const VkImageViewCreateInfo *create_info,
                       const VkAllocationCallbacks *allocator,
-                      VkImageView *pView)
+                      VkImageView *view)
 {
     validate_allocator(allocator);
-#warning finish implementing vkCreateImageView
-    assert(!"vkCreateImageView is not implemented");
+    assert(device);
+    assert(create_info);
+    assert(view);
+    return vulkan_icd::catch_exceptions_and_return_result(
+        [&]()
+        {
+            auto create_result = vulkan::Vulkan_image_view::create(
+                *vulkan::Vulkan_device::from_handle(device), *create_info);
+            *view = move_to_handle(std::move(create_result));
+            return VK_SUCCESS;
+        });
 }
 
 extern "C" VKAPI_ATTR void VKAPI_CALL vkDestroyImageView(VkDevice device,
-                                                         VkImageView imageView,
+                                                         VkImageView image_view,
                                                          const VkAllocationCallbacks *allocator)
 {
     validate_allocator(allocator);
-#warning finish implementing vkDestroyImageView
-    assert(!"vkDestroyImageView is not implemented");
+    assert(device);
+    vulkan::Vulkan_image_view::move_from_handle(image_view).reset();
 }
 
 extern "C" VKAPI_ATTR VkResult VKAPI_CALL

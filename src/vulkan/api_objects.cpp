@@ -521,6 +521,18 @@ std::unique_ptr<Vulkan_image> Vulkan_image::create(Vulkan_device &device,
     return std::make_unique<Vulkan_image>(Vulkan_image_descriptor(create_info));
 }
 
+std::unique_ptr<Vulkan_image_view> Vulkan_image_view::create(
+    Vulkan_device &device, const VkImageViewCreateInfo &create_info)
+{
+    assert(create_info.sType == VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO);
+    assert(create_info.image);
+    return std::make_unique<Vulkan_image_view>(*Vulkan_image::from_handle(create_info.image),
+                                               create_info.viewType,
+                                               create_info.format,
+                                               create_info.components,
+                                               create_info.subresourceRange);
+}
+
 void Vulkan_command_buffer::Command::on_record_end(Vulkan_command_buffer &command_buffer)
 {
     static_cast<void>(command_buffer);

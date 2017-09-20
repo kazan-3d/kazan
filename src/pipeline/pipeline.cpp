@@ -374,8 +374,13 @@ void Graphics_pipeline::run(std::uint32_t vertex_start_index,
 {
     typedef std::uint32_t Pixel_type;
     assert(color_attachment.descriptor.tiling == VK_IMAGE_TILING_LINEAR);
-    std::size_t color_attachment_stride = color_attachment.descriptor.get_memory_stride();
-    std::size_t color_attachment_pixel_size = color_attachment.descriptor.get_memory_pixel_size();
+    auto color_attachment_memory_properties = color_attachment.descriptor.get_memory_properties();
+    auto color_attachment_memory_properties_color_component =
+        color_attachment_memory_properties.get_color_component();
+    std::size_t color_attachment_stride = color_attachment_memory_properties_color_component.stride;
+    std::size_t color_attachment_pixel_size =
+        color_attachment_memory_properties_color_component.pixel_size;
+    assert(color_attachment_memory_properties_color_component.offset_from_array_layer_start == 0);
     void *color_attachment_memory = color_attachment.memory.get();
     float viewport_x_scale, viewport_x_offset, viewport_y_scale, viewport_y_offset,
         viewport_z_scale, viewport_z_offset;
