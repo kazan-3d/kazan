@@ -23,6 +23,7 @@ set(sources vulkan.cpp
             api_objects.cpp)
 add_library(kazan_vulkan STATIC ${sources})
 target_link_libraries(kazan_vulkan
+                      kazan_spirv
                       Threads::Threads)
 target_compile_definitions(kazan_vulkan PUBLIC VK_NO_PROTOTYPES)
 if(UNIX AND NOT CYGWIN AND NOT CMAKE_SYSTEM_NAME STREQUAL "Android")
