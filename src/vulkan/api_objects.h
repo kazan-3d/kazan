@@ -203,289 +203,460 @@ constexpr VkFormatProperties get_format_properties(VkFormat format) noexcept
             .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
         };
     case VK_FORMAT_R4G4_UNORM_PACK8:
-#warning implement VK_FORMAT_R4G4_UNORM_PACK8
         return {
             .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
         };
     case VK_FORMAT_R4G4B4A4_UNORM_PACK16:
-#warning implement VK_FORMAT_R4G4B4A4_UNORM_PACK16
         return {
             .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
         };
     case VK_FORMAT_B4G4R4A4_UNORM_PACK16:
 #warning implement VK_FORMAT_B4G4R4A4_UNORM_PACK16
         return {
-            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+            .linearTilingFeatures = 0,
+            .optimalTilingFeatures = VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT
+                                     | VK_FORMAT_FEATURE_TRANSFER_SRC_BIT_KHR
+                                     | VK_FORMAT_FEATURE_TRANSFER_DST_BIT_KHR
+                                     | VK_FORMAT_FEATURE_BLIT_SRC_BIT
+                                     | VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT,
+            .bufferFeatures = 0,
         };
     case VK_FORMAT_R5G6B5_UNORM_PACK16:
 #warning implement VK_FORMAT_R5G6B5_UNORM_PACK16
         return {
-            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+            .linearTilingFeatures = 0,
+            .optimalTilingFeatures = VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT
+                                     | VK_FORMAT_FEATURE_TRANSFER_SRC_BIT_KHR
+                                     | VK_FORMAT_FEATURE_TRANSFER_DST_BIT_KHR
+                                     | VK_FORMAT_FEATURE_BLIT_SRC_BIT
+                                     | VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT
+                                     | VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT
+                                     | VK_FORMAT_FEATURE_BLIT_DST_BIT
+                                     | VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BLEND_BIT,
+            .bufferFeatures = 0,
         };
     case VK_FORMAT_B5G6R5_UNORM_PACK16:
-#warning implement VK_FORMAT_B5G6R5_UNORM_PACK16
         return {
             .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
         };
     case VK_FORMAT_R5G5B5A1_UNORM_PACK16:
-#warning implement VK_FORMAT_R5G5B5A1_UNORM_PACK16
         return {
             .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
         };
     case VK_FORMAT_B5G5R5A1_UNORM_PACK16:
-#warning implement VK_FORMAT_B5G5R5A1_UNORM_PACK16
         return {
             .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
         };
     case VK_FORMAT_A1R5G5B5_UNORM_PACK16:
 #warning implement VK_FORMAT_A1R5G5B5_UNORM_PACK16
         return {
-            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+            .linearTilingFeatures = 0,
+            .optimalTilingFeatures = VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT
+                                     | VK_FORMAT_FEATURE_TRANSFER_SRC_BIT_KHR
+                                     | VK_FORMAT_FEATURE_TRANSFER_DST_BIT_KHR
+                                     | VK_FORMAT_FEATURE_BLIT_SRC_BIT
+                                     | VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT
+                                     | VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT
+                                     | VK_FORMAT_FEATURE_BLIT_DST_BIT
+                                     | VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BLEND_BIT,
+            .bufferFeatures = 0,
         };
     case VK_FORMAT_R8_UNORM:
 #warning implement VK_FORMAT_R8_UNORM
         return {
-            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+            .linearTilingFeatures = 0,
+            .optimalTilingFeatures = VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT
+                                     | VK_FORMAT_FEATURE_TRANSFER_SRC_BIT_KHR
+                                     | VK_FORMAT_FEATURE_TRANSFER_DST_BIT_KHR
+                                     | VK_FORMAT_FEATURE_BLIT_SRC_BIT
+                                     | VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT
+                                     | VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT
+                                     | VK_FORMAT_FEATURE_BLIT_DST_BIT
+                                     | VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BLEND_BIT,
+            .bufferFeatures =
+                VK_FORMAT_FEATURE_VERTEX_BUFFER_BIT | VK_FORMAT_FEATURE_UNIFORM_TEXEL_BUFFER_BIT,
         };
     case VK_FORMAT_R8_SNORM:
 #warning implement VK_FORMAT_R8_SNORM
         return {
-            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+            .linearTilingFeatures = 0,
+            .optimalTilingFeatures = VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT
+                                     | VK_FORMAT_FEATURE_TRANSFER_SRC_BIT_KHR
+                                     | VK_FORMAT_FEATURE_TRANSFER_DST_BIT_KHR
+                                     | VK_FORMAT_FEATURE_BLIT_SRC_BIT
+                                     | VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT,
+            .bufferFeatures =
+                VK_FORMAT_FEATURE_VERTEX_BUFFER_BIT | VK_FORMAT_FEATURE_UNIFORM_TEXEL_BUFFER_BIT,
         };
     case VK_FORMAT_R8_USCALED:
-#warning implement VK_FORMAT_R8_USCALED
         return {
             .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
         };
     case VK_FORMAT_R8_SSCALED:
-#warning implement VK_FORMAT_R8_SSCALED
         return {
             .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
         };
     case VK_FORMAT_R8_UINT:
 #warning implement VK_FORMAT_R8_UINT
         return {
-            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+            .linearTilingFeatures = 0,
+            .optimalTilingFeatures = VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT
+                                     | VK_FORMAT_FEATURE_TRANSFER_SRC_BIT_KHR
+                                     | VK_FORMAT_FEATURE_TRANSFER_DST_BIT_KHR
+                                     | VK_FORMAT_FEATURE_BLIT_SRC_BIT
+                                     | VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT
+                                     | VK_FORMAT_FEATURE_BLIT_DST_BIT,
+            .bufferFeatures =
+                VK_FORMAT_FEATURE_VERTEX_BUFFER_BIT | VK_FORMAT_FEATURE_UNIFORM_TEXEL_BUFFER_BIT,
         };
     case VK_FORMAT_R8_SINT:
 #warning implement VK_FORMAT_R8_SINT
         return {
-            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+            .linearTilingFeatures = 0,
+            .optimalTilingFeatures = VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT
+                                     | VK_FORMAT_FEATURE_TRANSFER_SRC_BIT_KHR
+                                     | VK_FORMAT_FEATURE_TRANSFER_DST_BIT_KHR
+                                     | VK_FORMAT_FEATURE_BLIT_SRC_BIT
+                                     | VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT
+                                     | VK_FORMAT_FEATURE_BLIT_DST_BIT,
+            .bufferFeatures =
+                VK_FORMAT_FEATURE_VERTEX_BUFFER_BIT | VK_FORMAT_FEATURE_UNIFORM_TEXEL_BUFFER_BIT,
         };
     case VK_FORMAT_R8_SRGB:
-#warning implement VK_FORMAT_R8_SRGB
         return {
             .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
         };
     case VK_FORMAT_R8G8_UNORM:
 #warning implement VK_FORMAT_R8G8_UNORM
         return {
-            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+            .linearTilingFeatures = 0,
+            .optimalTilingFeatures = VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT
+                                     | VK_FORMAT_FEATURE_TRANSFER_SRC_BIT_KHR
+                                     | VK_FORMAT_FEATURE_TRANSFER_DST_BIT_KHR
+                                     | VK_FORMAT_FEATURE_BLIT_SRC_BIT
+                                     | VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT
+                                     | VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT
+                                     | VK_FORMAT_FEATURE_BLIT_DST_BIT
+                                     | VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BLEND_BIT,
+            .bufferFeatures =
+                VK_FORMAT_FEATURE_VERTEX_BUFFER_BIT | VK_FORMAT_FEATURE_UNIFORM_TEXEL_BUFFER_BIT,
         };
     case VK_FORMAT_R8G8_SNORM:
 #warning implement VK_FORMAT_R8G8_SNORM
         return {
-            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+            .linearTilingFeatures = 0,
+            .optimalTilingFeatures = VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT
+                                     | VK_FORMAT_FEATURE_TRANSFER_SRC_BIT_KHR
+                                     | VK_FORMAT_FEATURE_TRANSFER_DST_BIT_KHR
+                                     | VK_FORMAT_FEATURE_BLIT_SRC_BIT
+                                     | VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT,
+            .bufferFeatures =
+                VK_FORMAT_FEATURE_VERTEX_BUFFER_BIT | VK_FORMAT_FEATURE_UNIFORM_TEXEL_BUFFER_BIT,
         };
     case VK_FORMAT_R8G8_USCALED:
-#warning implement VK_FORMAT_R8G8_USCALED
         return {
             .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
         };
     case VK_FORMAT_R8G8_SSCALED:
-#warning implement VK_FORMAT_R8G8_SSCALED
         return {
             .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
         };
     case VK_FORMAT_R8G8_UINT:
 #warning implement VK_FORMAT_R8G8_UINT
         return {
-            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+            .linearTilingFeatures = 0,
+            .optimalTilingFeatures = VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT
+                                     | VK_FORMAT_FEATURE_TRANSFER_SRC_BIT_KHR
+                                     | VK_FORMAT_FEATURE_TRANSFER_DST_BIT_KHR
+                                     | VK_FORMAT_FEATURE_BLIT_SRC_BIT
+                                     | VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT
+                                     | VK_FORMAT_FEATURE_BLIT_DST_BIT,
+            .bufferFeatures =
+                VK_FORMAT_FEATURE_VERTEX_BUFFER_BIT | VK_FORMAT_FEATURE_UNIFORM_TEXEL_BUFFER_BIT,
         };
     case VK_FORMAT_R8G8_SINT:
 #warning implement VK_FORMAT_R8G8_SINT
         return {
-            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+            .linearTilingFeatures = 0,
+            .optimalTilingFeatures = VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT
+                                     | VK_FORMAT_FEATURE_TRANSFER_SRC_BIT_KHR
+                                     | VK_FORMAT_FEATURE_TRANSFER_DST_BIT_KHR
+                                     | VK_FORMAT_FEATURE_BLIT_SRC_BIT
+                                     | VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT
+                                     | VK_FORMAT_FEATURE_BLIT_DST_BIT,
+            .bufferFeatures =
+                VK_FORMAT_FEATURE_VERTEX_BUFFER_BIT | VK_FORMAT_FEATURE_UNIFORM_TEXEL_BUFFER_BIT,
         };
     case VK_FORMAT_R8G8_SRGB:
-#warning implement VK_FORMAT_R8G8_SRGB
         return {
             .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
         };
     case VK_FORMAT_R8G8B8_UNORM:
-#warning implement VK_FORMAT_R8G8B8_UNORM
         return {
             .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
         };
     case VK_FORMAT_R8G8B8_SNORM:
-#warning implement VK_FORMAT_R8G8B8_SNORM
         return {
             .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
         };
     case VK_FORMAT_R8G8B8_USCALED:
-#warning implement VK_FORMAT_R8G8B8_USCALED
         return {
             .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
         };
     case VK_FORMAT_R8G8B8_SSCALED:
-#warning implement VK_FORMAT_R8G8B8_SSCALED
         return {
             .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
         };
     case VK_FORMAT_R8G8B8_UINT:
-#warning implement VK_FORMAT_R8G8B8_UINT
         return {
             .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
         };
     case VK_FORMAT_R8G8B8_SINT:
-#warning implement VK_FORMAT_R8G8B8_SINT
         return {
             .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
         };
     case VK_FORMAT_R8G8B8_SRGB:
-#warning implement VK_FORMAT_R8G8B8_SRGB
         return {
             .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
         };
     case VK_FORMAT_B8G8R8_UNORM:
-#warning implement VK_FORMAT_B8G8R8_UNORM
         return {
             .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
         };
     case VK_FORMAT_B8G8R8_SNORM:
-#warning implement VK_FORMAT_B8G8R8_SNORM
         return {
             .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
         };
     case VK_FORMAT_B8G8R8_USCALED:
-#warning implement VK_FORMAT_B8G8R8_USCALED
         return {
             .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
         };
     case VK_FORMAT_B8G8R8_SSCALED:
-#warning implement VK_FORMAT_B8G8R8_SSCALED
         return {
             .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
         };
     case VK_FORMAT_B8G8R8_UINT:
-#warning implement VK_FORMAT_B8G8R8_UINT
         return {
             .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
         };
     case VK_FORMAT_B8G8R8_SINT:
-#warning implement VK_FORMAT_B8G8R8_SINT
         return {
             .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
         };
     case VK_FORMAT_B8G8R8_SRGB:
-#warning implement VK_FORMAT_B8G8R8_SRGB
         return {
             .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
         };
     case VK_FORMAT_R8G8B8A8_UNORM:
 #warning implement VK_FORMAT_R8G8B8A8_UNORM
         return {
-            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+            .linearTilingFeatures = 0,
+            .optimalTilingFeatures = VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT
+                                     | VK_FORMAT_FEATURE_TRANSFER_SRC_BIT_KHR
+                                     | VK_FORMAT_FEATURE_TRANSFER_DST_BIT_KHR
+                                     | VK_FORMAT_FEATURE_BLIT_SRC_BIT
+                                     | VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT
+                                     | VK_FORMAT_FEATURE_STORAGE_IMAGE_BIT
+                                     | VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT
+                                     | VK_FORMAT_FEATURE_BLIT_DST_BIT
+                                     | VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BLEND_BIT,
+            .bufferFeatures = VK_FORMAT_FEATURE_VERTEX_BUFFER_BIT
+                              | VK_FORMAT_FEATURE_UNIFORM_TEXEL_BUFFER_BIT
+                              | VK_FORMAT_FEATURE_STORAGE_TEXEL_BUFFER_BIT,
         };
     case VK_FORMAT_R8G8B8A8_SNORM:
 #warning implement VK_FORMAT_R8G8B8A8_SNORM
         return {
-            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+            .linearTilingFeatures = 0,
+            .optimalTilingFeatures = VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT
+                                     | VK_FORMAT_FEATURE_TRANSFER_SRC_BIT_KHR
+                                     | VK_FORMAT_FEATURE_TRANSFER_DST_BIT_KHR
+                                     | VK_FORMAT_FEATURE_BLIT_SRC_BIT
+                                     | VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT
+                                     | VK_FORMAT_FEATURE_STORAGE_IMAGE_BIT,
+            .bufferFeatures = VK_FORMAT_FEATURE_VERTEX_BUFFER_BIT
+                              | VK_FORMAT_FEATURE_UNIFORM_TEXEL_BUFFER_BIT
+                              | VK_FORMAT_FEATURE_STORAGE_TEXEL_BUFFER_BIT,
         };
     case VK_FORMAT_R8G8B8A8_USCALED:
-#warning implement VK_FORMAT_R8G8B8A8_USCALED
         return {
             .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
         };
     case VK_FORMAT_R8G8B8A8_SSCALED:
-#warning implement VK_FORMAT_R8G8B8A8_SSCALED
         return {
             .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
         };
     case VK_FORMAT_R8G8B8A8_UINT:
 #warning implement VK_FORMAT_R8G8B8A8_UINT
         return {
-            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+            .linearTilingFeatures = 0,
+            .optimalTilingFeatures = VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT
+                                     | VK_FORMAT_FEATURE_TRANSFER_SRC_BIT_KHR
+                                     | VK_FORMAT_FEATURE_TRANSFER_DST_BIT_KHR
+                                     | VK_FORMAT_FEATURE_BLIT_SRC_BIT
+                                     | VK_FORMAT_FEATURE_STORAGE_IMAGE_BIT
+                                     | VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT
+                                     | VK_FORMAT_FEATURE_BLIT_DST_BIT,
+            .bufferFeatures = VK_FORMAT_FEATURE_VERTEX_BUFFER_BIT
+                              | VK_FORMAT_FEATURE_UNIFORM_TEXEL_BUFFER_BIT
+                              | VK_FORMAT_FEATURE_STORAGE_TEXEL_BUFFER_BIT,
         };
     case VK_FORMAT_R8G8B8A8_SINT:
 #warning implement VK_FORMAT_R8G8B8A8_SINT
         return {
-            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+            .linearTilingFeatures = 0,
+            .optimalTilingFeatures = VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT
+                                     | VK_FORMAT_FEATURE_TRANSFER_SRC_BIT_KHR
+                                     | VK_FORMAT_FEATURE_TRANSFER_DST_BIT_KHR
+                                     | VK_FORMAT_FEATURE_BLIT_SRC_BIT
+                                     | VK_FORMAT_FEATURE_STORAGE_IMAGE_BIT
+                                     | VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT
+                                     | VK_FORMAT_FEATURE_BLIT_DST_BIT,
+            .bufferFeatures = VK_FORMAT_FEATURE_VERTEX_BUFFER_BIT
+                              | VK_FORMAT_FEATURE_UNIFORM_TEXEL_BUFFER_BIT
+                              | VK_FORMAT_FEATURE_STORAGE_TEXEL_BUFFER_BIT,
         };
     case VK_FORMAT_R8G8B8A8_SRGB:
 #warning implement VK_FORMAT_R8G8B8A8_SRGB
         return {
-            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+            .linearTilingFeatures = 0,
+            .optimalTilingFeatures = VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT
+                                     | VK_FORMAT_FEATURE_TRANSFER_SRC_BIT_KHR
+                                     | VK_FORMAT_FEATURE_TRANSFER_DST_BIT_KHR
+                                     | VK_FORMAT_FEATURE_BLIT_SRC_BIT
+                                     | VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT
+                                     | VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT
+                                     | VK_FORMAT_FEATURE_BLIT_DST_BIT
+                                     | VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BLEND_BIT,
+            .bufferFeatures = 0,
         };
     case VK_FORMAT_B8G8R8A8_UNORM:
 #warning implement VK_FORMAT_B8G8R8A8_UNORM
         return {
-            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+            .linearTilingFeatures = 0,
+            .optimalTilingFeatures = VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT
+                                     | VK_FORMAT_FEATURE_TRANSFER_SRC_BIT_KHR
+                                     | VK_FORMAT_FEATURE_TRANSFER_DST_BIT_KHR
+                                     | VK_FORMAT_FEATURE_BLIT_SRC_BIT
+                                     | VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT
+                                     | VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT
+                                     | VK_FORMAT_FEATURE_BLIT_DST_BIT
+                                     | VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BLEND_BIT,
+            .bufferFeatures =
+                VK_FORMAT_FEATURE_VERTEX_BUFFER_BIT | VK_FORMAT_FEATURE_UNIFORM_TEXEL_BUFFER_BIT,
         };
     case VK_FORMAT_B8G8R8A8_SNORM:
-#warning implement VK_FORMAT_B8G8R8A8_SNORM
         return {
             .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
         };
     case VK_FORMAT_B8G8R8A8_USCALED:
-#warning implement VK_FORMAT_B8G8R8A8_USCALED
         return {
             .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
         };
     case VK_FORMAT_B8G8R8A8_SSCALED:
-#warning implement VK_FORMAT_B8G8R8A8_SSCALED
         return {
             .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
         };
     case VK_FORMAT_B8G8R8A8_UINT:
-#warning implement VK_FORMAT_B8G8R8A8_UINT
         return {
             .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
         };
     case VK_FORMAT_B8G8R8A8_SINT:
-#warning implement VK_FORMAT_B8G8R8A8_SINT
         return {
             .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
         };
     case VK_FORMAT_B8G8R8A8_SRGB:
 #warning implement VK_FORMAT_B8G8R8A8_SRGB
         return {
-            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+            .linearTilingFeatures = 0,
+            .optimalTilingFeatures = VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT
+                                     | VK_FORMAT_FEATURE_TRANSFER_SRC_BIT_KHR
+                                     | VK_FORMAT_FEATURE_TRANSFER_DST_BIT_KHR
+                                     | VK_FORMAT_FEATURE_BLIT_SRC_BIT
+                                     | VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT
+                                     | VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT
+                                     | VK_FORMAT_FEATURE_BLIT_DST_BIT
+                                     | VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BLEND_BIT,
+            .bufferFeatures = 0,
         };
     case VK_FORMAT_A8B8G8R8_UNORM_PACK32:
 #warning implement VK_FORMAT_A8B8G8R8_UNORM_PACK32
         return {
-            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+            .linearTilingFeatures = 0,
+            .optimalTilingFeatures = VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT
+                                     | VK_FORMAT_FEATURE_TRANSFER_SRC_BIT_KHR
+                                     | VK_FORMAT_FEATURE_TRANSFER_DST_BIT_KHR
+                                     | VK_FORMAT_FEATURE_BLIT_SRC_BIT
+                                     | VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT
+                                     | VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT
+                                     | VK_FORMAT_FEATURE_BLIT_DST_BIT
+                                     | VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BLEND_BIT,
+            .bufferFeatures = VK_FORMAT_FEATURE_VERTEX_BUFFER_BIT
+                              | VK_FORMAT_FEATURE_UNIFORM_TEXEL_BUFFER_BIT
+                              | VK_FORMAT_FEATURE_STORAGE_TEXEL_BUFFER_BIT,
         };
     case VK_FORMAT_A8B8G8R8_SNORM_PACK32:
 #warning implement VK_FORMAT_A8B8G8R8_SNORM_PACK32
         return {
-            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+            .linearTilingFeatures = 0,
+            .optimalTilingFeatures = VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT
+                                     | VK_FORMAT_FEATURE_TRANSFER_SRC_BIT_KHR
+                                     | VK_FORMAT_FEATURE_TRANSFER_DST_BIT_KHR
+                                     | VK_FORMAT_FEATURE_BLIT_SRC_BIT
+                                     | VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT,
+            .bufferFeatures = VK_FORMAT_FEATURE_VERTEX_BUFFER_BIT
+                              | VK_FORMAT_FEATURE_UNIFORM_TEXEL_BUFFER_BIT
+                              | VK_FORMAT_FEATURE_STORAGE_TEXEL_BUFFER_BIT,
         };
     case VK_FORMAT_A8B8G8R8_USCALED_PACK32:
-#warning implement VK_FORMAT_A8B8G8R8_USCALED_PACK32
         return {
             .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
         };
     case VK_FORMAT_A8B8G8R8_SSCALED_PACK32:
-#warning implement VK_FORMAT_A8B8G8R8_SSCALED_PACK32
         return {
             .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
         };
     case VK_FORMAT_A8B8G8R8_UINT_PACK32:
 #warning implement VK_FORMAT_A8B8G8R8_UINT_PACK32
         return {
-            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+            .linearTilingFeatures = 0,
+            .optimalTilingFeatures = VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT
+                                     | VK_FORMAT_FEATURE_TRANSFER_SRC_BIT_KHR
+                                     | VK_FORMAT_FEATURE_TRANSFER_DST_BIT_KHR
+                                     | VK_FORMAT_FEATURE_BLIT_SRC_BIT
+                                     | VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT
+                                     | VK_FORMAT_FEATURE_BLIT_DST_BIT,
+            .bufferFeatures = VK_FORMAT_FEATURE_VERTEX_BUFFER_BIT
+                              | VK_FORMAT_FEATURE_UNIFORM_TEXEL_BUFFER_BIT
+                              | VK_FORMAT_FEATURE_STORAGE_TEXEL_BUFFER_BIT,
         };
     case VK_FORMAT_A8B8G8R8_SINT_PACK32:
 #warning implement VK_FORMAT_A8B8G8R8_SINT_PACK32
         return {
-            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+            .linearTilingFeatures = 0,
+            .optimalTilingFeatures = VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT
+                                     | VK_FORMAT_FEATURE_TRANSFER_SRC_BIT_KHR
+                                     | VK_FORMAT_FEATURE_TRANSFER_DST_BIT_KHR
+                                     | VK_FORMAT_FEATURE_BLIT_SRC_BIT
+                                     | VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT
+                                     | VK_FORMAT_FEATURE_BLIT_DST_BIT,
+            .bufferFeatures = VK_FORMAT_FEATURE_VERTEX_BUFFER_BIT
+                              | VK_FORMAT_FEATURE_UNIFORM_TEXEL_BUFFER_BIT
+                              | VK_FORMAT_FEATURE_STORAGE_TEXEL_BUFFER_BIT,
         };
     case VK_FORMAT_A8B8G8R8_SRGB_PACK32:
 #warning implement VK_FORMAT_A8B8G8R8_SRGB_PACK32
         return {
-            .linearTilingFeatures = 0, .optimalTilingFeatures = 0, .bufferFeatures = 0,
+            .linearTilingFeatures = 0,
+            .optimalTilingFeatures = VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT
+                                     | VK_FORMAT_FEATURE_TRANSFER_SRC_BIT_KHR
+                                     | VK_FORMAT_FEATURE_TRANSFER_DST_BIT_KHR
+                                     | VK_FORMAT_FEATURE_BLIT_SRC_BIT
+                                     | VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT
+                                     | VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT
+                                     | VK_FORMAT_FEATURE_BLIT_DST_BIT
+                                     | VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BLEND_BIT,
+            .bufferFeatures = 0,
         };
     case VK_FORMAT_A2R10G10B10_UNORM_PACK32:
 #warning implement VK_FORMAT_A2R10G10B10_UNORM_PACK32
