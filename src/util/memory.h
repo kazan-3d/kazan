@@ -66,7 +66,7 @@ struct Aligned_memory_allocator_base<Alignment, true>
         Base_pointer base = new unsigned char[size];
         auto alignment_start = reinterpret_cast<std::uintptr_t>(base + sizeof(Base_pointer));
         auto retval =
-            reinterpret_cast<unsigned char *>((alignment_start + Alignment - 1) & (Alignment - 1));
+            reinterpret_cast<unsigned char *>((alignment_start + Alignment - 1) & ~(Alignment - 1));
         auto base_location = reinterpret_cast<Base_pointer *>(retval) - 1;
         *base_location = base;
         return retval;
