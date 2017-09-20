@@ -26,6 +26,7 @@
 #include <type_traits>
 #include <vector>
 #include <algorithm>
+#include <atomic>
 
 namespace kazan
 {
@@ -517,27 +518,197 @@ void Vulkan_image::clear(VkClearColorValue color) noexcept
 std::unique_ptr<Vulkan_image> Vulkan_image::create(Vulkan_device &device,
                                                    const VkImageCreateInfo &create_info)
 {
-#warning finish implementing Vulkan_image::create
     return std::make_unique<Vulkan_image>(Vulkan_image_descriptor(create_info));
+}
+
+std::unique_ptr<Vulkan_buffer> Vulkan_buffer::create(Vulkan_device &device,
+                                                     const VkBufferCreateInfo &create_info)
+{
+    return std::make_unique<Vulkan_buffer>(Vulkan_buffer_descriptor(create_info));
 }
 
 std::unique_ptr<Vulkan_image_view> Vulkan_image_view::create(
     Vulkan_device &device, const VkImageViewCreateInfo &create_info)
 {
     assert(create_info.sType == VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO);
-    assert(create_info.image);
-    return std::make_unique<Vulkan_image_view>(*Vulkan_image::from_handle(create_info.image),
+    auto *image = Vulkan_image::from_handle(create_info.image);
+    assert(image);
+    VkImageSubresourceRange subresource_range = create_info.subresourceRange;
+    assert(subresource_range.baseArrayLayer < image->descriptor.array_layers);
+    assert(subresource_range.baseMipLevel < image->descriptor.mip_levels);
+    if(subresource_range.layerCount == VK_REMAINING_ARRAY_LAYERS)
+        subresource_range.layerCount =
+            image->descriptor.array_layers - subresource_range.baseArrayLayer;
+    if(subresource_range.levelCount == VK_REMAINING_MIP_LEVELS)
+        subresource_range.levelCount =
+            image->descriptor.mip_levels - subresource_range.baseMipLevel;
+    assert(subresource_range.layerCount != 0);
+    assert(subresource_range.levelCount != 0);
+    assert(image->descriptor.array_layers - subresource_range.baseArrayLayer
+           >= subresource_range.layerCount);
+    assert(image->descriptor.mip_levels - subresource_range.baseMipLevel
+           >= subresource_range.levelCount);
+    assert(create_info.viewType == VK_IMAGE_VIEW_TYPE_2D
+           && "image view with create_info.viewType != VK_IMAGE_VIEW_TYPE_2D is not implemented");
+    assert(is_identity_component_mapping(create_info.components)
+           && "image view with non-identity swizzle is not implemented");
+    return std::make_unique<Vulkan_image_view>(*image,
                                                create_info.viewType,
                                                create_info.format,
-                                               create_info.components,
-                                               create_info.subresourceRange);
+                                               normalize_component_mapping(create_info.components),
+                                               subresource_range);
+}
+
+std::unique_ptr<Vulkan_render_pass> Vulkan_render_pass::create(
+    Vulkan_device &device, const VkRenderPassCreateInfo &create_info)
+{
+    assert(create_info.sType == VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO);
+    assert(create_info.attachmentCount == 0 || create_info.pAttachments);
+    assert(create_info.subpassCount != 0);
+    assert(create_info.pSubpasses);
+    assert(create_info.dependencyCount == 0 || create_info.pDependencies);
+
+    assert(create_info.subpassCount == 1 && "render pass not implemented for subpassCount != 1");
+    std::vector<VkAttachmentDescription> attachments(
+        create_info.pAttachments, create_info.pAttachments + create_info.attachmentCount);
+    util::optional<std::uint32_t> color_attachment_index;
+    util::optional<std::uint32_t> depth_stencil_attachment_index;
+
+    for(std::uint32_t i = 0; i < create_info.subpassCount; i++)
+    {
+        auto &subpass = create_info.pSubpasses[i];
+        assert(subpass.inputAttachmentCount == 0 || subpass.pInputAttachments);
+        assert(subpass.colorAttachmentCount == 0 || subpass.pColorAttachments);
+        assert(subpass.preserveAttachmentCount == 0 || subpass.pPreserveAttachments);
+        assert(subpass.pipelineBindPoint == VK_PIPELINE_BIND_POINT_GRAPHICS);
+
+        assert(subpass.flags == 0
+               && "render pass not implemented for VkSubpassDescription::flags != 0");
+        assert(
+            subpass.inputAttachmentCount == 0
+            && "render pass not implemented for VkSubpassDescription::inputAttachmentCount != 0");
+        assert(
+            subpass.pResolveAttachments == nullptr
+            && "render pass not implemented for VkSubpassDescription::pResolveAttachments != nullptr");
+        if(subpass.pDepthStencilAttachment)
+        {
+            assert(subpass.pDepthStencilAttachment->attachment != VK_ATTACHMENT_UNUSED);
+            assert(subpass.pDepthStencilAttachment->attachment < create_info.attachmentCount);
+            auto &depth_stencil_attachment =
+                create_info.pAttachments[subpass.pDepthStencilAttachment->attachment];
+            assert(depth_stencil_attachment.flags == 0
+                   && "render pass not implemented for depth_stencil_attachment.flags != 0");
+            switch(depth_stencil_attachment.format)
+            {
+            case VK_FORMAT_D32_SFLOAT:
+            case VK_FORMAT_D32_SFLOAT_S8_UINT:
+                break;
+            default:
+                assert(!"depth-stencil attachment format not implemented");
+            }
+            assert(depth_stencil_attachment.samples == VK_SAMPLE_COUNT_1_BIT
+               && "render pass not implemented for depth_stencil_attachment.samples != VK_SAMPLE_COUNT_1_BIT");
+            assert(depth_stencil_attachment.loadOp == VK_ATTACHMENT_LOAD_OP_CLEAR
+               && "render pass not implemented for depth_stencil_attachment.loadOp != VK_ATTACHMENT_LOAD_OP_CLEAR");
+            assert(depth_stencil_attachment.stencilLoadOp == VK_ATTACHMENT_LOAD_OP_DONT_CARE
+               && "render pass not implemented for depth_stencil_attachment.stencilLoadOp != VK_ATTACHMENT_LOAD_OP_DONT_CARE");
+            depth_stencil_attachment_index = subpass.pDepthStencilAttachment->attachment;
+        }
+        assert(
+            subpass.preserveAttachmentCount == 0
+            && "render pass not implemented for VkSubpassDescription::preserveAttachmentCount != "
+               "0");
+        std::size_t valid_color_attachment_count = 0;
+        for(std::uint32_t j = 0; j < subpass.colorAttachmentCount; j++)
+        {
+            auto &color_attachment_reference = subpass.pColorAttachments[j];
+            if(color_attachment_reference.attachment == VK_ATTACHMENT_UNUSED)
+                continue;
+            valid_color_attachment_count++;
+            assert(color_attachment_reference.attachment < create_info.attachmentCount);
+            auto &color_attachment =
+                create_info.pAttachments[color_attachment_reference.attachment];
+            assert(color_attachment.flags == 0
+                   && "render pass not implemented for color_attachment.flags != 0");
+            assert(color_attachment.format == VK_FORMAT_B8G8R8A8_UNORM
+               && "render pass not implemented for color_attachment.format != VK_FORMAT_B8G8R8A8_UNORM");
+            assert(color_attachment.samples == VK_SAMPLE_COUNT_1_BIT
+               && "render pass not implemented for color_attachment.samples != VK_SAMPLE_COUNT_1_BIT");
+            assert(color_attachment.loadOp == VK_ATTACHMENT_LOAD_OP_CLEAR
+               && "render pass not implemented for color_attachment.loadOp != VK_ATTACHMENT_LOAD_OP_CLEAR");
+            assert(color_attachment.stencilLoadOp == VK_ATTACHMENT_LOAD_OP_DONT_CARE
+               && "render pass not implemented for color_attachment.stencilLoadOp != VK_ATTACHMENT_LOAD_OP_DONT_CARE");
+            color_attachment_index = color_attachment_reference.attachment;
+#warning implement non-linear image layouts
+        }
+        assert(valid_color_attachment_count == 1
+               && "render pass not implemented for valid_color_attachment_count != 1");
+    }
+    for(std::uint32_t i = 0; i < create_info.dependencyCount; i++)
+    {
+        auto &dependency = create_info.pDependencies[i];
+        assert(dependency.srcSubpass == VK_SUBPASS_EXTERNAL
+               || dependency.dstSubpass == VK_SUBPASS_EXTERNAL
+               || dependency.srcSubpass <= dependency.dstSubpass);
+        assert(dependency.srcSubpass != VK_SUBPASS_EXTERNAL
+               || dependency.dstSubpass != VK_SUBPASS_EXTERNAL);
+        assert(dependency.srcSubpass == VK_SUBPASS_EXTERNAL
+               || dependency.srcSubpass < create_info.subpassCount);
+        assert(dependency.dstSubpass == VK_SUBPASS_EXTERNAL
+               || dependency.dstSubpass < create_info.subpassCount);
+
+        assert((dependency.srcSubpass == VK_SUBPASS_EXTERNAL
+                || dependency.dstSubpass == VK_SUBPASS_EXTERNAL)
+               && "intra-render-pass subpass dependencies are not implemented");
+    }
+#warning finish implementing Vulkan_render_pass::create
+    if(depth_stencil_attachment_index)
+    {
+        static std::atomic_bool wrote_warning{false};
+        if(!wrote_warning.exchange(true, std::memory_order::memory_order_relaxed))
+            std::cerr << "depth stencil attachments not supported" << std::endl;
+    }
+    return std::make_unique<Vulkan_render_pass>(
+        std::move(attachments), *color_attachment_index, depth_stencil_attachment_index);
+}
+
+std::unique_ptr<Vulkan_framebuffer> Vulkan_framebuffer::create(
+    Vulkan_device &device, const VkFramebufferCreateInfo &create_info)
+{
+    assert(create_info.sType == VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO);
+    assert(create_info.renderPass);
+    auto *render_pass = Vulkan_render_pass::from_handle(create_info.renderPass);
+    assert(create_info.attachmentCount == render_pass->attachments.size());
+    assert(create_info.attachmentCount == 0 || create_info.pAttachments);
+    std::vector<Vulkan_image_view *> attachments;
+    attachments.reserve(create_info.attachmentCount);
+    for(std::uint32_t i = 0; i < create_info.attachmentCount; i++)
+    {
+        auto *attachment = Vulkan_image_view::from_handle(create_info.pAttachments[i]);
+        assert(attachment);
+        assert(attachment->format == render_pass->attachments[i].format);
+        assert(attachment->base_image.descriptor.samples == render_pass->attachments[i].samples);
+        assert(is_identity_component_mapping(attachment->components));
+        assert(attachment->subresource_range.levelCount == 1);
+        assert(attachment->base_image.descriptor.extent.width == create_info.width
+               && "non-matching image dimensions in framebuffer is not implemented");
+        assert(attachment->base_image.descriptor.extent.height == create_info.height
+               && "non-matching image dimensions in framebuffer is not implemented");
+        assert(attachment->subresource_range.layerCount == create_info.layers
+               && "non-matching image layer count in framebuffer is not implemented");
+        attachments.push_back(attachment);
+    }
+    return std::make_unique<Vulkan_framebuffer>(*render_pass,
+                                                std::move(attachments),
+                                                create_info.width,
+                                                create_info.height,
+                                                create_info.layers);
 }
 
 void Vulkan_command_buffer::Command::on_record_end(Vulkan_command_buffer &command_buffer)
 {
     static_cast<void>(command_buffer);
 }
-
 
 Vulkan_command_buffer::Vulkan_command_buffer(
     std::list<std::unique_ptr<Vulkan_command_buffer>>::iterator iter,

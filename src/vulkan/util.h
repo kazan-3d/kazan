@@ -50,6 +50,34 @@ constexpr util::Enum_set<spirv::Execution_model> get_execution_models_from_shade
         retval.insert(spirv::Execution_model::vertex);
     return retval;
 }
+
+constexpr VkComponentMapping normalize_component_mapping(
+    VkComponentMapping component_mapping) noexcept
+{
+    if(component_mapping.r == VK_COMPONENT_SWIZZLE_IDENTITY)
+        component_mapping.r = VK_COMPONENT_SWIZZLE_R;
+    if(component_mapping.g == VK_COMPONENT_SWIZZLE_IDENTITY)
+        component_mapping.g = VK_COMPONENT_SWIZZLE_G;
+    if(component_mapping.b == VK_COMPONENT_SWIZZLE_IDENTITY)
+        component_mapping.b = VK_COMPONENT_SWIZZLE_B;
+    if(component_mapping.a == VK_COMPONENT_SWIZZLE_IDENTITY)
+        component_mapping.a = VK_COMPONENT_SWIZZLE_A;
+    return component_mapping;
+}
+
+constexpr bool is_identity_component_mapping(const VkComponentMapping &component_mapping) noexcept
+{
+    auto normalized = normalize_component_mapping(component_mapping);
+    if(normalized.r != VK_COMPONENT_SWIZZLE_R)
+        return false;
+    if(normalized.g != VK_COMPONENT_SWIZZLE_G)
+        return false;
+    if(normalized.b != VK_COMPONENT_SWIZZLE_B)
+        return false;
+    if(normalized.a != VK_COMPONENT_SWIZZLE_A)
+        return false;
+    return true;
+}
 }
 }
 

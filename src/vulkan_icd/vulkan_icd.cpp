@@ -421,10 +421,22 @@ extern "C" VKAPI_ATTR void VKAPI_CALL vkGetDeviceMemoryCommitment(
 extern "C" VKAPI_ATTR VkResult VKAPI_CALL vkBindBufferMemory(VkDevice device,
                                                              VkBuffer buffer,
                                                              VkDeviceMemory memory,
-                                                             VkDeviceSize memoryOffset)
+                                                             VkDeviceSize memory_offset)
 {
-#warning finish implementing vkBindBufferMemory
-    assert(!"vkBindBufferMemory is not implemented");
+    assert(device);
+    assert(buffer);
+    assert(memory);
+    return vulkan_icd::catch_exceptions_and_return_result(
+        [&]()
+        {
+            auto *buffer_pointer = vulkan::Vulkan_buffer::from_handle(buffer);
+            auto *device_memory = vulkan::Vulkan_device_memory::from_handle(memory);
+            assert(!buffer_pointer->memory);
+            buffer_pointer->memory = std::shared_ptr<void>(
+                device_memory->memory,
+                static_cast<unsigned char *>(device_memory->memory.get()) + memory_offset);
+            return VK_SUCCESS;
+        });
 }
 
 extern "C" VKAPI_ATTR VkResult VKAPI_CALL vkBindImageMemory(VkDevice device,
@@ -449,10 +461,13 @@ extern "C" VKAPI_ATTR VkResult VKAPI_CALL vkBindImageMemory(VkDevice device,
 }
 
 extern "C" VKAPI_ATTR void VKAPI_CALL vkGetBufferMemoryRequirements(
-    VkDevice device, VkBuffer buffer, VkMemoryRequirements *pMemoryRequirements)
+    VkDevice device, VkBuffer buffer, VkMemoryRequirements *memory_requirements)
 {
-#warning finish implementing vkGetBufferMemoryRequirements
-    assert(!"vkGetBufferMemoryRequirements is not implemented");
+    assert(device);
+    assert(buffer);
+    assert(memory_requirements);
+    *memory_requirements =
+        vulkan::Vulkan_buffer::from_handle(buffer)->descriptor.get_memory_requirements();
 }
 
 extern "C" VKAPI_ATTR void VKAPI_CALL vkGetImageMemoryRequirements(
@@ -667,13 +682,22 @@ extern "C" VKAPI_ATTR VkResult VKAPI_CALL vkGetQueryPoolResults(VkDevice device,
 }
 
 extern "C" VKAPI_ATTR VkResult VKAPI_CALL vkCreateBuffer(VkDevice device,
-                                                         const VkBufferCreateInfo *pCreateInfo,
+                                                         const VkBufferCreateInfo *create_info,
                                                          const VkAllocationCallbacks *allocator,
-                                                         VkBuffer *pBuffer)
+                                                         VkBuffer *buffer)
 {
     validate_allocator(allocator);
-#warning finish implementing vkCreateBuffer
-    assert(!"vkCreateBuffer is not implemented");
+    assert(device);
+    assert(create_info);
+    assert(buffer);
+    return vulkan_icd::catch_exceptions_and_return_result(
+        [&]()
+        {
+            auto create_result = vulkan::Vulkan_buffer::create(
+                *vulkan::Vulkan_device::from_handle(device), *create_info);
+            *buffer = move_to_handle(std::move(create_result));
+            return VK_SUCCESS;
+        });
 }
 
 extern "C" VKAPI_ATTR void VKAPI_CALL vkDestroyBuffer(VkDevice device,
@@ -681,8 +705,8 @@ extern "C" VKAPI_ATTR void VKAPI_CALL vkDestroyBuffer(VkDevice device,
                                                       const VkAllocationCallbacks *allocator)
 {
     validate_allocator(allocator);
-#warning finish implementing vkDestroyBuffer
-    assert(!"vkDestroyBuffer is not implemented");
+    assert(device);
+    vulkan::Vulkan_buffer::move_from_handle(buffer).reset();
 }
 
 extern "C" VKAPI_ATTR VkResult VKAPI_CALL
@@ -794,22 +818,31 @@ extern "C" VKAPI_ATTR void VKAPI_CALL vkDestroyShaderModule(VkDevice device,
 
 extern "C" VKAPI_ATTR VkResult VKAPI_CALL
     vkCreatePipelineCache(VkDevice device,
-                          const VkPipelineCacheCreateInfo *pCreateInfo,
+                          const VkPipelineCacheCreateInfo *create_info,
                           const VkAllocationCallbacks *allocator,
-                          VkPipelineCache *pPipelineCache)
+                          VkPipelineCache *pipeline_cache)
 {
     validate_allocator(allocator);
-#warning finish implementing vkCreatePipelineCache
-    assert(!"vkCreatePipelineCache is not implemented");
+    assert(device);
+    assert(create_info);
+    assert(pipeline_cache);
+    return vulkan_icd::catch_exceptions_and_return_result(
+        [&]()
+        {
+            auto create_result = pipeline::Pipeline_cache::create(
+                *vulkan::Vulkan_device::from_handle(device), *create_info);
+            *pipeline_cache = move_to_handle(std::move(create_result));
+            return VK_SUCCESS;
+        });
 }
 
 extern "C" VKAPI_ATTR void VKAPI_CALL vkDestroyPipelineCache(VkDevice device,
-                                                             VkPipelineCache pipelineCache,
+                                                             VkPipelineCache pipeline_cache,
                                                              const VkAllocationCallbacks *allocator)
 {
     validate_allocator(allocator);
-#warning finish implementing vkDestroyPipelineCache
-    assert(!"vkDestroyPipelineCache is not implemented");
+    assert(device);
+    pipeline::Pipeline_cache::move_from_handle(pipeline_cache).reset();
 }
 
 extern "C" VKAPI_ATTR VkResult VKAPI_CALL vkGetPipelineCacheData(VkDevice device,
@@ -983,13 +1016,22 @@ extern "C" VKAPI_ATTR void VKAPI_CALL
 
 extern "C" VKAPI_ATTR VkResult VKAPI_CALL
     vkCreateFramebuffer(VkDevice device,
-                        const VkFramebufferCreateInfo *pCreateInfo,
+                        const VkFramebufferCreateInfo *create_info,
                         const VkAllocationCallbacks *allocator,
-                        VkFramebuffer *pFramebuffer)
+                        VkFramebuffer *framebuffer)
 {
     validate_allocator(allocator);
-#warning finish implementing vkCreateFramebuffer
-    assert(!"vkCreateFramebuffer is not implemented");
+    assert(device);
+    assert(create_info);
+    assert(framebuffer);
+    return vulkan_icd::catch_exceptions_and_return_result(
+        [&]()
+        {
+            auto create_result = vulkan::Vulkan_framebuffer::create(
+                *vulkan::Vulkan_device::from_handle(device), *create_info);
+            *framebuffer = move_to_handle(std::move(create_result));
+            return VK_SUCCESS;
+        });
 }
 
 extern "C" VKAPI_ATTR void VKAPI_CALL vkDestroyFramebuffer(VkDevice device,
@@ -997,28 +1039,37 @@ extern "C" VKAPI_ATTR void VKAPI_CALL vkDestroyFramebuffer(VkDevice device,
                                                            const VkAllocationCallbacks *allocator)
 {
     validate_allocator(allocator);
-#warning finish implementing vkDestroyFramebuffer
-    assert(!"vkDestroyFramebuffer is not implemented");
+    assert(device);
+    vulkan::Vulkan_framebuffer::move_from_handle(framebuffer).reset();
 }
 
 extern "C" VKAPI_ATTR VkResult VKAPI_CALL
     vkCreateRenderPass(VkDevice device,
-                       const VkRenderPassCreateInfo *pCreateInfo,
+                       const VkRenderPassCreateInfo *create_info,
                        const VkAllocationCallbacks *allocator,
-                       VkRenderPass *pRenderPass)
+                       VkRenderPass *render_pass)
 {
     validate_allocator(allocator);
-#warning finish implementing vkCreateRenderPass
-    assert(!"vkCreateRenderPass is not implemented");
+    assert(device);
+    assert(create_info);
+    assert(render_pass);
+    return vulkan_icd::catch_exceptions_and_return_result(
+        [&]()
+        {
+            auto create_result = vulkan::Vulkan_render_pass::create(
+                *vulkan::Vulkan_device::from_handle(device), *create_info);
+            *render_pass = move_to_handle(std::move(create_result));
+            return VK_SUCCESS;
+        });
 }
 
 extern "C" VKAPI_ATTR void VKAPI_CALL vkDestroyRenderPass(VkDevice device,
-                                                          VkRenderPass renderPass,
+                                                          VkRenderPass render_pass,
                                                           const VkAllocationCallbacks *allocator)
 {
     validate_allocator(allocator);
-#warning finish implementing vkDestroyRenderPass
-    assert(!"vkDestroyRenderPass is not implemented");
+    assert(device);
+    vulkan::Vulkan_render_pass::move_from_handle(render_pass).reset();
 }
 
 extern "C" VKAPI_ATTR void VKAPI_CALL vkGetRenderAreaGranularity(VkDevice device,
@@ -1307,14 +1358,62 @@ extern "C" VKAPI_ATTR void VKAPI_CALL vkCmdDispatchIndirect(VkCommandBuffer comm
     assert(!"vkCmdDispatchIndirect is not implemented");
 }
 
-extern "C" VKAPI_ATTR void VKAPI_CALL vkCmdCopyBuffer(VkCommandBuffer commandBuffer,
-                                                      VkBuffer srcBuffer,
-                                                      VkBuffer dstBuffer,
-                                                      uint32_t regionCount,
-                                                      const VkBufferCopy *pRegions)
+extern "C" VKAPI_ATTR void VKAPI_CALL vkCmdCopyBuffer(VkCommandBuffer command_buffer,
+                                                      VkBuffer src_buffer,
+                                                      VkBuffer dst_buffer,
+                                                      uint32_t region_count,
+                                                      const VkBufferCopy *regions)
 {
-#warning finish implementing vkCmdCopyBuffer
-    assert(!"vkCmdCopyBuffer is not implemented");
+    assert(command_buffer);
+    assert(src_buffer);
+    assert(dst_buffer);
+    assert(region_count > 0);
+    assert(regions);
+    auto command_buffer_pointer = vulkan::Vulkan_command_buffer::from_handle(command_buffer);
+    command_buffer_pointer->record_command_and_keep_errors(
+        [&]()
+        {
+            auto src_buffer_pointer = vulkan::Vulkan_buffer::from_handle(src_buffer);
+            auto dst_buffer_pointer = vulkan::Vulkan_buffer::from_handle(dst_buffer);
+            for(std::uint32_t i = 0; i < region_count; i++)
+            {
+                auto &region = regions[i];
+                assert(region.size <= src_buffer_pointer->descriptor.size);
+                assert(src_buffer_pointer->descriptor.size - region.size >= region.srcOffset);
+                assert(region.size <= dst_buffer_pointer->descriptor.size);
+                assert(dst_buffer_pointer->descriptor.size - region.size >= region.dstOffset);
+                static_cast<void>(region);
+            }
+            struct Copy_buffer_command final : public vulkan::Vulkan_command_buffer::Command
+            {
+                vulkan::Vulkan_buffer &src_buffer;
+                vulkan::Vulkan_buffer &dst_buffer;
+                std::vector<VkBufferCopy> regions;
+                Copy_buffer_command(vulkan::Vulkan_buffer &src_buffer,
+                                    vulkan::Vulkan_buffer &dst_buffer,
+                                    std::vector<VkBufferCopy> regions) noexcept
+                    : src_buffer(src_buffer),
+                      dst_buffer(dst_buffer),
+                      regions(std::move(regions))
+                {
+                }
+                virtual void run(
+                    vulkan::Vulkan_command_buffer::Running_state &state) noexcept override
+                {
+                    static_cast<void>(state);
+                    for(auto &region : regions)
+                        std::memcpy(static_cast<unsigned char *>(dst_buffer.memory.get())
+                                        + region.dstOffset,
+                                    static_cast<const unsigned char *>(src_buffer.memory.get())
+                                        + region.srcOffset,
+                                    region.size);
+                }
+            };
+            command_buffer_pointer->commands.push_back(std::make_unique<Copy_buffer_command>(
+                *src_buffer_pointer,
+                *dst_buffer_pointer,
+                std::vector<VkBufferCopy>(regions, regions + region_count)));
+        });
 }
 
 extern "C" VKAPI_ATTR void VKAPI_CALL vkCmdCopyImage(VkCommandBuffer commandBuffer,

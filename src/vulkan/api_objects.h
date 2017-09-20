@@ -25,7 +25,8 @@
 
 #include "vulkan/vulkan.h"
 #include "vulkan/vk_icd.h"
-#include "vulkan/remove_xlib_macros.h"
+#include "remove_xlib_macros.h"
+#include "util.h"
 #include "util/enum.h"
 #include "util/string_view.h"
 #include "util/variant.h"
@@ -1522,33 +1523,6 @@ typename std::
 
 struct Vulkan_device;
 
-struct Vulkan_device_memory
-    : public Vulkan_nondispatchable_object<Vulkan_device_memory, VkDeviceMemory>
-{
-    static constexpr std::size_t alignment = 64;
-    std::shared_ptr<void> memory;
-    explicit Vulkan_device_memory(std::shared_ptr<void> memory) noexcept : memory(std::move(memory))
-    {
-    }
-    static std::shared_ptr<void> allocate(VkDeviceSize size)
-    {
-        if(static_cast<std::size_t>(size) != size)
-            throw std::bad_alloc();
-        typedef util::Aligned_memory_allocator<alignment> Allocator;
-        return std::shared_ptr<void>(Allocator::allocate(size), Allocator::Deleter{});
-    }
-    static std::unique_ptr<Vulkan_device_memory> create(Vulkan_device &device,
-                                                        const VkMemoryAllocateInfo &allocate_info)
-    {
-        static_cast<void>(device);
-        assert(allocate_info.sType == VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO);
-        constexpr std::uint32_t main_memory_type_index = 0;
-        assert(allocate_info.memoryTypeIndex == main_memory_type_index);
-        assert(allocate_info.allocationSize != 0);
-        return std::make_unique<Vulkan_device_memory>(allocate(allocate_info.allocationSize));
-    }
-};
-
 struct Vulkan_instance;
 
 struct Vulkan_physical_device
@@ -1573,6 +1547,7 @@ struct Vulkan_physical_device
             heap_size = std::numeric_limits<VkDeviceSize>::max();
         return heap_size;
     }
+    static constexpr std::size_t main_memory_type_index = 0;
     Vulkan_physical_device(Vulkan_instance &instance) noexcept
         : instance(instance),
           properties{
@@ -1821,6 +1796,32 @@ struct Vulkan_physical_device
               .inheritedQueries = false,
           }
     {
+    }
+};
+
+struct Vulkan_device_memory
+    : public Vulkan_nondispatchable_object<Vulkan_device_memory, VkDeviceMemory>
+{
+    static constexpr std::size_t alignment = 64;
+    std::shared_ptr<void> memory;
+    explicit Vulkan_device_memory(std::shared_ptr<void> memory) noexcept : memory(std::move(memory))
+    {
+    }
+    static std::shared_ptr<void> allocate(VkDeviceSize size)
+    {
+        if(static_cast<std::size_t>(size) != size)
+            throw std::bad_alloc();
+        typedef util::Aligned_memory_allocator<alignment> Allocator;
+        return std::shared_ptr<void>(Allocator::allocate(size), Allocator::Deleter{});
+    }
+    static std::unique_ptr<Vulkan_device_memory> create(Vulkan_device &device,
+                                                        const VkMemoryAllocateInfo &allocate_info)
+    {
+        static_cast<void>(device);
+        assert(allocate_info.sType == VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO);
+        assert(allocate_info.memoryTypeIndex == Vulkan_physical_device::main_memory_type_index);
+        assert(allocate_info.allocationSize != 0);
+        return std::make_unique<Vulkan_device_memory>(allocate(allocate_info.allocationSize));
     }
 };
 
@@ -2345,12 +2346,11 @@ struct Vulkan_image_descriptor
     }
     constexpr VkMemoryRequirements get_memory_requirements() const noexcept
     {
-        constexpr std::size_t main_memory_type_index = 0;
         auto memory_properties = get_memory_properties();
         return {
             .size = memory_properties.size,
             .alignment = memory_properties.alignment,
-            .memoryTypeBits = 1UL << main_memory_type_index,
+            .memoryTypeBits = 1UL << Vulkan_physical_device::main_memory_type_index,
         };
     }
 };
@@ -2382,6 +2382,41 @@ struct Vulkan_image : public Vulkan_nondispatchable_object<Vulkan_image, VkImage
                                                 const VkImageCreateInfo &create_info);
 };
 
+struct Vulkan_buffer_descriptor
+{
+    VkDeviceSize size;
+    static constexpr VkBufferCreateFlags supported_flags = 0;
+    constexpr explicit Vulkan_buffer_descriptor(const VkBufferCreateInfo &create_info) noexcept
+        : size(create_info.size)
+    {
+        assert(create_info.sType == VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO);
+        assert((create_info.flags & ~supported_flags) == 0);
+        assert(create_info.size != 0);
+    }
+    constexpr VkMemoryRequirements get_memory_requirements() const noexcept
+    {
+        return {
+            .size = size,
+            .alignment = util::get_max_align_alignment(),
+            .memoryTypeBits = 1UL << Vulkan_physical_device::main_memory_type_index,
+        };
+    }
+};
+
+struct Vulkan_buffer : public Vulkan_nondispatchable_object<Vulkan_buffer, VkBuffer>
+{
+    Vulkan_buffer_descriptor descriptor;
+    std::shared_ptr<void> memory;
+    Vulkan_buffer(const Vulkan_buffer_descriptor &descriptor,
+                  std::shared_ptr<void> memory = nullptr) noexcept : descriptor(descriptor),
+                                                                     memory(std::move(memory))
+    {
+    }
+    virtual ~Vulkan_buffer() = default;
+    static std::unique_ptr<Vulkan_buffer> create(Vulkan_device &device,
+                                                 const VkBufferCreateInfo &create_info);
+};
+
 struct Vulkan_image_view : public Vulkan_nondispatchable_object<Vulkan_image_view, VkImageView>
 {
     Vulkan_image &base_image;
@@ -2404,6 +2439,47 @@ struct Vulkan_image_view : public Vulkan_nondispatchable_object<Vulkan_image_vie
 #warning finish implementing Vulkan_image_view
     static std::unique_ptr<Vulkan_image_view> create(Vulkan_device &device,
                                                      const VkImageViewCreateInfo &create_info);
+};
+
+struct Vulkan_render_pass : public Vulkan_nondispatchable_object<Vulkan_render_pass, VkRenderPass>
+{
+#warning finish implementing Vulkan_render_pass
+    std::vector<VkAttachmentDescription> attachments;
+    std::uint32_t color_attachment_index;
+    util::optional<std::uint32_t> depth_stencil_attachment_index;
+    Vulkan_render_pass(std::vector<VkAttachmentDescription> attachments,
+                       std::uint32_t color_attachment_index,
+                       util::optional<std::uint32_t> depth_stencil_attachment_index) noexcept
+        : attachments(std::move(attachments)),
+          color_attachment_index(color_attachment_index),
+          depth_stencil_attachment_index(depth_stencil_attachment_index)
+    {
+    }
+    static std::unique_ptr<Vulkan_render_pass> create(Vulkan_device &,
+                                                      const VkRenderPassCreateInfo &create_info);
+};
+
+struct Vulkan_framebuffer : public Vulkan_nondispatchable_object<Vulkan_framebuffer, VkFramebuffer>
+{
+#warning finish implementing Vulkan_framebuffer
+    Vulkan_render_pass &render_pass;
+    std::vector<Vulkan_image_view *> attachments;
+    std::uint32_t width;
+    std::uint32_t height;
+    std::uint32_t layers;
+    Vulkan_framebuffer(Vulkan_render_pass &render_pass,
+                       std::vector<Vulkan_image_view *> attachments,
+                       std::uint32_t width,
+                       std::uint32_t height,
+                       std::uint32_t layers) noexcept : render_pass(render_pass),
+                                                        attachments(std::move(attachments)),
+                                                        width(width),
+                                                        height(height),
+                                                        layers(layers)
+    {
+    }
+    static std::unique_ptr<Vulkan_framebuffer> create(Vulkan_device &,
+                                                      const VkFramebufferCreateInfo &create_info);
 };
 
 struct Vulkan_command_pool;

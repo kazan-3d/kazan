@@ -211,7 +211,8 @@ void dump_words(const std::vector<spirv::Word> &words)
     dump_words(words.data(), words.size());
 }
 
-std::unique_ptr<pipeline::Shader_module> load_shader(const char *filename)
+std::unique_ptr<pipeline::Shader_module> load_shader(vulkan::Vulkan_device &device,
+                                                     const char *filename)
 {
     std::cerr << "loading " << filename << std::endl;
     auto file = load_file(filename);
@@ -226,10 +227,10 @@ std::unique_ptr<pipeline::Shader_module> load_shader(const char *filename)
         .codeSize = file->size() * sizeof(spirv::Word),
         .pCode = file->data(),
     };
-    return pipeline::Shader_module::make(shader_module_create_info);
+    return pipeline::Shader_module::create(device, shader_module_create_info);
 }
 
-std::unique_ptr<pipeline::Pipeline_layout> make_pipeline_layout()
+std::unique_ptr<pipeline::Pipeline_layout> make_pipeline_layout(vulkan::Vulkan_device &device)
 {
     VkPipelineLayoutCreateInfo pipeline_layout_create_info = {
         .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
@@ -240,7 +241,7 @@ std::unique_ptr<pipeline::Pipeline_layout> make_pipeline_layout()
         .pushConstantRangeCount = 0,
         .pPushConstantRanges = nullptr,
     };
-    return pipeline::Pipeline_layout::make(pipeline_layout_create_info);
+    return pipeline::Pipeline_layout::create(device, pipeline_layout_create_info);
 }
 
 template <typename Integer_type>
@@ -602,10 +603,49 @@ int test_main(int argc, char **argv)
     }
     try
     {
-        auto vertex_shader = load_shader(vertex_shader_filename);
-        auto fragment_shader = load_shader(fragment_shader_filename);
+        VkInstanceCreateInfo instance_create_info{
+            .sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
+            .pNext = nullptr,
+            .flags = 0,
+            .pApplicationInfo = nullptr,
+            .enabledLayerCount = 0,
+            .ppEnabledLayerNames = nullptr,
+            .enabledExtensionCount = 0,
+            .ppEnabledExtensionNames = nullptr,
+        };
+        auto vulkan_instance = util::get<std::unique_ptr<vulkan::Vulkan_instance>>(
+            vulkan::Vulkan_instance::create(instance_create_info));
+        constexpr std::size_t device_queue_create_info_count = 1;
+        constexpr std::size_t queue_count = 1;
+        float queue_priorities[queue_count] = {};
+        VkDeviceQueueCreateInfo device_queue_create_infos[device_queue_create_info_count] = {
+            {
+                .sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
+                .pNext = nullptr,
+                .flags = 0,
+                .queueFamilyIndex = 0,
+                .queueCount = queue_count,
+                .pQueuePriorities = queue_priorities,
+            },
+        };
+        VkDeviceCreateInfo device_create_info{
+            .sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
+            .pNext = nullptr,
+            .flags = 0,
+            .queueCreateInfoCount = device_queue_create_info_count,
+            .pQueueCreateInfos = device_queue_create_infos,
+            .enabledLayerCount = 0,
+            .ppEnabledLayerNames = nullptr,
+            .enabledExtensionCount = 0,
+            .ppEnabledExtensionNames = nullptr,
+            .pEnabledFeatures = nullptr,
+        };
+        auto vulkan_device = util::get<std::unique_ptr<vulkan::Vulkan_device>>(
+            vulkan::Vulkan_device::create(vulkan_instance->physical_device, device_create_info));
+        auto vertex_shader = load_shader(*vulkan_device, vertex_shader_filename);
+        auto fragment_shader = load_shader(*vulkan_device, fragment_shader_filename);
         auto vertexes = load_wavefront_obj_file(vertexes_filename);
-        auto pipeline_layout = make_pipeline_layout();
+        auto pipeline_layout = make_pipeline_layout(*vulkan_device);
         constexpr std::size_t main_color_attachment_index = 0;
         constexpr std::size_t attachment_count = main_color_attachment_index + 1;
         VkAttachmentDescription attachments[attachment_count] = {};
@@ -618,7 +658,7 @@ int test_main(int argc, char **argv)
             .stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
             .stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
             .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-            .finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
+            .finalLayout = VK_IMAGE_LAYOUT_GENERAL,
         };
         constexpr std::size_t color_attachment_count = 1;
         VkAttachmentReference color_attachment_references[color_attachment_count] = {
@@ -653,7 +693,8 @@ int test_main(int argc, char **argv)
             .dependencyCount = 0,
             .pDependencies = nullptr,
         };
-        auto render_pass = pipeline::Render_pass::make(render_pass_create_info);
+        auto render_pass =
+            vulkan::Vulkan_render_pass::create(*vulkan_device, render_pass_create_info);
         constexpr std::size_t stage_index_vertex = 0;
         constexpr std::size_t stage_index_fragment = stage_index_vertex + 1;
         constexpr std::size_t stage_count = stage_index_fragment + 1;
@@ -823,8 +864,8 @@ int test_main(int argc, char **argv)
             .basePipelineHandle = VK_NULL_HANDLE,
             .basePipelineIndex = -1,
         };
-        auto graphics_pipeline =
-            pipeline::Graphics_pipeline::make(nullptr, graphics_pipeline_create_info);
+        auto graphics_pipeline = pipeline::Graphics_pipeline::create(
+            *vulkan_device, nullptr, graphics_pipeline_create_info);
         VkImageCreateInfo image_create_info = {
             .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
             .pNext = nullptr,

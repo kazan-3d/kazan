@@ -839,11 +839,13 @@ void Graphics_pipeline::run(std::uint32_t vertex_start_index,
     }
 }
 
-std::unique_ptr<Graphics_pipeline> Graphics_pipeline::make(
-    Pipeline_cache *pipeline_cache, const VkGraphicsPipelineCreateInfo &create_info)
+std::unique_ptr<Graphics_pipeline> Graphics_pipeline::create(
+    vulkan::Vulkan_device &,
+    Pipeline_cache *pipeline_cache,
+    const VkGraphicsPipelineCreateInfo &create_info)
 {
     assert(create_info.sType == VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO);
-    auto *render_pass = Render_pass::from_handle(create_info.renderPass);
+    auto *render_pass = vulkan::Vulkan_render_pass::from_handle(create_info.renderPass);
     assert(render_pass);
     auto *pipeline_layout = Pipeline_layout::from_handle(create_info.layout);
     assert(pipeline_layout);
@@ -930,8 +932,6 @@ std::unique_ptr<Graphics_pipeline> Graphics_pipeline::make(
                 reinterpret_cast<Fragment_shader_function>(shader_entry_point_address);
 #warning finish implementing Graphics_pipeline::make
             continue;
-#warning finish implementing Graphics_pipeline::make
-            throw std::runtime_error("creating fragment shaders is not implemented");
         case spirv::Execution_model::geometry:
 #warning finish implementing Graphics_pipeline::make
             throw std::runtime_error("creating geometry shaders is not implemented");

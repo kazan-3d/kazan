@@ -42,22 +42,13 @@ class Pipeline_cache : public vulkan::Vulkan_nondispatchable_object<Pipeline_cac
 {
 #warning finish implementing Pipeline_cache
 public:
-    static std::unique_ptr<Pipeline_cache> make(
-        const VkPipelineCacheCreateInfo &pipeline_cache_create_info)
+    static std::unique_ptr<Pipeline_cache> create(vulkan::Vulkan_device &,
+                                                  const VkPipelineCacheCreateInfo &create_info)
     {
-#warning finish implementing Pipeline_cache::make
+        assert(create_info.sType == VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO);
+        assert(create_info.initialDataSize == 0 || create_info.pInitialData);
+#warning finish implementing Pipeline_cache::create
         return std::make_unique<Pipeline_cache>();
-    }
-};
-
-class Render_pass : public vulkan::Vulkan_nondispatchable_object<Render_pass, VkRenderPass>
-{
-#warning finish implementing Render_pass
-public:
-    static std::unique_ptr<Render_pass> make(const VkRenderPassCreateInfo &render_pass_create_info)
-    {
-#warning finish implementing Render_pass::make
-        return std::make_unique<Render_pass>();
     }
 };
 
@@ -66,10 +57,10 @@ class Pipeline_layout
 {
 #warning finish implementing Pipeline_layout
 public:
-    static std::unique_ptr<Pipeline_layout> make(
-        const VkPipelineLayoutCreateInfo &pipeline_layout_create_info)
+    static std::unique_ptr<Pipeline_layout> create(vulkan::Vulkan_device &,
+                                                   const VkPipelineLayoutCreateInfo &create_info)
     {
-#warning finish implementing Pipeline_layout::make
+#warning finish implementing Pipeline_layout::create
         return std::make_unique<Pipeline_layout>();
     }
 };
@@ -92,7 +83,8 @@ struct Shader_module : public vulkan::Vulkan_nondispatchable_object<Shader_modul
         assert(byte_count % sizeof(spirv::Word) == 0);
         return byte_count / sizeof(spirv::Word);
     }
-    static std::unique_ptr<Shader_module> make(const VkShaderModuleCreateInfo &create_info)
+    static std::unique_ptr<Shader_module> create(vulkan::Vulkan_device &,
+                                                 const VkShaderModuleCreateInfo &create_info)
     {
         struct Code_deleter
         {
@@ -118,14 +110,6 @@ public:
     {
     }
     virtual ~Pipeline() = default;
-    static std::unique_ptr<Pipeline> move_from_handle(VkPipeline pipeline) noexcept
-    {
-        return std::unique_ptr<Pipeline>(from_handle(pipeline));
-    }
-    static Pipeline *from_handle(VkPipeline pipeline) noexcept
-    {
-        return reinterpret_cast<Pipeline *>(pipeline);
-    }
 
 protected:
     static llvm_wrapper::Module optimize_module(llvm_wrapper::Module module,
@@ -170,8 +154,10 @@ public:
              std::uint32_t instance_id,
              const vulkan::Vulkan_image &color_attachment,
              void *const *bindings);
-    static std::unique_ptr<Graphics_pipeline> make(Pipeline_cache *pipeline_cache,
-                                                   const VkGraphicsPipelineCreateInfo &create_info);
+    static std::unique_ptr<Graphics_pipeline> create(
+        vulkan::Vulkan_device &,
+        Pipeline_cache *pipeline_cache,
+        const VkGraphicsPipelineCreateInfo &create_info);
     static std::unique_ptr<Graphics_pipeline> move_from_handle(VkPipeline pipeline) noexcept
     {
         return std::unique_ptr<Graphics_pipeline>(from_handle(pipeline));
