@@ -936,7 +936,7 @@ util::variant<VkResult, std::unique_ptr<Vulkan_swapchain>> Xcb_wsi::create_swapc
         return VK_ERROR_SURFACE_LOST_KHR;
     case Implementation::Swapchain::Status::Good:
     case Implementation::Swapchain::Status::Out_of_date: // we'll return out of date later
-        return swapchain;
+        return std::move(swapchain);
     }
     assert(!"unreachable");
     return {};
