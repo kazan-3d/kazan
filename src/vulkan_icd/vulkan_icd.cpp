@@ -798,22 +798,31 @@ extern "C" VKAPI_ATTR void VKAPI_CALL vkDestroyImageView(VkDevice device,
 
 extern "C" VKAPI_ATTR VkResult VKAPI_CALL
     vkCreateShaderModule(VkDevice device,
-                         const VkShaderModuleCreateInfo *pCreateInfo,
+                         const VkShaderModuleCreateInfo *create_info,
                          const VkAllocationCallbacks *allocator,
-                         VkShaderModule *pShaderModule)
+                         VkShaderModule *shader_module)
 {
     validate_allocator(allocator);
-#warning finish implementing vkCreateShaderModule
-    assert(!"vkCreateShaderModule is not implemented");
+    assert(device);
+    assert(create_info);
+    assert(shader_module);
+    return vulkan_icd::catch_exceptions_and_return_result(
+        [&]()
+        {
+            auto create_result = pipeline::Shader_module::create(
+                *vulkan::Vulkan_device::from_handle(device), *create_info);
+            *shader_module = move_to_handle(std::move(create_result));
+            return VK_SUCCESS;
+        });
 }
 
 extern "C" VKAPI_ATTR void VKAPI_CALL vkDestroyShaderModule(VkDevice device,
-                                                            VkShaderModule shaderModule,
+                                                            VkShaderModule shader_module,
                                                             const VkAllocationCallbacks *allocator)
 {
     validate_allocator(allocator);
-#warning finish implementing vkDestroyShaderModule
-    assert(!"vkDestroyShaderModule is not implemented");
+    assert(device);
+    pipeline::Shader_module::move_from_handle(shader_module).reset();
 }
 
 extern "C" VKAPI_ATTR VkResult VKAPI_CALL
@@ -865,15 +874,32 @@ extern "C" VKAPI_ATTR VkResult VKAPI_CALL vkMergePipelineCaches(VkDevice device,
 
 extern "C" VKAPI_ATTR VkResult VKAPI_CALL
     vkCreateGraphicsPipelines(VkDevice device,
-                              VkPipelineCache pipelineCache,
-                              uint32_t createInfoCount,
-                              const VkGraphicsPipelineCreateInfo *pCreateInfos,
+                              VkPipelineCache pipeline_cache,
+                              uint32_t create_info_count,
+                              const VkGraphicsPipelineCreateInfo *create_infos,
                               const VkAllocationCallbacks *allocator,
-                              VkPipeline *pPipelines)
+                              VkPipeline *pipelines)
 {
     validate_allocator(allocator);
-#warning finish implementing vkCreateGraphicsPipelines
-    assert(!"vkCreateGraphicsPipelines is not implemented");
+    assert(device);
+    assert(create_info_count != 0);
+    assert(create_infos);
+    assert(pipelines);
+    return vulkan_icd::catch_exceptions_and_return_result(
+        [&]()
+        {
+            std::vector<std::unique_ptr<pipeline::Pipeline>> pipeline_vector;
+            pipeline_vector.resize(create_info_count);
+            for(std::uint32_t i = 0; i < create_info_count; i++)
+                pipeline_vector[i] = pipeline::Graphics_pipeline::create(
+                    *vulkan::Vulkan_device::from_handle(device),
+                    pipeline::Pipeline_cache::from_handle(pipeline_cache),
+                    create_infos[i]);
+            // only copy to pipelines after we're sure nothing will throw
+            for(std::uint32_t i = 0; i < create_info_count; i++)
+                pipelines[i] = move_to_handle(std::move(pipeline_vector[i]));
+            return VK_SUCCESS;
+        });
 }
 
 extern "C" VKAPI_ATTR VkResult VKAPI_CALL
@@ -894,27 +920,36 @@ extern "C" VKAPI_ATTR void VKAPI_CALL vkDestroyPipeline(VkDevice device,
                                                         const VkAllocationCallbacks *allocator)
 {
     validate_allocator(allocator);
-#warning finish implementing vkDestroyPipeline
-    assert(!"vkDestroyPipeline is not implemented");
+    assert(device);
+    pipeline::Pipeline::move_from_handle(pipeline).reset();
 }
 
 extern "C" VKAPI_ATTR VkResult VKAPI_CALL
     vkCreatePipelineLayout(VkDevice device,
-                           const VkPipelineLayoutCreateInfo *pCreateInfo,
+                           const VkPipelineLayoutCreateInfo *create_info,
                            const VkAllocationCallbacks *allocator,
-                           VkPipelineLayout *pPipelineLayout)
+                           VkPipelineLayout *pipeline_layout)
 {
     validate_allocator(allocator);
-#warning finish implementing vkCreatePipelineLayout
-    assert(!"vkCreatePipelineLayout is not implemented");
+    assert(device);
+    assert(create_info);
+    assert(pipeline_layout);
+    return vulkan_icd::catch_exceptions_and_return_result(
+        [&]()
+        {
+            auto create_result = vulkan::Vulkan_pipeline_layout::create(
+                *vulkan::Vulkan_device::from_handle(device), *create_info);
+            *pipeline_layout = move_to_handle(std::move(create_result));
+            return VK_SUCCESS;
+        });
 }
 
 extern "C" VKAPI_ATTR void VKAPI_CALL vkDestroyPipelineLayout(
-    VkDevice device, VkPipelineLayout pipelineLayout, const VkAllocationCallbacks *allocator)
+    VkDevice device, VkPipelineLayout pipeline_layout, const VkAllocationCallbacks *allocator)
 {
     validate_allocator(allocator);
-#warning finish implementing vkDestroyPipelineLayout
-    assert(!"vkDestroyPipelineLayout is not implemented");
+    assert(device);
+    vulkan::Vulkan_pipeline_layout::move_from_handle(pipeline_layout).reset();
 }
 
 extern "C" VKAPI_ATTR VkResult VKAPI_CALL vkCreateSampler(VkDevice device,
@@ -932,8 +967,8 @@ extern "C" VKAPI_ATTR void VKAPI_CALL vkDestroySampler(VkDevice device,
                                                        const VkAllocationCallbacks *allocator)
 {
     validate_allocator(allocator);
-#warning finish implementing vkDestroySampler
-    assert(!"vkDestroySampler is not implemented");
+    assert(device);
+    vulkan::Vulkan_sampler::move_from_handle(sampler).reset();
 }
 
 extern "C" VKAPI_ATTR VkResult VKAPI_CALL

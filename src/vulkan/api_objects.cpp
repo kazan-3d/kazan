@@ -568,9 +568,31 @@ std::unique_ptr<Vulkan_descriptor_set_layout> Vulkan_descriptor_set_layout::crea
     assert(create_info.bindingCount == 0 || create_info.pBindings);
     std::vector<Binding> bindings;
     bindings.reserve(create_info.bindingCount);
-    for(std::uint32_t i = 0; i<create_info.bindingCount;i++)
+    for(std::uint32_t i = 0; i < create_info.bindingCount; i++)
         bindings.emplace_back(create_info.pBindings[i]);
     return std::make_unique<Vulkan_descriptor_set_layout>(std::move(bindings));
+}
+
+std::unique_ptr<Vulkan_pipeline_layout> Vulkan_pipeline_layout::create(
+    Vulkan_device &device, const VkPipelineLayoutCreateInfo &create_info)
+{
+    assert(create_info.sType == VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO);
+    assert(create_info.setLayoutCount == 0 || create_info.pSetLayouts);
+    assert(create_info.pushConstantRangeCount == 0 || create_info.pPushConstantRanges);
+    std::vector<Vulkan_descriptor_set_layout *> descriptor_set_layouts;
+    descriptor_set_layouts.reserve(create_info.setLayoutCount);
+    for(std::uint32_t i = 0; i < create_info.setLayoutCount; i++)
+    {
+        auto *descriptor_set_layout =
+            Vulkan_descriptor_set_layout::from_handle(create_info.pSetLayouts[i]);
+        assert(descriptor_set_layout);
+        descriptor_set_layouts.push_back(descriptor_set_layout);
+    }
+    std::vector<VkPushConstantRange> push_constant_ranges(
+        create_info.pPushConstantRanges,
+        create_info.pPushConstantRanges + create_info.pushConstantRangeCount);
+    return std::make_unique<Vulkan_pipeline_layout>(std::move(descriptor_set_layouts),
+                                                    std::move(push_constant_ranges));
 }
 
 std::unique_ptr<Vulkan_render_pass> Vulkan_render_pass::create(
@@ -680,7 +702,7 @@ std::unique_ptr<Vulkan_render_pass> Vulkan_render_pass::create(
     {
         static std::atomic_bool wrote_warning{false};
         if(!wrote_warning.exchange(true, std::memory_order::memory_order_relaxed))
-            std::cerr << "depth stencil attachments not supported" << std::endl;
+            std::cerr << "depth stencil attachments not implemented" << std::endl;
     }
     return std::make_unique<Vulkan_render_pass>(
         std::move(attachments), *color_attachment_index, depth_stencil_attachment_index);

@@ -1490,15 +1490,15 @@ struct Vulkan_nondispatchable_object
 
 template <typename Object_type>
 typename std::
-    enable_if<std::is_base_of<Vulkan_dispatchable_object<Object_type,
+    enable_if<std::is_base_of<Vulkan_dispatchable_object<typename Object_type::Object,
                                                          typename Object_type::Vulkan_handle>,
                               Object_type>::value,
               typename Object_type::Vulkan_handle>::type
     to_handle(Object_type *object) noexcept
 {
     return reinterpret_cast<typename Object_type::Vulkan_handle>(
-        static_cast<Vulkan_dispatchable_object<Object_type, typename Object_type::Vulkan_handle> *>(
-            object));
+        static_cast<Vulkan_dispatchable_object<typename Object_type::Object,
+                                               typename Object_type::Vulkan_handle> *>(object));
 }
 
 template <typename Object_type>
@@ -1510,15 +1510,15 @@ decltype(to_handle(static_cast<Object_type *>(nullptr))) move_to_handle(
 
 template <typename Object_type, typename = void>
 typename std::
-    enable_if<std::is_base_of<Vulkan_nondispatchable_object<Object_type,
+    enable_if<std::is_base_of<Vulkan_nondispatchable_object<typename Object_type::Object,
                                                             typename Object_type::Vulkan_handle>,
                               Object_type>::value,
               typename Object_type::Vulkan_handle>::type
     to_handle(Object_type *object) noexcept
 {
     return reinterpret_cast<typename Object_type::Vulkan_handle>(
-        static_cast<Vulkan_nondispatchable_object<Object_type, typename Object_type::Vulkan_handle>
-                        *>(object));
+        static_cast<Vulkan_nondispatchable_object<typename Object_type::Object,
+                                                  typename Object_type::Vulkan_handle> *>(object));
 }
 
 struct Vulkan_device;
@@ -2484,6 +2484,21 @@ struct Vulkan_descriptor_set_layout
     }
     static std::unique_ptr<Vulkan_descriptor_set_layout> create(
         Vulkan_device &device, const VkDescriptorSetLayoutCreateInfo &create_info);
+};
+
+struct Vulkan_pipeline_layout
+    : public Vulkan_nondispatchable_object<Vulkan_pipeline_layout, VkPipelineLayout>
+{
+    std::vector<Vulkan_descriptor_set_layout *> descriptor_set_layouts;
+    std::vector<VkPushConstantRange> push_constant_ranges;
+    Vulkan_pipeline_layout(std::vector<Vulkan_descriptor_set_layout *> descriptor_set_layouts,
+                           std::vector<VkPushConstantRange> push_constant_ranges) noexcept
+        : descriptor_set_layouts(std::move(descriptor_set_layouts)),
+          push_constant_ranges(std::move(push_constant_ranges))
+    {
+    }
+    static std::unique_ptr<Vulkan_pipeline_layout> create(
+        Vulkan_device &device, const VkPipelineLayoutCreateInfo &create_info);
 };
 
 struct Vulkan_render_pass : public Vulkan_nondispatchable_object<Vulkan_render_pass, VkRenderPass>

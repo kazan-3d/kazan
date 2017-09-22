@@ -196,6 +196,9 @@ private:
     VkViewport viewport;
     VkRect2D scissor_rect;
 };
+
+using vulkan::move_to_handle;
+using vulkan::to_handle;
 }
 }
 
