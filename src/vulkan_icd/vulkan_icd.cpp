@@ -938,23 +938,32 @@ extern "C" VKAPI_ATTR void VKAPI_CALL vkDestroySampler(VkDevice device,
 
 extern "C" VKAPI_ATTR VkResult VKAPI_CALL
     vkCreateDescriptorSetLayout(VkDevice device,
-                                const VkDescriptorSetLayoutCreateInfo *pCreateInfo,
+                                const VkDescriptorSetLayoutCreateInfo *create_info,
                                 const VkAllocationCallbacks *allocator,
-                                VkDescriptorSetLayout *pSetLayout)
+                                VkDescriptorSetLayout *set_layout)
 {
     validate_allocator(allocator);
-#warning finish implementing vkCreateDescriptorSetLayout
-    assert(!"vkCreateDescriptorSetLayout is not implemented");
+    assert(device);
+    assert(create_info);
+    assert(set_layout);
+    return vulkan_icd::catch_exceptions_and_return_result(
+        [&]()
+        {
+            auto create_result = vulkan::Vulkan_descriptor_set_layout::create(
+                *vulkan::Vulkan_device::from_handle(device), *create_info);
+            *set_layout = move_to_handle(std::move(create_result));
+            return VK_SUCCESS;
+        });
 }
 
 extern "C" VKAPI_ATTR void VKAPI_CALL
     vkDestroyDescriptorSetLayout(VkDevice device,
-                                 VkDescriptorSetLayout descriptorSetLayout,
+                                 VkDescriptorSetLayout descriptor_set_layout,
                                  const VkAllocationCallbacks *allocator)
 {
     validate_allocator(allocator);
-#warning finish implementing vkDestroyDescriptorSetLayout
-    assert(!"vkDestroyDescriptorSetLayout is not implemented");
+    assert(device);
+    vulkan::Vulkan_descriptor_set_layout::move_from_handle(descriptor_set_layout).reset();
 }
 
 extern "C" VKAPI_ATTR VkResult VKAPI_CALL

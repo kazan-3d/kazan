@@ -559,6 +559,20 @@ std::unique_ptr<Vulkan_image_view> Vulkan_image_view::create(
                                                subresource_range);
 }
 
+std::unique_ptr<Vulkan_descriptor_set_layout> Vulkan_descriptor_set_layout::create(
+    Vulkan_device &device, const VkDescriptorSetLayoutCreateInfo &create_info)
+{
+    assert(create_info.sType == VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO);
+    constexpr VkDescriptorSetLayoutCreateFlags supported_flags = 0;
+    assert((create_info.flags & ~supported_flags) == 0);
+    assert(create_info.bindingCount == 0 || create_info.pBindings);
+    std::vector<Binding> bindings;
+    bindings.reserve(create_info.bindingCount);
+    for(std::uint32_t i = 0; i<create_info.bindingCount;i++)
+        bindings.emplace_back(create_info.pBindings[i]);
+    return std::make_unique<Vulkan_descriptor_set_layout>(std::move(bindings));
+}
+
 std::unique_ptr<Vulkan_render_pass> Vulkan_render_pass::create(
     Vulkan_device &device, const VkRenderPassCreateInfo &create_info)
 {

@@ -2441,6 +2441,51 @@ struct Vulkan_image_view : public Vulkan_nondispatchable_object<Vulkan_image_vie
                                                      const VkImageViewCreateInfo &create_info);
 };
 
+struct Vulkan_sampler : public Vulkan_nondispatchable_object<Vulkan_sampler, VkSampler>
+{
+#warning finish implementing Vulkan_sampler
+};
+
+struct Vulkan_descriptor_set_layout
+    : public Vulkan_nondispatchable_object<Vulkan_descriptor_set_layout, VkDescriptorSetLayout>
+{
+    struct Binding
+    {
+        std::uint32_t binding;
+        VkDescriptorType descriptor_type;
+        std::uint32_t descriptor_count;
+        std::unique_ptr<Vulkan_sampler *[]> immutable_samplers;
+        explicit Binding(const VkDescriptorSetLayoutBinding &descriptor_set_layout_binding)
+            : binding(descriptor_set_layout_binding.binding),
+              descriptor_type(descriptor_set_layout_binding.descriptorType),
+              descriptor_count(descriptor_set_layout_binding.descriptorCount),
+              immutable_samplers()
+        {
+            if((descriptor_type == VK_DESCRIPTOR_TYPE_SAMPLER
+                || descriptor_type == VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
+               && descriptor_count != 0
+               && descriptor_set_layout_binding.pImmutableSamplers)
+            {
+                immutable_samplers.reset(new Vulkan_sampler *[descriptor_count]);
+                for(std::uint32_t i = 0; i < descriptor_count; i++)
+                {
+                    auto *sampler = Vulkan_sampler::from_handle(
+                        descriptor_set_layout_binding.pImmutableSamplers[i]);
+                    assert(sampler);
+                    immutable_samplers[i] = sampler;
+                }
+            }
+        }
+    };
+    std::vector<Binding> bindings;
+    explicit Vulkan_descriptor_set_layout(std::vector<Binding> bindings) noexcept
+        : bindings(std::move(bindings))
+    {
+    }
+    static std::unique_ptr<Vulkan_descriptor_set_layout> create(
+        Vulkan_device &device, const VkDescriptorSetLayoutCreateInfo &create_info);
+};
+
 struct Vulkan_render_pass : public Vulkan_nondispatchable_object<Vulkan_render_pass, VkRenderPass>
 {
 #warning finish implementing Vulkan_render_pass
