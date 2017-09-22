@@ -36,6 +36,7 @@
 #include "util/string_view.h"
 #include "vulkan/vulkan.h"
 #include "vulkan/remove_xlib_macros.h"
+#include "util/bitset.h"
 
 namespace kazan
 {
@@ -51,6 +52,51 @@ struct LLVM_type_and_alignment
     constexpr LLVM_type_and_alignment(::LLVMTypeRef type, std::size_t alignment) noexcept
         : type(type),
           alignment(alignment)
+    {
+    }
+};
+
+struct Shader_interface
+{
+    /** uses a single type for both signed and unsigned integer variants */
+    enum class Location_type
+    {
+        Int32,
+        Float32,
+    };
+    enum class Interpolation_kind
+    {
+        Perspective,
+        Linear,
+        Flat,
+    };
+    struct Location_descriptor
+    {
+        Location_type type;
+        util::bitset<4> used_components;
+        Interpolation_kind interpolation_kind;
+        constexpr Location_descriptor() noexcept : type(), used_components(), interpolation_kind()
+        {
+        }
+        constexpr Location_descriptor(Location_type type,
+                                      util::bitset<4> used_components,
+                                      Interpolation_kind interpolation_kind) noexcept
+            : type(type),
+              used_components(used_components),
+              interpolation_kind(interpolation_kind)
+        {
+        }
+        constexpr explicit operator bool() const noexcept
+        {
+            return used_components.any();
+        }
+    };
+    std::vector<Location_descriptor> locations;
+    Shader_interface() noexcept : locations()
+    {
+    }
+    explicit Shader_interface(std::vector<Location_descriptor> locations) noexcept
+        : locations(std::move(locations))
     {
     }
 };
