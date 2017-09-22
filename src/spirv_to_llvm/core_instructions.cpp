@@ -377,8 +377,7 @@ void Spirv_to_llvm::handle_instruction_op_type_matrix(Op_type_matrix instruction
         state.type = std::make_shared<Matrix_type_descriptor>(
             state.decorations,
             get_type<Vector_type_descriptor>(instruction.column_type, instruction_start_index),
-            instruction.column_count,
-            target_data);
+            instruction.column_count);
         break;
     }
     case Stage::generate_code:
@@ -1590,6 +1589,13 @@ void Spirv_to_llvm::handle_instruction_op_access_chain(Op_access_chain instructi
                                        instruction_start_index,
                                        "unimplemented composite type for OpAccessChain");
                 }
+                void operator()(Row_major_matrix_type_descriptor &)
+                {
+#warning finish
+                    throw Parser_error(instruction_start_index,
+                                       instruction_start_index,
+                                       "unimplemented composite type for OpAccessChain");
+                }
                 void operator()(Array_type_descriptor &type)
                 {
                     auto &index_value = this_->get_id_state(index).value.value();
@@ -1846,6 +1852,13 @@ void Spirv_to_llvm::handle_instruction_op_composite_construct(Op_composite_const
                                    instruction_start_index,
                                    "unimplemented result type for OpCompositeConstruct");
             }
+            void operator()(Row_major_matrix_type_descriptor &)
+            {
+#warning finish
+                throw Parser_error(instruction_start_index,
+                                   instruction_start_index,
+                                   "unimplemented result type for OpCompositeConstruct");
+            }
             void operator()(Array_type_descriptor &)
             {
 #warning finish
@@ -1933,6 +1946,13 @@ void Spirv_to_llvm::handle_instruction_op_composite_extract(Op_composite_extract
                               type.get_element_type());
                 }
                 void operator()(Matrix_type_descriptor &)
+                {
+#warning finish
+                    throw Parser_error(instruction_start_index,
+                                       instruction_start_index,
+                                       "unimplemented composite type for OpCompositeExtract");
+                }
+                void operator()(Row_major_matrix_type_descriptor &)
                 {
 #warning finish
                     throw Parser_error(instruction_start_index,

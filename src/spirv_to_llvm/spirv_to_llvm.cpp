@@ -404,6 +404,13 @@ void Struct_type_descriptor::complete_type()
                                    this_->instruction_start_index,
                                    "unimplemented member type");
             }
+            virtual void visit(Row_major_matrix_type_descriptor &type) override
+            {
+#warning finish implementing member type
+                throw Parser_error(this_->instruction_start_index,
+                                   this_->instruction_start_index,
+                                   "unimplemented member type");
+            }
             virtual void visit(Array_type_descriptor &type) override
             {
 #warning finish implementing member type

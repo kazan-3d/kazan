@@ -298,6 +298,12 @@ struct Graphics_pipeline::Implementation
                 throw std::runtime_error("dumping matrix not implemented");
 #warning dumping matrix not implemented
             }
+            virtual void visit(spirv_to_llvm::Row_major_matrix_type_descriptor &type) override
+            {
+                assert(!"dumping matrix not implemented");
+                throw std::runtime_error("dumping matrix not implemented");
+#warning dumping matrix not implemented
+            }
             virtual void visit(spirv_to_llvm::Array_type_descriptor &type) override
             {
                 auto llvm_element_type = type.get_element_type()->get_or_make_type().type;
