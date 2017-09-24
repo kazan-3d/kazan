@@ -1769,14 +1769,16 @@ void Spirv_to_llvm::handle_instruction_op_in_bounds_ptr_access_chain(
 void Spirv_to_llvm::handle_instruction_op_decorate(
     Op_decorate instruction, [[gnu::unused]] std::size_t instruction_start_index)
 {
-    get_id_state(instruction.target).decorations.push_back(std::move(instruction.decoration));
+    if(stage == util::Enum_traits<Stage>::values[0])
+        get_id_state(instruction.target).decorations.push_back(std::move(instruction.decoration));
 }
 
 void Spirv_to_llvm::handle_instruction_op_member_decorate(
     Op_member_decorate instruction, [[gnu::unused]] std::size_t instruction_start_index)
 {
-    auto &state = get_id_state(instruction.structure_type);
-    state.member_decorations.push_back(std::move(instruction));
+    if(stage == util::Enum_traits<Stage>::values[0])
+        get_id_state(instruction.structure_type)
+            .member_decorations.push_back(std::move(instruction));
 }
 
 void Spirv_to_llvm::handle_instruction_op_decoration_group(Op_decoration_group instruction,
