@@ -31,11 +31,105 @@
 #include <cassert>
 #include <vector>
 #include <iostream>
+#include <algorithm>
 
 namespace kazan
 {
 namespace pipeline
 {
+Instantiated_pipeline_layout::Instantiated_pipeline_layout(vulkan::Vulkan_pipeline_layout &base,
+                                                           ::LLVMContextRef llvm_context,
+                                                           ::LLVMTargetDataRef target_data)
+    : base(base),
+      descriptor_sets(),
+      type(std::make_shared<spirv_to_llvm::Struct_type_descriptor>(
+          std::vector<spirv::Decoration_with_parameters>{},
+          llvm_context,
+          target_data,
+          "pipeline_layout",
+          0))
+{
+    auto void_pointer_type = std::make_shared<spirv_to_llvm::Pointer_type_descriptor>(
+        std::vector<spirv::Decoration_with_parameters>{},
+        std::make_shared<spirv_to_llvm::Simple_type_descriptor>(
+            std::vector<spirv::Decoration_with_parameters>{},
+            spirv_to_llvm::LLVM_type_and_alignment(
+                llvm_wrapper::Create_llvm_type<char>()(llvm_context), alignof(char))),
+        0,
+        target_data);
+    descriptor_sets.reserve(base.descriptor_set_layouts.size());
+    for(auto *descriptor_set_layout : base.descriptor_set_layouts)
+    {
+        descriptor_sets.emplace_back(*descriptor_set_layout);
+        auto &descriptor_set = descriptor_sets.back();
+        if(descriptor_set_layout->bindings.empty())
+            continue;
+        std::size_t max_binding = 0;
+        for(auto &binding : descriptor_set_layout->bindings)
+            max_binding = std::max(max_binding, static_cast<std::size_t>(binding.binding));
+        std::size_t binding_array_size = max_binding + 1;
+        if(binding_array_size == 0)
+            throw std::bad_alloc(); // overflowed, prevent later out-of-bounds access from
+        // allocating too small
+        descriptor_set.bindings.resize(binding_array_size);
+        for(auto &binding_layout : descriptor_set_layout->bindings)
+        {
+            auto &binding = descriptor_set.bindings[binding_layout.binding];
+            assert(!binding);
+            std::shared_ptr<spirv_to_llvm::Type_descriptor> element_type;
+            switch(binding_layout.descriptor_type)
+            {
+            case VK_DESCRIPTOR_TYPE_SAMPLER:
+#warning implement VK_DESCRIPTOR_TYPE_SAMPLER
+                break;
+            case VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER:
+#warning implement VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER
+                break;
+            case VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE:
+#warning implement VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE
+                break;
+            case VK_DESCRIPTOR_TYPE_STORAGE_IMAGE:
+#warning implement VK_DESCRIPTOR_TYPE_STORAGE_IMAGE
+                break;
+            case VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER:
+#warning implement VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER
+                break;
+            case VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER:
+#warning implement VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER
+                break;
+            case VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER:
+                element_type = void_pointer_type;
+                break;
+            case VK_DESCRIPTOR_TYPE_STORAGE_BUFFER:
+#warning implement VK_DESCRIPTOR_TYPE_STORAGE_BUFFER
+                break;
+            case VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC:
+#warning implement VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC
+                break;
+            case VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC:
+#warning implement VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC
+                break;
+            case VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT:
+#warning implement VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT
+                break;
+            case VK_DESCRIPTOR_TYPE_MAX_ENUM:
+            case VK_DESCRIPTOR_TYPE_RANGE_SIZE:
+                break;
+            }
+            assert(element_type && "unimplemented descriptor type");
+            auto binding_type = std::make_shared<spirv_to_llvm::Array_type_descriptor>(
+                std::vector<spirv::Decoration_with_parameters>{},
+                std::move(element_type),
+                binding_layout.descriptor_count,
+                0);
+            auto member_index =
+                type->add_member(spirv_to_llvm::Struct_type_descriptor::Member({}, binding_type));
+            binding = Binding(binding_layout, std::move(binding_type), member_index);
+        }
+    }
+    type->get_members(true); // fill in llvm type
+}
+
 llvm_wrapper::Module Pipeline::optimize_module(llvm_wrapper::Module module,
                                                ::LLVMTargetMachineRef target_machine)
 {
@@ -110,6 +204,7 @@ struct Graphics_pipeline::Implementation
     spirv_to_llvm::Jit_symbol_resolver jit_symbol_resolver;
     llvm_wrapper::Orc_compile_stack jit_stack;
     llvm_wrapper::Target_data data_layout;
+    std::unique_ptr<Instantiated_pipeline_layout> instantiated_pipeline_layout;
     std::vector<spirv_to_llvm::Converted_module> compiled_shaders;
     std::shared_ptr<spirv_to_llvm::Struct_type_descriptor> vertex_shader_output_struct;
     std::string append_value_to_string(std::string str,
@@ -853,7 +948,7 @@ std::unique_ptr<Graphics_pipeline> Graphics_pipeline::create(
     assert(create_info.sType == VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO);
     auto *render_pass = vulkan::Vulkan_render_pass::from_handle(create_info.renderPass);
     assert(render_pass);
-    auto *pipeline_layout = Pipeline_layout::from_handle(create_info.layout);
+    auto *pipeline_layout = vulkan::Vulkan_pipeline_layout::from_handle(create_info.layout);
     assert(pipeline_layout);
     if(create_info.flags & VK_PIPELINE_CREATE_DERIVATIVE_BIT)
     {
@@ -866,6 +961,9 @@ std::unique_ptr<Graphics_pipeline> Graphics_pipeline::create(
         optimization_level = ::LLVMCodeGenLevelNone;
     auto llvm_target_machine =
         llvm_wrapper::Target_machine::create_native_target_machine(optimization_level);
+    implementation->data_layout = llvm_target_machine.create_target_data_layout();
+    implementation->instantiated_pipeline_layout = std::make_unique<Instantiated_pipeline_layout>(
+        *pipeline_layout, implementation->llvm_context.get(), implementation->data_layout.get());
     implementation->compiled_shaders.reserve(create_info.stageCount);
     util::Enum_set<spirv::Execution_model> found_shader_stages;
     for(std::size_t i = 0; i < create_info.stageCount; i++)
@@ -897,14 +995,16 @@ std::unique_ptr<Graphics_pipeline> Graphics_pipeline::create(
         assert(create_info.pVertexInputState);
         assert(create_info.pVertexInputState->sType
                == VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO);
-        auto compiled_shader = spirv_to_llvm::spirv_to_llvm(implementation->llvm_context.get(),
-                                                            llvm_target_machine.get(),
-                                                            shader_module->words(),
-                                                            shader_module->word_count(),
-                                                            implementation->compiled_shaders.size(),
-                                                            execution_model,
-                                                            stage_info.pName,
-                                                            create_info.pVertexInputState);
+        auto compiled_shader =
+            spirv_to_llvm::spirv_to_llvm(implementation->llvm_context.get(),
+                                         llvm_target_machine.get(),
+                                         shader_module->words(),
+                                         shader_module->word_count(),
+                                         implementation->compiled_shaders.size(),
+                                         execution_model,
+                                         stage_info.pName,
+                                         create_info.pVertexInputState,
+                                         *implementation->instantiated_pipeline_layout);
         std::cerr << "Translation to LLVM succeeded." << std::endl;
         ::LLVMDumpModule(compiled_shader.module.get());
         bool failed =
@@ -913,7 +1013,6 @@ std::unique_ptr<Graphics_pipeline> Graphics_pipeline::create(
             throw std::runtime_error("LLVM module verification failed");
         implementation->compiled_shaders.push_back(std::move(compiled_shader));
     }
-    implementation->data_layout = llvm_target_machine.create_target_data_layout();
     implementation->jit_stack =
         llvm_wrapper::Orc_compile_stack::create(std::move(llvm_target_machine), optimize_module);
     Vertex_shader_function vertex_shader_function = nullptr;

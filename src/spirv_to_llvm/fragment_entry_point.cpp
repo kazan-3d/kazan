@@ -631,6 +631,11 @@ using namespace spirv;
                 after_call_callbacks.push_back(std::move(callback));
             }
         }
+        else if(member_index == uniforms_member)
+        {
+#warning implement shader uniforms
+            assert(this->pipeline_layout.descriptor_sets.empty() && "shader uniforms not implemented");
+        }
         else
         {
             throw Parser_error(0, 0, "internal error: unhandled Io_struct member");

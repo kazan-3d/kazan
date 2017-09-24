@@ -36,10 +36,16 @@
 #include "util/string_view.h"
 #include "vulkan/vulkan.h"
 #include "vulkan/remove_xlib_macros.h"
+#include "vulkan/api_objects.h"
 #include "util/bitset.h"
 
 namespace kazan
 {
+namespace pipeline
+{
+struct Instantiated_pipeline_layout;
+}
+
 namespace spirv_to_llvm
 {
 struct LLVM_type_and_alignment
@@ -236,6 +242,15 @@ public:
             return get_recursion_count() > 1;
         }
     };
+    enum class Load_store_implementation_kind
+    {
+        Simple,
+        Transpose_matrix,
+    };
+    virtual Load_store_implementation_kind get_load_store_implementation_kind()
+    {
+        return Load_store_implementation_kind::Simple;
+    }
 };
 
 class Simple_type_descriptor final : public Type_descriptor
@@ -493,8 +508,13 @@ public:
             target_data);
         column_major_type = std::make_shared<Matrix_type_descriptor>(
             decorations, std::move(column_type), row_type->get_element_count());
-        column_major_type->row_major_type = std::static_pointer_cast<Row_major_matrix_type_descriptor>(shared_from_this());
+        column_major_type->row_major_type =
+            std::static_pointer_cast<Row_major_matrix_type_descriptor>(shared_from_this());
         return column_major_type;
+    }
+    virtual Load_store_implementation_kind get_load_store_implementation_kind() override
+    {
+        return Load_store_implementation_kind::Transpose_matrix;
     }
 };
 
@@ -508,7 +528,8 @@ inline std::shared_ptr<Type_descriptor> Matrix_type_descriptor::make_row_major_t
                                                  target_data);
     auto retval = std::make_shared<Row_major_matrix_type_descriptor>(
         decorations, std::move(row_type), column_type->get_element_count());
-    retval->column_major_type = std::static_pointer_cast<Matrix_type_descriptor>(shared_from_this());
+    retval->column_major_type =
+        std::static_pointer_cast<Matrix_type_descriptor>(shared_from_this());
     return retval;
 }
 
@@ -792,7 +813,8 @@ Converted_module spirv_to_llvm(::LLVMContextRef context,
                                std::uint64_t shader_id,
                                spirv::Execution_model execution_model,
                                util::string_view entry_point_name,
-                               const VkPipelineVertexInputStateCreateInfo *vertex_input_state);
+                               const VkPipelineVertexInputStateCreateInfo *vertex_input_state,
+                               pipeline::Instantiated_pipeline_layout &pipeline_layout);
 }
 }
 

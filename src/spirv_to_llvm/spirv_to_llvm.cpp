@@ -540,14 +540,16 @@ spirv_to_llvm::Converted_module spirv_to_llvm::spirv_to_llvm(
     std::uint64_t shader_id,
     spirv::Execution_model execution_model,
     util::string_view entry_point_name,
-    const VkPipelineVertexInputStateCreateInfo *vertex_input_state)
+    const VkPipelineVertexInputStateCreateInfo *vertex_input_state,
+    pipeline::Instantiated_pipeline_layout &pipeline_layout)
 {
     return Spirv_to_llvm(context,
                          target_machine,
                          shader_id,
                          execution_model,
                          entry_point_name,
-                         vertex_input_state)
+                         vertex_input_state,
+                         pipeline_layout)
         .run(shader_words, shader_size);
 }
 }

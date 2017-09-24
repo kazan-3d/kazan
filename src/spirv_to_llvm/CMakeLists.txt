@@ -27,4 +27,9 @@ set(sources core_instructions.cpp
             spirv_to_llvm.cpp
             vertex_entry_point.cpp)
 add_library(kazan_spirv_to_llvm STATIC ${sources})
-target_link_libraries(kazan_spirv_to_llvm kazan_util kazan_spirv kazan_llvm_wrapper kazan_pipeline)
+target_link_libraries(kazan_spirv_to_llvm
+                      kazan_util
+                      kazan_spirv
+                      kazan_llvm_wrapper
+                      kazan_pipeline
+                      kazan_vulkan)

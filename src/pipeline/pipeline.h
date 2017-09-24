@@ -33,6 +33,7 @@
 #include "vulkan/remove_xlib_macros.h"
 #include "spirv/spirv.h"
 #include "vulkan/api_objects.h"
+#include "spirv_to_llvm/spirv_to_llvm.h"
 
 namespace kazan
 {
@@ -52,17 +53,50 @@ public:
     }
 };
 
-class Pipeline_layout
-    : public vulkan::Vulkan_nondispatchable_object<Pipeline_layout, VkPipelineLayout>
+struct Instantiated_pipeline_layout
 {
-#warning finish implementing Pipeline_layout
-public:
-    static std::unique_ptr<Pipeline_layout> create(vulkan::Vulkan_device &,
-                                                   const VkPipelineLayoutCreateInfo &create_info)
+    vulkan::Vulkan_pipeline_layout &base;
+    struct Binding
     {
-#warning finish implementing Pipeline_layout::create
-        return std::make_unique<Pipeline_layout>();
-    }
+        vulkan::Vulkan_descriptor_set_layout::Binding *base;
+        std::shared_ptr<spirv_to_llvm::Array_type_descriptor> type;
+        std::size_t member_index;
+        constexpr Binding() noexcept : base(), type(), member_index(-1)
+        {
+        }
+        Binding(vulkan::Vulkan_descriptor_set_layout::Binding &base,
+                std::shared_ptr<spirv_to_llvm::Array_type_descriptor> type,
+                std::size_t member_index) noexcept : base(&base),
+                                                     type(std::move(type)),
+                                                     member_index(member_index)
+        {
+        }
+        explicit operator bool() const noexcept
+        {
+            return base != nullptr;
+        }
+    };
+    struct Descriptor_set
+    {
+        vulkan::Vulkan_descriptor_set_layout *base;
+        std::vector<Binding> bindings;
+        Descriptor_set() noexcept : base(nullptr), bindings()
+        {
+        }
+        explicit Descriptor_set(vulkan::Vulkan_descriptor_set_layout &base)
+            : base(&base), bindings()
+        {
+        }
+        explicit operator bool() const noexcept
+        {
+            return base != nullptr;
+        }
+    };
+    std::vector<Descriptor_set> descriptor_sets;
+    std::shared_ptr<spirv_to_llvm::Struct_type_descriptor> type;
+    Instantiated_pipeline_layout(vulkan::Vulkan_pipeline_layout &base,
+                                 ::LLVMContextRef llvm_context,
+                                 ::LLVMTargetDataRef target_data);
 };
 
 struct Shader_module : public vulkan::Vulkan_nondispatchable_object<Shader_module, VkShaderModule>

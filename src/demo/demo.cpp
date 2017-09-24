@@ -230,7 +230,7 @@ std::unique_ptr<pipeline::Shader_module> load_shader(vulkan::Vulkan_device &devi
     return pipeline::Shader_module::create(device, shader_module_create_info);
 }
 
-std::unique_ptr<pipeline::Pipeline_layout> make_pipeline_layout(vulkan::Vulkan_device &device)
+std::unique_ptr<vulkan::Vulkan_pipeline_layout> make_pipeline_layout(vulkan::Vulkan_device &device)
 {
     VkPipelineLayoutCreateInfo pipeline_layout_create_info = {
         .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
@@ -241,7 +241,7 @@ std::unique_ptr<pipeline::Pipeline_layout> make_pipeline_layout(vulkan::Vulkan_d
         .pushConstantRangeCount = 0,
         .pPushConstantRanges = nullptr,
     };
-    return pipeline::Pipeline_layout::create(device, pipeline_layout_create_info);
+    return vulkan::Vulkan_pipeline_layout::create(device, pipeline_layout_create_info);
 }
 
 template <typename Integer_type>

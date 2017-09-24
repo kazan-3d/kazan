@@ -1081,8 +1081,14 @@ void Spirv_to_llvm::handle_instruction_op_variable(Op_variable instruction,
                 return;
             }
             case Storage_class::uniform:
-#warning finish implementing Storage_class::uniform
-                break;
+            {
+                if(instruction.initializer)
+                    throw Parser_error(instruction_start_index,
+                                       instruction_start_index,
+                                       "shader uniform variable initializers are not implemented");
+                state.variable = Uniform_variable_state{};
+                return;
+            }
             case Storage_class::output:
             {
                 if(instruction.initializer)
@@ -1237,11 +1243,37 @@ void Spirv_to_llvm::handle_instruction_op_variable(Op_variable instruction,
 #warning finish implementing Decoration::index
                     break;
                 case Decoration::binding:
+                {
+                    switch(instruction.storage_class)
+                    {
+                    case spirv::Storage_class::uniform:
+                        continue;
 #warning finish implementing Decoration::binding
-                    break;
+                    default:
+                        throw Parser_error(
+                            instruction_start_index,
+                            instruction_start_index,
+                            "OpVariable Binding decoration not implemented for storage "
+                            "class: "
+                                + std::string(get_enumerant_name(instruction.storage_class)));
+                    }
+                }
                 case Decoration::descriptor_set:
+                {
+                    switch(instruction.storage_class)
+                    {
+                    case spirv::Storage_class::uniform:
+                        continue;
 #warning finish implementing Decoration::descriptor_set
-                    break;
+                    default:
+                        throw Parser_error(
+                            instruction_start_index,
+                            instruction_start_index,
+                            "OpVariable DescriptorSet decoration not implemented for storage "
+                            "class: "
+                                + std::string(get_enumerant_name(instruction.storage_class)));
+                    }
+                }
                 case Decoration::offset:
 #warning finish implementing Decoration::offset
                     break;
@@ -1472,11 +1504,34 @@ void Spirv_to_llvm::handle_instruction_op_load(Op_load instruction,
             throw Parser_error(instruction_start_index,
                                instruction_start_index,
                                "OpLoad nontemporal not implemented");
-        state.value = Value(::LLVMBuildLoad(builder.get(),
-                                            get_id_state(instruction.pointer).value.value().value,
-                                            get_name(instruction.result).c_str()),
-                            get_type(instruction.result_type, instruction_start_index));
-        ::LLVMSetAlignment(state.value->value, state.value->type->get_or_make_type().alignment);
+        auto result_type = get_type(instruction.result_type, instruction_start_index);
+        auto &pointer_value = get_id_state(instruction.pointer).value.value();
+        assert(dynamic_cast<Pointer_type_descriptor *>(pointer_value.type.get()));
+        auto pointer_type = std::static_pointer_cast<Pointer_type_descriptor>(pointer_value.type);
+        auto memory_type = pointer_type->get_base_type();
+        switch(memory_type->get_load_store_implementation_kind())
+        {
+        case Type_descriptor::Load_store_implementation_kind::Simple:
+            state.value =
+                Value(::LLVMBuildLoad(builder.get(),
+                                      get_id_state(instruction.pointer).value.value().value,
+                                      get_name(instruction.result).c_str()),
+                      result_type);
+            ::LLVMSetAlignment(state.value->value, memory_type->get_or_make_type().alignment);
+            break;
+        case Type_descriptor::Load_store_implementation_kind::Transpose_matrix:
+        {
+            auto untransposed_value = ::LLVMBuildLoad(
+                builder.get(), get_id_state(instruction.pointer).value.value().value, "");
+            ::LLVMSetAlignment(untransposed_value, memory_type->get_or_make_type().alignment);
+            state.value = Value(matrix_operations::transpose(context,
+                                                             builder.get(),
+                                                             untransposed_value,
+                                                             get_name(instruction.result).c_str()),
+                                result_type);
+            break;
+        }
+        }
         break;
     }
     }
@@ -1507,8 +1562,28 @@ void Spirv_to_llvm::handle_instruction_op_store(Op_store instruction,
                                "OpStore nontemporal not implemented");
         auto &object_value = get_id_state(instruction.object).value.value();
         auto &pointer_value = get_id_state(instruction.pointer).value.value();
-        ::LLVMSetAlignment(::LLVMBuildStore(builder.get(), object_value.value, pointer_value.value),
-                           object_value.type->get_or_make_type().alignment);
+        assert(dynamic_cast<Pointer_type_descriptor *>(pointer_value.type.get()));
+        auto pointer_type = std::static_pointer_cast<Pointer_type_descriptor>(pointer_value.type);
+        auto memory_type = pointer_type->get_base_type();
+        switch(memory_type->get_load_store_implementation_kind())
+        {
+        case Type_descriptor::Load_store_implementation_kind::Simple:
+            ::LLVMSetAlignment(
+                ::LLVMBuildStore(builder.get(), object_value.value, pointer_value.value),
+                memory_type->get_or_make_type().alignment);
+            break;
+        case Type_descriptor::Load_store_implementation_kind::Transpose_matrix:
+        {
+            auto transposed_value = matrix_operations::transpose(context,
+                                                             builder.get(),
+                                                             object_value.value,
+                                                             "");
+            ::LLVMSetAlignment(
+                ::LLVMBuildStore(builder.get(), transposed_value, pointer_value.value),
+                memory_type->get_or_make_type().alignment);
+            break;
+        }
+        }
         break;
     }
     }

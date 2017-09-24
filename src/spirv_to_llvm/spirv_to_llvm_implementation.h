@@ -28,6 +28,7 @@
 #include "util/variant.h"
 #include "util/enum.h"
 #include "pipeline/pipeline.h"
+#include "matrix_operations.h"
 #include <functional>
 #include <list>
 #include <iostream>
@@ -79,8 +80,13 @@ private:
         std::shared_ptr<Type_descriptor> type;
         std::size_t member_index;
     };
-    typedef util::variant<util::monostate, Input_variable_state, Output_variable_state>
-        Variable_state;
+    struct Uniform_variable_state
+    {
+    };
+    typedef util::variant<util::monostate,
+                          Input_variable_state,
+                          Output_variable_state,
+                          Uniform_variable_state> Variable_state;
     struct Function_state
     {
         struct Entry_block
@@ -223,6 +229,8 @@ private:
     std::size_t outputs_member;
     std::shared_ptr<Struct_type_descriptor> outputs_struct;
     std::shared_ptr<Pointer_type_descriptor> outputs_struct_pointer_type;
+    std::size_t uniforms_member;
+    std::shared_ptr<Pointer_type_descriptor> uniforms_struct_pointer_type;
     Stage stage;
     spirv::Id current_function_id = 0;
     spirv::Id current_basic_block_id = 0;
@@ -233,6 +241,7 @@ private:
     util::string_view entry_point_name;
     Op_entry_point_state *entry_point_state_pointer = nullptr;
     const VkPipelineVertexInputStateCreateInfo *vertex_input_state;
+    pipeline::Instantiated_pipeline_layout &pipeline_layout;
 
 private:
     Id_state &get_id_state(spirv::Id id)
@@ -381,14 +390,16 @@ public:
                            std::uint64_t shader_id,
                            spirv::Execution_model execution_model,
                            util::string_view entry_point_name,
-                           const VkPipelineVertexInputStateCreateInfo *vertex_input_state)
+                           const VkPipelineVertexInputStateCreateInfo *vertex_input_state,
+                           pipeline::Instantiated_pipeline_layout &pipeline_layout)
         : context(context),
           target_machine(target_machine),
           shader_id(shader_id),
           stage(),
           execution_model(execution_model),
           entry_point_name(entry_point_name),
-          vertex_input_state(vertex_input_state)
+          vertex_input_state(vertex_input_state),
+          pipeline_layout(pipeline_layout)
     {
         {
             std::ostringstream ss;
@@ -434,6 +445,10 @@ public:
             std::vector<spirv::Decoration_with_parameters>{}, outputs_struct, 0, target_data);
         outputs_member =
             io_struct->add_member(Struct_type_descriptor::Member({}, outputs_struct_pointer_type));
+        uniforms_struct_pointer_type = std::make_shared<Pointer_type_descriptor>(
+            std::vector<spirv::Decoration_with_parameters>{}, pipeline_layout.type, 0, target_data);
+        uniforms_member =
+            io_struct->add_member(Struct_type_descriptor::Member({}, uniforms_struct_pointer_type));
     }
     ::LLVMValueRef generate_vertex_entry_function(Op_entry_point_state &entry_point,
                                                   ::LLVMValueRef main_function);
