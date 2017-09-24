@@ -633,7 +633,7 @@ public:
 };
 
 template <typename T, typename U>
-constexpr bool operator==(const optional<T> &l, const optional<T> &r) noexcept(noexcept(*l == *r))
+constexpr bool operator==(const optional<T> &l, const optional<U> &r) noexcept(noexcept(*l == *r))
 {
     if(!l.has_value() || !r.has_value())
         return !r.has_value();
@@ -641,7 +641,7 @@ constexpr bool operator==(const optional<T> &l, const optional<T> &r) noexcept(n
 }
 
 template <typename T, typename U>
-constexpr bool operator!=(const optional<T> &l, const optional<T> &r) noexcept(noexcept(*l == *r))
+constexpr bool operator!=(const optional<T> &l, const optional<U> &r) noexcept(noexcept(*l == *r))
 {
     if(!l.has_value() || !r.has_value())
         return r.has_value();
@@ -649,7 +649,7 @@ constexpr bool operator!=(const optional<T> &l, const optional<T> &r) noexcept(n
 }
 
 template <typename T, typename U>
-constexpr bool operator<(const optional<T> &l, const optional<T> &r) noexcept(noexcept(*l == *r))
+constexpr bool operator<(const optional<T> &l, const optional<U> &r) noexcept(noexcept(*l == *r))
 {
     if(!l.has_value() || !r.has_value())
         return r.has_value();
@@ -657,7 +657,7 @@ constexpr bool operator<(const optional<T> &l, const optional<T> &r) noexcept(no
 }
 
 template <typename T, typename U>
-constexpr bool operator>(const optional<T> &l, const optional<T> &r) noexcept(noexcept(*l == *r))
+constexpr bool operator>(const optional<T> &l, const optional<U> &r) noexcept(noexcept(*l == *r))
 {
     if(!l.has_value() || !r.has_value())
         return l.has_value();
@@ -665,7 +665,7 @@ constexpr bool operator>(const optional<T> &l, const optional<T> &r) noexcept(no
 }
 
 template <typename T, typename U>
-constexpr bool operator<=(const optional<T> &l, const optional<T> &r) noexcept(noexcept(*l == *r))
+constexpr bool operator<=(const optional<T> &l, const optional<U> &r) noexcept(noexcept(*l == *r))
 {
     if(!l.has_value() || !r.has_value())
         return !l.has_value();
@@ -673,7 +673,7 @@ constexpr bool operator<=(const optional<T> &l, const optional<T> &r) noexcept(n
 }
 
 template <typename T, typename U>
-constexpr bool operator>=(const optional<T> &l, const optional<T> &r) noexcept(noexcept(*l == *r))
+constexpr bool operator>=(const optional<T> &l, const optional<U> &r) noexcept(noexcept(*l == *r))
 {
     if(!l.has_value() || !r.has_value())
         return !r.has_value();
