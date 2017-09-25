@@ -209,11 +209,14 @@ void Struct_type_descriptor::complete_type()
     {
         std::size_t alignment;
         std::size_t size;
+        util::optional<std::size_t> offset;
         ::LLVMTypeRef type;
         explicit Member_descriptor(std::size_t alignment,
                                    std::size_t size,
+                                   util::optional<std::size_t> offset,
                                    ::LLVMTypeRef type) noexcept : alignment(alignment),
                                                                   size(size),
+                                                                  offset(offset),
                                                                   type(type)
         {
         }
@@ -223,6 +226,9 @@ void Struct_type_descriptor::complete_type()
     std::size_t total_alignment = 1;
     for(auto &member : members)
     {
+        util::optional<bool> is_row_major;
+        util::optional<std::size_t> offset;
+        util::optional<std::size_t> matrix_stride;
         for(auto &decoration : member.decorations)
         {
             switch(decoration.value)
@@ -240,17 +246,20 @@ void Struct_type_descriptor::complete_type()
 #warning finish implementing Decoration::buffer_block
                 break;
             case Decoration::row_major:
-#warning finish implementing Decoration::row_major
-                break;
+                is_row_major = true;
+                continue;
             case Decoration::col_major:
-#warning finish implementing Decoration::col_major
-                break;
+                is_row_major = false;
+                continue;
             case Decoration::array_stride:
 #warning finish implementing Decoration::array_stride
                 break;
             case Decoration::matrix_stride:
-#warning finish implementing Decoration::matrix_stride
-                break;
+            {
+                auto &parameters = util::get<spirv::Decoration_matrix_stride_parameters>(decoration.parameters);
+                matrix_stride = parameters.matrix_stride;
+                continue;
+            }
             case Decoration::glsl_shared:
 #warning finish implementing Decoration::glsl_shared
                 break;
@@ -326,8 +335,11 @@ void Struct_type_descriptor::complete_type()
 #warning finish implementing Decoration::descriptor_set
                 break;
             case Decoration::offset:
-#warning finish implementing Decoration::offset
-                break;
+            {
+                auto &parameters = util::get<spirv::Decoration_offset_parameters>(decoration.parameters);
+                offset = parameters.byte_offset;
+                continue;
+            }
             case Decoration::xfb_buffer:
 #warning finish implementing Decoration::xfb_buffer
                 break;
@@ -382,6 +394,14 @@ void Struct_type_descriptor::complete_type()
                                "unimplemented member decoration on OpTypeStruct: "
                                    + std::string(get_enumerant_name(decoration.value)));
         }
+        if(is_row_major)
+        {
+            if(*is_row_major)
+                member.type = member.type->get_row_major_type(target_data);
+            else
+                member.type = member.type->get_column_major_type(target_data);
+        }
+        assert(matrix_stride == member.type->get_matrix_stride(target_data) && "MatrixStride decoration unimplemented for non-default strides");
         auto member_type = member.type->get_or_make_type();
         std::size_t size = ::LLVMABISizeOfType(target_data, member_type.type);
         struct Member_type_visitor : public Type_descriptor::Type_visitor
@@ -400,16 +420,10 @@ void Struct_type_descriptor::complete_type()
             virtual void visit(Matrix_type_descriptor &type) override
             {
 #warning finish implementing member type
-                throw Parser_error(this_->instruction_start_index,
-                                   this_->instruction_start_index,
-                                   "unimplemented member type");
             }
             virtual void visit(Row_major_matrix_type_descriptor &type) override
             {
 #warning finish implementing member type
-                throw Parser_error(this_->instruction_start_index,
-                                   this_->instruction_start_index,
-                                   "unimplemented member type");
             }
             virtual void visit(Array_type_descriptor &type) override
             {
@@ -452,7 +466,7 @@ void Struct_type_descriptor::complete_type()
         if(member_type.alignment > total_alignment)
             total_alignment = member_type.alignment;
         member_descriptors.push_back(
-            Member_descriptor(member_type.alignment, size, member_type.type));
+            Member_descriptor(member_type.alignment, size, offset, member_type.type));
     }
     assert(member_descriptors.size() == members.size());
     assert(is_power_of_2(total_alignment));
@@ -463,6 +477,17 @@ void Struct_type_descriptor::complete_type()
     {
         for(std::size_t member_index = 0; member_index < members.size(); member_index++)
         {
+            if(member_descriptors[member_index].offset)
+            {
+                assert(*member_descriptors[member_index].offset >= current_offset);
+                auto padding_size = *member_descriptors[member_index].offset - current_offset;
+                if(padding_size != 0)
+                {
+                    member_types.push_back(
+                        ::LLVMArrayType(::LLVMInt8TypeInContext(context), padding_size));
+                    current_offset += padding_size;
+                }
+            }
             members[member_index].llvm_member_index = member_types.size();
 #warning finish Struct_type_descriptor::complete_type
             member_types.push_back(member_descriptors[member_index].type);

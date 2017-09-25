@@ -901,12 +901,20 @@ int test_main(int argc, char **argv)
         void *bindings[binding_count] = {
             vertexes.data(),
         };
-        graphics_pipeline->run(
-            vertex_start_index, vertex_end_index, instance_id, *color_attachment, bindings);
+        struct Uniforms
+        {
+        };
+        Uniforms uniforms{};
+        graphics_pipeline->run(vertex_start_index,
+                               vertex_end_index,
+                               instance_id,
+                               *color_attachment,
+                               bindings,
+                               &uniforms);
         typedef std::uint32_t Pixel_type;
         // check Pixel_type
         static_assert(std::is_void<util::void_t<decltype(graphics_pipeline->run_fragment_shader(
-                          static_cast<Pixel_type *>(nullptr)))>>::value,
+                          static_cast<Pixel_type *>(nullptr), nullptr))>>::value,
                       "");
         auto rgba = [](std::uint8_t r,
                        std::uint8_t g,

@@ -471,7 +471,8 @@ void Graphics_pipeline::run(std::uint32_t vertex_start_index,
                             std::uint32_t vertex_end_index,
                             std::uint32_t instance_id,
                             const vulkan::Vulkan_image &color_attachment,
-                            void *const *bindings)
+                            void *const *bindings,
+                            void *uniforms)
 {
     typedef std::uint32_t Pixel_type;
     assert(color_attachment.descriptor.tiling == VK_IMAGE_TILING_LINEAR);
@@ -684,7 +685,8 @@ void Graphics_pipeline::run(std::uint32_t vertex_start_index,
                           current_vertex_start_index + chunk_size,
                           instance_id,
                           chunk_vertex_buffer.get(),
-                          bindings);
+                          bindings,
+                          uniforms);
         const unsigned char *current_vertex =
             chunk_vertex_buffer.get() + vertex_shader_position_output_offset;
         triangles.clear();
@@ -932,7 +934,7 @@ void Graphics_pipeline::run(std::uint32_t vertex_start_index,
                             static_cast<unsigned char *>(color_attachment_memory)
                             + (static_cast<std::size_t>(x) * color_attachment_pixel_size
                                + static_cast<std::size_t>(y) * color_attachment_stride));
-                        fs(pixel);
+                        fs(pixel, uniforms);
                     }
                 }
             }

@@ -25,11 +25,14 @@
 #include <llvm/ExecutionEngine/SectionMemoryManager.h>
 #include <llvm-c/ExecutionEngine.h>
 #include <llvm/IR/DataLayout.h>
+#include <llvm/IR/Intrinsics.h>
 #include <llvm/Target/TargetMachine.h>
 #include <llvm/Analysis/TargetTransformInfo.h>
 #include <iostream>
 #include <cstdlib>
 #include <algorithm>
+#include <vector>
+#include <memory>
 
 namespace kazan
 {
@@ -148,6 +151,22 @@ unsigned Target_machine::get_biggest_vector_register_bit_width(::LLVMTargetMachi
         .getRegisterBitWidth(true);
 }
 
+LLVM_intrinsic_id get_llvm_intrinsic_id(Intrinsic intrinsic) noexcept
+{
+    using llvm::Intrinsic::ID;
+    auto cvt = [](ID v) noexcept
+    {
+        return static_cast<LLVM_intrinsic_id>(static_cast<unsigned>(v));
+    };
+    switch(intrinsic)
+    {
+    case Intrinsic::fmuladd:
+        return cvt(ID::fmuladd);
+    }
+    assert(false);
+    return LLVM_intrinsic_id::Not_intrinsic;
+}
+
 void Module::set_target_machine(::LLVMModuleRef module, ::LLVMTargetMachineRef target_machine)
 {
     ::LLVMSetTarget(module, Target_machine::get_target_triple(target_machine).get());
@@ -162,6 +181,33 @@ void Module::set_function_target_machine(::LLVMValueRef function,
         function, "target-cpu", Target_machine::get_cpu(target_machine).get());
     ::LLVMAddTargetDependentFunctionAttr(
         function, "target-features", Target_machine::get_feature_string(target_machine).get());
+}
+
+::LLVMValueRef Module::get_intrinsic_declaration(::LLVMModuleRef module,
+                                                 LLVM_intrinsic_id llvm_intrinsic_id,
+                                                 const ::LLVMTypeRef *types,
+                                                 std::size_t type_count)
+{
+    auto *module_pointer = llvm::unwrap(module);
+    constexpr std::size_t array_size = 4;
+    llvm::Type *on_stack_array[array_size];
+    std::unique_ptr<llvm::Type *[]> on_heap_array;
+    llvm::Type **unwrapped_types;
+    if(type_count > array_size)
+    {
+        on_heap_array.reset(new llvm::Type *[type_count]);
+        unwrapped_types = on_heap_array.get();
+    }
+    else
+    {
+        unwrapped_types = on_stack_array;
+    }
+    for(std::size_t i = 0; i < type_count; i++)
+        unwrapped_types[i] = llvm::unwrap(types[i]);
+    return llvm::wrap(llvm::Intrinsic::getDeclaration(
+        module_pointer,
+        static_cast<llvm::Intrinsic::ID>(static_cast<unsigned>(llvm_intrinsic_id)),
+        llvm::ArrayRef<llvm::Type *>(unwrapped_types, type_count)));
 }
 }
 }

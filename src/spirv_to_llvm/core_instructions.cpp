@@ -1056,7 +1056,7 @@ void Spirv_to_llvm::handle_instruction_op_variable(Op_variable instruction,
     case Stage::calculate_types:
     {
         auto &state = get_id_state(instruction.result);
-        bool check_decorations = true;
+        bool parse_decorations = true;
         [&]()
         {
             switch(instruction.storage_class)
@@ -1077,7 +1077,7 @@ void Spirv_to_llvm::handle_instruction_op_variable(Op_variable instruction,
                     Input_variable_state{type,
                                          inputs_struct->add_member(Struct_type_descriptor::Member(
                                              state.decorations, type))};
-                check_decorations = false;
+                parse_decorations = false;
                 return;
             }
             case Storage_class::uniform:
@@ -1086,7 +1086,10 @@ void Spirv_to_llvm::handle_instruction_op_variable(Op_variable instruction,
                     throw Parser_error(instruction_start_index,
                                        instruction_start_index,
                                        "shader uniform variable initializers are not implemented");
-                state.variable = Uniform_variable_state{};
+                auto type = get_type<Pointer_type_descriptor>(instruction.result_type,
+                                                              instruction_start_index)
+                                ->get_base_type();
+                state.variable = Uniform_variable_state(type);
                 return;
             }
             case Storage_class::output:
@@ -1102,7 +1105,7 @@ void Spirv_to_llvm::handle_instruction_op_variable(Op_variable instruction,
                     Output_variable_state{type,
                                           outputs_struct->add_member(Struct_type_descriptor::Member(
                                               state.decorations, type))};
-                check_decorations = false;
+                parse_decorations = false;
                 return;
             }
             case Storage_class::workgroup:
@@ -1143,7 +1146,7 @@ void Spirv_to_llvm::handle_instruction_op_variable(Op_variable instruction,
                                "unimplemented OpVariable storage class: "
                                    + std::string(get_enumerant_name(instruction.storage_class)));
         }();
-        if(check_decorations)
+        if(parse_decorations)
         {
             for(auto &decoration : state.decorations)
             {
@@ -1244,9 +1247,13 @@ void Spirv_to_llvm::handle_instruction_op_variable(Op_variable instruction,
                     break;
                 case Decoration::binding:
                 {
+                    auto &parameters =
+                        util::get<spirv::Decoration_binding_parameters>(decoration.parameters);
                     switch(instruction.storage_class)
                     {
                     case spirv::Storage_class::uniform:
+                        util::get<Uniform_variable_state>(state.variable).binding =
+                            parameters.binding_point;
                         continue;
 #warning finish implementing Decoration::binding
                     default:
@@ -1260,9 +1267,13 @@ void Spirv_to_llvm::handle_instruction_op_variable(Op_variable instruction,
                 }
                 case Decoration::descriptor_set:
                 {
+                    auto &parameters = util::get<spirv::Decoration_descriptor_set_parameters>(
+                        decoration.parameters);
                     switch(instruction.storage_class)
                     {
                     case spirv::Storage_class::uniform:
+                        util::get<Uniform_variable_state>(state.variable).descriptor_set =
+                            parameters.descriptor_set;
                         continue;
 #warning finish implementing Decoration::descriptor_set
                     default:
@@ -1383,7 +1394,100 @@ void Spirv_to_llvm::handle_instruction_op_variable(Op_variable instruction,
         }
         case Storage_class::uniform:
 #warning finish implementing Storage_class::uniform
-            break;
+        {
+            if(instruction.initializer)
+                throw Parser_error(instruction_start_index,
+                                   instruction_start_index,
+                                   "shader uniform variable initializers are not implemented");
+            auto set_value_fn = [this, instruction, &state, instruction_start_index]()
+            {
+                auto &variable = util::get<Uniform_variable_state>(state.variable);
+                if(!variable.binding)
+                    throw Parser_error(instruction_start_index,
+                                       instruction_start_index,
+                                       "shader uniform variable is missing a Binding decoration");
+                if(!variable.descriptor_set)
+                    throw Parser_error(
+                        instruction_start_index,
+                        instruction_start_index,
+                        "shader uniform variable is missing a DescriptorSet decoration");
+                auto binding_number = *variable.binding;
+                auto descriptor_set_number = *variable.descriptor_set;
+                if(descriptor_set_number >= pipeline_layout.descriptor_sets.size())
+                    throw Parser_error(instruction_start_index,
+                                       instruction_start_index,
+                                       "DescriptorSet decoration's value is out of range");
+                auto &descriptor_set = pipeline_layout.descriptor_sets[descriptor_set_number];
+                if(binding_number >= descriptor_set.bindings.size())
+                    throw Parser_error(instruction_start_index,
+                                       instruction_start_index,
+                                       "Binding decoration's value is out of range");
+                auto &binding = descriptor_set.bindings[binding_number];
+                auto &uniforms_struct_member =
+                    pipeline_layout.type->get_members(true)[binding.member_index];
+                auto uniform_slot_address = ::LLVMBuildStructGEP(
+                    builder.get(),
+                    get_id_state(current_function_id).function->entry_block->uniforms_struct,
+                    uniforms_struct_member.llvm_member_index,
+                    "");
+                auto result_type = get_type(instruction.result_type, instruction_start_index);
+                ::LLVMValueRef result = nullptr;
+                switch(binding.base->descriptor_type)
+                {
+                case VK_DESCRIPTOR_TYPE_SAMPLER:
+#warning implement VK_DESCRIPTOR_TYPE_SAMPLER uniform variables
+                    break;
+                case VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER:
+#warning implement VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER uniform variables
+                    break;
+                case VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE:
+#warning implement VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE uniform variables
+                    break;
+                case VK_DESCRIPTOR_TYPE_STORAGE_IMAGE:
+#warning implement VK_DESCRIPTOR_TYPE_STORAGE_IMAGE uniform variables
+                    break;
+                case VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER:
+#warning implement VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER uniform variables
+                    break;
+                case VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER:
+#warning implement VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER uniform variables
+                    break;
+                case VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER:
+                    result =
+                        ::LLVMBuildBitCast(builder.get(),
+                                           ::LLVMBuildLoad(builder.get(), uniform_slot_address, ""),
+                                           result_type->get_or_make_type().type,
+                                           "");
+                    break;
+                case VK_DESCRIPTOR_TYPE_STORAGE_BUFFER:
+#warning implement VK_DESCRIPTOR_TYPE_STORAGE_BUFFER uniform variables
+                    break;
+                case VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC:
+#warning implement VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC uniform variables
+                    break;
+                case VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC:
+#warning implement VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC uniform variables
+                    break;
+                case VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT:
+#warning implement VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT uniform variables
+                    break;
+                case VK_DESCRIPTOR_TYPE_RANGE_SIZE:
+                case VK_DESCRIPTOR_TYPE_MAX_ENUM:
+                    break;
+                }
+                if(result == nullptr)
+                    throw Parser_error(instruction_start_index,
+                                       instruction_start_index,
+                                       "unimplemented uniform descriptor type");
+                ::LLVMSetValueName(result, get_name(instruction.result).c_str());
+                state.value = Value(result, std::move(result_type));
+            };
+            if(current_function_id)
+                set_value_fn();
+            else
+                function_entry_block_handlers.push_back(set_value_fn);
+            return;
+        }
         case Storage_class::output:
         {
             if(instruction.initializer)
@@ -1460,7 +1564,10 @@ void Spirv_to_llvm::handle_instruction_op_variable(Op_variable instruction,
 #warning finish implementing Storage_class::storage_buffer
             break;
         }
-        break;
+        throw Parser_error(instruction_start_index,
+                           instruction_start_index,
+                           "unimplemented OpVariable storage class: "
+                               + std::string(get_enumerant_name(instruction.storage_class)));
     }
     }
 }
@@ -1525,6 +1632,7 @@ void Spirv_to_llvm::handle_instruction_op_load(Op_load instruction,
                 builder.get(), get_id_state(instruction.pointer).value.value().value, "");
             ::LLVMSetAlignment(untransposed_value, memory_type->get_or_make_type().alignment);
             state.value = Value(matrix_operations::transpose(context,
+                                                             module.get(),
                                                              builder.get(),
                                                              untransposed_value,
                                                              get_name(instruction.result).c_str()),
@@ -1574,10 +1682,8 @@ void Spirv_to_llvm::handle_instruction_op_store(Op_store instruction,
             break;
         case Type_descriptor::Load_store_implementation_kind::Transpose_matrix:
         {
-            auto transposed_value = matrix_operations::transpose(context,
-                                                             builder.get(),
-                                                             object_value.value,
-                                                             "");
+            auto transposed_value = matrix_operations::transpose(
+                context, module.get(), builder.get(), object_value.value, "");
             ::LLVMSetAlignment(
                 ::LLVMBuildStore(builder.get(), transposed_value, pointer_value.value),
                 memory_type->get_or_make_type().alignment);
@@ -2845,21 +2951,113 @@ void Spirv_to_llvm::handle_instruction_op_vector_times_matrix(Op_vector_times_ma
 void Spirv_to_llvm::handle_instruction_op_matrix_times_vector(Op_matrix_times_vector instruction,
                                                               std::size_t instruction_start_index)
 {
-#warning finish
-    throw Parser_error(instruction_start_index,
-                       instruction_start_index,
-                       "instruction not implemented: "
-                           + std::string(get_enumerant_name(instruction.get_operation())));
+    switch(stage)
+    {
+    case Stage::calculate_types:
+        break;
+    case Stage::generate_code:
+    {
+        auto &state = get_id_state(instruction.result);
+        if(!state.decorations.empty())
+            throw Parser_error(instruction_start_index,
+                               instruction_start_index,
+                               "decorations on instruction not implemented: "
+                                   + std::string(get_enumerant_name(instruction.get_operation())));
+        auto result_type =
+            get_type<Vector_type_descriptor>(instruction.result_type, instruction_start_index);
+        auto &matrix = get_id_state(instruction.matrix).value.value();
+        auto &vector = get_id_state(instruction.vector).value.value();
+        auto matrix_type = std::dynamic_pointer_cast<Matrix_type_descriptor>(matrix.type);
+        if(!matrix_type)
+            throw Parser_error(instruction_start_index,
+                               instruction_start_index,
+                               "OpMatrixTimesVector matrix operand type mismatch: not a matrix");
+        auto vector_type = std::dynamic_pointer_cast<Vector_type_descriptor>(vector.type);
+        if(!vector_type)
+            throw Parser_error(instruction_start_index,
+                               instruction_start_index,
+                               "OpMatrixTimesVector vector operand type mismatch: not a vector");
+        if(matrix_type->get_row_count() != result_type->get_element_count())
+            throw Parser_error(instruction_start_index,
+                               instruction_start_index,
+                               "OpMatrixTimesVector matrix operand type mismatch: row count "
+                               "doesn't match result_type's element count");
+        if(matrix_type->get_column_count() != vector_type->get_element_count())
+            throw Parser_error(instruction_start_index,
+                               instruction_start_index,
+                               "OpMatrixTimesVector matrix operand type mismatch: column "
+                               "count doesn't match vector's element count");
+        state.value =
+            Value(matrix_operations::matrix_times_vector(context,
+                                                         module.get(),
+                                                         builder.get(),
+                                                         matrix.value,
+                                                         vector.value,
+                                                         get_name(instruction.result).c_str()),
+                  result_type);
+        break;
+    }
+    }
 }
 
 void Spirv_to_llvm::handle_instruction_op_matrix_times_matrix(Op_matrix_times_matrix instruction,
                                                               std::size_t instruction_start_index)
 {
-#warning finish
-    throw Parser_error(instruction_start_index,
-                       instruction_start_index,
-                       "instruction not implemented: "
-                           + std::string(get_enumerant_name(instruction.get_operation())));
+    switch(stage)
+    {
+    case Stage::calculate_types:
+        break;
+    case Stage::generate_code:
+    {
+        auto &state = get_id_state(instruction.result);
+        if(!state.decorations.empty())
+            throw Parser_error(instruction_start_index,
+                               instruction_start_index,
+                               "decorations on instruction not implemented: "
+                                   + std::string(get_enumerant_name(instruction.get_operation())));
+        auto result_type =
+            get_type<Matrix_type_descriptor>(instruction.result_type, instruction_start_index);
+        auto &left_matrix = get_id_state(instruction.left_matrix).value.value();
+        auto &right_matrix = get_id_state(instruction.right_matrix).value.value();
+        auto left_matrix_type = std::dynamic_pointer_cast<Matrix_type_descriptor>(left_matrix.type);
+        if(!left_matrix_type)
+            throw Parser_error(
+                instruction_start_index,
+                instruction_start_index,
+                "OpMatrixTimesMatrix left_matrix operand type mismatch: not a matrix");
+        auto right_matrix_type =
+            std::dynamic_pointer_cast<Matrix_type_descriptor>(right_matrix.type);
+        if(!right_matrix_type)
+            throw Parser_error(
+                instruction_start_index,
+                instruction_start_index,
+                "OpMatrixTimesMatrix right_matrix operand type mismatch: not a matrix");
+        if(left_matrix_type->get_row_count() != result_type->get_row_count())
+            throw Parser_error(instruction_start_index,
+                               instruction_start_index,
+                               "OpMatrixTimesMatrix left_matrix operand type mismatch: row count "
+                               "doesn't match result_type's row count");
+        if(right_matrix_type->get_column_count() != result_type->get_column_count())
+            throw Parser_error(instruction_start_index,
+                               instruction_start_index,
+                               "OpMatrixTimesMatrix right_matrix operand type mismatch: column "
+                               "count doesn't match result_type's column count");
+        if(left_matrix_type->get_column_count() != right_matrix_type->get_row_count())
+            throw Parser_error(instruction_start_index,
+                               instruction_start_index,
+                               "OpMatrixTimesMatrix left_matrix operand type mismatch: column "
+                               "count doesn't match right_matrix's row count");
+        state.value =
+            Value(matrix_operations::matrix_multiply(context,
+                                                     module.get(),
+                                                     builder.get(),
+                                                     left_matrix.value,
+                                                     right_matrix.value,
+                                                     get_name(instruction.result).c_str()),
+                  result_type);
+        break;
+    }
+    }
 }
 
 void Spirv_to_llvm::handle_instruction_op_outer_product(Op_outer_product instruction,
@@ -3800,8 +3998,19 @@ void Spirv_to_llvm::handle_instruction_op_label(Op_label instruction,
                     io_struct->get_members(true)[this->outputs_member].llvm_member_index,
                     "outputs_pointer"),
                 "outputs");
-            function.entry_block = Function_state::Entry_block(
-                block, io_struct_value, inputs_struct_value, outputs_struct_value);
+            auto uniforms_struct_value = ::LLVMBuildLoad(
+                builder.get(),
+                ::LLVMBuildStructGEP(
+                    builder.get(),
+                    io_struct_value,
+                    io_struct->get_members(true)[this->uniforms_member].llvm_member_index,
+                    "uniforms_pointer"),
+                "uniforms");
+            function.entry_block = Function_state::Entry_block(block,
+                                                               io_struct_value,
+                                                               inputs_struct_value,
+                                                               outputs_struct_value,
+                                                               uniforms_struct_value);
             for(auto iter = function_entry_block_handlers.begin();
                 iter != function_entry_block_handlers.end();)
             {

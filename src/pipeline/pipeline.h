@@ -161,33 +161,40 @@ public:
                                            std::uint32_t vertex_end_index,
                                            std::uint32_t instance_id,
                                            void *output_buffer,
-                                           void *const *bindings);
-    typedef void (*Fragment_shader_function)(std::uint32_t *color_attachment_pixel);
+                                           void *const *input_bindings,
+                                           void *uniforms);
+    typedef void (*Fragment_shader_function)(std::uint32_t *color_attachment_pixel, void *uniforms);
 
 public:
     void run_vertex_shader(std::uint32_t vertex_start_index,
                            std::uint32_t vertex_end_index,
                            std::uint32_t instance_id,
                            void *output_buffer,
-                           void *const *input_bindings) const noexcept
+                           void *const *input_bindings,
+                           void *uniforms) const noexcept
     {
-        vertex_shader_function(
-            vertex_start_index, vertex_end_index, instance_id, output_buffer, input_bindings);
+        vertex_shader_function(vertex_start_index,
+                               vertex_end_index,
+                               instance_id,
+                               output_buffer,
+                               input_bindings,
+                               uniforms);
     }
     std::size_t get_vertex_shader_output_struct_size() const noexcept
     {
         return vertex_shader_output_struct_size;
     }
     void dump_vertex_shader_output_struct(const void *output_struct) const;
-    void run_fragment_shader(std::uint32_t *color_attachment_pixel) const noexcept
+    void run_fragment_shader(std::uint32_t *color_attachment_pixel, void *uniforms) const noexcept
     {
-        fragment_shader_function(color_attachment_pixel);
+        fragment_shader_function(color_attachment_pixel, uniforms);
     }
     void run(std::uint32_t vertex_start_index,
              std::uint32_t vertex_end_index,
              std::uint32_t instance_id,
              const vulkan::Vulkan_image &color_attachment,
-             void *const *bindings);
+             void *const *input_bindings,
+             void *uniforms);
     static std::unique_ptr<Graphics_pipeline> create(
         vulkan::Vulkan_device &,
         Pipeline_cache *pipeline_cache,

@@ -82,6 +82,15 @@ private:
     };
     struct Uniform_variable_state
     {
+        std::shared_ptr<Type_descriptor> type;
+        util::optional<std::uint32_t> binding;
+        util::optional<std::uint32_t> descriptor_set;
+        explicit Uniform_variable_state(std::shared_ptr<Type_descriptor> type) noexcept
+            : type(std::move(type)),
+              binding(),
+              descriptor_set()
+        {
+        }
     };
     typedef util::variant<util::monostate,
                           Input_variable_state,
@@ -95,14 +104,17 @@ private:
             ::LLVMValueRef io_struct;
             ::LLVMValueRef inputs_struct;
             ::LLVMValueRef outputs_struct;
+            ::LLVMValueRef uniforms_struct;
             explicit Entry_block(::LLVMBasicBlockRef entry_block,
                                  ::LLVMValueRef io_struct,
                                  ::LLVMValueRef inputs_struct,
-                                 ::LLVMValueRef outputs_struct) noexcept
+                                 ::LLVMValueRef outputs_struct,
+                                 ::LLVMValueRef uniforms_struct) noexcept
                 : entry_block(entry_block),
                   io_struct(io_struct),
                   inputs_struct(inputs_struct),
-                  outputs_struct(outputs_struct)
+                  outputs_struct(outputs_struct),
+                  uniforms_struct(uniforms_struct)
             {
             }
         };

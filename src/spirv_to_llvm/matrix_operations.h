@@ -60,7 +60,27 @@ struct Matrix_descriptor
     }
 };
 
+struct Vector_descriptor
+{
+    std::uint32_t element_count;
+    ::LLVMTypeRef element_type;
+    ::LLVMTypeRef vector_type;
+    explicit Vector_descriptor(::LLVMTypeRef vector_type) noexcept : vector_type(vector_type)
+    {
+        assert(::LLVMGetTypeKind(vector_type) == ::LLVMVectorTypeKind);
+        element_count = ::LLVMGetVectorSize(vector_type);
+        element_type = ::LLVMGetElementType(vector_type);
+    }
+    Vector_descriptor(::LLVMTypeRef element_type, std::uint32_t element_count)
+        : element_count(element_count),
+          element_type(element_type),
+          vector_type(::LLVMVectorType(element_type, element_count))
+    {
+    }
+};
+
 inline ::LLVMValueRef transpose(::LLVMContextRef context,
+                                ::LLVMModuleRef module,
                                 ::LLVMBuilderRef builder,
                                 ::LLVMValueRef input_matrix,
                                 const char *output_name)
@@ -99,6 +119,92 @@ inline ::LLVMValueRef transpose(::LLVMContextRef context,
     }
     ::LLVMSetValueName(output_value, output_name);
     return output_value;
+}
+
+inline ::LLVMValueRef vector_broadcast_from_vector(::LLVMContextRef context,
+                                                   ::LLVMBuilderRef builder,
+                                                   ::LLVMValueRef input_vector,
+                                                   std::uint32_t input_vector_index,
+                                                   std::uint32_t output_vector_length,
+                                                   const char *output_name)
+{
+    auto i32_type = llvm_wrapper::Create_llvm_type<std::uint32_t>()(context);
+    auto index = ::LLVMConstInt(i32_type, input_vector_index, false);
+    std::vector<::LLVMValueRef> shuffle_arguments(output_vector_length, index);
+    auto shuffle_index_vector =
+        ::LLVMConstVector(shuffle_arguments.data(), shuffle_arguments.size());
+    return ::LLVMBuildShuffleVector(builder,
+                                    input_vector,
+                                    ::LLVMGetUndef(::LLVMTypeOf(input_vector)),
+                                    shuffle_index_vector,
+                                    output_name);
+}
+
+inline ::LLVMValueRef matrix_multiply(::LLVMContextRef context,
+                                      ::LLVMModuleRef module,
+                                      ::LLVMBuilderRef builder,
+                                      ::LLVMValueRef left_matrix,
+                                      ::LLVMValueRef right_matrix,
+                                      const char *output_name)
+{
+    Matrix_descriptor left_matrix_descriptor(::LLVMTypeOf(left_matrix));
+    Matrix_descriptor right_matrix_descriptor(::LLVMTypeOf(right_matrix));
+    assert(left_matrix_descriptor.element_type == right_matrix_descriptor.element_type);
+    assert(left_matrix_descriptor.columns == right_matrix_descriptor.rows);
+    assert(left_matrix_descriptor.columns != 0);
+    assert(left_matrix_descriptor.rows != 0);
+    assert(right_matrix_descriptor.columns != 0);
+    Matrix_descriptor result_matrix_descriptor(left_matrix_descriptor.element_type,
+                                               left_matrix_descriptor.rows,
+                                               right_matrix_descriptor.columns);
+    ::LLVMValueRef retval = ::LLVMGetUndef(result_matrix_descriptor.matrix_type);
+    for(std::size_t i = 0; i < right_matrix_descriptor.columns; i++)
+    {
+        ::LLVMValueRef right_matrix_column = ::LLVMBuildExtractValue(builder, right_matrix, i, "");
+        ::LLVMValueRef sum{};
+        for(std::size_t j = 0; j < left_matrix_descriptor.columns; j++)
+        {
+            auto factor0 = ::LLVMBuildExtractValue(builder, left_matrix, j, "");
+            auto factor1 = vector_broadcast_from_vector(
+                context, builder, right_matrix_column, j, left_matrix_descriptor.rows, "");
+            if(j == 0)
+                sum = ::LLVMBuildFMul(builder, factor0, factor1, "");
+            else
+                sum = llvm_wrapper::Builder::build_fmuladd(
+                    builder, module, factor0, factor1, sum, "");
+        }
+        retval = ::LLVMBuildInsertValue(builder, retval, sum, i, "");
+    }
+    ::LLVMSetValueName(retval, output_name);
+    return retval;
+}
+
+inline ::LLVMValueRef matrix_times_vector(::LLVMContextRef context,
+                                          ::LLVMModuleRef module,
+                                          ::LLVMBuilderRef builder,
+                                          ::LLVMValueRef matrix,
+                                          ::LLVMValueRef input_vector,
+                                          const char *output_name)
+{
+    Matrix_descriptor matrix_descriptor(::LLVMTypeOf(matrix));
+    Vector_descriptor input_vector_descriptor(::LLVMTypeOf(input_vector));
+    assert(matrix_descriptor.element_type == input_vector_descriptor.element_type);
+    assert(matrix_descriptor.columns == input_vector_descriptor.element_count);
+    assert(matrix_descriptor.columns != 0);
+    ::LLVMValueRef retval{};
+    for(std::size_t i = 0; i < matrix_descriptor.columns; i++)
+    {
+        auto factor0 = ::LLVMBuildExtractValue(builder, matrix, i, "");
+        auto factor1 = vector_broadcast_from_vector(
+            context, builder, input_vector, i, matrix_descriptor.rows, "");
+        if(i == 0)
+            retval = ::LLVMBuildFMul(builder, factor0, factor1, "");
+        else
+            retval =
+                llvm_wrapper::Builder::build_fmuladd(builder, module, factor0, factor1, retval, "");
+    }
+    ::LLVMSetValueName(retval, output_name);
+    return retval;
 }
 }
 }

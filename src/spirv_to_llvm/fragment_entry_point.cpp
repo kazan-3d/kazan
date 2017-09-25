@@ -38,8 +38,9 @@ using namespace spirv;
     auto llvm_vec4_type = ::LLVMVectorType(llvm_float_type, 4);
     auto llvm_u8vec4_type = ::LLVMVectorType(llvm_u8_type, 4);
     static_cast<void>(llvm_pixel_type);
-    typedef void (*Fragment_shader_function)(Pixel_type *color_attachment_pixel);
+    typedef void (*Fragment_shader_function)(Pixel_type *color_attachment_pixel, void *uniforms);
     constexpr std::size_t arg_color_attachment_pixel = 0;
+    constexpr std::size_t arg_uniforms = 1;
     static_assert(std::is_same<Fragment_shader_function,
                                pipeline::Graphics_pipeline::Fragment_shader_function>::value,
                   "vertex shader function signature mismatch");
@@ -49,6 +50,8 @@ using namespace spirv;
     llvm_wrapper::Module::set_function_target_machine(entry_function, target_machine);
     auto color_attachment_pixel = ::LLVMGetParam(entry_function, arg_color_attachment_pixel);
     ::LLVMSetValueName(color_attachment_pixel, "color_attachment_pixel");
+    auto uniforms = ::LLVMGetParam(entry_function, arg_uniforms);
+    ::LLVMSetValueName(uniforms, "uniforms");
     auto entry_block = ::LLVMAppendBasicBlockInContext(context, entry_function, "entry");
     ::LLVMPositionBuilderAtEnd(builder.get(), entry_block);
     auto io_struct_type = io_struct->get_or_make_type();
@@ -634,7 +637,8 @@ using namespace spirv;
         else if(member_index == uniforms_member)
         {
 #warning implement shader uniforms
-            assert(this->pipeline_layout.descriptor_sets.empty() && "shader uniforms not implemented");
+            assert(this->pipeline_layout.descriptor_sets.empty()
+                   && "shader uniforms not implemented");
         }
         else
         {
@@ -702,8 +706,9 @@ using namespace spirv;
     auto packed_output_color = ::LLVMBuildBitCast(
         builder.get(), converted_output_color, llvm_pixel_type, "packed_output_color");
     ::LLVMBuildStore(builder.get(), packed_output_color, color_attachment_pixel);
-    static_assert(
-        std::is_same<decltype(std::declval<Fragment_shader_function>()(nullptr)), void>::value, "");
+    static_assert(std::is_same<decltype(std::declval<Fragment_shader_function>()(nullptr, nullptr)),
+                               void>::value,
+                  "");
     ::LLVMBuildRetVoid(builder.get());
     return entry_function;
 }

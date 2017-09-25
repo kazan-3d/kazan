@@ -37,6 +37,7 @@
 #include <string>
 #include <cassert>
 #include <stdexcept>
+#include <initializer_list>
 #include "util/string_view.h"
 #include "util/variant.h"
 
@@ -317,6 +318,19 @@ struct Target_machine : public Wrapper<::LLVMTargetMachineRef, Target_machine_de
     }
 };
 
+enum class Intrinsic // doesn't match llvm::Intrinsic::ID
+{
+    fmuladd,
+};
+
+enum class LLVM_intrinsic_id : unsigned
+{
+    Not_intrinsic = 0,
+    Maximum_intrinsic_id = static_cast<unsigned>(-1)
+};
+
+LLVM_intrinsic_id get_llvm_intrinsic_id(Intrinsic intrinsic) noexcept;
+
 struct Module_deleter
 {
     void operator()(::LLVMModuleRef module) const noexcept
@@ -346,6 +360,27 @@ struct Module : public Wrapper<::LLVMModuleRef, Module_deleter>
     void set_target_machine(::LLVMTargetMachineRef target_machine)
     {
         set_target_machine(get(), target_machine);
+    }
+    static ::LLVMValueRef get_intrinsic_declaration(::LLVMModuleRef module,
+                                                    LLVM_intrinsic_id llvm_intrinsic_id,
+                                                    const ::LLVMTypeRef *types,
+                                                    std::size_t type_count);
+    ::LLVMValueRef get_intrinsic_declaration(LLVM_intrinsic_id llvm_intrinsic_id,
+                                             const ::LLVMTypeRef *types,
+                                             std::size_t type_count)
+    {
+        return get_intrinsic_declaration(get(), llvm_intrinsic_id, types, type_count);
+    }
+    static ::LLVMValueRef get_intrinsic_declaration(::LLVMModuleRef module,
+                                                    LLVM_intrinsic_id llvm_intrinsic_id,
+                                                    std::initializer_list<::LLVMTypeRef> types)
+    {
+        return get_intrinsic_declaration(module, llvm_intrinsic_id, types.begin(), types.size());
+    }
+    ::LLVMValueRef get_intrinsic_declaration(LLVM_intrinsic_id llvm_intrinsic_id,
+                                             std::initializer_list<::LLVMTypeRef> types)
+    {
+        return get_intrinsic_declaration(get(), llvm_intrinsic_id, types);
     }
 };
 
@@ -400,6 +435,32 @@ struct Builder : public Wrapper<::LLVMBuilderRef, Builder_deleter>
     ::LLVMValueRef build_smod(::LLVMValueRef lhs, ::LLVMValueRef rhs, const char *result_name) const
     {
         return build_smod(get(), lhs, rhs, result_name);
+    }
+    static ::LLVMValueRef build_fmuladd(::LLVMBuilderRef builder,
+                                        ::LLVMModuleRef module,
+                                        ::LLVMValueRef factor1,
+                                        ::LLVMValueRef factor2,
+                                        ::LLVMValueRef term,
+                                        const char *result_name)
+    {
+        auto type = ::LLVMTypeOf(factor1);
+        assert(type == ::LLVMTypeOf(factor2));
+        assert(type == ::LLVMTypeOf(term));
+        auto intrinsic = Module::get_intrinsic_declaration(
+            module, get_llvm_intrinsic_id(Intrinsic::fmuladd), {type});
+        constexpr std::size_t arg_count = 3;
+        ::LLVMValueRef args[arg_count] = {
+            factor1, factor2, term,
+        };
+        return ::LLVMBuildCall(builder, intrinsic, args, arg_count, result_name);
+    }
+    ::LLVMValueRef build_fmuladd(::LLVMModuleRef module,
+                                 ::LLVMValueRef factor1,
+                                 ::LLVMValueRef factor2,
+                                 ::LLVMValueRef term,
+                                 const char *result_name) const
+    {
+        return build_fmuladd(get(), module, factor1, factor2, term, result_name);
     }
 };
 

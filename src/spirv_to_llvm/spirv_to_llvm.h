@@ -153,6 +153,10 @@ public:
     {
         return shared_from_this();
     }
+    virtual util::optional<std::size_t> get_matrix_stride(::LLVMTargetDataRef target_data) const
+    {
+        return {};
+    }
     void visit(Type_visitor &&type_visitor)
     {
         visit(type_visitor);
@@ -396,6 +400,10 @@ public:
         column_major_type = retval;
         return retval;
     }
+    virtual util::optional<std::size_t> get_matrix_stride(::LLVMTargetDataRef target_data) const override
+    {
+        return element_type->get_matrix_stride(target_data);
+    }
     const std::shared_ptr<Type_descriptor> &get_element_type() const noexcept
     {
         return element_type;
@@ -445,6 +453,14 @@ public:
     {
         return column_count;
     }
+    std::size_t get_row_count() const noexcept
+    {
+        return column_type->get_element_count();
+    }
+    const std::shared_ptr<Simple_type_descriptor> &get_element_type() const noexcept
+    {
+        return column_type->get_element_type();
+    }
     virtual std::shared_ptr<Type_descriptor> get_row_major_type(
         ::LLVMTargetDataRef target_data) override
     {
@@ -454,6 +470,10 @@ public:
         retval = make_row_major_type(target_data);
         row_major_type = retval;
         return retval;
+    }
+    virtual util::optional<std::size_t> get_matrix_stride(::LLVMTargetDataRef target_data) const override
+    {
+        return ::LLVMABISizeOfType(target_data, column_type->get_or_make_type().type);
     }
 };
 
@@ -495,6 +515,14 @@ public:
     std::size_t get_row_count() const noexcept
     {
         return row_count;
+    }
+    std::size_t get_column_count() const noexcept
+    {
+        return row_type->get_element_count();
+    }
+    const std::shared_ptr<Simple_type_descriptor> &get_element_type() const noexcept
+    {
+        return row_type->get_element_type();
     }
     virtual std::shared_ptr<Type_descriptor> get_column_major_type(
         ::LLVMTargetDataRef target_data) override

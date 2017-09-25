@@ -44,12 +44,14 @@ using namespace spirv;
                                            Vertex_index_type vertex_end_index,
                                            std::uint32_t instance_id,
                                            void *output_buffer,
-                                           void *const *bindings);
+                                           void *const *bindings,
+                                           void *uniforms);
     constexpr std::size_t arg_vertex_start_index = 0;
     constexpr std::size_t arg_vertex_end_index = 1;
     constexpr std::size_t arg_instance_id = 2;
     constexpr std::size_t arg_output_buffer = 3;
     constexpr std::size_t arg_bindings = 4;
+    constexpr std::size_t arg_uniforms = 5;
     static_assert(std::is_same<Vertex_shader_function,
                                pipeline::Graphics_pipeline::Vertex_shader_function>::value,
                   "vertex shader function signature mismatch");
@@ -63,6 +65,7 @@ using namespace spirv;
     ::LLVMSetValueName(::LLVMGetParam(entry_function, arg_instance_id), "instance_id");
     ::LLVMSetValueName(::LLVMGetParam(entry_function, arg_output_buffer), "output_buffer_");
     ::LLVMSetValueName(::LLVMGetParam(entry_function, arg_bindings), "bindings");
+    ::LLVMSetValueName(::LLVMGetParam(entry_function, arg_uniforms), "uniforms");
     auto entry_block = ::LLVMAppendBasicBlockInContext(context, entry_function, "entry");
     auto loop_block = ::LLVMAppendBasicBlockInContext(context, entry_function, "loop");
     auto exit_block = ::LLVMAppendBasicBlockInContext(context, entry_function, "exit");
@@ -435,6 +438,26 @@ using namespace spirv;
                             case VK_FORMAT_R32G32B32A32_SFLOAT:
                             {
                                 constexpr std::size_t vector_element_count = 4;
+                                format_type =
+                                    Vector_type_descriptor(
+                                        std::vector<spirv::Decoration_with_parameters>{},
+                                        std::make_shared<Simple_type_descriptor>(
+                                            std::vector<spirv::Decoration_with_parameters>{},
+                                            LLVM_type_and_alignment(llvm_float_type,
+                                                                    llvm_float_type_alignment)),
+                                        vector_element_count,
+                                        target_data)
+                                        .get_or_make_type();
+                                if(input_type.type != format_type.type)
+                                    throw Parser_error(
+                                        0,
+                                        0,
+                                        "unimplemented vertex input variable type conversion");
+                                break;
+                            }
+                            case VK_FORMAT_R32G32B32_SFLOAT:
+                            {
+                                constexpr std::size_t vector_element_count = 3;
                                 format_type =
                                     Vector_type_descriptor(
                                         std::vector<spirv::Decoration_with_parameters>{},
@@ -853,7 +876,8 @@ using namespace spirv;
         else if(member_index == uniforms_member)
         {
 #warning implement shader uniforms
-            assert(this->pipeline_layout.descriptor_sets.empty() && "shader uniforms not implemented");
+            assert(this->pipeline_layout.descriptor_sets.empty()
+                   && "shader uniforms not implemented");
         }
         else
         {
@@ -882,7 +906,7 @@ using namespace spirv;
     ::LLVMBuildCondBr(builder.get(), next_iteration_condition, loop_block, exit_block);
     ::LLVMPositionBuilderAtEnd(builder.get(), exit_block);
     static_assert(
-        std::is_same<decltype(std::declval<Vertex_shader_function>()(0, 0, 0, nullptr, nullptr)),
+        std::is_same<decltype(std::declval<Vertex_shader_function>()(0, 0, 0, nullptr, nullptr, nullptr)),
                      void>::value,
         "");
     ::LLVMBuildRetVoid(builder.get());
