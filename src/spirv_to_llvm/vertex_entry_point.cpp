@@ -29,9 +29,13 @@ namespace spirv_to_llvm
 {
 using namespace spirv;
 
-::LLVMValueRef Spirv_to_llvm::generate_vertex_entry_function(Op_entry_point_state &entry_point,
-                                                             ::LLVMValueRef main_function)
+::LLVMValueRef Spirv_to_llvm::generate_vertex_entry_function(
+    Op_entry_point_state &entry_point,
+    ::LLVMValueRef main_function,
+    Shader_interface &output_shader_interface,
+    Shader_interface &built_in_output_shader_interface)
 {
+#error finish adding shader interface code
     assert(vertex_input_state);
     typedef std::uint32_t Vertex_index_type;
     auto llvm_vertex_index_type = llvm_wrapper::Create_llvm_type<Vertex_index_type>()(context);
@@ -905,10 +909,10 @@ using namespace spirv;
                         "next_iteration_condition");
     ::LLVMBuildCondBr(builder.get(), next_iteration_condition, loop_block, exit_block);
     ::LLVMPositionBuilderAtEnd(builder.get(), exit_block);
-    static_assert(
-        std::is_same<decltype(std::declval<Vertex_shader_function>()(0, 0, 0, nullptr, nullptr, nullptr)),
-                     void>::value,
-        "");
+    static_assert(std::is_same<decltype(std::declval<Vertex_shader_function>()(
+                                   0, 0, 0, nullptr, nullptr, nullptr)),
+                               void>::value,
+                  "");
     ::LLVMBuildRetVoid(builder.get());
     return entry_function;
 }

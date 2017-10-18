@@ -28,9 +28,13 @@ namespace spirv_to_llvm
 {
 using namespace spirv;
 
-::LLVMValueRef Spirv_to_llvm::generate_fragment_entry_function(Op_entry_point_state &entry_point,
-                                                               ::LLVMValueRef main_function)
+::LLVMValueRef Spirv_to_llvm::generate_fragment_entry_function(
+    Op_entry_point_state &entry_point,
+    ::LLVMValueRef main_function,
+    Shader_interface &input_shader_interface,
+    Shader_interface &built_in_input_shader_interface)
 {
+#error finish adding shader interface code
     typedef std::uint32_t Pixel_type;
     auto llvm_pixel_type = llvm_wrapper::Create_llvm_type<Pixel_type>()(context);
     auto llvm_float_type = llvm_wrapper::Create_llvm_type<float>()(context);

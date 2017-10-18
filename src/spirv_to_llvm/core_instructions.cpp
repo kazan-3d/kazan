@@ -483,6 +483,7 @@ void Spirv_to_llvm::handle_instruction_op_type_struct(Op_type_struct instruction
             ::LLVMGetModuleDataLayout(module.get()),
             get_prefixed_name(get_name(instruction.result), false).c_str(),
             instruction_start_index,
+            Struct_type_descriptor::Layout_kind::Default,
             std::move(members));
         break;
     }
@@ -1073,10 +1074,53 @@ void Spirv_to_llvm::handle_instruction_op_variable(Op_variable instruction,
                 auto type = get_type<Pointer_type_descriptor>(instruction.result_type,
                                                               instruction_start_index)
                                 ->get_base_type();
-                state.variable =
-                    Input_variable_state{type,
-                                         inputs_struct->add_member(Struct_type_descriptor::Member(
-                                             state.decorations, type))};
+                bool is_built_in = false;
+                if(auto struct_type = dynamic_cast<Struct_type_descriptor *>(type.get()))
+                {
+                    bool has_any_non_built_in_members = false;
+                    for(auto &member : struct_type->get_members(false))
+                    {
+                        bool member_is_built_in = false;
+                        for(auto &decoration : member.decorations)
+                        {
+                            if(decoration.value == spirv::Decoration::built_in)
+                            {
+                                member_is_built_in = true;
+                                break;
+                            }
+                        }
+                        if(!member_is_built_in)
+                            has_any_non_built_in_members = true;
+                        else
+                            is_built_in = true;
+                    }
+                    if(is_built_in && has_any_non_built_in_members)
+                        throw Parser_error(
+                            instruction_start_index,
+                            instruction_start_index,
+                            "shader interface variable has both built-in and non-built-in members");
+                }
+                if(!is_built_in)
+                {
+                    for(auto &decoration : type->decorations)
+                    {
+                        if(decoration.value == spirv::Decoration::built_in)
+                        {
+                            is_built_in = true;
+                            break;
+                        }
+                    }
+                }
+                if(is_built_in)
+                    state.variable = Built_in_input_variable_state{
+                        type,
+                        built_in_inputs_struct->add_member(
+                            Struct_type_descriptor::Member(state.decorations, type))};
+                else
+                    state.variable = Input_variable_state{
+                        type,
+                        inputs_struct->add_member(
+                            Struct_type_descriptor::Member(state.decorations, type))};
                 parse_decorations = false;
                 return;
             }
@@ -1101,10 +1145,53 @@ void Spirv_to_llvm::handle_instruction_op_variable(Op_variable instruction,
                 auto type = get_type<Pointer_type_descriptor>(instruction.result_type,
                                                               instruction_start_index)
                                 ->get_base_type();
-                state.variable =
-                    Output_variable_state{type,
-                                          outputs_struct->add_member(Struct_type_descriptor::Member(
-                                              state.decorations, type))};
+                bool is_built_in = false;
+                if(auto struct_type = dynamic_cast<Struct_type_descriptor *>(type.get()))
+                {
+                    bool has_any_non_built_in_members = false;
+                    for(auto &member : struct_type->get_members(false))
+                    {
+                        bool member_is_built_in = false;
+                        for(auto &decoration : member.decorations)
+                        {
+                            if(decoration.value == spirv::Decoration::built_in)
+                            {
+                                member_is_built_in = true;
+                                break;
+                            }
+                        }
+                        if(!member_is_built_in)
+                            has_any_non_built_in_members = true;
+                        else
+                            is_built_in = true;
+                    }
+                    if(is_built_in && has_any_non_built_in_members)
+                        throw Parser_error(
+                            instruction_start_index,
+                            instruction_start_index,
+                            "shader interface variable has both built-in and non-built-in members");
+                }
+                if(!is_built_in)
+                {
+                    for(auto &decoration : type->decorations)
+                    {
+                        if(decoration.value == spirv::Decoration::built_in)
+                        {
+                            is_built_in = true;
+                            break;
+                        }
+                    }
+                }
+                if(is_built_in)
+                    state.variable = Built_in_output_variable_state{
+                        type,
+                        built_in_outputs_struct->add_member(
+                            Struct_type_descriptor::Member(state.decorations, type))};
+                else
+                    state.variable = Output_variable_state{
+                        type,
+                        outputs_struct->add_member(
+                            Struct_type_descriptor::Member(state.decorations, type))};
                 parse_decorations = false;
                 return;
             }
@@ -1377,14 +1464,31 @@ void Spirv_to_llvm::handle_instruction_op_variable(Op_variable instruction,
             }
             auto set_value_fn = [this, instruction, &state, instruction_start_index]()
             {
-                auto &variable = util::get<Input_variable_state>(state.variable);
-                state.value = Value(
-                    ::LLVMBuildStructGEP(
-                        builder.get(),
-                        get_id_state(current_function_id).function->entry_block->inputs_struct,
-                        inputs_struct->get_members(true)[variable.member_index].llvm_member_index,
-                        get_name(instruction.result).c_str()),
-                    get_type(instruction.result_type, instruction_start_index));
+                if(util::holds_alternative<Built_in_input_variable_state>(state.variable))
+                {
+                    auto &variable = util::get<Built_in_input_variable_state>(state.variable);
+                    state.value =
+                        Value(::LLVMBuildStructGEP(
+                                  builder.get(),
+                                  get_id_state(current_function_id)
+                                      .function->entry_block->built_in_inputs_struct,
+                                  built_in_inputs_struct->get_members(true)[variable.member_index]
+                                      .llvm_member_index,
+                                  get_name(instruction.result).c_str()),
+                              get_type(instruction.result_type, instruction_start_index));
+                }
+                else
+                {
+                    auto &variable = util::get<Input_variable_state>(state.variable);
+                    state.value = Value(
+                        ::LLVMBuildStructGEP(
+                            builder.get(),
+                            get_id_state(current_function_id).function->entry_block->inputs_struct,
+                            inputs_struct->get_members(true)[variable.member_index]
+                                .llvm_member_index,
+                            get_name(instruction.result).c_str()),
+                        get_type(instruction.result_type, instruction_start_index));
+                }
             };
             if(current_function_id)
                 set_value_fn();
@@ -1502,14 +1606,31 @@ void Spirv_to_llvm::handle_instruction_op_variable(Op_variable instruction,
             }
             auto set_value_fn = [this, instruction, &state, instruction_start_index]()
             {
-                auto &variable = util::get<Output_variable_state>(state.variable);
-                state.value = Value(
-                    ::LLVMBuildStructGEP(
-                        builder.get(),
-                        get_id_state(current_function_id).function->entry_block->outputs_struct,
-                        outputs_struct->get_members(true)[variable.member_index].llvm_member_index,
-                        get_name(instruction.result).c_str()),
-                    get_type(instruction.result_type, instruction_start_index));
+                if(util::holds_alternative<Built_in_output_variable_state>(state.variable))
+                {
+                    auto &variable = util::get<Built_in_output_variable_state>(state.variable);
+                    state.value =
+                        Value(::LLVMBuildStructGEP(
+                                  builder.get(),
+                                  get_id_state(current_function_id)
+                                      .function->entry_block->built_in_outputs_struct,
+                                  built_in_outputs_struct->get_members(true)[variable.member_index]
+                                      .llvm_member_index,
+                                  get_name(instruction.result).c_str()),
+                              get_type(instruction.result_type, instruction_start_index));
+                }
+                else
+                {
+                    auto &variable = util::get<Output_variable_state>(state.variable);
+                    state.value = Value(
+                        ::LLVMBuildStructGEP(
+                            builder.get(),
+                            get_id_state(current_function_id).function->entry_block->outputs_struct,
+                            outputs_struct->get_members(true)[variable.member_index]
+                                .llvm_member_index,
+                            get_name(instruction.result).c_str()),
+                        get_type(instruction.result_type, instruction_start_index));
+                }
             };
             if(current_function_id)
                 set_value_fn();
@@ -3998,6 +4119,22 @@ void Spirv_to_llvm::handle_instruction_op_label(Op_label instruction,
                     io_struct->get_members(true)[this->outputs_member].llvm_member_index,
                     "outputs_pointer"),
                 "outputs");
+            auto built_in_inputs_struct_value = ::LLVMBuildLoad(
+                builder.get(),
+                ::LLVMBuildStructGEP(
+                    builder.get(),
+                    io_struct_value,
+                    io_struct->get_members(true)[this->built_in_inputs_member].llvm_member_index,
+                    "built_in_inputs_pointer"),
+                "built_in_inputs");
+            auto built_in_outputs_struct_value = ::LLVMBuildLoad(
+                builder.get(),
+                ::LLVMBuildStructGEP(
+                    builder.get(),
+                    io_struct_value,
+                    io_struct->get_members(true)[this->built_in_outputs_member].llvm_member_index,
+                    "built_in_outputs_pointer"),
+                "built_in_outputs");
             auto uniforms_struct_value = ::LLVMBuildLoad(
                 builder.get(),
                 ::LLVMBuildStructGEP(
@@ -4010,6 +4147,8 @@ void Spirv_to_llvm::handle_instruction_op_label(Op_label instruction,
                                                                io_struct_value,
                                                                inputs_struct_value,
                                                                outputs_struct_value,
+                                                               built_in_inputs_struct_value,
+                                                               built_in_outputs_struct_value,
                                                                uniforms_struct_value);
             for(auto iter = function_entry_block_handlers.begin();
                 iter != function_entry_block_handlers.end();)

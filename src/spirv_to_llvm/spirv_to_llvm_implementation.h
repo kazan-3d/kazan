@@ -80,6 +80,16 @@ private:
         std::shared_ptr<Type_descriptor> type;
         std::size_t member_index;
     };
+    struct Built_in_input_variable_state
+    {
+        std::shared_ptr<Type_descriptor> type;
+        std::size_t member_index;
+    };
+    struct Built_in_output_variable_state
+    {
+        std::shared_ptr<Type_descriptor> type;
+        std::size_t member_index;
+    };
     struct Uniform_variable_state
     {
         std::shared_ptr<Type_descriptor> type;
@@ -94,7 +104,9 @@ private:
     };
     typedef util::variant<util::monostate,
                           Input_variable_state,
+                          Built_in_input_variable_state,
                           Output_variable_state,
+                          Built_in_output_variable_state,
                           Uniform_variable_state> Variable_state;
     struct Function_state
     {
@@ -104,16 +116,22 @@ private:
             ::LLVMValueRef io_struct;
             ::LLVMValueRef inputs_struct;
             ::LLVMValueRef outputs_struct;
+            ::LLVMValueRef built_in_inputs_struct;
+            ::LLVMValueRef built_in_outputs_struct;
             ::LLVMValueRef uniforms_struct;
             explicit Entry_block(::LLVMBasicBlockRef entry_block,
                                  ::LLVMValueRef io_struct,
                                  ::LLVMValueRef inputs_struct,
                                  ::LLVMValueRef outputs_struct,
+                                 ::LLVMValueRef built_in_inputs_struct,
+                                 ::LLVMValueRef built_in_outputs_struct,
                                  ::LLVMValueRef uniforms_struct) noexcept
                 : entry_block(entry_block),
                   io_struct(io_struct),
                   inputs_struct(inputs_struct),
                   outputs_struct(outputs_struct),
+                  built_in_inputs_struct(built_in_inputs_struct),
+                  built_in_outputs_struct(built_in_outputs_struct),
                   uniforms_struct(uniforms_struct)
             {
             }
@@ -241,6 +259,11 @@ private:
     std::size_t outputs_member;
     std::shared_ptr<Struct_type_descriptor> outputs_struct;
     std::shared_ptr<Pointer_type_descriptor> outputs_struct_pointer_type;
+    std::size_t built_in_inputs_member;
+    std::shared_ptr<Struct_type_descriptor> built_in_inputs_struct;
+    std::size_t built_in_outputs_member;
+    std::shared_ptr<Struct_type_descriptor> built_in_outputs_struct;
+    std::shared_ptr<Pointer_type_descriptor> built_in_outputs_struct_pointer_type;
     std::size_t uniforms_member;
     std::shared_ptr<Pointer_type_descriptor> uniforms_struct_pointer_type;
     Stage stage;
@@ -254,6 +277,9 @@ private:
     Op_entry_point_state *entry_point_state_pointer = nullptr;
     const VkPipelineVertexInputStateCreateInfo *vertex_input_state;
     pipeline::Instantiated_pipeline_layout &pipeline_layout;
+    const Shader_interface *previous_stage_output_shader_interface;
+    const Shader_interface *previous_stage_built_in_output_shader_interface;
+    std::shared_ptr<Struct_type_descriptor> combined_outputs_struct;
 
 private:
     Id_state &get_id_state(spirv::Id id)
@@ -403,7 +429,9 @@ public:
                            spirv::Execution_model execution_model,
                            util::string_view entry_point_name,
                            const VkPipelineVertexInputStateCreateInfo *vertex_input_state,
-                           pipeline::Instantiated_pipeline_layout &pipeline_layout)
+                           pipeline::Instantiated_pipeline_layout &pipeline_layout,
+                           const Shader_interface *previous_stage_output_shader_interface,
+                           const Shader_interface *previous_stage_built_in_output_shader_interface)
         : context(context),
           target_machine(target_machine),
           shader_id(shader_id),
@@ -411,7 +439,10 @@ public:
           execution_model(execution_model),
           entry_point_name(entry_point_name),
           vertex_input_state(vertex_input_state),
-          pipeline_layout(pipeline_layout)
+          pipeline_layout(pipeline_layout),
+          previous_stage_output_shader_interface(previous_stage_output_shader_interface),
+          previous_stage_built_in_output_shader_interface(
+              previous_stage_built_in_output_shader_interface)
     {
         {
             std::ostringstream ss;
@@ -428,7 +459,8 @@ public:
             context,
             target_data,
             get_prefixed_name("Io_struct", true).c_str(),
-            no_instruction_index);
+            no_instruction_index,
+            Struct_type_descriptor::Layout_kind::Default);
         assert(implicit_function_arguments.size() == 1);
         static_assert(io_struct_argument_index == 0, "");
         implicit_function_arguments[io_struct_argument_index] =
@@ -441,8 +473,9 @@ public:
             std::vector<spirv::Decoration_with_parameters>{},
             context,
             target_data,
-            get_prefixed_name("Inputs", true).c_str(),
-            no_instruction_index);
+            get_prefixed_name("inputs", true).c_str(),
+            no_instruction_index,
+            Struct_type_descriptor::Layout_kind::Shader_interface);
         inputs_member = io_struct->add_member(Struct_type_descriptor::Member(
             {},
             std::make_shared<Pointer_type_descriptor>(
@@ -451,29 +484,79 @@ public:
             std::vector<spirv::Decoration_with_parameters>{},
             context,
             target_data,
-            get_prefixed_name("Outputs", true).c_str(),
-            no_instruction_index);
+            get_prefixed_name("outputs", true).c_str(),
+            no_instruction_index,
+            Struct_type_descriptor::Layout_kind::Shader_interface);
         outputs_struct_pointer_type = std::make_shared<Pointer_type_descriptor>(
             std::vector<spirv::Decoration_with_parameters>{}, outputs_struct, 0, target_data);
         outputs_member =
             io_struct->add_member(Struct_type_descriptor::Member({}, outputs_struct_pointer_type));
+        built_in_inputs_struct = std::make_shared<Struct_type_descriptor>(
+            std::vector<spirv::Decoration_with_parameters>{},
+            context,
+            target_data,
+            get_prefixed_name("built_in_inputs", true).c_str(),
+            no_instruction_index,
+            Struct_type_descriptor::Layout_kind::Shader_interface);
+        built_in_inputs_member = io_struct->add_member(
+            Struct_type_descriptor::Member({},
+                                           std::make_shared<Pointer_type_descriptor>(
+                                               std::vector<spirv::Decoration_with_parameters>{},
+                                               built_in_inputs_struct,
+                                               0,
+                                               target_data)));
+        built_in_outputs_struct = std::make_shared<Struct_type_descriptor>(
+            std::vector<spirv::Decoration_with_parameters>{},
+            context,
+            target_data,
+            get_prefixed_name("built_in_outputs", true).c_str(),
+            no_instruction_index,
+            Struct_type_descriptor::Layout_kind::Shader_interface);
+        built_in_outputs_struct_pointer_type = std::make_shared<Pointer_type_descriptor>(
+            std::vector<spirv::Decoration_with_parameters>{},
+            built_in_outputs_struct,
+            0,
+            target_data);
+        built_in_outputs_member = io_struct->add_member(
+            Struct_type_descriptor::Member({}, built_in_outputs_struct_pointer_type));
         uniforms_struct_pointer_type = std::make_shared<Pointer_type_descriptor>(
             std::vector<spirv::Decoration_with_parameters>{}, pipeline_layout.type, 0, target_data);
         uniforms_member =
             io_struct->add_member(Struct_type_descriptor::Member({}, uniforms_struct_pointer_type));
+        combined_outputs_struct =
+            Converted_module::make_combined_outputs_struct(context,
+                                                           target_data,
+                                                           "combined_outputs_struct",
+                                                           outputs_struct,
+                                                           built_in_outputs_struct);
     }
-    ::LLVMValueRef generate_vertex_entry_function(Op_entry_point_state &entry_point,
-                                                  ::LLVMValueRef main_function);
-    ::LLVMValueRef generate_fragment_entry_function(Op_entry_point_state &entry_point,
-                                                    ::LLVMValueRef main_function);
+    ::LLVMValueRef generate_vertex_entry_function(
+        Op_entry_point_state &entry_point,
+        ::LLVMValueRef main_function,
+        Shader_interface &output_shader_interface,
+        Shader_interface &built_in_output_shader_interface);
+    ::LLVMValueRef generate_fragment_entry_function(
+        Op_entry_point_state &entry_point,
+        ::LLVMValueRef main_function,
+        Shader_interface &input_shader_interface,
+        Shader_interface &built_in_input_shader_interface);
     std::string generate_entry_function(Op_entry_point_state &entry_point,
-                                        ::LLVMValueRef main_function)
+                                        ::LLVMValueRef main_function,
+                                        Shader_interface *input_shader_interface,
+                                        Shader_interface *built_in_input_shader_interface,
+                                        Shader_interface *output_shader_interface,
+                                        Shader_interface *built_in_output_shader_interface)
     {
         ::LLVMValueRef entry_function = nullptr;
         switch(execution_model)
         {
         case spirv::Execution_model::vertex:
-            entry_function = generate_vertex_entry_function(entry_point, main_function);
+            assert(output_shader_interface);
+            assert(built_in_output_shader_interface);
+            entry_function = generate_vertex_entry_function(entry_point,
+                                                            main_function,
+                                                            *output_shader_interface,
+                                                            *built_in_output_shader_interface);
             break;
         case spirv::Execution_model::tessellation_control:
 #warning implement execution model
@@ -497,7 +580,12 @@ public:
                 "unimplemented execution model: "
                     + std::string(spirv::get_enumerant_name(execution_model)));
         case spirv::Execution_model::fragment:
-            entry_function = generate_fragment_entry_function(entry_point, main_function);
+            assert(input_shader_interface);
+            assert(built_in_input_shader_interface);
+            entry_function = generate_fragment_entry_function(entry_point,
+                                                              main_function,
+                                                              *input_shader_interface,
+                                                              *built_in_input_shader_interface);
             break;
         case spirv::Execution_model::gl_compute:
 #warning implement execution model
@@ -535,13 +623,56 @@ public:
             throw spirv::Parser_error(entry_point_state.instruction_start_index,
                                       entry_point_state.instruction_start_index,
                                       "No definition for function referenced in OpEntryPoint");
-        auto entry_function_name =
-            generate_entry_function(entry_point_state, entry_point_id_state.function->function);
+        std::unique_ptr<Shader_interface> output_shader_interface;
+        std::unique_ptr<Shader_interface> built_in_output_shader_interface;
+        std::unique_ptr<Shader_interface> input_shader_interface;
+        std::unique_ptr<Shader_interface> built_in_input_shader_interface;
+        switch(execution_model)
+        {
+        case spirv::Execution_model::vertex:
+            output_shader_interface = std::make_unique<Shader_interface>();
+            built_in_output_shader_interface = std::make_unique<Shader_interface>();
+            break;
+        case spirv::Execution_model::tessellation_control:
+        case spirv::Execution_model::tessellation_evaluation:
+        case spirv::Execution_model::geometry:
+            input_shader_interface = std::make_unique<Shader_interface>();
+            built_in_input_shader_interface = std::make_unique<Shader_interface>();
+            output_shader_interface = std::make_unique<Shader_interface>();
+            built_in_output_shader_interface = std::make_unique<Shader_interface>();
+            break;
+        case spirv::Execution_model::fragment:
+            input_shader_interface = std::make_unique<Shader_interface>();
+            built_in_input_shader_interface = std::make_unique<Shader_interface>();
+            break;
+        case spirv::Execution_model::gl_compute:
+        case spirv::Execution_model::kernel:
+            break;
+        }
+        if(output_shader_interface)
+            outputs_struct->add_to_shader_interface(*output_shader_interface);
+        if(built_in_output_shader_interface)
+            built_in_outputs_struct->add_to_shader_interface(*built_in_output_shader_interface);
+        if(input_shader_interface)
+            inputs_struct->add_to_shader_interface(*input_shader_interface);
+        if(built_in_input_shader_interface)
+            built_in_inputs_struct->add_to_shader_interface(*built_in_input_shader_interface);
+        auto entry_function_name = generate_entry_function(entry_point_state,
+                                                           entry_point_id_state.function->function,
+                                                           input_shader_interface.get(),
+                                                           built_in_input_shader_interface.get(),
+                                                           output_shader_interface.get(),
+                                                           built_in_output_shader_interface.get());
         return Converted_module(std::move(module),
                                 std::move(entry_function_name),
                                 std::move(inputs_struct),
+                                std::move(built_in_inputs_struct),
                                 std::move(outputs_struct),
-                                execution_model);
+                                std::move(built_in_outputs_struct),
+                                execution_model,
+                                std::move(output_shader_interface),
+                                std::move(built_in_output_shader_interface),
+                                std::move(combined_outputs_struct));
     }
     virtual void handle_header(unsigned version_number_major,
                                unsigned version_number_minor,

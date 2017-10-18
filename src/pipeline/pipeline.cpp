@@ -47,7 +47,8 @@ Instantiated_pipeline_layout::Instantiated_pipeline_layout(vulkan::Vulkan_pipeli
           llvm_context,
           target_data,
           "pipeline_layout",
-          0))
+          0,
+          spirv_to_llvm::Struct_type_descriptor::Layout_kind::Default))
 {
     auto void_pointer_type = std::make_shared<spirv_to_llvm::Pointer_type_descriptor>(
         std::vector<spirv::Decoration_with_parameters>{},
@@ -942,6 +943,47 @@ void Graphics_pipeline::run(std::uint32_t vertex_start_index,
     }
 }
 
+namespace
+{
+constexpr util::optional<int> get_shader_stage_order(
+    spirv::Execution_model execution_model) noexcept
+{
+    switch(execution_model)
+    {
+    case spirv::Execution_model::vertex:
+        return 0;
+    case spirv::Execution_model::tessellation_control:
+        return 1;
+    case spirv::Execution_model::tessellation_evaluation:
+        return 2;
+    case spirv::Execution_model::geometry:
+        return 3;
+    case spirv::Execution_model::fragment:
+        return 4;
+    case spirv::Execution_model::gl_compute:
+    case spirv::Execution_model::kernel:
+        return {};
+    }
+    assert(!"unknown execution model");
+    return {};
+}
+
+constexpr bool are_shader_stage_enumerants_ordered_properly() noexcept
+{
+    util::optional<int> last_stage_order;
+    for(auto execution_model : util::Enum_traits<spirv::Execution_model>::values)
+    {
+        auto current_stage_order = get_shader_stage_order(execution_model);
+        if(!current_stage_order)
+            continue;
+        if(last_stage_order >= current_stage_order)
+            return false;
+        last_stage_order = current_stage_order;
+    }
+    return true;
+}
+}
+
 std::unique_ptr<Graphics_pipeline> Graphics_pipeline::create(
     vulkan::Vulkan_device &,
     Pipeline_cache *pipeline_cache,
@@ -967,7 +1009,10 @@ std::unique_ptr<Graphics_pipeline> Graphics_pipeline::create(
     implementation->instantiated_pipeline_layout = std::make_unique<Instantiated_pipeline_layout>(
         *pipeline_layout, implementation->llvm_context.get(), implementation->data_layout.get());
     implementation->compiled_shaders.reserve(create_info.stageCount);
-    util::Enum_set<spirv::Execution_model> found_shader_stages;
+    util::Enum_map<spirv::Execution_model, std::size_t> found_shader_stages;
+    // the iteration order of shader stages must match the order in which
+    // outputs are connected to the next stage's inputs
+    static_assert(are_shader_stage_enumerants_ordered_properly(), "");
     for(std::size_t i = 0; i < create_info.stageCount; i++)
     {
         auto &stage_info = create_info.pStages[i];
@@ -976,9 +1021,17 @@ std::unique_ptr<Graphics_pipeline> Graphics_pipeline::create(
         assert(execution_models.size() == 1);
         auto execution_model = *execution_models.begin();
         bool added_to_found_shader_stages =
-            std::get<1>(found_shader_stages.insert(execution_model));
+            std::get<1>(found_shader_stages.emplace(execution_model, i));
         if(!added_to_found_shader_stages)
             throw std::runtime_error("duplicate shader stage");
+    }
+    if(found_shader_stages.count(spirv::Execution_model::vertex) == 0)
+        throw std::runtime_error("graphics pipeline is missing vertex shader");
+    util::optional<std::size_t> last_shader_index_by_shader_stage_order;
+    for(auto &found_shader_stage : found_shader_stages)
+    {
+        auto &stage_info = create_info.pStages[std::get<1>(found_shader_stage)];
+        auto execution_model = std::get<0>(found_shader_stage);
         auto *shader_module = Shader_module::from_handle(stage_info.module);
         assert(shader_module);
         {
@@ -997,6 +1050,31 @@ std::unique_ptr<Graphics_pipeline> Graphics_pipeline::create(
         assert(create_info.pVertexInputState);
         assert(create_info.pVertexInputState->sType
                == VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO);
+        const spirv_to_llvm::Shader_interface *previous_stage_output_shader_interface = nullptr;
+        const spirv_to_llvm::Shader_interface *previous_stage_built_in_output_shader_interface =
+            nullptr;
+        switch(execution_model)
+        {
+        case spirv::Execution_model::vertex:
+        case spirv::Execution_model::gl_compute:
+        case spirv::Execution_model::kernel:
+            break;
+        case spirv::Execution_model::tessellation_control:
+        case spirv::Execution_model::tessellation_evaluation:
+        case spirv::Execution_model::geometry:
+        case spirv::Execution_model::fragment:
+        {
+            assert(last_shader_index_by_shader_stage_order);
+            auto &previous_stage =
+                implementation->compiled_shaders[*last_shader_index_by_shader_stage_order];
+            previous_stage_output_shader_interface = previous_stage.output_shader_interface.get();
+            assert(previous_stage_output_shader_interface);
+            previous_stage_built_in_output_shader_interface =
+                previous_stage.built_in_output_shader_interface.get();
+            assert(previous_stage_built_in_output_shader_interface);
+            break;
+        }
+        }
         auto compiled_shader =
             spirv_to_llvm::spirv_to_llvm(implementation->llvm_context.get(),
                                          llvm_target_machine.get(),
@@ -1006,13 +1084,17 @@ std::unique_ptr<Graphics_pipeline> Graphics_pipeline::create(
                                          execution_model,
                                          stage_info.pName,
                                          create_info.pVertexInputState,
-                                         *implementation->instantiated_pipeline_layout);
+                                         *implementation->instantiated_pipeline_layout,
+                                         previous_stage_output_shader_interface,
+                                         previous_stage_built_in_output_shader_interface);
         std::cerr << "Translation to LLVM succeeded." << std::endl;
         ::LLVMDumpModule(compiled_shader.module.get());
         bool failed =
             ::LLVMVerifyModule(compiled_shader.module.get(), ::LLVMPrintMessageAction, nullptr);
         if(failed)
             throw std::runtime_error("LLVM module verification failed");
+        if(get_shader_stage_order(execution_model))
+            last_shader_index_by_shader_stage_order = implementation->compiled_shaders.size();
         implementation->compiled_shaders.push_back(std::move(compiled_shader));
     }
     implementation->jit_stack =
@@ -1053,7 +1135,7 @@ std::unique_ptr<Graphics_pipeline> Graphics_pipeline::create(
         {
             vertex_shader_function =
                 reinterpret_cast<Vertex_shader_function>(shader_entry_point_address);
-            implementation->vertex_shader_output_struct = compiled_shader.outputs_struct;
+            implementation->vertex_shader_output_struct = compiled_shader.combined_outputs_struct;
             auto llvm_vertex_shader_output_struct =
                 implementation->vertex_shader_output_struct->get_or_make_type().type;
             vertex_shader_output_struct_size = ::LLVMABISizeOfType(

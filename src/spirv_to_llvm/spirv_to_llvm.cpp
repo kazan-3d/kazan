@@ -256,7 +256,8 @@ void Struct_type_descriptor::complete_type()
                 break;
             case Decoration::matrix_stride:
             {
-                auto &parameters = util::get<spirv::Decoration_matrix_stride_parameters>(decoration.parameters);
+                auto &parameters =
+                    util::get<spirv::Decoration_matrix_stride_parameters>(decoration.parameters);
                 matrix_stride = parameters.matrix_stride;
                 continue;
             }
@@ -336,7 +337,8 @@ void Struct_type_descriptor::complete_type()
                 break;
             case Decoration::offset:
             {
-                auto &parameters = util::get<spirv::Decoration_offset_parameters>(decoration.parameters);
+                auto &parameters =
+                    util::get<spirv::Decoration_offset_parameters>(decoration.parameters);
                 offset = parameters.byte_offset;
                 continue;
             }
@@ -401,7 +403,8 @@ void Struct_type_descriptor::complete_type()
             else
                 member.type = member.type->get_column_major_type(target_data);
         }
-        assert(matrix_stride == member.type->get_matrix_stride(target_data) && "MatrixStride decoration unimplemented for non-default strides");
+        assert(matrix_stride == member.type->get_matrix_stride(target_data)
+               && "MatrixStride decoration unimplemented for non-default strides");
         auto member_type = member.type->get_or_make_type();
         std::size_t size = ::LLVMABISizeOfType(target_data, member_type.type);
         struct Member_type_visitor : public Type_descriptor::Type_visitor
@@ -566,7 +569,9 @@ spirv_to_llvm::Converted_module spirv_to_llvm::spirv_to_llvm(
     spirv::Execution_model execution_model,
     util::string_view entry_point_name,
     const VkPipelineVertexInputStateCreateInfo *vertex_input_state,
-    pipeline::Instantiated_pipeline_layout &pipeline_layout)
+    pipeline::Instantiated_pipeline_layout &pipeline_layout,
+    const Shader_interface *previous_stage_output_shader_interface,
+    const Shader_interface *previous_stage_built_in_output_shader_interface)
 {
     return Spirv_to_llvm(context,
                          target_machine,
@@ -574,7 +579,9 @@ spirv_to_llvm::Converted_module spirv_to_llvm::spirv_to_llvm(
                          execution_model,
                          entry_point_name,
                          vertex_input_state,
-                         pipeline_layout)
+                         pipeline_layout,
+                         previous_stage_output_shader_interface,
+                         previous_stage_built_in_output_shader_interface)
         .run(shader_words, shader_size);
 }
 }
