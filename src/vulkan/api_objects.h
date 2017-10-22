@@ -45,6 +45,7 @@
 #include <condition_variable>
 #include <chrono>
 #include <thread>
+#include <cstring>
 
 namespace kazan
 {
@@ -2112,6 +2113,41 @@ struct Vulkan_device : public Vulkan_dispatchable_object<Vulkan_device, VkDevice
     }
     static util::variant<std::unique_ptr<Vulkan_device>, VkResult> create(
         Vulkan_physical_device &physical_device, const VkDeviceCreateInfo &create_info);
+};
+
+struct Vulkan_shader_module : public Vulkan_nondispatchable_object<Vulkan_shader_module, VkShaderModule>
+{
+    std::shared_ptr<unsigned char> bytes;
+    std::size_t byte_count;
+    Vulkan_shader_module(std::shared_ptr<unsigned char> bytes, std::size_t byte_count) noexcept
+        : bytes(std::move(bytes)),
+          byte_count(byte_count)
+    {
+    }
+    const spirv::Word *words() const noexcept
+    {
+        return reinterpret_cast<const spirv::Word *>(bytes.get());
+    }
+    std::size_t word_count() const noexcept
+    {
+        assert(byte_count % sizeof(spirv::Word) == 0);
+        return byte_count / sizeof(spirv::Word);
+    }
+    static std::unique_ptr<Vulkan_shader_module> create(vulkan::Vulkan_device &,
+                                                 const VkShaderModuleCreateInfo &create_info)
+    {
+        struct Code_deleter
+        {
+            void operator()(unsigned char *bytes) const noexcept
+            {
+                delete[] bytes;
+            }
+        };
+        auto bytes =
+            std::shared_ptr<unsigned char>(new unsigned char[create_info.codeSize], Code_deleter{});
+        std::memcpy(bytes.get(), create_info.pCode, create_info.codeSize);
+        return std::make_unique<Vulkan_shader_module>(std::move(bytes), create_info.codeSize);
+    }
 };
 
 struct Vulkan_image_descriptor
