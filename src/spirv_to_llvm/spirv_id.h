@@ -36,6 +36,11 @@ namespace spirv_to_llvm
 class Spirv_id
 {
 public:
+    const std::size_t defining_instruction_start_index;
+    explicit Spirv_id(std::size_t defining_instruction_start_index) noexcept
+        : defining_instruction_start_index(defining_instruction_start_index)
+    {
+    }
     virtual ~Spirv_id() = default;
 };
 
@@ -62,16 +67,29 @@ public:
         return id_list[id - 1];
     }
     template <typename T = Spirv_id>
-    typename std::enable_if<std::is_base_of<Spirv_id, T>::value, T>::type *get_or_null(spirv::Id id) const noexcept
+    typename std::enable_if<std::is_base_of<Spirv_id, T>::value, T>::type *get_or_null(
+        spirv::Id id) const noexcept
     {
-        return dynamic_cast<T *>(operator[](id).get());
+        auto *base = operator[](id).get();
+        if(!base)
+            return nullptr;
+        auto *retval = dynamic_cast<T *>(base);
+        assert(retval && "SPIR-V id is of improper type");
+        return retval;
     }
     template <typename T = Spirv_id>
-    typename std::enable_if<std::is_base_of<Spirv_id, T>::value, T>::type &get(spirv::Id id) const noexcept
+    typename std::enable_if<std::is_base_of<Spirv_id, T>::value, T>::type &get(spirv::Id id) const
+        noexcept
     {
         auto *retval = get_or_null<T>(id);
-        assert(retval && "SPIR-V id is undefined or of improper type");
+        assert(retval && "SPIR-V id is undefined");
         return *retval;
+    }
+    bool is_defined_at(spirv::Id id, std::size_t defining_instruction_start_index) const noexcept
+    {
+        if(auto *v = operator[](id).get())
+            return v->defining_instruction_start_index == defining_instruction_start_index;
+        return false;
     }
     void set(spirv::Id id, std::unique_ptr<Spirv_id> value) noexcept
     {

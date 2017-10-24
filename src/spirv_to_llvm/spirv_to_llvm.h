@@ -32,6 +32,7 @@
 #include <type_traits>
 #include <utility>
 #include <cstddef>
+#include <unordered_map>
 #include "llvm_wrapper/llvm_wrapper.h"
 #include "util/string_view.h"
 #include "vulkan/vulkan.h"
@@ -43,11 +44,8 @@ namespace kazan
 {
 namespace spirv_to_llvm
 {
-struct Spirv_decoration
-{
-    std::size_t instruction_start_index;
-    spirv::Decoration_with_parameters decoration;
-};
+/// std::size_t is instruction_start_index
+typedef std::unordered_map<std::size_t, spirv::Decoration_with_parameters> Spirv_decoration_set;
 
 namespace spirv_types
 {
@@ -185,9 +183,9 @@ public:
     {
         return instruction_start_index;
     }
-    virtual std::shared_ptr<Type> get_type_with_decoration(const Spirv_decoration &decoration) = 0;
+    virtual std::shared_ptr<Type> get_type_with_decoration(const Spirv_decoration_set::value_type &decoration) = 0;
     virtual std::shared_ptr<Type> get_type_with_member_decoration(
-        std::uint32_t member_index, const Spirv_decoration &decoration)
+        std::uint32_t member_index, const Spirv_decoration_set::value_type &decoration)
     {
         assert(!"type has no members to decorate");
         return shared_from_this();
@@ -210,18 +208,6 @@ struct Jit_symbol_resolver
             static_cast<Jit_symbol_resolver *>(user_data)->resolve(name));
     }
 };
-
-class Spirv_to_llvm;
-
-Converted_module spirv_to_llvm(::LLVMContextRef context,
-                               ::LLVMTargetMachineRef target_machine,
-                               const spirv::Word *shader_words,
-                               std::size_t shader_size,
-                               std::uint64_t shader_id,
-                               spirv::Execution_model execution_model,
-                               util::string_view entry_point_name,
-                               const VkPipelineVertexInputStateCreateInfo *vertex_input_state,
-                               pipeline::Instantiated_pipeline_layout &pipeline_layout);
 }
 }
 

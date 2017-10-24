@@ -43,7 +43,9 @@ struct Translator
         Spirv_id_list id_list;
         std::unordered_map<spirv::Id, std::string> names;
         std::unordered_map<spirv::Id, std::unordered_map<spirv::Word, std::string>> member_names;
-        std::unordered_multimap<spirv::Id, Spirv_decoration> decorations;
+        std::unordered_map<spirv::Id, Spirv_decoration_set> decorations;
+        std::unordered_map<spirv::Id, std::unordered_map<spirv::Word, Spirv_decoration_set>>
+            member_decorations;
         explicit Per_shader_state(spirv::Word id_bound) : id_list(id_bound)
         {
         }
@@ -71,6 +73,10 @@ struct Translator
     T &get_id(spirv::Execution_model execution_model, spirv::Id id) const noexcept
     {
         return get_per_shader_state(execution_model).id_list.get<T>(id);
+    }
+    bool is_id_defined_at(spirv::Execution_model execution_model, spirv::Id id, std::size_t defining_instruction_start_index) const noexcept
+    {
+        return get_per_shader_state(execution_model).id_list.is_defined_at(id, defining_instruction_start_index);
     }
     void set_id(spirv::Execution_model execution_model,
                 spirv::Id id,
@@ -103,57 +109,49 @@ struct Translator
             return {std::get<1>(*iter).begin(), std::get<1>(*iter).end()};
         return {};
     }
-    std::pair<std::unordered_multimap<spirv::Id, Spirv_decoration>::const_iterator,
-              std::unordered_multimap<spirv::Id, Spirv_decoration>::const_iterator>
+    std::pair<Spirv_decoration_set::const_iterator, Spirv_decoration_set::const_iterator>
         get_decoration_range(spirv::Execution_model execution_model, spirv::Id id) const
     {
-        return get_per_shader_state(execution_model).decorations.equal_range(id);
+        auto &map = get_per_shader_state(execution_model).decorations;
+        auto iter = map.find(id);
+        if(iter != map.end())
+            return {std::get<1>(*iter).begin(), std::get<1>(*iter).end()};
+        return {};
     }
-
-private:
-    template <typename Fn,
-              typename... Args,
-              typename = typename std::enable_if<std::is_void<decltype(
-                  std::declval<Fn &>()(std::declval<Args>()...))>::value>::type>
-    static bool for_each_helper(Fn &&fn, Args &&... args)
+    std::pair<Spirv_decoration_set::const_iterator, Spirv_decoration_set::const_iterator>
+        get_member_decoration_range(spirv::Execution_model execution_model,
+                                    spirv::Id id,
+                                    spirv::Word member_index) const
     {
-        fn(std::forward<Args>(args)...);
-        return true;
-    }
-    template <typename Fn, typename... Args>
-    static typename std::
-        enable_if<!std::is_void<decltype(std::declval<Fn &>()(std::declval<Args>()...))>::value,
-                  bool>::type
-        for_each_helper(Fn &&fn, Args &&... args)
-    {
-        return fn(std::forward<Args>(args)...);
-    }
-
-public:
-    /// fn is the callback function; have fn return true or void to continue, false to break
-    template <typename Fn>
-    bool for_each_decoration(spirv::Execution_model execution_model, spirv::Id id, Fn &&fn)
-    {
-        std::unordered_multimap<spirv::Id, Spirv_decoration>::const_iterator start, finish;
-        std::tie(start, finish) = get_decoration_range(execution_model, id);
-        for(auto iter = start; iter != finish; ++iter)
-            if(!for_each_helper(fn, std::get<1>(*iter)))
-                return false;
-        return true;
+        auto &map = get_per_shader_state(execution_model).member_decorations;
+        auto iter = map.find(id);
+        if(iter != map.end())
+        {
+            auto &map2 = std::get<1>(*iter);
+            auto iter2 = map2.find(member_index);
+            if(iter2 != map2.end())
+                return {std::get<1>(*iter2).begin(), std::get<1>(*iter2).end()};
+            return {};
+        }
+        return {};
     }
 };
 
-class Parser_callbacks_implementation;
+namespace parser_callbacks
+{
+class Callbacks;
+}
+
 struct Spirv_location;
 
 class Parser_callbacks_base : public spirv::Parser_callbacks
 {
-    friend class Parser_callbacks_implementation;
+    friend class parser_callbacks::Callbacks;
 
 protected:
     Translator *translator{};
     spirv::Execution_model execution_model{};
-    Per_shader_state *per_shader_state{};
+    Translator::Per_shader_state *per_shader_state{};
 
 private:
     void init(Translator *translator, spirv::Execution_model execution_model) noexcept
@@ -166,32 +164,34 @@ protected:
     template <typename T = Spirv_id>
     T *get_id_or_null(spirv::Id id) const noexcept
     {
-        return translator->get_id_or_null<T>(execution_model, id);
+        return per_shader_state->id_list.get_or_null<T>(id);
     }
     template <typename T = Spirv_id>
-    T *get_id(spirv::Id id) const noexcept
+    T &get_id(spirv::Id id) const noexcept
     {
-        return translator->get_id<T>(execution_model, id);
+        return per_shader_state->id_list.get<T>(id);
+    }
+    bool is_id_defined_at(spirv::Id id, std::size_t defining_instruction_start_index) const noexcept
+    {
+        return per_shader_state->id_list.is_defined_at(id, defining_instruction_start_index);
     }
     void set_id(spirv::Id id, std::unique_ptr<Spirv_id> value) noexcept
     {
-        translator->set_id(execution_model, id, std::move(value));
+        per_shader_state->id_list.set(id, std::move(value));
     }
     util::string_view get_name(spirv::Id id, util::string_view default_name = {})
     {
         return translator->get_name(execution_model, id, default_name);
     }
-    std::pair<std::unordered_multimap<spirv::Id, Spirv_decoration>::const_iterator,
-              std::unordered_multimap<spirv::Id, Spirv_decoration>::const_iterator>
-        get_decoration_range(spirv::Id id) noexcept
+    std::pair<Spirv_decoration_set::const_iterator, Spirv_decoration_set::const_iterator>
+        get_decoration_range(spirv::Id id) const
     {
         return translator->get_decoration_range(execution_model, id);
     }
-    /// fn is the callback function; have fn return true or void to continue, false to break
-    template <typename Fn>
-    bool for_each_decoration(spirv::Id id, Fn &&fn)
+    std::pair<Spirv_decoration_set::const_iterator, Spirv_decoration_set::const_iterator>
+        get_member_decoration_range(spirv::Id id, spirv::Word member_index) const
     {
-        return translator->for_each_decoration(execution_model, id, fn);
+        return translator->get_member_decoration_range(execution_model, id, member_index);
     }
 
 protected:
@@ -199,7 +199,9 @@ protected:
     virtual Spirv_location get_location(std::size_t instruction_start_index) const noexcept = 0;
 };
 
-class Parser_header_callbacks : public virtual Parser_callbacks_base
+namespace parser_callbacks
+{
+class Header_callbacks : public virtual Parser_callbacks_base
 {
 public:
     virtual void handle_header(unsigned version_number_major,
@@ -208,6 +210,7 @@ public:
                                spirv::Word id_bound,
                                spirv::Word instruction_schema) override final;
 };
+}
 }
 }
 

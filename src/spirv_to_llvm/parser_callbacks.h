@@ -20,23 +20,35 @@
  * SOFTWARE.
  *
  */
+#ifndef SPIRV_TO_LLVM_PARSER_CALLBACKS_H_
+#define SPIRV_TO_LLVM_PARSER_CALLBACKS_H_
+
 #include "translator.h"
+#include "parser_callbacks_capabilities.h"
+#include "parser_callbacks_extensions.h"
+#include "parser_callbacks_debug.h"
+#include "parser_callbacks_annotations.h"
 
 namespace kazan
 {
 namespace spirv_to_llvm
 {
-void parser_callbacks::Header_callbacks::handle_header(unsigned version_number_major,
-                                                       unsigned version_number_minor,
-                                                       spirv::Word generator_magic_number,
-                                                       spirv::Word id_bound,
-                                                       spirv::Word instruction_schema)
+namespace parser_callbacks
 {
-    if(translator->per_shader_states.count(execution_model) == 0)
+class Callbacks final : public Header_callbacks,
+                        public Capabilities_callbacks,
+                        public Extensions_callbacks,
+                        public Debug_callbacks,
+                        public Annotations_callbacks
+{
+public:
+    Callbacks(Translator *translator, spirv::Execution_model execution_model) noexcept
     {
-        per_shader_state = &std::get<1>(
-            *std::get<0>(translator->per_shader_states.emplace(execution_model, Translator::Per_shader_state(id_bound))));
+        init(translator, execution_model);
     }
+};
 }
 }
 }
+
+#endif // SPIRV_TO_LLVM_PARSER_CALLBACKS_H_

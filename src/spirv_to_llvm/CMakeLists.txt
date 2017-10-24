@@ -21,10 +21,13 @@
 cmake_minimum_required(VERSION 3.3 FATAL_ERROR)
 
 set(sources core_instructions.cpp
-            debug_info.cpp
             fragment_entry_point.cpp
             glsl_instructions.cpp
             opencl_instructions.cpp
+            parser_callbacks_annotations.cpp
+            parser_callbacks_capabilities.cpp
+            parser_callbacks_debug.cpp
+            parser_callbacks_extensions.cpp
             spirv_to_llvm.cpp
             translator.cpp
             vertex_entry_point.cpp)

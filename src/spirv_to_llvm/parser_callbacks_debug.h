@@ -20,8 +20,8 @@
  * SOFTWARE.
  *
  */
-#ifndef SPIRV_TO_LLVM_DEBUG_INFO_H_
-#define SPIRV_TO_LLVM_DEBUG_INFO_H_
+#ifndef SPIRV_TO_LLVM_PARSER_CALLBACKS_DEBUG_H_
+#define SPIRV_TO_LLVM_PARSER_CALLBACKS_DEBUG_H_
 
 #include <cstddef>
 #include "spirv/spirv.h"
@@ -36,7 +36,9 @@ namespace spirv_to_llvm
 struct Spirv_string final : public Spirv_id
 {
     const std::string value;
-    explicit Spirv_string(std::string value) noexcept : value(std::move(value))
+    Spirv_string(std::size_t defining_instruction_start_index, std::string value) noexcept
+        : Spirv_id(defining_instruction_start_index),
+          value(std::move(value))
     {
     }
 };
@@ -94,7 +96,9 @@ struct Spirv_location : public Spirv_location_without_instruction_start_index
     }
 };
 
-class Parser_debug_callbacks : public virtual Parser_callbacks_base
+namespace parser_callbacks
+{
+class Debug_callbacks : public virtual Parser_callbacks_base
 {
 private:
     const Spirv_string *source_filename = nullptr;
@@ -127,5 +131,6 @@ public:
 };
 }
 }
+}
 
-#endif // SPIRV_TO_LLVM_DEBUG_INFO_H_
+#endif // SPIRV_TO_LLVM_PARSER_CALLBACKS_DEBUG_H_

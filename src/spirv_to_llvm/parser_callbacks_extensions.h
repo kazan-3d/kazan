@@ -20,23 +20,41 @@
  * SOFTWARE.
  *
  */
+#ifndef SPIRV_TO_LLVM_PARSER_CALLBACKS_EXTENSIONS_H_
+#define SPIRV_TO_LLVM_PARSER_CALLBACKS_EXTENSIONS_H_
+
+#include "spirv/spirv.h"
 #include "translator.h"
 
 namespace kazan
 {
 namespace spirv_to_llvm
 {
-void parser_callbacks::Header_callbacks::handle_header(unsigned version_number_major,
-                                                       unsigned version_number_minor,
-                                                       spirv::Word generator_magic_number,
-                                                       spirv::Word id_bound,
-                                                       spirv::Word instruction_schema)
+namespace parser_callbacks
 {
-    if(translator->per_shader_states.count(execution_model) == 0)
+struct Spirv_extended_instruction_set final : public Spirv_id
+{
+    const spirv::Extension_instruction_set value;
+    Spirv_extended_instruction_set(std::size_t defining_instruction_start_index,
+                                   spirv::Extension_instruction_set value) noexcept
+        : Spirv_id(defining_instruction_start_index),
+          value(value)
     {
-        per_shader_state = &std::get<1>(
-            *std::get<0>(translator->per_shader_states.emplace(execution_model, Translator::Per_shader_state(id_bound))));
     }
+};
+
+class Extensions_callbacks : public virtual Parser_callbacks_base
+{
+public:
+    virtual void handle_instruction_op_extension(
+        spirv::Op_extension instruction, std::size_t instruction_start_index) override final;
+    virtual void handle_instruction_op_ext_inst_import(
+        spirv::Op_ext_inst_import instruction, std::size_t instruction_start_index) override final;
+    virtual void handle_instruction_op_ext_inst(spirv::Op_ext_inst instruction,
+                                                std::size_t instruction_start_index) override final;
+};
 }
 }
 }
+
+#endif // SPIRV_TO_LLVM_PARSER_CALLBACKS_EXTENSIONS_H_

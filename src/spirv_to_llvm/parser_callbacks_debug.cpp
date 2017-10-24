@@ -20,51 +20,52 @@
  * SOFTWARE.
  *
  */
-#include "debug_info.h"
+#include "parser_callbacks_debug.h"
 
 namespace kazan
 {
 namespace spirv_to_llvm
 {
-void Parser_debug_callbacks::clear_line_info_because_end_of_block()
+namespace parser_callbacks
+{
+void Debug_callbacks::clear_line_info_because_end_of_block()
 {
     handle_instruction_op_no_line({}, 0);
 }
 
-Spirv_location Parser_debug_callbacks::get_location(std::size_t instruction_start_index) const
-    noexcept
+Spirv_location Debug_callbacks::get_location(std::size_t instruction_start_index) const noexcept
 {
     return Spirv_location(current_location, instruction_start_index);
 }
 
-void Parser_debug_callbacks::handle_instruction_op_source_continued(
-    spirv::Op_source_continued instruction, std::size_t instruction_start_index)
+void Debug_callbacks::handle_instruction_op_source_continued(spirv::Op_source_continued instruction,
+                                                             std::size_t instruction_start_index)
 {
     static_cast<void>(instruction);
     static_cast<void>(instruction_start_index);
 }
 
-void Parser_debug_callbacks::handle_instruction_op_source(spirv::Op_source instruction,
-                                                          std::size_t instruction_start_index)
+void Debug_callbacks::handle_instruction_op_source(spirv::Op_source instruction,
+                                                   std::size_t instruction_start_index)
 {
     if(instruction.file)
     {
-        auto *filename = get_id<Spirv_string>(*instruction.file);
-        current_location.filename = filename;
-        source_filename = filename;
+        auto &filename = get_id<Spirv_string>(*instruction.file);
+        current_location.filename = &filename;
+        source_filename = &filename;
     }
     static_cast<void>(instruction_start_index);
 }
 
-void Parser_debug_callbacks::handle_instruction_op_source_extension(
-    spirv::Op_source_extension instruction, std::size_t instruction_start_index)
+void Debug_callbacks::handle_instruction_op_source_extension(spirv::Op_source_extension instruction,
+                                                             std::size_t instruction_start_index)
 {
     static_cast<void>(instruction);
     static_cast<void>(instruction_start_index);
 }
 
-void Parser_debug_callbacks::handle_instruction_op_name(spirv::Op_name instruction,
-                                                        std::size_t instruction_start_index)
+void Debug_callbacks::handle_instruction_op_name(spirv::Op_name instruction,
+                                                 std::size_t instruction_start_index)
 {
     auto &map = per_shader_state->names;
     if(map.count(instruction.target) == 0)
@@ -72,8 +73,8 @@ void Parser_debug_callbacks::handle_instruction_op_name(spirv::Op_name instructi
     static_cast<void>(instruction_start_index);
 }
 
-void Parser_debug_callbacks::handle_instruction_op_member_name(spirv::Op_member_name instruction,
-                                                               std::size_t instruction_start_index)
+void Debug_callbacks::handle_instruction_op_member_name(spirv::Op_member_name instruction,
+                                                        std::size_t instruction_start_index)
 {
     auto &map = per_shader_state->member_names[instruction.type];
     if(map.count(instruction.member) == 0)
@@ -81,25 +82,24 @@ void Parser_debug_callbacks::handle_instruction_op_member_name(spirv::Op_member_
     static_cast<void>(instruction_start_index);
 }
 
-void Parser_debug_callbacks::handle_instruction_op_string(spirv::Op_string instruction,
-                                                          std::size_t instruction_start_index)
+void Debug_callbacks::handle_instruction_op_string(spirv::Op_string instruction,
+                                                   std::size_t instruction_start_index)
 {
-    if(!get_id(instruction.result))
+    if(!is_id_defined_at(instruction.result, instruction_start_index))
         set_id(instruction.result,
-               std::make_unique<Spirv_string>(static_cast<std::string>(instruction.string)));
-    static_cast<void>(instruction_start_index);
+               std::make_unique<Spirv_string>(instruction_start_index, static_cast<std::string>(instruction.string)));
 }
 
-void Parser_debug_callbacks::handle_instruction_op_line(spirv::Op_line instruction,
-                                                        std::size_t instruction_start_index)
+void Debug_callbacks::handle_instruction_op_line(spirv::Op_line instruction,
+                                                 std::size_t instruction_start_index)
 {
-    current_location.filename = get_id<Spirv_string>(instruction.file);
+    current_location.filename = &get_id<Spirv_string>(instruction.file);
     current_location.line_info = Spirv_location::Line_info(instruction.line, instruction.column);
     static_cast<void>(instruction_start_index);
 }
 
-void Parser_debug_callbacks::handle_instruction_op_no_line(spirv::Op_no_line instruction,
-                                                           std::size_t instruction_start_index)
+void Debug_callbacks::handle_instruction_op_no_line(spirv::Op_no_line instruction,
+                                                    std::size_t instruction_start_index)
 {
     current_location.filename = source_filename;
     current_location.line_info.reset();
@@ -107,11 +107,12 @@ void Parser_debug_callbacks::handle_instruction_op_no_line(spirv::Op_no_line ins
     static_cast<void>(instruction_start_index);
 }
 
-void Parser_debug_callbacks::handle_instruction_op_module_processed(
-    spirv::Op_module_processed instruction, std::size_t instruction_start_index)
+void Debug_callbacks::handle_instruction_op_module_processed(spirv::Op_module_processed instruction,
+                                                             std::size_t instruction_start_index)
 {
     static_cast<void>(instruction);
     static_cast<void>(instruction_start_index);
+}
 }
 }
 }
