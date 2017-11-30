@@ -80,7 +80,7 @@ public:
     {
         return value != nullptr;
     }
-    constexpr typename std::add_lvalue_reference<T> operator*() const noexcept
+    constexpr typename std::add_lvalue_reference<T>::type operator*() const noexcept
     {
         return *value;
     }
