@@ -21,14 +21,18 @@ const ASSERT_TYPE_VK_ICD_GET_INSTANCE_PROC_ADDR: api::PFN_vkGetInstanceProcAddr 
 const ICD_VERSION: u32 = 5;
 
 #[no_mangle]
-pub extern "system" fn vk_icdNegotiateLoaderICDInterfaceVersion(
-    supported_version: &mut u32,
+pub unsafe extern "system" fn vk_icdNegotiateLoaderICDInterfaceVersion(
+    supported_version: *mut u32,
 ) -> api::VkResult {
     if *supported_version > ICD_VERSION {
         *supported_version = ICD_VERSION;
     }
     api::VK_SUCCESS
 }
+
+#[allow(dead_code)]
+const ASSERT_TYPE_VK_ICD_NEGOTIATE_LOADER_ICD_INTERFACE_VERSION:
+    api::PFN_vkNegotiateLoaderICDInterfaceVersion = Some(vk_icdNegotiateLoaderICDInterfaceVersion);
 
 #[no_mangle]
 pub extern "system" fn vk_icdGetPhysicalDeviceProcAddr(
@@ -92,6 +96,10 @@ pub extern "system" fn vk_icdGetPhysicalDeviceProcAddr(
         _ => None,
     }
 }
+
+#[allow(dead_code)]
+const ASSERT_TYPE_VK_ICD_GET_PHYSICAL_DEVICE_PROC_ADDR: api::PFN_GetPhysicalDeviceProcAddr =
+    Some(vk_icdGetInstanceProcAddr);
 
 #[cfg(test)]
 mod tests {}
