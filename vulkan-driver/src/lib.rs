@@ -1,0 +1,97 @@
+#[cfg(unix)]
+extern crate xcb;
+mod api;
+use std::ffi::CStr;
+use std::os::raw::c_char;
+
+#[no_mangle]
+pub extern "system" fn vk_icdGetInstanceProcAddr(
+    instance: api::VkInstance,
+    name: *const c_char,
+) -> api::PFN_vkVoidFunction {
+    unimplemented!()
+}
+
+// note that if the following fails, then you may be encountering bindgen issue #1402
+// https://github.com/rust-lang-nursery/rust-bindgen/issues/1402
+#[allow(dead_code)]
+const ASSERT_TYPE_VK_ICD_GET_INSTANCE_PROC_ADDR: api::PFN_vkGetInstanceProcAddr =
+    Some(vk_icdGetInstanceProcAddr);
+
+const ICD_VERSION: u32 = 5;
+
+#[no_mangle]
+pub extern "system" fn vk_icdNegotiateLoaderICDInterfaceVersion(
+    supported_version: &mut u32,
+) -> api::VkResult {
+    if *supported_version > ICD_VERSION {
+        *supported_version = ICD_VERSION;
+    }
+    api::VK_SUCCESS
+}
+
+#[no_mangle]
+pub extern "system" fn vk_icdGetPhysicalDeviceProcAddr(
+    instance: api::VkInstance,
+    name: *const c_char,
+) -> api::PFN_vkVoidFunction {
+    match unsafe { CStr::from_ptr(name) }.to_str().ok()? {
+        "vkCreateDevice"
+        | "vkCreateDisplayModeKHR"
+        | "vkEnumerateDeviceExtensionProperties"
+        | "vkEnumerateDeviceLayerProperties"
+        | "vkGetDisplayModeProperties2KHR"
+        | "vkGetDisplayModePropertiesKHR"
+        | "vkGetDisplayPlaneCapabilities2KHR"
+        | "vkGetDisplayPlaneCapabilitiesKHR"
+        | "vkGetDisplayPlaneSupportedDisplaysKHR"
+        | "vkGetPhysicalDeviceDisplayPlaneProperties2KHR"
+        | "vkGetPhysicalDeviceDisplayPlanePropertiesKHR"
+        | "vkGetPhysicalDeviceDisplayProperties2KHR"
+        | "vkGetPhysicalDeviceDisplayPropertiesKHR"
+        | "vkGetPhysicalDeviceExternalBufferProperties"
+        | "vkGetPhysicalDeviceExternalBufferPropertiesKHR"
+        | "vkGetPhysicalDeviceExternalFenceProperties"
+        | "vkGetPhysicalDeviceExternalFencePropertiesKHR"
+        | "vkGetPhysicalDeviceExternalImageFormatPropertiesNV"
+        | "vkGetPhysicalDeviceExternalSemaphoreProperties"
+        | "vkGetPhysicalDeviceExternalSemaphorePropertiesKHR"
+        | "vkGetPhysicalDeviceFeatures"
+        | "vkGetPhysicalDeviceFeatures2"
+        | "vkGetPhysicalDeviceFeatures2KHR"
+        | "vkGetPhysicalDeviceFormatProperties"
+        | "vkGetPhysicalDeviceFormatProperties2"
+        | "vkGetPhysicalDeviceFormatProperties2KHR"
+        | "vkGetPhysicalDeviceGeneratedCommandsPropertiesNVX"
+        | "vkGetPhysicalDeviceImageFormatProperties"
+        | "vkGetPhysicalDeviceImageFormatProperties2"
+        | "vkGetPhysicalDeviceImageFormatProperties2KHR"
+        | "vkGetPhysicalDeviceMemoryProperties"
+        | "vkGetPhysicalDeviceMemoryProperties2"
+        | "vkGetPhysicalDeviceMemoryProperties2KHR"
+        | "vkGetPhysicalDeviceMultisamplePropertiesEXT"
+        | "vkGetPhysicalDevicePresentRectanglesKHR"
+        | "vkGetPhysicalDeviceProperties"
+        | "vkGetPhysicalDeviceProperties2"
+        | "vkGetPhysicalDeviceProperties2KHR"
+        | "vkGetPhysicalDeviceQueueFamilyProperties"
+        | "vkGetPhysicalDeviceQueueFamilyProperties2"
+        | "vkGetPhysicalDeviceQueueFamilyProperties2KHR"
+        | "vkGetPhysicalDeviceSparseImageFormatProperties"
+        | "vkGetPhysicalDeviceSparseImageFormatProperties2"
+        | "vkGetPhysicalDeviceSparseImageFormatProperties2KHR"
+        | "vkGetPhysicalDeviceSurfaceCapabilities2EXT"
+        | "vkGetPhysicalDeviceSurfaceCapabilities2KHR"
+        | "vkGetPhysicalDeviceSurfaceCapabilitiesKHR"
+        | "vkGetPhysicalDeviceSurfaceFormats2KHR"
+        | "vkGetPhysicalDeviceSurfaceFormatsKHR"
+        | "vkGetPhysicalDeviceSurfacePresentModesKHR"
+        | "vkGetPhysicalDeviceSurfaceSupportKHR"
+        | "vkGetPhysicalDeviceXcbPresentationSupportKHR"
+        | "vkReleaseDisplayEXT" => vk_icdGetInstanceProcAddr(instance, name),
+        _ => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {}

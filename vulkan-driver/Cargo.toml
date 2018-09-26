@@ -1,0 +1,14 @@
+[package]
+name = "vulkan-driver"
+version = "0.1.0"
+authors = ["Jacob Lifshay <programmerjake@gmail.com>"]
+
+[lib]
+crate-type = ["cdylib"]
+
+[target.'cfg(unix)'.dependencies]
+xcb = "0.8"
+
+[build-dependencies]
+bindgen = "0.40"
+regex = "1"
