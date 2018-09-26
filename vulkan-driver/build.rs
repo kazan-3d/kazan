@@ -43,7 +43,7 @@ fn main() -> io::Result<()> {
     println!("cargo:rerun-if-changed=../external/Vulkan-Headers/include");
     let vulkan_calling_convention = detect_vulkan_calling_convention()?;
     let match_calling_convention_regex = regex::Regex::new(r#"extern "([^"]+)""#).unwrap();
-    let builder = bindgen::builder()
+    let mut builder = bindgen::builder()
         .header("vulkan-wrapper.h")
         .clang_arg("-target")
         .clang_arg(env::var("TARGET").unwrap())
@@ -51,8 +51,50 @@ fn main() -> io::Result<()> {
         .prepend_enum_name(false)
         .layout_tests(false)
         .whitelist_var("VK_.*")
-        .whitelist_var("ICD_LOADER_MAGIC")
-        .whitelist_type("Vk.*")
+        .whitelist_var("ICD_LOADER_MAGIC");
+    for &t in &[
+        "VkInstance",
+        "VkPhysicalDevice",
+        "VkDevice",
+        "VkQueue",
+        "VkCommandBuffer",
+    ] {
+        builder = builder.blacklist_type(t).blacklist_type(format!("{}_T", t));
+    }
+    for &t in &[
+        "VkSemaphore",
+        "VkFence",
+        "VkDeviceMemory",
+        "VkBuffer",
+        "VkImage",
+        "VkEvent",
+        "VkQueryPool",
+        "VkBufferView",
+        "VkImageView",
+        "VkShaderModule",
+        "VkPipelineCache",
+        "VkPipelineLayout",
+        "VkRenderPass",
+        "VkPipeline",
+        "VkDescriptorSetLayout",
+        "VkSampler",
+        "VkDescriptorPool",
+        "VkDescriptorSet",
+        "VkFramebuffer",
+        "VkCommandPool",
+        "VkSamplerYcbcrConversion",
+        "VkDescriptorUpdateTemplate",
+        "VkSurfaceKHR",
+        "VkSwapchainKHR",
+        "VkDisplayKHR",
+        "VkDisplayModeKHR",
+        "VkDebugReportCallbackEXT",
+        "VkDebugUtilsMessengerEXT",
+        "VkValidationCacheEXT",
+    ] {
+        builder = builder.blacklist_type(t).blacklist_type(format!("{}_T", t));
+    }
+    builder = builder
         .whitelist_type("PFN_.*")
         .blacklist_type("^xcb_.*")
         .derive_debug(false)

@@ -1,6 +1,8 @@
 #[cfg(unix)]
 extern crate xcb;
 mod api;
+mod api_impl;
+mod handle;
 use std::ffi::CStr;
 use std::os::raw::c_char;
 
@@ -9,7 +11,7 @@ pub extern "system" fn vk_icdGetInstanceProcAddr(
     instance: api::VkInstance,
     name: *const c_char,
 ) -> api::PFN_vkVoidFunction {
-    unimplemented!()
+    api_impl::vkGetInstanceProcAddr(instance, name)
 }
 
 // note that if the following fails, then you may be encountering bindgen issue #1402
