@@ -12,3 +12,4 @@ xcb = "0.8"
 [build-dependencies]
 bindgen = "0.40"
 regex = "1"
+xmltree = "0.8"
