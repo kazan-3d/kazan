@@ -2,3 +2,12 @@
 members = [
     "vulkan-driver",
 ]
+
+[profile.dev]
+panic = "abort"
+
+[profile.release]
+panic = "abort"
+
+[profile.bench]
+panic = "abort"

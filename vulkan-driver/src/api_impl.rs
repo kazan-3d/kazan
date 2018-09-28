@@ -1,321 +1,229 @@
+#![allow(dead_code)]
 use api;
-use handle::Handle;
+use enum_map::EnumMap;
+use handle::{Handle, OwnedHandle, SharedHandle};
+use std::borrow::Borrow;
 use std::ffi::CStr;
+use std::iter;
+use std::mem;
+use std::ops::*;
 use std::os::raw::c_char;
+use std::slice;
+use std::str::FromStr;
+use uuid;
+use xcb;
+use KAZAN_DEVICE_NAME;
+use KAZAN_VENDOR_ID;
+use MIN_MEMORY_MAP_ALIGNMENT;
 
-#[derive(Copy, Clone)]
-enum ProcAddressScope {
-    Device,
-    Instance,
-    Global,
+fn copy_str_to_char_array(dest: &mut [c_char], src: &str) {
+    assert!(dest.len() >= src.len() + 1);
+    let src = src.as_bytes();
+    for i in 0..src.len() {
+        dest[i] = src[i] as c_char;
+    }
+    for i in src.len()..dest.len() {
+        dest[i] = 0;
+    }
 }
 
-impl ProcAddressScope {
-    fn global(self) -> bool {
-        match self {
-            ProcAddressScope::Device | ProcAddressScope::Instance | ProcAddressScope::Global => {
-                true
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Enum)]
+#[repr(u32)]
+#[allow(non_camel_case_types)]
+pub enum Extension {
+    VK_KHR_surface,
+}
+
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
+pub enum ExtensionScope {
+    Device,
+    Instance,
+}
+
+impl Extension {
+    pub fn get_required_extensions(self) -> Extensions {
+        Extensions(match self {
+            Extension::VK_KHR_surface => enum_map!{_ => false},
+        })
+    }
+    pub fn get_recursively_required_extensions(self) -> Extensions {
+        let mut retval = self.get_required_extensions();
+        let mut worklist: EnumMap<Extension, Extension> = enum_map!{_ => self};
+        let worklist = worklist.as_mut_slice();
+        let mut worklist_size = 1;
+        while worklist_size > 0 {
+            worklist_size -= 1;
+            let extension = worklist[worklist_size];
+            retval[extension] = true;
+            for (extension, &v) in extension.get_required_extensions().iter() {
+                if v && !retval[extension] {
+                    worklist[worklist_size] = extension;
+                    worklist_size += 1;
+                }
             }
         }
+        retval
     }
-    fn instance(self) -> bool {
+    pub fn get_name(self) -> &'static str {
+        macro_rules! name {
+            ($($name:ident),*) => {
+                match self {
+                    $(Extension::$name => stringify!($name),)*
+                }
+            }
+        }
+        name!(VK_KHR_surface)
+    }
+    pub fn get_spec_version(self) -> u32 {
         match self {
-            ProcAddressScope::Device | ProcAddressScope::Instance => true,
-            _ => false,
+            Extension::VK_KHR_surface => api::VK_KHR_SURFACE_SPEC_VERSION,
         }
     }
-    fn device(self) -> bool {
+    pub fn get_properties(self) -> api::VkExtensionProperties {
+        let mut retval = api::VkExtensionProperties {
+            extensionName: [0; api::VK_MAX_EXTENSION_NAME_SIZE as usize],
+            specVersion: self.get_spec_version(),
+        };
+        copy_str_to_char_array(&mut retval.extensionName, self.get_name());
+        retval
+    }
+    pub fn get_scope(self) -> ExtensionScope {
         match self {
-            ProcAddressScope::Device => true,
-            _ => false,
+            Extension::VK_KHR_surface => ExtensionScope::Instance,
         }
+    }
+}
+
+impl FromStr for Extension {
+    type Err = ();
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        for (i, _) in Extensions::default().iter() {
+            if s == i.get_name() {
+                return Ok(i);
+            }
+        }
+        Err(())
     }
 }
 
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
-#[repr(i32)]
-pub enum Extension {
-    VK_VERSION_1_0 = -1,
-    VK_VERSION_1_1 = -2,
-}
+pub struct Extensions(EnumMap<Extension, bool>);
 
-struct Extensions {
-    VK_VERSION_1_0: bool,
-    VK_VERSION_1_1: bool,
-    VK_AMD_buffer_marker: bool,
-    VK_AMD_draw_indirect_count: bool,
-    VK_AMD_gcn_shader: bool,
-    VK_AMD_gpu_shader_half_float: bool,
-    VK_AMD_gpu_shader_int16: bool,
-    VK_AMD_mixed_attachment_samples: bool,
-    VK_AMD_negative_viewport_height: bool,
-    VK_AMD_rasterization_order: bool,
-    VK_AMD_shader_ballot: bool,
-    VK_AMD_shader_core_properties: bool,
-    VK_AMD_shader_explicit_vertex_parameter: bool,
-    VK_AMD_shader_fragment_mask: bool,
-    VK_AMD_shader_image_load_store_lod: bool,
-    VK_AMD_shader_info: bool,
-    VK_AMD_shader_trinary_minmax: bool,
-    VK_AMD_texture_gather_bias_lod: bool,
-    VK_ANDROID_external_memory_android_hardware_buffer: bool,
-    VK_EXT_acquire_xlib_display: bool,
-    VK_EXT_astc_decode_mode: bool,
-    VK_EXT_blend_operation_advanced: bool,
-    VK_EXT_conditional_rendering: bool,
-    VK_EXT_conservative_rasterization: bool,
-    VK_EXT_debug_marker: bool,
-    VK_EXT_debug_report: bool,
-    VK_EXT_debug_utils: bool,
-    VK_EXT_depth_range_unrestricted: bool,
-    VK_EXT_descriptor_indexing: bool,
-    VK_EXT_direct_mode_display: bool,
-    VK_EXT_discard_rectangles: bool,
-    VK_EXT_display_control: bool,
-    VK_EXT_display_surface_counter: bool,
-    VK_EXT_external_memory_dma_buf: bool,
-    VK_EXT_external_memory_host: bool,
-    VK_EXT_global_priority: bool,
-    VK_EXT_hdr_metadata: bool,
-    VK_EXT_inline_uniform_block: bool,
-    VK_EXT_post_depth_coverage: bool,
-    VK_EXT_queue_family_foreign: bool,
-    VK_EXT_sample_locations: bool,
-    VK_EXT_sampler_filter_minmax: bool,
-    VK_EXT_shader_stencil_export: bool,
-    VK_EXT_shader_subgroup_ballot: bool,
-    VK_EXT_shader_subgroup_vote: bool,
-    VK_EXT_shader_viewport_index_layer: bool,
-    VK_EXT_swapchain_colorspace: bool,
-    VK_EXT_validation_cache: bool,
-    VK_EXT_validation_flags: bool,
-    VK_EXT_vertex_attribute_divisor: bool,
-    VK_GOOGLE_display_timing: bool,
-    VK_IMG_filter_cubic: bool,
-    VK_IMG_format_pvrtc: bool,
-    VK_KHR_16bit_storage: bool,
-    VK_KHR_8bit_storage: bool,
-    VK_KHR_android_surface: bool,
-    VK_KHR_bind_memory2: bool,
-    VK_KHR_create_renderpass2: bool,
-    VK_KHR_dedicated_allocation: bool,
-    VK_KHR_descriptor_update_template: bool,
-    VK_KHR_device_group: bool,
-    VK_KHR_device_group_creation: bool,
-    VK_KHR_display: bool,
-    VK_KHR_display_swapchain: bool,
-    VK_KHR_draw_indirect_count: bool,
-    VK_KHR_external_fence: bool,
-    VK_KHR_external_fence_capabilities: bool,
-    VK_KHR_external_fence_fd: bool,
-    VK_KHR_external_fence_win32: bool,
-    VK_KHR_external_memory: bool,
-    VK_KHR_external_memory_capabilities: bool,
-    VK_KHR_external_memory_fd: bool,
-    VK_KHR_external_memory_win32: bool,
-    VK_KHR_external_semaphore: bool,
-    VK_KHR_external_semaphore_capabilities: bool,
-    VK_KHR_external_semaphore_fd: bool,
-    VK_KHR_external_semaphore_win32: bool,
-    VK_KHR_get_display_properties2: bool,
-    VK_KHR_get_memory_requirements2: bool,
-    VK_KHR_get_physical_device_properties2: bool,
-    VK_KHR_get_surface_capabilities2: bool,
-    VK_KHR_image_format_list: bool,
-    VK_KHR_incremental_present: bool,
-    VK_KHR_maintenance1: bool,
-    VK_KHR_maintenance2: bool,
-    VK_KHR_maintenance3: bool,
-    VK_KHR_mir_surface: bool,
-    VK_KHR_multiview: bool,
-    VK_KHR_push_descriptor: bool,
-    VK_KHR_relaxed_block_layout: bool,
-    VK_KHR_sampler_mirror_clamp_to_edge: bool,
-    VK_KHR_sampler_ycbcr_conversion: bool,
-    VK_KHR_shader_draw_parameters: bool,
-    VK_KHR_shared_presentable_image: bool,
-    VK_KHR_storage_buffer_storage_class: bool,
-    VK_KHR_surface: bool,
-    VK_KHR_swapchain: bool,
-    VK_KHR_variable_pointers: bool,
-    VK_KHR_vulkan_memory_model: bool,
-    VK_KHR_wayland_surface: bool,
-    VK_KHR_win32_keyed_mutex: bool,
-    VK_KHR_win32_surface: bool,
-    VK_KHR_xcb_surface: bool,
-    VK_KHR_xlib_surface: bool,
-    VK_NV_clip_space_w_scaling: bool,
-    VK_NV_compute_shader_derivatives: bool,
-    VK_NV_corner_sampled_image: bool,
-    VK_NV_dedicated_allocation: bool,
-    VK_NV_device_diagnostic_checkpoints: bool,
-    VK_NV_external_memory: bool,
-    VK_NV_external_memory_capabilities: bool,
-    VK_NV_external_memory_win32: bool,
-    VK_NV_fill_rectangle: bool,
-    VK_NV_fragment_coverage_to_color: bool,
-    VK_NV_fragment_shader_barycentric: bool,
-    VK_NV_framebuffer_mixed_samples: bool,
-    VK_NV_geometry_shader_passthrough: bool,
-    VK_NV_glsl_shader: bool,
-    VK_NV_mesh_shader: bool,
-    VK_NV_representative_fragment_test: bool,
-    VK_NV_sample_mask_override_coverage: bool,
-    VK_NV_scissor_exclusive: bool,
-    VK_NV_shader_image_footprint: bool,
-    VK_NV_shader_subgroup_partitioned: bool,
-    VK_NV_shading_rate_image: bool,
-    VK_NV_viewport_array2: bool,
-    VK_NV_viewport_swizzle: bool,
-    VK_NV_win32_keyed_mutex: bool,
+impl Extensions {
+    pub fn create_empty() -> Self {
+        Extensions(enum_map!{_ => false})
+    }
+    pub fn is_empty(&self) -> bool {
+        self.iter().all(|(_, &v)| !v)
+    }
+    pub fn is_full(&self) -> bool {
+        self.iter().all(|(_, &v)| v)
+    }
+    pub fn get_allowed_extensions_from_instance_scope(&self) -> Self {
+        let mut retval = Extensions::default();
+        let instance_extensions = Self::instance_extensions();
+        for (extension, value) in retval.iter_mut() {
+            if extension.get_scope() == ExtensionScope::Instance {
+                *value = self[extension];
+                continue;
+            }
+            let required_extensions =
+                instance_extensions & extension.get_recursively_required_extensions();
+            *value = (!*self & required_extensions).is_empty();
+        }
+        retval
+    }
+    pub fn instance_extensions() -> Self {
+        Extensions(
+            (|extension: Extension| extension.get_scope() == ExtensionScope::Instance).into(),
+        )
+    }
+    pub fn device_extensions() -> Self {
+        !Self::instance_extensions()
+    }
 }
 
 impl Default for Extensions {
     fn default() -> Self {
-        Self {
-            VK_VERSION_1_0: true,
-            VK_VERSION_1_1: false,
-            VK_AMD_buffer_marker: false,
-            VK_AMD_draw_indirect_count: false,
-            VK_AMD_gcn_shader: false,
-            VK_AMD_gpu_shader_half_float: false,
-            VK_AMD_gpu_shader_int16: false,
-            VK_AMD_mixed_attachment_samples: false,
-            VK_AMD_negative_viewport_height: false,
-            VK_AMD_rasterization_order: false,
-            VK_AMD_shader_ballot: false,
-            VK_AMD_shader_core_properties: false,
-            VK_AMD_shader_explicit_vertex_parameter: false,
-            VK_AMD_shader_fragment_mask: false,
-            VK_AMD_shader_image_load_store_lod: false,
-            VK_AMD_shader_info: false,
-            VK_AMD_shader_trinary_minmax: false,
-            VK_AMD_texture_gather_bias_lod: false,
-            VK_ANDROID_external_memory_android_hardware_buffer: false,
-            VK_EXT_acquire_xlib_display: false,
-            VK_EXT_astc_decode_mode: false,
-            VK_EXT_blend_operation_advanced: false,
-            VK_EXT_conditional_rendering: false,
-            VK_EXT_conservative_rasterization: false,
-            VK_EXT_debug_marker: false,
-            VK_EXT_debug_report: false,
-            VK_EXT_debug_utils: false,
-            VK_EXT_depth_range_unrestricted: false,
-            VK_EXT_descriptor_indexing: false,
-            VK_EXT_direct_mode_display: false,
-            VK_EXT_discard_rectangles: false,
-            VK_EXT_display_control: false,
-            VK_EXT_display_surface_counter: false,
-            VK_EXT_external_memory_dma_buf: false,
-            VK_EXT_external_memory_host: false,
-            VK_EXT_global_priority: false,
-            VK_EXT_hdr_metadata: false,
-            VK_EXT_inline_uniform_block: false,
-            VK_EXT_post_depth_coverage: false,
-            VK_EXT_queue_family_foreign: false,
-            VK_EXT_sample_locations: false,
-            VK_EXT_sampler_filter_minmax: false,
-            VK_EXT_shader_stencil_export: false,
-            VK_EXT_shader_subgroup_ballot: false,
-            VK_EXT_shader_subgroup_vote: false,
-            VK_EXT_shader_viewport_index_layer: false,
-            VK_EXT_swapchain_colorspace: false,
-            VK_EXT_validation_cache: false,
-            VK_EXT_validation_flags: false,
-            VK_EXT_vertex_attribute_divisor: false,
-            VK_GOOGLE_display_timing: false,
-            VK_IMG_filter_cubic: false,
-            VK_IMG_format_pvrtc: false,
-            VK_KHR_16bit_storage: false,
-            VK_KHR_8bit_storage: false,
-            VK_KHR_android_surface: false,
-            VK_KHR_bind_memory2: false,
-            VK_KHR_create_renderpass2: false,
-            VK_KHR_dedicated_allocation: false,
-            VK_KHR_descriptor_update_template: false,
-            VK_KHR_device_group: false,
-            VK_KHR_device_group_creation: false,
-            VK_KHR_display: false,
-            VK_KHR_display_swapchain: false,
-            VK_KHR_draw_indirect_count: false,
-            VK_KHR_external_fence: false,
-            VK_KHR_external_fence_capabilities: false,
-            VK_KHR_external_fence_fd: false,
-            VK_KHR_external_fence_win32: false,
-            VK_KHR_external_memory: false,
-            VK_KHR_external_memory_capabilities: false,
-            VK_KHR_external_memory_fd: false,
-            VK_KHR_external_memory_win32: false,
-            VK_KHR_external_semaphore: false,
-            VK_KHR_external_semaphore_capabilities: false,
-            VK_KHR_external_semaphore_fd: false,
-            VK_KHR_external_semaphore_win32: false,
-            VK_KHR_get_display_properties2: false,
-            VK_KHR_get_memory_requirements2: false,
-            VK_KHR_get_physical_device_properties2: false,
-            VK_KHR_get_surface_capabilities2: false,
-            VK_KHR_image_format_list: false,
-            VK_KHR_incremental_present: false,
-            VK_KHR_maintenance1: false,
-            VK_KHR_maintenance2: false,
-            VK_KHR_maintenance3: false,
-            VK_KHR_mir_surface: false,
-            VK_KHR_multiview: false,
-            VK_KHR_push_descriptor: false,
-            VK_KHR_relaxed_block_layout: false,
-            VK_KHR_sampler_mirror_clamp_to_edge: false,
-            VK_KHR_sampler_ycbcr_conversion: false,
-            VK_KHR_shader_draw_parameters: false,
-            VK_KHR_shared_presentable_image: false,
-            VK_KHR_storage_buffer_storage_class: false,
-            VK_KHR_surface: false,
-            VK_KHR_swapchain: false,
-            VK_KHR_variable_pointers: false,
-            VK_KHR_vulkan_memory_model: false,
-            VK_KHR_wayland_surface: false,
-            VK_KHR_win32_keyed_mutex: false,
-            VK_KHR_win32_surface: false,
-            VK_KHR_xcb_surface: false,
-            VK_KHR_xlib_surface: false,
-            VK_NV_clip_space_w_scaling: false,
-            VK_NV_compute_shader_derivatives: false,
-            VK_NV_corner_sampled_image: false,
-            VK_NV_dedicated_allocation: false,
-            VK_NV_device_diagnostic_checkpoints: false,
-            VK_NV_external_memory: false,
-            VK_NV_external_memory_capabilities: false,
-            VK_NV_external_memory_win32: false,
-            VK_NV_fill_rectangle: false,
-            VK_NV_fragment_coverage_to_color: false,
-            VK_NV_fragment_shader_barycentric: false,
-            VK_NV_framebuffer_mixed_samples: false,
-            VK_NV_geometry_shader_passthrough: false,
-            VK_NV_glsl_shader: false,
-            VK_NV_mesh_shader: false,
-            VK_NV_representative_fragment_test: false,
-            VK_NV_sample_mask_override_coverage: false,
-            VK_NV_scissor_exclusive: false,
-            VK_NV_shader_image_footprint: false,
-            VK_NV_shader_subgroup_partitioned: false,
-            VK_NV_shading_rate_image: false,
-            VK_NV_viewport_array2: false,
-            VK_NV_viewport_swizzle: false,
-            VK_NV_win32_keyed_mutex: false,
+        Self::create_empty()
+    }
+}
+
+impl Deref for Extensions {
+    type Target = EnumMap<Extension, bool>;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl DerefMut for Extensions {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
+impl BitAnd for Extensions {
+    type Output = Self;
+    fn bitand(self, rhs: Self) -> Self {
+        let mut retval = Self::default();
+        for (index, retval) in retval.iter_mut() {
+            *retval = self[index] & rhs[index];
         }
+        retval
+    }
+}
+
+impl BitOr for Extensions {
+    type Output = Self;
+    fn bitor(self, rhs: Self) -> Self {
+        let mut retval = Self::default();
+        for (index, retval) in retval.iter_mut() {
+            *retval = self[index] | rhs[index];
+        }
+        retval
+    }
+}
+
+impl BitXor for Extensions {
+    type Output = Self;
+    fn bitxor(self, rhs: Self) -> Self {
+        let mut retval = Self::default();
+        for (index, retval) in retval.iter_mut() {
+            *retval = self[index] ^ rhs[index];
+        }
+        retval
+    }
+}
+
+impl Not for Extensions {
+    type Output = Self;
+    fn not(mut self) -> Self {
+        for v in self.values_mut() {
+            *v = !*v;
+        }
+        self
     }
 }
 
 fn get_proc_address(
     name: *const c_char,
-    scope: ProcAddressScope,
-    extensions: &Extensions,
+    has_instance_or_device: bool,
+    extensions: &EnumMap<Extension, bool>,
 ) -> api::PFN_vkVoidFunction {
     let name = unsafe { CStr::from_ptr(name) }.to_str().ok()?;
     use api::*;
     use std::mem::transmute;
+    struct Scope {
+        global: bool,
+        instance: bool,
+    }
+    let scope = Scope {
+        global: true,
+        instance: has_instance_or_device,
+    };
     macro_rules! proc_address {
         ($name:ident, $pfn_name:ident, $required_scope:ident, $required_extension:expr) => {
-            if scope.$required_scope() && $required_extension && stringify!($name) == name {
+            if scope.$required_scope && $required_extension && stringify!($name) == name {
                 let f: $pfn_name = Some($name);
                 return unsafe { transmute(f) };
             }
@@ -323,319 +231,3339 @@ fn get_proc_address(
     }
     #[cfg_attr(rustfmt, rustfmt_skip)]
     {
-        proc_address!(vkAcquireNextImage2KHR, PFN_vkAcquireNextImage2KHR, unknown, unknown);
-        proc_address!(vkAcquireNextImageKHR, PFN_vkAcquireNextImageKHR, unknown, unknown);
-        proc_address!(vkAllocateCommandBuffers, PFN_vkAllocateCommandBuffers, unknown, unknown);
-        proc_address!(vkAllocateDescriptorSets, PFN_vkAllocateDescriptorSets, unknown, unknown);
-        proc_address!(vkAllocateMemory, PFN_vkAllocateMemory, unknown, unknown);
-        proc_address!(vkBeginCommandBuffer, PFN_vkBeginCommandBuffer, unknown, unknown);
-        proc_address!(vkBindBufferMemory, PFN_vkBindBufferMemory, unknown, unknown);
-        proc_address!(vkBindBufferMemory2, PFN_vkBindBufferMemory2, unknown, unknown);
-        proc_address!(vkBindBufferMemory2KHR, PFN_vkBindBufferMemory2KHR, unknown, unknown);
-        proc_address!(vkBindImageMemory, PFN_vkBindImageMemory, unknown, unknown);
-        proc_address!(vkBindImageMemory2, PFN_vkBindImageMemory2, unknown, unknown);
-        proc_address!(vkBindImageMemory2KHR, PFN_vkBindImageMemory2KHR, unknown, unknown);
-        proc_address!(vkCmdBeginConditionalRenderingEXT, PFN_vkCmdBeginConditionalRenderingEXT, unknown, unknown);
-        proc_address!(vkCmdBeginDebugUtilsLabelEXT, PFN_vkCmdBeginDebugUtilsLabelEXT, unknown, unknown);
-        proc_address!(vkCmdBeginQuery, PFN_vkCmdBeginQuery, unknown, unknown);
-        proc_address!(vkCmdBeginRenderPass, PFN_vkCmdBeginRenderPass, unknown, unknown);
-        proc_address!(vkCmdBeginRenderPass2KHR, PFN_vkCmdBeginRenderPass2KHR, unknown, unknown);
-        proc_address!(vkCmdBindDescriptorSets, PFN_vkCmdBindDescriptorSets, unknown, unknown);
-        proc_address!(vkCmdBindIndexBuffer, PFN_vkCmdBindIndexBuffer, unknown, unknown);
-        proc_address!(vkCmdBindPipeline, PFN_vkCmdBindPipeline, unknown, unknown);
-        proc_address!(vkCmdBindShadingRateImageNV, PFN_vkCmdBindShadingRateImageNV, unknown, unknown);
-        proc_address!(vkCmdBindVertexBuffers, PFN_vkCmdBindVertexBuffers, unknown, unknown);
-        proc_address!(vkCmdBlitImage, PFN_vkCmdBlitImage, unknown, unknown);
-        proc_address!(vkCmdClearAttachments, PFN_vkCmdClearAttachments, unknown, unknown);
-        proc_address!(vkCmdClearColorImage, PFN_vkCmdClearColorImage, unknown, unknown);
-        proc_address!(vkCmdClearDepthStencilImage, PFN_vkCmdClearDepthStencilImage, unknown, unknown);
-        proc_address!(vkCmdCopyBuffer, PFN_vkCmdCopyBuffer, unknown, unknown);
-        proc_address!(vkCmdCopyBufferToImage, PFN_vkCmdCopyBufferToImage, unknown, unknown);
-        proc_address!(vkCmdCopyImage, PFN_vkCmdCopyImage, unknown, unknown);
-        proc_address!(vkCmdCopyImageToBuffer, PFN_vkCmdCopyImageToBuffer, unknown, unknown);
-        proc_address!(vkCmdCopyQueryPoolResults, PFN_vkCmdCopyQueryPoolResults, unknown, unknown);
-        proc_address!(vkCmdDebugMarkerBeginEXT, PFN_vkCmdDebugMarkerBeginEXT, unknown, unknown);
-        proc_address!(vkCmdDebugMarkerEndEXT, PFN_vkCmdDebugMarkerEndEXT, unknown, unknown);
-        proc_address!(vkCmdDebugMarkerInsertEXT, PFN_vkCmdDebugMarkerInsertEXT, unknown, unknown);
-        proc_address!(vkCmdDispatch, PFN_vkCmdDispatch, unknown, unknown);
-        proc_address!(vkCmdDispatchBase, PFN_vkCmdDispatchBase, unknown, unknown);
-        proc_address!(vkCmdDispatchBaseKHR, PFN_vkCmdDispatchBaseKHR, unknown, unknown);
-        proc_address!(vkCmdDispatchIndirect, PFN_vkCmdDispatchIndirect, unknown, unknown);
-        proc_address!(vkCmdDraw, PFN_vkCmdDraw, unknown, unknown);
-        proc_address!(vkCmdDrawIndexed, PFN_vkCmdDrawIndexed, unknown, unknown);
-        proc_address!(vkCmdDrawIndexedIndirect, PFN_vkCmdDrawIndexedIndirect, unknown, unknown);
-        proc_address!(vkCmdDrawIndexedIndirectCountAMD, PFN_vkCmdDrawIndexedIndirectCountAMD, unknown, unknown);
-        proc_address!(vkCmdDrawIndexedIndirectCountKHR, PFN_vkCmdDrawIndexedIndirectCountKHR, unknown, unknown);
-        proc_address!(vkCmdDrawIndirect, PFN_vkCmdDrawIndirect, unknown, unknown);
-        proc_address!(vkCmdDrawIndirectCountAMD, PFN_vkCmdDrawIndirectCountAMD, unknown, unknown);
-        proc_address!(vkCmdDrawIndirectCountKHR, PFN_vkCmdDrawIndirectCountKHR, unknown, unknown);
-        proc_address!(vkCmdDrawMeshTasksIndirectCountNV, PFN_vkCmdDrawMeshTasksIndirectCountNV, unknown, unknown);
-        proc_address!(vkCmdDrawMeshTasksIndirectNV, PFN_vkCmdDrawMeshTasksIndirectNV, unknown, unknown);
-        proc_address!(vkCmdDrawMeshTasksNV, PFN_vkCmdDrawMeshTasksNV, unknown, unknown);
-        proc_address!(vkCmdEndConditionalRenderingEXT, PFN_vkCmdEndConditionalRenderingEXT, unknown, unknown);
-        proc_address!(vkCmdEndDebugUtilsLabelEXT, PFN_vkCmdEndDebugUtilsLabelEXT, unknown, unknown);
-        proc_address!(vkCmdEndQuery, PFN_vkCmdEndQuery, unknown, unknown);
-        proc_address!(vkCmdEndRenderPass, PFN_vkCmdEndRenderPass, unknown, unknown);
-        proc_address!(vkCmdEndRenderPass2KHR, PFN_vkCmdEndRenderPass2KHR, unknown, unknown);
-        proc_address!(vkCmdExecuteCommands, PFN_vkCmdExecuteCommands, unknown, unknown);
-        proc_address!(vkCmdFillBuffer, PFN_vkCmdFillBuffer, unknown, unknown);
-        proc_address!(vkCmdInsertDebugUtilsLabelEXT, PFN_vkCmdInsertDebugUtilsLabelEXT, unknown, unknown);
-        proc_address!(vkCmdNextSubpass, PFN_vkCmdNextSubpass, unknown, unknown);
-        proc_address!(vkCmdNextSubpass2KHR, PFN_vkCmdNextSubpass2KHR, unknown, unknown);
-        proc_address!(vkCmdPipelineBarrier, PFN_vkCmdPipelineBarrier, unknown, unknown);
-        proc_address!(vkCmdPushConstants, PFN_vkCmdPushConstants, unknown, unknown);
-        proc_address!(vkCmdPushDescriptorSetKHR, PFN_vkCmdPushDescriptorSetKHR, unknown, unknown);
-        proc_address!(vkCmdPushDescriptorSetWithTemplateKHR, PFN_vkCmdPushDescriptorSetWithTemplateKHR, unknown, unknown);
-        proc_address!(vkCmdResetEvent, PFN_vkCmdResetEvent, unknown, unknown);
-        proc_address!(vkCmdResetQueryPool, PFN_vkCmdResetQueryPool, unknown, unknown);
-        proc_address!(vkCmdResolveImage, PFN_vkCmdResolveImage, unknown, unknown);
-        proc_address!(vkCmdSetBlendConstants, PFN_vkCmdSetBlendConstants, unknown, unknown);
-        proc_address!(vkCmdSetCheckpointNV, PFN_vkCmdSetCheckpointNV, unknown, unknown);
-        proc_address!(vkCmdSetCoarseSampleOrderNV, PFN_vkCmdSetCoarseSampleOrderNV, unknown, unknown);
-        proc_address!(vkCmdSetDepthBias, PFN_vkCmdSetDepthBias, unknown, unknown);
-        proc_address!(vkCmdSetDepthBounds, PFN_vkCmdSetDepthBounds, unknown, unknown);
-        proc_address!(vkCmdSetDeviceMask, PFN_vkCmdSetDeviceMask, unknown, unknown);
-        proc_address!(vkCmdSetDeviceMaskKHR, PFN_vkCmdSetDeviceMaskKHR, unknown, unknown);
-        proc_address!(vkCmdSetDiscardRectangleEXT, PFN_vkCmdSetDiscardRectangleEXT, unknown, unknown);
-        proc_address!(vkCmdSetEvent, PFN_vkCmdSetEvent, unknown, unknown);
-        proc_address!(vkCmdSetExclusiveScissorNV, PFN_vkCmdSetExclusiveScissorNV, unknown, unknown);
-        proc_address!(vkCmdSetLineWidth, PFN_vkCmdSetLineWidth, unknown, unknown);
-        proc_address!(vkCmdSetSampleLocationsEXT, PFN_vkCmdSetSampleLocationsEXT, unknown, unknown);
-        proc_address!(vkCmdSetScissor, PFN_vkCmdSetScissor, unknown, unknown);
-        proc_address!(vkCmdSetStencilCompareMask, PFN_vkCmdSetStencilCompareMask, unknown, unknown);
-        proc_address!(vkCmdSetStencilReference, PFN_vkCmdSetStencilReference, unknown, unknown);
-        proc_address!(vkCmdSetStencilWriteMask, PFN_vkCmdSetStencilWriteMask, unknown, unknown);
-        proc_address!(vkCmdSetViewport, PFN_vkCmdSetViewport, unknown, unknown);
-        proc_address!(vkCmdSetViewportShadingRatePaletteNV, PFN_vkCmdSetViewportShadingRatePaletteNV, unknown, unknown);
-        proc_address!(vkCmdSetViewportWScalingNV, PFN_vkCmdSetViewportWScalingNV, unknown, unknown);
-        proc_address!(vkCmdUpdateBuffer, PFN_vkCmdUpdateBuffer, unknown, unknown);
-        proc_address!(vkCmdWaitEvents, PFN_vkCmdWaitEvents, unknown, unknown);
-        proc_address!(vkCmdWriteBufferMarkerAMD, PFN_vkCmdWriteBufferMarkerAMD, unknown, unknown);
-        proc_address!(vkCmdWriteTimestamp, PFN_vkCmdWriteTimestamp, unknown, unknown);
-        proc_address!(vkCreateBuffer, PFN_vkCreateBuffer, unknown, unknown);
-        proc_address!(vkCreateBufferView, PFN_vkCreateBufferView, unknown, unknown);
-        proc_address!(vkCreateCommandPool, PFN_vkCreateCommandPool, unknown, unknown);
-        proc_address!(vkCreateComputePipelines, PFN_vkCreateComputePipelines, unknown, unknown);
-        proc_address!(vkCreateDebugReportCallbackEXT, PFN_vkCreateDebugReportCallbackEXT, unknown, unknown);
-        proc_address!(vkCreateDebugUtilsMessengerEXT, PFN_vkCreateDebugUtilsMessengerEXT, unknown, unknown);
-        proc_address!(vkCreateDescriptorPool, PFN_vkCreateDescriptorPool, unknown, unknown);
-        proc_address!(vkCreateDescriptorSetLayout, PFN_vkCreateDescriptorSetLayout, unknown, unknown);
-        proc_address!(vkCreateDescriptorUpdateTemplate, PFN_vkCreateDescriptorUpdateTemplate, unknown, unknown);
-        proc_address!(vkCreateDescriptorUpdateTemplateKHR, PFN_vkCreateDescriptorUpdateTemplateKHR, unknown, unknown);
-        proc_address!(vkCreateDevice, PFN_vkCreateDevice, unknown, unknown);
-        proc_address!(vkCreateDisplayModeKHR, PFN_vkCreateDisplayModeKHR, unknown, unknown);
-        proc_address!(vkCreateDisplayPlaneSurfaceKHR, PFN_vkCreateDisplayPlaneSurfaceKHR, unknown, unknown);
-        proc_address!(vkCreateEvent, PFN_vkCreateEvent, unknown, unknown);
-        proc_address!(vkCreateFence, PFN_vkCreateFence, unknown, unknown);
-        proc_address!(vkCreateFramebuffer, PFN_vkCreateFramebuffer, unknown, unknown);
-        proc_address!(vkCreateGraphicsPipelines, PFN_vkCreateGraphicsPipelines, unknown, unknown);
-        proc_address!(vkCreateImage, PFN_vkCreateImage, unknown, unknown);
-        proc_address!(vkCreateImageView, PFN_vkCreateImageView, unknown, unknown);
-        proc_address!(vkCreateInstance, PFN_vkCreateInstance, unknown, unknown);
-        proc_address!(vkCreatePipelineCache, PFN_vkCreatePipelineCache, unknown, unknown);
-        proc_address!(vkCreatePipelineLayout, PFN_vkCreatePipelineLayout, unknown, unknown);
-        proc_address!(vkCreateQueryPool, PFN_vkCreateQueryPool, unknown, unknown);
-        proc_address!(vkCreateRenderPass, PFN_vkCreateRenderPass, unknown, unknown);
-        proc_address!(vkCreateRenderPass2KHR, PFN_vkCreateRenderPass2KHR, unknown, unknown);
-        proc_address!(vkCreateSampler, PFN_vkCreateSampler, unknown, unknown);
-        proc_address!(vkCreateSamplerYcbcrConversion, PFN_vkCreateSamplerYcbcrConversion, unknown, unknown);
-        proc_address!(vkCreateSamplerYcbcrConversionKHR, PFN_vkCreateSamplerYcbcrConversionKHR, unknown, unknown);
-        proc_address!(vkCreateSemaphore, PFN_vkCreateSemaphore, unknown, unknown);
-        proc_address!(vkCreateShaderModule, PFN_vkCreateShaderModule, unknown, unknown);
-        proc_address!(vkCreateSharedSwapchainsKHR, PFN_vkCreateSharedSwapchainsKHR, unknown, unknown);
-        proc_address!(vkCreateSwapchainKHR, PFN_vkCreateSwapchainKHR, unknown, unknown);
-        proc_address!(vkCreateValidationCacheEXT, PFN_vkCreateValidationCacheEXT, unknown, unknown);
-        proc_address!(vkCreateXcbSurfaceKHR, PFN_vkCreateXcbSurfaceKHR, unknown, unknown);
-        proc_address!(vkDebugMarkerSetObjectNameEXT, PFN_vkDebugMarkerSetObjectNameEXT, unknown, unknown);
-        proc_address!(vkDebugMarkerSetObjectTagEXT, PFN_vkDebugMarkerSetObjectTagEXT, unknown, unknown);
-        proc_address!(vkDebugReportCallbackEXT, PFN_vkDebugReportCallbackEXT, unknown, unknown);
-        proc_address!(vkDebugReportMessageEXT, PFN_vkDebugReportMessageEXT, unknown, unknown);
-        proc_address!(vkDebugUtilsMessengerCallbackEXT, PFN_vkDebugUtilsMessengerCallbackEXT, unknown, unknown);
-        proc_address!(vkDestroyBuffer, PFN_vkDestroyBuffer, unknown, unknown);
-        proc_address!(vkDestroyBufferView, PFN_vkDestroyBufferView, unknown, unknown);
-        proc_address!(vkDestroyCommandPool, PFN_vkDestroyCommandPool, unknown, unknown);
-        proc_address!(vkDestroyDebugReportCallbackEXT, PFN_vkDestroyDebugReportCallbackEXT, unknown, unknown);
-        proc_address!(vkDestroyDebugUtilsMessengerEXT, PFN_vkDestroyDebugUtilsMessengerEXT, unknown, unknown);
-        proc_address!(vkDestroyDescriptorPool, PFN_vkDestroyDescriptorPool, unknown, unknown);
-        proc_address!(vkDestroyDescriptorSetLayout, PFN_vkDestroyDescriptorSetLayout, unknown, unknown);
-        proc_address!(vkDestroyDescriptorUpdateTemplate, PFN_vkDestroyDescriptorUpdateTemplate, unknown, unknown);
-        proc_address!(vkDestroyDescriptorUpdateTemplateKHR, PFN_vkDestroyDescriptorUpdateTemplateKHR, unknown, unknown);
-        proc_address!(vkDestroyDevice, PFN_vkDestroyDevice, unknown, unknown);
-        proc_address!(vkDestroyEvent, PFN_vkDestroyEvent, unknown, unknown);
-        proc_address!(vkDestroyFence, PFN_vkDestroyFence, unknown, unknown);
-        proc_address!(vkDestroyFramebuffer, PFN_vkDestroyFramebuffer, unknown, unknown);
-        proc_address!(vkDestroyImage, PFN_vkDestroyImage, unknown, unknown);
-        proc_address!(vkDestroyImageView, PFN_vkDestroyImageView, unknown, unknown);
-        proc_address!(vkDestroyInstance, PFN_vkDestroyInstance, unknown, unknown);
-        proc_address!(vkDestroyPipeline, PFN_vkDestroyPipeline, unknown, unknown);
-        proc_address!(vkDestroyPipelineCache, PFN_vkDestroyPipelineCache, unknown, unknown);
-        proc_address!(vkDestroyPipelineLayout, PFN_vkDestroyPipelineLayout, unknown, unknown);
-        proc_address!(vkDestroyQueryPool, PFN_vkDestroyQueryPool, unknown, unknown);
-        proc_address!(vkDestroyRenderPass, PFN_vkDestroyRenderPass, unknown, unknown);
-        proc_address!(vkDestroySampler, PFN_vkDestroySampler, unknown, unknown);
-        proc_address!(vkDestroySamplerYcbcrConversion, PFN_vkDestroySamplerYcbcrConversion, unknown, unknown);
-        proc_address!(vkDestroySamplerYcbcrConversionKHR, PFN_vkDestroySamplerYcbcrConversionKHR, unknown, unknown);
-        proc_address!(vkDestroySemaphore, PFN_vkDestroySemaphore, unknown, unknown);
-        proc_address!(vkDestroyShaderModule, PFN_vkDestroyShaderModule, unknown, unknown);
-        proc_address!(vkDestroySurfaceKHR, PFN_vkDestroySurfaceKHR, unknown, unknown);
-        proc_address!(vkDestroySwapchainKHR, PFN_vkDestroySwapchainKHR, unknown, unknown);
-        proc_address!(vkDestroyValidationCacheEXT, PFN_vkDestroyValidationCacheEXT, unknown, unknown);
-        proc_address!(vkDeviceWaitIdle, PFN_vkDeviceWaitIdle, unknown, unknown);
-        proc_address!(vkDisplayPowerControlEXT, PFN_vkDisplayPowerControlEXT, unknown, unknown);
-        proc_address!(vkEndCommandBuffer, PFN_vkEndCommandBuffer, unknown, unknown);
-        proc_address!(vkEnumerateDeviceExtensionProperties, PFN_vkEnumerateDeviceExtensionProperties, unknown, unknown);
-        proc_address!(vkEnumerateDeviceLayerProperties, PFN_vkEnumerateDeviceLayerProperties, unknown, unknown);
-        proc_address!(vkEnumerateInstanceExtensionProperties, PFN_vkEnumerateInstanceExtensionProperties, unknown, unknown);
-        proc_address!(vkEnumerateInstanceLayerProperties, PFN_vkEnumerateInstanceLayerProperties, unknown, unknown);
-        proc_address!(vkEnumerateInstanceVersion, PFN_vkEnumerateInstanceVersion, unknown, unknown);
-        proc_address!(vkEnumeratePhysicalDeviceGroups, PFN_vkEnumeratePhysicalDeviceGroups, unknown, unknown);
-        proc_address!(vkEnumeratePhysicalDeviceGroupsKHR, PFN_vkEnumeratePhysicalDeviceGroupsKHR, unknown, unknown);
-        proc_address!(vkEnumeratePhysicalDevices, PFN_vkEnumeratePhysicalDevices, unknown, unknown);
-        proc_address!(vkFlushMappedMemoryRanges, PFN_vkFlushMappedMemoryRanges, unknown, unknown);
-        proc_address!(vkFreeCommandBuffers, PFN_vkFreeCommandBuffers, unknown, unknown);
-        proc_address!(vkFreeDescriptorSets, PFN_vkFreeDescriptorSets, unknown, unknown);
-        proc_address!(vkFreeFunction, PFN_vkFreeFunction, unknown, unknown);
-        proc_address!(vkFreeMemory, PFN_vkFreeMemory, unknown, unknown);
-        proc_address!(vkGetBufferMemoryRequirements, PFN_vkGetBufferMemoryRequirements, unknown, unknown);
-        proc_address!(vkGetBufferMemoryRequirements2, PFN_vkGetBufferMemoryRequirements2, unknown, unknown);
-        proc_address!(vkGetBufferMemoryRequirements2KHR, PFN_vkGetBufferMemoryRequirements2KHR, unknown, unknown);
-        proc_address!(vkGetDescriptorSetLayoutSupport, PFN_vkGetDescriptorSetLayoutSupport, unknown, unknown);
-        proc_address!(vkGetDescriptorSetLayoutSupportKHR, PFN_vkGetDescriptorSetLayoutSupportKHR, unknown, unknown);
-        proc_address!(vkGetDeviceGroupPeerMemoryFeatures, PFN_vkGetDeviceGroupPeerMemoryFeatures, unknown, unknown);
-        proc_address!(vkGetDeviceGroupPeerMemoryFeaturesKHR, PFN_vkGetDeviceGroupPeerMemoryFeaturesKHR, unknown, unknown);
-        proc_address!(vkGetDeviceGroupPresentCapabilitiesKHR, PFN_vkGetDeviceGroupPresentCapabilitiesKHR, unknown, unknown);
-        proc_address!(vkGetDeviceGroupSurfacePresentModesKHR, PFN_vkGetDeviceGroupSurfacePresentModesKHR, unknown, unknown);
-        proc_address!(vkGetDeviceMemoryCommitment, PFN_vkGetDeviceMemoryCommitment, unknown, unknown);
-        proc_address!(vkGetDeviceProcAddr, PFN_vkGetDeviceProcAddr, unknown, unknown);
-        proc_address!(vkGetDeviceQueue, PFN_vkGetDeviceQueue, unknown, unknown);
-        proc_address!(vkGetDeviceQueue2, PFN_vkGetDeviceQueue2, unknown, unknown);
-        proc_address!(vkGetDisplayModeProperties2KHR, PFN_vkGetDisplayModeProperties2KHR, unknown, unknown);
-        proc_address!(vkGetDisplayModePropertiesKHR, PFN_vkGetDisplayModePropertiesKHR, unknown, unknown);
-        proc_address!(vkGetDisplayPlaneCapabilities2KHR, PFN_vkGetDisplayPlaneCapabilities2KHR, unknown, unknown);
-        proc_address!(vkGetDisplayPlaneCapabilitiesKHR, PFN_vkGetDisplayPlaneCapabilitiesKHR, unknown, unknown);
-        proc_address!(vkGetDisplayPlaneSupportedDisplaysKHR, PFN_vkGetDisplayPlaneSupportedDisplaysKHR, unknown, unknown);
-        proc_address!(vkGetEventStatus, PFN_vkGetEventStatus, unknown, unknown);
-        proc_address!(vkGetFenceFdKHR, PFN_vkGetFenceFdKHR, unknown, unknown);
-        proc_address!(vkGetFenceStatus, PFN_vkGetFenceStatus, unknown, unknown);
-        proc_address!(vkGetImageMemoryRequirements, PFN_vkGetImageMemoryRequirements, unknown, unknown);
-        proc_address!(vkGetImageMemoryRequirements2, PFN_vkGetImageMemoryRequirements2, unknown, unknown);
-        proc_address!(vkGetImageMemoryRequirements2KHR, PFN_vkGetImageMemoryRequirements2KHR, unknown, unknown);
-        proc_address!(vkGetImageSparseMemoryRequirements, PFN_vkGetImageSparseMemoryRequirements, unknown, unknown);
-        proc_address!(vkGetImageSparseMemoryRequirements2, PFN_vkGetImageSparseMemoryRequirements2, unknown, unknown);
-        proc_address!(vkGetImageSparseMemoryRequirements2KHR, PFN_vkGetImageSparseMemoryRequirements2KHR, unknown, unknown);
-        proc_address!(vkGetImageSubresourceLayout, PFN_vkGetImageSubresourceLayout, unknown, unknown);
-        proc_address!(vkGetInstanceProcAddr, PFN_vkGetInstanceProcAddr, unknown, unknown);
-        proc_address!(vkGetMemoryFdKHR, PFN_vkGetMemoryFdKHR, unknown, unknown);
-        proc_address!(vkGetMemoryFdPropertiesKHR, PFN_vkGetMemoryFdPropertiesKHR, unknown, unknown);
-        proc_address!(vkGetMemoryHostPointerPropertiesEXT, PFN_vkGetMemoryHostPointerPropertiesEXT, unknown, unknown);
-        proc_address!(vkGetPastPresentationTimingGOOGLE, PFN_vkGetPastPresentationTimingGOOGLE, unknown, unknown);
-        proc_address!(vkGetPhysicalDeviceDisplayPlaneProperties2KHR, PFN_vkGetPhysicalDeviceDisplayPlaneProperties2KHR, unknown, unknown);
-        proc_address!(vkGetPhysicalDeviceDisplayPlanePropertiesKHR, PFN_vkGetPhysicalDeviceDisplayPlanePropertiesKHR, unknown, unknown);
-        proc_address!(vkGetPhysicalDeviceDisplayProperties2KHR, PFN_vkGetPhysicalDeviceDisplayProperties2KHR, unknown, unknown);
-        proc_address!(vkGetPhysicalDeviceDisplayPropertiesKHR, PFN_vkGetPhysicalDeviceDisplayPropertiesKHR, unknown, unknown);
-        proc_address!(vkGetPhysicalDeviceExternalBufferProperties, PFN_vkGetPhysicalDeviceExternalBufferProperties, unknown, unknown);
-        proc_address!(vkGetPhysicalDeviceExternalBufferPropertiesKHR, PFN_vkGetPhysicalDeviceExternalBufferPropertiesKHR, unknown, unknown);
-        proc_address!(vkGetPhysicalDeviceExternalFenceProperties, PFN_vkGetPhysicalDeviceExternalFenceProperties, unknown, unknown);
-        proc_address!(vkGetPhysicalDeviceExternalFencePropertiesKHR, PFN_vkGetPhysicalDeviceExternalFencePropertiesKHR, unknown, unknown);
-        proc_address!(vkGetPhysicalDeviceExternalImageFormatPropertiesNV, PFN_vkGetPhysicalDeviceExternalImageFormatPropertiesNV, unknown, unknown);
-        proc_address!(vkGetPhysicalDeviceExternalSemaphoreProperties, PFN_vkGetPhysicalDeviceExternalSemaphoreProperties, unknown, unknown);
-        proc_address!(vkGetPhysicalDeviceExternalSemaphorePropertiesKHR, PFN_vkGetPhysicalDeviceExternalSemaphorePropertiesKHR, unknown, unknown);
-        proc_address!(vkGetPhysicalDeviceFeatures, PFN_vkGetPhysicalDeviceFeatures, unknown, unknown);
-        proc_address!(vkGetPhysicalDeviceFeatures2, PFN_vkGetPhysicalDeviceFeatures2, unknown, unknown);
-        proc_address!(vkGetPhysicalDeviceFeatures2KHR, PFN_vkGetPhysicalDeviceFeatures2KHR, unknown, unknown);
-        proc_address!(vkGetPhysicalDeviceFormatProperties, PFN_vkGetPhysicalDeviceFormatProperties, unknown, unknown);
-        proc_address!(vkGetPhysicalDeviceFormatProperties2, PFN_vkGetPhysicalDeviceFormatProperties2, unknown, unknown);
-        proc_address!(vkGetPhysicalDeviceFormatProperties2KHR, PFN_vkGetPhysicalDeviceFormatProperties2KHR, unknown, unknown);
-        proc_address!(vkGetPhysicalDeviceImageFormatProperties, PFN_vkGetPhysicalDeviceImageFormatProperties, unknown, unknown);
-        proc_address!(vkGetPhysicalDeviceImageFormatProperties2, PFN_vkGetPhysicalDeviceImageFormatProperties2, unknown, unknown);
-        proc_address!(vkGetPhysicalDeviceImageFormatProperties2KHR, PFN_vkGetPhysicalDeviceImageFormatProperties2KHR, unknown, unknown);
-        proc_address!(vkGetPhysicalDeviceMemoryProperties, PFN_vkGetPhysicalDeviceMemoryProperties, unknown, unknown);
-        proc_address!(vkGetPhysicalDeviceMemoryProperties2, PFN_vkGetPhysicalDeviceMemoryProperties2, unknown, unknown);
-        proc_address!(vkGetPhysicalDeviceMemoryProperties2KHR, PFN_vkGetPhysicalDeviceMemoryProperties2KHR, unknown, unknown);
-        proc_address!(vkGetPhysicalDeviceMultisamplePropertiesEXT, PFN_vkGetPhysicalDeviceMultisamplePropertiesEXT, unknown, unknown);
-        proc_address!(vkGetPhysicalDevicePresentRectanglesKHR, PFN_vkGetPhysicalDevicePresentRectanglesKHR, unknown, unknown);
-        proc_address!(vkGetPhysicalDeviceProperties, PFN_vkGetPhysicalDeviceProperties, unknown, unknown);
-        proc_address!(vkGetPhysicalDeviceProperties2, PFN_vkGetPhysicalDeviceProperties2, unknown, unknown);
-        proc_address!(vkGetPhysicalDeviceProperties2KHR, PFN_vkGetPhysicalDeviceProperties2KHR, unknown, unknown);
-        proc_address!(vkGetPhysicalDeviceQueueFamilyProperties, PFN_vkGetPhysicalDeviceQueueFamilyProperties, unknown, unknown);
-        proc_address!(vkGetPhysicalDeviceQueueFamilyProperties2, PFN_vkGetPhysicalDeviceQueueFamilyProperties2, unknown, unknown);
-        proc_address!(vkGetPhysicalDeviceQueueFamilyProperties2KHR, PFN_vkGetPhysicalDeviceQueueFamilyProperties2KHR, unknown, unknown);
-        proc_address!(vkGetPhysicalDeviceSparseImageFormatProperties, PFN_vkGetPhysicalDeviceSparseImageFormatProperties, unknown, unknown);
-        proc_address!(vkGetPhysicalDeviceSparseImageFormatProperties2, PFN_vkGetPhysicalDeviceSparseImageFormatProperties2, unknown, unknown);
-        proc_address!(vkGetPhysicalDeviceSparseImageFormatProperties2KHR, PFN_vkGetPhysicalDeviceSparseImageFormatProperties2KHR, unknown, unknown);
-        proc_address!(vkGetPhysicalDeviceSurfaceCapabilities2EXT, PFN_vkGetPhysicalDeviceSurfaceCapabilities2EXT, unknown, unknown);
-        proc_address!(vkGetPhysicalDeviceSurfaceCapabilities2KHR, PFN_vkGetPhysicalDeviceSurfaceCapabilities2KHR, unknown, unknown);
-        proc_address!(vkGetPhysicalDeviceSurfaceCapabilitiesKHR, PFN_vkGetPhysicalDeviceSurfaceCapabilitiesKHR, unknown, unknown);
-        proc_address!(vkGetPhysicalDeviceSurfaceFormats2KHR, PFN_vkGetPhysicalDeviceSurfaceFormats2KHR, unknown, unknown);
-        proc_address!(vkGetPhysicalDeviceSurfaceFormatsKHR, PFN_vkGetPhysicalDeviceSurfaceFormatsKHR, unknown, unknown);
-        proc_address!(vkGetPhysicalDeviceSurfacePresentModesKHR, PFN_vkGetPhysicalDeviceSurfacePresentModesKHR, unknown, unknown);
-        proc_address!(vkGetPhysicalDeviceSurfaceSupportKHR, PFN_vkGetPhysicalDeviceSurfaceSupportKHR, unknown, unknown);
-        proc_address!(vkGetPhysicalDeviceXcbPresentationSupportKHR, PFN_vkGetPhysicalDeviceXcbPresentationSupportKHR, unknown, unknown);
-        proc_address!(vkGetPipelineCacheData, PFN_vkGetPipelineCacheData, unknown, unknown);
-        proc_address!(vkGetQueryPoolResults, PFN_vkGetQueryPoolResults, unknown, unknown);
-        proc_address!(vkGetQueueCheckpointDataNV, PFN_vkGetQueueCheckpointDataNV, unknown, unknown);
-        proc_address!(vkGetRefreshCycleDurationGOOGLE, PFN_vkGetRefreshCycleDurationGOOGLE, unknown, unknown);
-        proc_address!(vkGetRenderAreaGranularity, PFN_vkGetRenderAreaGranularity, unknown, unknown);
-        proc_address!(vkGetSemaphoreFdKHR, PFN_vkGetSemaphoreFdKHR, unknown, unknown);
-        proc_address!(vkGetShaderInfoAMD, PFN_vkGetShaderInfoAMD, unknown, unknown);
-        proc_address!(vkGetSwapchainCounterEXT, PFN_vkGetSwapchainCounterEXT, unknown, unknown);
-        proc_address!(vkGetSwapchainImagesKHR, PFN_vkGetSwapchainImagesKHR, unknown, unknown);
-        proc_address!(vkGetSwapchainStatusKHR, PFN_vkGetSwapchainStatusKHR, unknown, unknown);
-        proc_address!(vkGetValidationCacheDataEXT, PFN_vkGetValidationCacheDataEXT, unknown, unknown);
-        proc_address!(vkImportFenceFdKHR, PFN_vkImportFenceFdKHR, unknown, unknown);
-        proc_address!(vkImportSemaphoreFdKHR, PFN_vkImportSemaphoreFdKHR, unknown, unknown);
-        proc_address!(vkInternalAllocationNotification, PFN_vkInternalAllocationNotification, unknown, unknown);
-        proc_address!(vkInternalFreeNotification, PFN_vkInternalFreeNotification, unknown, unknown);
-        proc_address!(vkInvalidateMappedMemoryRanges, PFN_vkInvalidateMappedMemoryRanges, unknown, unknown);
-        proc_address!(vkMapMemory, PFN_vkMapMemory, unknown, unknown);
-        proc_address!(vkMergePipelineCaches, PFN_vkMergePipelineCaches, unknown, unknown);
-        proc_address!(vkMergeValidationCachesEXT, PFN_vkMergeValidationCachesEXT, unknown, unknown);
-        proc_address!(vkNegotiateLoaderICDInterfaceVersion, PFN_vkNegotiateLoaderICDInterfaceVersion, unknown, unknown);
-        proc_address!(vkQueueBeginDebugUtilsLabelEXT, PFN_vkQueueBeginDebugUtilsLabelEXT, unknown, unknown);
-        proc_address!(vkQueueBindSparse, PFN_vkQueueBindSparse, unknown, unknown);
-        proc_address!(vkQueueEndDebugUtilsLabelEXT, PFN_vkQueueEndDebugUtilsLabelEXT, unknown, unknown);
-        proc_address!(vkQueueInsertDebugUtilsLabelEXT, PFN_vkQueueInsertDebugUtilsLabelEXT, unknown, unknown);
-        proc_address!(vkQueuePresentKHR, PFN_vkQueuePresentKHR, unknown, unknown);
-        proc_address!(vkQueueSubmit, PFN_vkQueueSubmit, unknown, unknown);
-        proc_address!(vkQueueWaitIdle, PFN_vkQueueWaitIdle, unknown, unknown);
-        proc_address!(vkReallocationFunction, PFN_vkReallocationFunction, unknown, unknown);
-        proc_address!(vkRegisterDeviceEventEXT, PFN_vkRegisterDeviceEventEXT, unknown, unknown);
-        proc_address!(vkRegisterDisplayEventEXT, PFN_vkRegisterDisplayEventEXT, unknown, unknown);
-        proc_address!(vkReleaseDisplayEXT, PFN_vkReleaseDisplayEXT, unknown, unknown);
-        proc_address!(vkResetCommandBuffer, PFN_vkResetCommandBuffer, unknown, unknown);
-        proc_address!(vkResetCommandPool, PFN_vkResetCommandPool, unknown, unknown);
-        proc_address!(vkResetDescriptorPool, PFN_vkResetDescriptorPool, unknown, unknown);
-        proc_address!(vkResetEvent, PFN_vkResetEvent, unknown, unknown);
-        proc_address!(vkResetFences, PFN_vkResetFences, unknown, unknown);
-        proc_address!(vkSetDebugUtilsObjectNameEXT, PFN_vkSetDebugUtilsObjectNameEXT, unknown, unknown);
-        proc_address!(vkSetDebugUtilsObjectTagEXT, PFN_vkSetDebugUtilsObjectTagEXT, unknown, unknown);
-        proc_address!(vkSetEvent, PFN_vkSetEvent, unknown, unknown);
-        proc_address!(vkSetHdrMetadataEXT, PFN_vkSetHdrMetadataEXT, unknown, unknown);
-        proc_address!(vkSubmitDebugUtilsMessageEXT, PFN_vkSubmitDebugUtilsMessageEXT, unknown, unknown);
-        proc_address!(vkTrimCommandPool, PFN_vkTrimCommandPool, unknown, unknown);
-        proc_address!(vkTrimCommandPoolKHR, PFN_vkTrimCommandPoolKHR, unknown, unknown);
-        proc_address!(vkUnmapMemory, PFN_vkUnmapMemory, unknown, unknown);
-        proc_address!(vkUpdateDescriptorSetWithTemplate, PFN_vkUpdateDescriptorSetWithTemplate, unknown, unknown);
-        proc_address!(vkUpdateDescriptorSetWithTemplateKHR, PFN_vkUpdateDescriptorSetWithTemplateKHR, unknown, unknown);
-        proc_address!(vkUpdateDescriptorSets, PFN_vkUpdateDescriptorSets, unknown, unknown);
-        proc_address!(vkWaitForFences, PFN_vkWaitForFences, unknown, unknown);
+        proc_address!(vkCreateInstance, PFN_vkCreateInstance, global, true);
+        proc_address!(vkEnumerateInstanceExtensionProperties, PFN_vkEnumerateInstanceExtensionProperties, global, true);
+        proc_address!(vkEnumerateInstanceLayerProperties, PFN_vkEnumerateInstanceLayerProperties, global, true);
+        proc_address!(vkEnumerateInstanceVersion, PFN_vkEnumerateInstanceVersion, global, true);
+        proc_address!(vkAllocateCommandBuffers, PFN_vkAllocateCommandBuffers, instance, true);
+        proc_address!(vkAllocateDescriptorSets, PFN_vkAllocateDescriptorSets, instance, true);
+        proc_address!(vkAllocateMemory, PFN_vkAllocateMemory, instance, true);
+        proc_address!(vkBeginCommandBuffer, PFN_vkBeginCommandBuffer, instance, true);
+        proc_address!(vkBindBufferMemory, PFN_vkBindBufferMemory, instance, true);
+        proc_address!(vkBindBufferMemory2, PFN_vkBindBufferMemory2, instance, true);
+        proc_address!(vkBindImageMemory, PFN_vkBindImageMemory, instance, true);
+        proc_address!(vkBindImageMemory2, PFN_vkBindImageMemory2, instance, true);
+        proc_address!(vkCmdBeginQuery, PFN_vkCmdBeginQuery, instance, true);
+        proc_address!(vkCmdBeginRenderPass, PFN_vkCmdBeginRenderPass, instance, true);
+        proc_address!(vkCmdBindDescriptorSets, PFN_vkCmdBindDescriptorSets, instance, true);
+        proc_address!(vkCmdBindIndexBuffer, PFN_vkCmdBindIndexBuffer, instance, true);
+        proc_address!(vkCmdBindPipeline, PFN_vkCmdBindPipeline, instance, true);
+        proc_address!(vkCmdBindVertexBuffers, PFN_vkCmdBindVertexBuffers, instance, true);
+        proc_address!(vkCmdBlitImage, PFN_vkCmdBlitImage, instance, true);
+        proc_address!(vkCmdClearAttachments, PFN_vkCmdClearAttachments, instance, true);
+        proc_address!(vkCmdClearColorImage, PFN_vkCmdClearColorImage, instance, true);
+        proc_address!(vkCmdClearDepthStencilImage, PFN_vkCmdClearDepthStencilImage, instance, true);
+        proc_address!(vkCmdCopyBuffer, PFN_vkCmdCopyBuffer, instance, true);
+        proc_address!(vkCmdCopyBufferToImage, PFN_vkCmdCopyBufferToImage, instance, true);
+        proc_address!(vkCmdCopyImage, PFN_vkCmdCopyImage, instance, true);
+        proc_address!(vkCmdCopyImageToBuffer, PFN_vkCmdCopyImageToBuffer, instance, true);
+        proc_address!(vkCmdCopyQueryPoolResults, PFN_vkCmdCopyQueryPoolResults, instance, true);
+        proc_address!(vkCmdDispatch, PFN_vkCmdDispatch, instance, true);
+        proc_address!(vkCmdDispatchBase, PFN_vkCmdDispatchBase, instance, true);
+        proc_address!(vkCmdDispatchIndirect, PFN_vkCmdDispatchIndirect, instance, true);
+        proc_address!(vkCmdDraw, PFN_vkCmdDraw, instance, true);
+        proc_address!(vkCmdDrawIndexed, PFN_vkCmdDrawIndexed, instance, true);
+        proc_address!(vkCmdDrawIndexedIndirect, PFN_vkCmdDrawIndexedIndirect, instance, true);
+        proc_address!(vkCmdDrawIndirect, PFN_vkCmdDrawIndirect, instance, true);
+        proc_address!(vkCmdEndQuery, PFN_vkCmdEndQuery, instance, true);
+        proc_address!(vkCmdEndRenderPass, PFN_vkCmdEndRenderPass, instance, true);
+        proc_address!(vkCmdExecuteCommands, PFN_vkCmdExecuteCommands, instance, true);
+        proc_address!(vkCmdFillBuffer, PFN_vkCmdFillBuffer, instance, true);
+        proc_address!(vkCmdNextSubpass, PFN_vkCmdNextSubpass, instance, true);
+        proc_address!(vkCmdPipelineBarrier, PFN_vkCmdPipelineBarrier, instance, true);
+        proc_address!(vkCmdPushConstants, PFN_vkCmdPushConstants, instance, true);
+        proc_address!(vkCmdResetEvent, PFN_vkCmdResetEvent, instance, true);
+        proc_address!(vkCmdResetQueryPool, PFN_vkCmdResetQueryPool, instance, true);
+        proc_address!(vkCmdResolveImage, PFN_vkCmdResolveImage, instance, true);
+        proc_address!(vkCmdSetBlendConstants, PFN_vkCmdSetBlendConstants, instance, true);
+        proc_address!(vkCmdSetDepthBias, PFN_vkCmdSetDepthBias, instance, true);
+        proc_address!(vkCmdSetDepthBounds, PFN_vkCmdSetDepthBounds, instance, true);
+        proc_address!(vkCmdSetDeviceMask, PFN_vkCmdSetDeviceMask, instance, true);
+        proc_address!(vkCmdSetEvent, PFN_vkCmdSetEvent, instance, true);
+        proc_address!(vkCmdSetLineWidth, PFN_vkCmdSetLineWidth, instance, true);
+        proc_address!(vkCmdSetScissor, PFN_vkCmdSetScissor, instance, true);
+        proc_address!(vkCmdSetStencilCompareMask, PFN_vkCmdSetStencilCompareMask, instance, true);
+        proc_address!(vkCmdSetStencilReference, PFN_vkCmdSetStencilReference, instance, true);
+        proc_address!(vkCmdSetStencilWriteMask, PFN_vkCmdSetStencilWriteMask, instance, true);
+        proc_address!(vkCmdSetViewport, PFN_vkCmdSetViewport, instance, true);
+        proc_address!(vkCmdUpdateBuffer, PFN_vkCmdUpdateBuffer, instance, true);
+        proc_address!(vkCmdWaitEvents, PFN_vkCmdWaitEvents, instance, true);
+        proc_address!(vkCmdWriteTimestamp, PFN_vkCmdWriteTimestamp, instance, true);
+        proc_address!(vkCreateBuffer, PFN_vkCreateBuffer, instance, true);
+        proc_address!(vkCreateBufferView, PFN_vkCreateBufferView, instance, true);
+        proc_address!(vkCreateCommandPool, PFN_vkCreateCommandPool, instance, true);
+        proc_address!(vkCreateComputePipelines, PFN_vkCreateComputePipelines, instance, true);
+        proc_address!(vkCreateDescriptorPool, PFN_vkCreateDescriptorPool, instance, true);
+        proc_address!(vkCreateDescriptorSetLayout, PFN_vkCreateDescriptorSetLayout, instance, true);
+        proc_address!(vkCreateDescriptorUpdateTemplate, PFN_vkCreateDescriptorUpdateTemplate, instance, true);
+        proc_address!(vkCreateDevice, PFN_vkCreateDevice, instance, true);
+        proc_address!(vkCreateEvent, PFN_vkCreateEvent, instance, true);
+        proc_address!(vkCreateFence, PFN_vkCreateFence, instance, true);
+        proc_address!(vkCreateFramebuffer, PFN_vkCreateFramebuffer, instance, true);
+        proc_address!(vkCreateGraphicsPipelines, PFN_vkCreateGraphicsPipelines, instance, true);
+        proc_address!(vkCreateImage, PFN_vkCreateImage, instance, true);
+        proc_address!(vkCreateImageView, PFN_vkCreateImageView, instance, true);
+        proc_address!(vkCreatePipelineCache, PFN_vkCreatePipelineCache, instance, true);
+        proc_address!(vkCreatePipelineLayout, PFN_vkCreatePipelineLayout, instance, true);
+        proc_address!(vkCreateQueryPool, PFN_vkCreateQueryPool, instance, true);
+        proc_address!(vkCreateRenderPass, PFN_vkCreateRenderPass, instance, true);
+        proc_address!(vkCreateSampler, PFN_vkCreateSampler, instance, true);
+        proc_address!(vkCreateSamplerYcbcrConversion, PFN_vkCreateSamplerYcbcrConversion, instance, true);
+        proc_address!(vkCreateSemaphore, PFN_vkCreateSemaphore, instance, true);
+        proc_address!(vkCreateShaderModule, PFN_vkCreateShaderModule, instance, true);
+        proc_address!(vkDestroyBuffer, PFN_vkDestroyBuffer, instance, true);
+        proc_address!(vkDestroyBufferView, PFN_vkDestroyBufferView, instance, true);
+        proc_address!(vkDestroyCommandPool, PFN_vkDestroyCommandPool, instance, true);
+        proc_address!(vkDestroyDescriptorPool, PFN_vkDestroyDescriptorPool, instance, true);
+        proc_address!(vkDestroyDescriptorSetLayout, PFN_vkDestroyDescriptorSetLayout, instance, true);
+        proc_address!(vkDestroyDescriptorUpdateTemplate, PFN_vkDestroyDescriptorUpdateTemplate, instance, true);
+        proc_address!(vkDestroyDevice, PFN_vkDestroyDevice, instance, true);
+        proc_address!(vkDestroyEvent, PFN_vkDestroyEvent, instance, true);
+        proc_address!(vkDestroyFence, PFN_vkDestroyFence, instance, true);
+        proc_address!(vkDestroyFramebuffer, PFN_vkDestroyFramebuffer, instance, true);
+        proc_address!(vkDestroyImage, PFN_vkDestroyImage, instance, true);
+        proc_address!(vkDestroyImageView, PFN_vkDestroyImageView, instance, true);
+        proc_address!(vkDestroyInstance, PFN_vkDestroyInstance, instance, true);
+        proc_address!(vkDestroyPipeline, PFN_vkDestroyPipeline, instance, true);
+        proc_address!(vkDestroyPipelineCache, PFN_vkDestroyPipelineCache, instance, true);
+        proc_address!(vkDestroyPipelineLayout, PFN_vkDestroyPipelineLayout, instance, true);
+        proc_address!(vkDestroyQueryPool, PFN_vkDestroyQueryPool, instance, true);
+        proc_address!(vkDestroyRenderPass, PFN_vkDestroyRenderPass, instance, true);
+        proc_address!(vkDestroySampler, PFN_vkDestroySampler, instance, true);
+        proc_address!(vkDestroySamplerYcbcrConversion, PFN_vkDestroySamplerYcbcrConversion, instance, true);
+        proc_address!(vkDestroySemaphore, PFN_vkDestroySemaphore, instance, true);
+        proc_address!(vkDestroyShaderModule, PFN_vkDestroyShaderModule, instance, true);
+        proc_address!(vkDeviceWaitIdle, PFN_vkDeviceWaitIdle, instance, true);
+        proc_address!(vkEndCommandBuffer, PFN_vkEndCommandBuffer, instance, true);
+        proc_address!(vkEnumerateDeviceExtensionProperties, PFN_vkEnumerateDeviceExtensionProperties, instance, true);
+        proc_address!(vkEnumerateDeviceLayerProperties, PFN_vkEnumerateDeviceLayerProperties, instance, true);
+        proc_address!(vkEnumeratePhysicalDeviceGroups, PFN_vkEnumeratePhysicalDeviceGroups, instance, true);
+        proc_address!(vkEnumeratePhysicalDevices, PFN_vkEnumeratePhysicalDevices, instance, true);
+        proc_address!(vkFlushMappedMemoryRanges, PFN_vkFlushMappedMemoryRanges, instance, true);
+        proc_address!(vkFreeCommandBuffers, PFN_vkFreeCommandBuffers, instance, true);
+        proc_address!(vkFreeDescriptorSets, PFN_vkFreeDescriptorSets, instance, true);
+        proc_address!(vkFreeMemory, PFN_vkFreeMemory, instance, true);
+        proc_address!(vkGetBufferMemoryRequirements, PFN_vkGetBufferMemoryRequirements, instance, true);
+        proc_address!(vkGetBufferMemoryRequirements2, PFN_vkGetBufferMemoryRequirements2, instance, true);
+        proc_address!(vkGetDescriptorSetLayoutSupport, PFN_vkGetDescriptorSetLayoutSupport, instance, true);
+        proc_address!(vkGetDeviceGroupPeerMemoryFeatures, PFN_vkGetDeviceGroupPeerMemoryFeatures, instance, true);
+        proc_address!(vkGetDeviceMemoryCommitment, PFN_vkGetDeviceMemoryCommitment, instance, true);
+        proc_address!(vkGetDeviceProcAddr, PFN_vkGetDeviceProcAddr, instance, true);
+        proc_address!(vkGetDeviceQueue, PFN_vkGetDeviceQueue, instance, true);
+        proc_address!(vkGetDeviceQueue2, PFN_vkGetDeviceQueue2, instance, true);
+        proc_address!(vkGetEventStatus, PFN_vkGetEventStatus, instance, true);
+        proc_address!(vkGetFenceStatus, PFN_vkGetFenceStatus, instance, true);
+        proc_address!(vkGetImageMemoryRequirements, PFN_vkGetImageMemoryRequirements, instance, true);
+        proc_address!(vkGetImageMemoryRequirements2, PFN_vkGetImageMemoryRequirements2, instance, true);
+        proc_address!(vkGetImageSparseMemoryRequirements, PFN_vkGetImageSparseMemoryRequirements, instance, true);
+        proc_address!(vkGetImageSparseMemoryRequirements2, PFN_vkGetImageSparseMemoryRequirements2, instance, true);
+        proc_address!(vkGetImageSubresourceLayout, PFN_vkGetImageSubresourceLayout, instance, true);
+        proc_address!(vkGetInstanceProcAddr, PFN_vkGetInstanceProcAddr, instance, true);
+        proc_address!(vkGetPhysicalDeviceExternalBufferProperties, PFN_vkGetPhysicalDeviceExternalBufferProperties, instance, true);
+        proc_address!(vkGetPhysicalDeviceExternalFenceProperties, PFN_vkGetPhysicalDeviceExternalFenceProperties, instance, true);
+        proc_address!(vkGetPhysicalDeviceExternalSemaphoreProperties, PFN_vkGetPhysicalDeviceExternalSemaphoreProperties, instance, true);
+        proc_address!(vkGetPhysicalDeviceFeatures, PFN_vkGetPhysicalDeviceFeatures, instance, true);
+        proc_address!(vkGetPhysicalDeviceFeatures2, PFN_vkGetPhysicalDeviceFeatures2, instance, true);
+        proc_address!(vkGetPhysicalDeviceFormatProperties, PFN_vkGetPhysicalDeviceFormatProperties, instance, true);
+        proc_address!(vkGetPhysicalDeviceFormatProperties2, PFN_vkGetPhysicalDeviceFormatProperties2, instance, true);
+        proc_address!(vkGetPhysicalDeviceImageFormatProperties, PFN_vkGetPhysicalDeviceImageFormatProperties, instance, true);
+        proc_address!(vkGetPhysicalDeviceImageFormatProperties2, PFN_vkGetPhysicalDeviceImageFormatProperties2, instance, true);
+        proc_address!(vkGetPhysicalDeviceMemoryProperties, PFN_vkGetPhysicalDeviceMemoryProperties, instance, true);
+        proc_address!(vkGetPhysicalDeviceMemoryProperties2, PFN_vkGetPhysicalDeviceMemoryProperties2, instance, true);
+        proc_address!(vkGetPhysicalDeviceProperties, PFN_vkGetPhysicalDeviceProperties, instance, true);
+        proc_address!(vkGetPhysicalDeviceProperties2, PFN_vkGetPhysicalDeviceProperties2, instance, true);
+        proc_address!(vkGetPhysicalDeviceQueueFamilyProperties, PFN_vkGetPhysicalDeviceQueueFamilyProperties, instance, true);
+        proc_address!(vkGetPhysicalDeviceQueueFamilyProperties2, PFN_vkGetPhysicalDeviceQueueFamilyProperties2, instance, true);
+        proc_address!(vkGetPhysicalDeviceSparseImageFormatProperties, PFN_vkGetPhysicalDeviceSparseImageFormatProperties, instance, true);
+        proc_address!(vkGetPhysicalDeviceSparseImageFormatProperties2, PFN_vkGetPhysicalDeviceSparseImageFormatProperties2, instance, true);
+        proc_address!(vkGetPipelineCacheData, PFN_vkGetPipelineCacheData, instance, true);
+        proc_address!(vkGetQueryPoolResults, PFN_vkGetQueryPoolResults, instance, true);
+        proc_address!(vkGetRenderAreaGranularity, PFN_vkGetRenderAreaGranularity, instance, true);
+        proc_address!(vkInvalidateMappedMemoryRanges, PFN_vkInvalidateMappedMemoryRanges, instance, true);
+        proc_address!(vkMapMemory, PFN_vkMapMemory, instance, true);
+        proc_address!(vkMergePipelineCaches, PFN_vkMergePipelineCaches, instance, true);
+        proc_address!(vkQueueBindSparse, PFN_vkQueueBindSparse, instance, true);
+        proc_address!(vkQueueSubmit, PFN_vkQueueSubmit, instance, true);
+        proc_address!(vkQueueWaitIdle, PFN_vkQueueWaitIdle, instance, true);
+        proc_address!(vkResetCommandBuffer, PFN_vkResetCommandBuffer, instance, true);
+        proc_address!(vkResetCommandPool, PFN_vkResetCommandPool, instance, true);
+        proc_address!(vkResetDescriptorPool, PFN_vkResetDescriptorPool, instance, true);
+        proc_address!(vkResetEvent, PFN_vkResetEvent, instance, true);
+        proc_address!(vkResetFences, PFN_vkResetFences, instance, true);
+        proc_address!(vkSetEvent, PFN_vkSetEvent, instance, true);
+        proc_address!(vkTrimCommandPool, PFN_vkTrimCommandPool, instance, true);
+        proc_address!(vkUnmapMemory, PFN_vkUnmapMemory, instance, true);
+        proc_address!(vkUpdateDescriptorSets, PFN_vkUpdateDescriptorSets, instance, true);
+        proc_address!(vkUpdateDescriptorSetWithTemplate, PFN_vkUpdateDescriptorSetWithTemplate, instance, true);
+        proc_address!(vkWaitForFences, PFN_vkWaitForFences, instance, true);
+        /*
+        proc_address!(vkAcquireNextImage2KHR, PFN_vkAcquireNextImage2KHR, instance, unknown);
+        proc_address!(vkAcquireNextImageKHR, PFN_vkAcquireNextImageKHR, instance, unknown);
+        proc_address!(vkBindBufferMemory2KHR, PFN_vkBindBufferMemory2KHR, instance, unknown);
+        proc_address!(vkBindImageMemory2KHR, PFN_vkBindImageMemory2KHR, instance, unknown);
+        proc_address!(vkCmdBeginConditionalRenderingEXT, PFN_vkCmdBeginConditionalRenderingEXT, instance, unknown);
+        proc_address!(vkCmdBeginDebugUtilsLabelEXT, PFN_vkCmdBeginDebugUtilsLabelEXT, instance, unknown);
+        proc_address!(vkCmdBeginRenderPass2KHR, PFN_vkCmdBeginRenderPass2KHR, instance, unknown);
+        proc_address!(vkCmdBindShadingRateImageNV, PFN_vkCmdBindShadingRateImageNV, instance, unknown);
+        proc_address!(vkCmdDebugMarkerBeginEXT, PFN_vkCmdDebugMarkerBeginEXT, instance, unknown);
+        proc_address!(vkCmdDebugMarkerEndEXT, PFN_vkCmdDebugMarkerEndEXT, instance, unknown);
+        proc_address!(vkCmdDebugMarkerInsertEXT, PFN_vkCmdDebugMarkerInsertEXT, instance, unknown);
+        proc_address!(vkCmdDispatchBaseKHR, PFN_vkCmdDispatchBaseKHR, instance, unknown);
+        proc_address!(vkCmdDrawIndexedIndirectCountAMD, PFN_vkCmdDrawIndexedIndirectCountAMD, instance, unknown);
+        proc_address!(vkCmdDrawIndexedIndirectCountKHR, PFN_vkCmdDrawIndexedIndirectCountKHR, instance, unknown);
+        proc_address!(vkCmdDrawIndirectCountAMD, PFN_vkCmdDrawIndirectCountAMD, instance, unknown);
+        proc_address!(vkCmdDrawIndirectCountKHR, PFN_vkCmdDrawIndirectCountKHR, instance, unknown);
+        proc_address!(vkCmdDrawMeshTasksIndirectCountNV, PFN_vkCmdDrawMeshTasksIndirectCountNV, instance, unknown);
+        proc_address!(vkCmdDrawMeshTasksIndirectNV, PFN_vkCmdDrawMeshTasksIndirectNV, instance, unknown);
+        proc_address!(vkCmdDrawMeshTasksNV, PFN_vkCmdDrawMeshTasksNV, instance, unknown);
+        proc_address!(vkCmdEndConditionalRenderingEXT, PFN_vkCmdEndConditionalRenderingEXT, instance, unknown);
+        proc_address!(vkCmdEndDebugUtilsLabelEXT, PFN_vkCmdEndDebugUtilsLabelEXT, instance, unknown);
+        proc_address!(vkCmdEndRenderPass2KHR, PFN_vkCmdEndRenderPass2KHR, instance, unknown);
+        proc_address!(vkCmdInsertDebugUtilsLabelEXT, PFN_vkCmdInsertDebugUtilsLabelEXT, instance, unknown);
+        proc_address!(vkCmdNextSubpass2KHR, PFN_vkCmdNextSubpass2KHR, instance, unknown);
+        proc_address!(vkCmdPushDescriptorSetKHR, PFN_vkCmdPushDescriptorSetKHR, instance, unknown);
+        proc_address!(vkCmdPushDescriptorSetWithTemplateKHR, PFN_vkCmdPushDescriptorSetWithTemplateKHR, instance, unknown);
+        proc_address!(vkCmdSetCheckpointNV, PFN_vkCmdSetCheckpointNV, instance, unknown);
+        proc_address!(vkCmdSetCoarseSampleOrderNV, PFN_vkCmdSetCoarseSampleOrderNV, instance, unknown);
+        proc_address!(vkCmdSetDeviceMaskKHR, PFN_vkCmdSetDeviceMaskKHR, instance, unknown);
+        proc_address!(vkCmdSetDiscardRectangleEXT, PFN_vkCmdSetDiscardRectangleEXT, instance, unknown);
+        proc_address!(vkCmdSetExclusiveScissorNV, PFN_vkCmdSetExclusiveScissorNV, instance, unknown);
+        proc_address!(vkCmdSetSampleLocationsEXT, PFN_vkCmdSetSampleLocationsEXT, instance, unknown);
+        proc_address!(vkCmdSetViewportShadingRatePaletteNV, PFN_vkCmdSetViewportShadingRatePaletteNV, instance, unknown);
+        proc_address!(vkCmdSetViewportWScalingNV, PFN_vkCmdSetViewportWScalingNV, instance, unknown);
+        proc_address!(vkCmdWriteBufferMarkerAMD, PFN_vkCmdWriteBufferMarkerAMD, instance, unknown);
+        proc_address!(vkCreateDebugReportCallbackEXT, PFN_vkCreateDebugReportCallbackEXT, instance, unknown);
+        proc_address!(vkCreateDebugUtilsMessengerEXT, PFN_vkCreateDebugUtilsMessengerEXT, instance, unknown);
+        proc_address!(vkCreateDescriptorUpdateTemplateKHR, PFN_vkCreateDescriptorUpdateTemplateKHR, instance, unknown);
+        proc_address!(vkCreateDisplayModeKHR, PFN_vkCreateDisplayModeKHR, instance, unknown);
+        proc_address!(vkCreateDisplayPlaneSurfaceKHR, PFN_vkCreateDisplayPlaneSurfaceKHR, instance, unknown);
+        proc_address!(vkCreateRenderPass2KHR, PFN_vkCreateRenderPass2KHR, instance, unknown);
+        proc_address!(vkCreateSamplerYcbcrConversionKHR, PFN_vkCreateSamplerYcbcrConversionKHR, instance, unknown);
+        proc_address!(vkCreateSharedSwapchainsKHR, PFN_vkCreateSharedSwapchainsKHR, instance, unknown);
+        proc_address!(vkCreateSwapchainKHR, PFN_vkCreateSwapchainKHR, instance, unknown);
+        proc_address!(vkCreateValidationCacheEXT, PFN_vkCreateValidationCacheEXT, instance, unknown);
+        proc_address!(vkCreateXcbSurfaceKHR, PFN_vkCreateXcbSurfaceKHR, instance, unknown);
+        proc_address!(vkDebugMarkerSetObjectNameEXT, PFN_vkDebugMarkerSetObjectNameEXT, instance, unknown);
+        proc_address!(vkDebugMarkerSetObjectTagEXT, PFN_vkDebugMarkerSetObjectTagEXT, instance, unknown);
+        proc_address!(vkDebugReportCallbackEXT, PFN_vkDebugReportCallbackEXT, instance, unknown);
+        proc_address!(vkDebugReportMessageEXT, PFN_vkDebugReportMessageEXT, instance, unknown);
+        proc_address!(vkDebugUtilsMessengerCallbackEXT, PFN_vkDebugUtilsMessengerCallbackEXT, instance, unknown);
+        proc_address!(vkDestroyDebugReportCallbackEXT, PFN_vkDestroyDebugReportCallbackEXT, instance, unknown);
+        proc_address!(vkDestroyDebugUtilsMessengerEXT, PFN_vkDestroyDebugUtilsMessengerEXT, instance, unknown);
+        proc_address!(vkDestroyDescriptorUpdateTemplateKHR, PFN_vkDestroyDescriptorUpdateTemplateKHR, instance, unknown);
+        proc_address!(vkDestroySamplerYcbcrConversionKHR, PFN_vkDestroySamplerYcbcrConversionKHR, instance, unknown);
+        proc_address!(vkDestroySurfaceKHR, PFN_vkDestroySurfaceKHR, instance, unknown);
+        proc_address!(vkDestroySwapchainKHR, PFN_vkDestroySwapchainKHR, instance, unknown);
+        proc_address!(vkDestroyValidationCacheEXT, PFN_vkDestroyValidationCacheEXT, instance, unknown);
+        proc_address!(vkDisplayPowerControlEXT, PFN_vkDisplayPowerControlEXT, instance, unknown);
+        proc_address!(vkEnumeratePhysicalDeviceGroupsKHR, PFN_vkEnumeratePhysicalDeviceGroupsKHR, instance, unknown);
+        proc_address!(vkGetBufferMemoryRequirements2KHR, PFN_vkGetBufferMemoryRequirements2KHR, instance, unknown);
+        proc_address!(vkGetDescriptorSetLayoutSupportKHR, PFN_vkGetDescriptorSetLayoutSupportKHR, instance, unknown);
+        proc_address!(vkGetDeviceGroupPeerMemoryFeaturesKHR, PFN_vkGetDeviceGroupPeerMemoryFeaturesKHR, instance, unknown);
+        proc_address!(vkGetDeviceGroupPresentCapabilitiesKHR, PFN_vkGetDeviceGroupPresentCapabilitiesKHR, instance, unknown);
+        proc_address!(vkGetDeviceGroupSurfacePresentModesKHR, PFN_vkGetDeviceGroupSurfacePresentModesKHR, instance, unknown);
+        proc_address!(vkGetDisplayModeProperties2KHR, PFN_vkGetDisplayModeProperties2KHR, instance, unknown);
+        proc_address!(vkGetDisplayModePropertiesKHR, PFN_vkGetDisplayModePropertiesKHR, instance, unknown);
+        proc_address!(vkGetDisplayPlaneCapabilities2KHR, PFN_vkGetDisplayPlaneCapabilities2KHR, instance, unknown);
+        proc_address!(vkGetDisplayPlaneCapabilitiesKHR, PFN_vkGetDisplayPlaneCapabilitiesKHR, instance, unknown);
+        proc_address!(vkGetDisplayPlaneSupportedDisplaysKHR, PFN_vkGetDisplayPlaneSupportedDisplaysKHR, instance, unknown);
+        proc_address!(vkGetFenceFdKHR, PFN_vkGetFenceFdKHR, instance, unknown);
+        proc_address!(vkGetImageMemoryRequirements2KHR, PFN_vkGetImageMemoryRequirements2KHR, instance, unknown);
+        proc_address!(vkGetImageSparseMemoryRequirements2KHR, PFN_vkGetImageSparseMemoryRequirements2KHR, instance, unknown);
+        proc_address!(vkGetMemoryFdKHR, PFN_vkGetMemoryFdKHR, instance, unknown);
+        proc_address!(vkGetMemoryFdPropertiesKHR, PFN_vkGetMemoryFdPropertiesKHR, instance, unknown);
+        proc_address!(vkGetMemoryHostPointerPropertiesEXT, PFN_vkGetMemoryHostPointerPropertiesEXT, instance, unknown);
+        proc_address!(vkGetPastPresentationTimingGOOGLE, PFN_vkGetPastPresentationTimingGOOGLE, instance, unknown);
+        proc_address!(vkGetPhysicalDeviceDisplayPlaneProperties2KHR, PFN_vkGetPhysicalDeviceDisplayPlaneProperties2KHR, instance, unknown);
+        proc_address!(vkGetPhysicalDeviceDisplayPlanePropertiesKHR, PFN_vkGetPhysicalDeviceDisplayPlanePropertiesKHR, instance, unknown);
+        proc_address!(vkGetPhysicalDeviceDisplayProperties2KHR, PFN_vkGetPhysicalDeviceDisplayProperties2KHR, instance, unknown);
+        proc_address!(vkGetPhysicalDeviceDisplayPropertiesKHR, PFN_vkGetPhysicalDeviceDisplayPropertiesKHR, instance, unknown);
+        proc_address!(vkGetPhysicalDeviceExternalBufferPropertiesKHR, PFN_vkGetPhysicalDeviceExternalBufferPropertiesKHR, instance, unknown);
+        proc_address!(vkGetPhysicalDeviceExternalFencePropertiesKHR, PFN_vkGetPhysicalDeviceExternalFencePropertiesKHR, instance, unknown);
+        proc_address!(vkGetPhysicalDeviceExternalImageFormatPropertiesNV, PFN_vkGetPhysicalDeviceExternalImageFormatPropertiesNV, instance, unknown);
+        proc_address!(vkGetPhysicalDeviceExternalSemaphorePropertiesKHR, PFN_vkGetPhysicalDeviceExternalSemaphorePropertiesKHR, instance, unknown);
+        proc_address!(vkGetPhysicalDeviceFeatures2KHR, PFN_vkGetPhysicalDeviceFeatures2KHR, instance, unknown);
+        proc_address!(vkGetPhysicalDeviceFormatProperties2KHR, PFN_vkGetPhysicalDeviceFormatProperties2KHR, instance, unknown);
+        proc_address!(vkGetPhysicalDeviceImageFormatProperties2KHR, PFN_vkGetPhysicalDeviceImageFormatProperties2KHR, instance, unknown);
+        proc_address!(vkGetPhysicalDeviceMemoryProperties2KHR, PFN_vkGetPhysicalDeviceMemoryProperties2KHR, instance, unknown);
+        proc_address!(vkGetPhysicalDeviceMultisamplePropertiesEXT, PFN_vkGetPhysicalDeviceMultisamplePropertiesEXT, instance, unknown);
+        proc_address!(vkGetPhysicalDevicePresentRectanglesKHR, PFN_vkGetPhysicalDevicePresentRectanglesKHR, instance, unknown);
+        proc_address!(vkGetPhysicalDeviceProperties2KHR, PFN_vkGetPhysicalDeviceProperties2KHR, instance, unknown);
+        proc_address!(vkGetPhysicalDeviceQueueFamilyProperties2KHR, PFN_vkGetPhysicalDeviceQueueFamilyProperties2KHR, instance, unknown);
+        proc_address!(vkGetPhysicalDeviceSparseImageFormatProperties2KHR, PFN_vkGetPhysicalDeviceSparseImageFormatProperties2KHR, instance, unknown);
+        proc_address!(vkGetPhysicalDeviceSurfaceCapabilities2EXT, PFN_vkGetPhysicalDeviceSurfaceCapabilities2EXT, instance, unknown);
+        proc_address!(vkGetPhysicalDeviceSurfaceCapabilities2KHR, PFN_vkGetPhysicalDeviceSurfaceCapabilities2KHR, instance, unknown);
+        proc_address!(vkGetPhysicalDeviceSurfaceCapabilitiesKHR, PFN_vkGetPhysicalDeviceSurfaceCapabilitiesKHR, instance, unknown);
+        proc_address!(vkGetPhysicalDeviceSurfaceFormats2KHR, PFN_vkGetPhysicalDeviceSurfaceFormats2KHR, instance, unknown);
+        proc_address!(vkGetPhysicalDeviceSurfaceFormatsKHR, PFN_vkGetPhysicalDeviceSurfaceFormatsKHR, instance, unknown);
+        proc_address!(vkGetPhysicalDeviceSurfacePresentModesKHR, PFN_vkGetPhysicalDeviceSurfacePresentModesKHR, instance, unknown);
+        proc_address!(vkGetPhysicalDeviceSurfaceSupportKHR, PFN_vkGetPhysicalDeviceSurfaceSupportKHR, instance, unknown);
+        proc_address!(vkGetPhysicalDeviceXcbPresentationSupportKHR, PFN_vkGetPhysicalDeviceXcbPresentationSupportKHR, instance, unknown);
+        proc_address!(vkGetQueueCheckpointDataNV, PFN_vkGetQueueCheckpointDataNV, instance, unknown);
+        proc_address!(vkGetRefreshCycleDurationGOOGLE, PFN_vkGetRefreshCycleDurationGOOGLE, instance, unknown);
+        proc_address!(vkGetSemaphoreFdKHR, PFN_vkGetSemaphoreFdKHR, instance, unknown);
+        proc_address!(vkGetShaderInfoAMD, PFN_vkGetShaderInfoAMD, instance, unknown);
+        proc_address!(vkGetSwapchainCounterEXT, PFN_vkGetSwapchainCounterEXT, instance, unknown);
+        proc_address!(vkGetSwapchainImagesKHR, PFN_vkGetSwapchainImagesKHR, instance, unknown);
+        proc_address!(vkGetSwapchainStatusKHR, PFN_vkGetSwapchainStatusKHR, instance, unknown);
+        proc_address!(vkGetValidationCacheDataEXT, PFN_vkGetValidationCacheDataEXT, instance, unknown);
+        proc_address!(vkImportFenceFdKHR, PFN_vkImportFenceFdKHR, instance, unknown);
+        proc_address!(vkImportSemaphoreFdKHR, PFN_vkImportSemaphoreFdKHR, instance, unknown);
+        proc_address!(vkMergeValidationCachesEXT, PFN_vkMergeValidationCachesEXT, instance, unknown);
+        proc_address!(vkQueueBeginDebugUtilsLabelEXT, PFN_vkQueueBeginDebugUtilsLabelEXT, instance, unknown);
+        proc_address!(vkQueueEndDebugUtilsLabelEXT, PFN_vkQueueEndDebugUtilsLabelEXT, instance, unknown);
+        proc_address!(vkQueueInsertDebugUtilsLabelEXT, PFN_vkQueueInsertDebugUtilsLabelEXT, instance, unknown);
+        proc_address!(vkQueuePresentKHR, PFN_vkQueuePresentKHR, instance, unknown);
+        proc_address!(vkRegisterDeviceEventEXT, PFN_vkRegisterDeviceEventEXT, instance, unknown);
+        proc_address!(vkRegisterDisplayEventEXT, PFN_vkRegisterDisplayEventEXT, instance, unknown);
+        proc_address!(vkReleaseDisplayEXT, PFN_vkReleaseDisplayEXT, instance, unknown);
+        proc_address!(vkSetDebugUtilsObjectNameEXT, PFN_vkSetDebugUtilsObjectNameEXT, instance, unknown);
+        proc_address!(vkSetDebugUtilsObjectTagEXT, PFN_vkSetDebugUtilsObjectTagEXT, instance, unknown);
+        proc_address!(vkSetHdrMetadataEXT, PFN_vkSetHdrMetadataEXT, instance, unknown);
+        proc_address!(vkSubmitDebugUtilsMessageEXT, PFN_vkSubmitDebugUtilsMessageEXT, instance, unknown);
+        proc_address!(vkTrimCommandPoolKHR, PFN_vkTrimCommandPoolKHR, instance, unknown);
+        proc_address!(vkUpdateDescriptorSetWithTemplateKHR, PFN_vkUpdateDescriptorSetWithTemplateKHR, instance, unknown);
+        */
     }
+    eprintln!("unknown function: {:?}", name);
     None
 }
 
-pub struct Instance {
+pub struct PhysicalDevice {
     enabled_extensions: Extensions,
+    allowed_extensions: Extensions,
+    properties: api::VkPhysicalDeviceProperties,
+}
+
+impl PhysicalDevice {
+    pub fn get_pipeline_cache_uuid() -> uuid::Uuid {
+        // FIXME: return real uuid
+        uuid::Uuid::nil()
+    }
+}
+
+pub struct Instance {
+    physical_device: OwnedHandle<api::VkPhysicalDevice>,
+}
+
+impl Instance {
+    pub unsafe fn new(
+        create_info: &api::VkInstanceCreateInfo,
+    ) -> Result<api::VkInstance, api::VkResult> {
+        assert_eq!(
+            create_info.sType,
+            api::VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO
+        );
+        if create_info.enabledLayerCount != 0 {
+            return Err(api::VK_ERROR_LAYER_NOT_PRESENT);
+        }
+        let mut enabled_extensions = Extensions::create_empty();
+        for &extension_name in slice::from_raw_parts(
+            create_info.ppEnabledExtensionNames,
+            create_info.enabledExtensionCount as usize,
+        ) {
+            let extension: Extension = CStr::from_ptr(extension_name)
+                .to_str()
+                .map_err(|_| api::VK_ERROR_EXTENSION_NOT_PRESENT)?
+                .parse()
+                .map_err(|_| api::VK_ERROR_EXTENSION_NOT_PRESENT)?;
+            enabled_extensions[extension] = true;
+        }
+        for extension in enabled_extensions
+            .iter()
+            .filter_map(|(extension, &enabled)| if enabled { Some(extension) } else { None })
+        {
+            let missing_extensions = extension.get_required_extensions() & !enabled_extensions;
+            for missing_extension in missing_extensions
+                .iter()
+                .filter_map(|(extension, &enabled)| if enabled { Some(extension) } else { None })
+            {
+                panic!(
+                    "extension {} enabled but required extension {} is not enabled",
+                    extension.get_name(),
+                    missing_extension.get_name()
+                );
+            }
+        }
+        let mut device_name = [0; api::VK_MAX_PHYSICAL_DEVICE_NAME_SIZE as usize];
+        copy_str_to_char_array(&mut device_name, KAZAN_DEVICE_NAME);
+        let retval = OwnedHandle::<api::VkInstance>::new(Instance {
+            physical_device: OwnedHandle::new(PhysicalDevice {
+                enabled_extensions,
+                allowed_extensions: enabled_extensions.get_allowed_extensions_from_instance_scope(),
+                properties: api::VkPhysicalDeviceProperties {
+                    apiVersion: make_api_version(1, 1, api::VK_HEADER_VERSION),
+                    driverVersion: make_api_version(
+                        env!("CARGO_PKG_VERSION_MAJOR").parse().unwrap(),
+                        env!("CARGO_PKG_VERSION_MINOR").parse().unwrap(),
+                        env!("CARGO_PKG_VERSION_PATCH").parse().unwrap(),
+                    ),
+                    vendorID: KAZAN_VENDOR_ID,
+                    deviceID: 1,
+                    deviceType: api::VK_PHYSICAL_DEVICE_TYPE_CPU,
+                    deviceName: device_name,
+                    pipelineCacheUUID: *PhysicalDevice::get_pipeline_cache_uuid().as_bytes(),
+                    limits: api::VkPhysicalDeviceLimits {
+                        maxImageDimension1D: !0,
+                        maxImageDimension2D: !0,
+                        maxImageDimension3D: !0,
+                        maxImageDimensionCube: !0,
+                        maxImageArrayLayers: !0,
+                        maxTexelBufferElements: !0,
+                        maxUniformBufferRange: !0,
+                        maxStorageBufferRange: !0,
+                        maxPushConstantsSize: !0,
+                        maxMemoryAllocationCount: !0,
+                        maxSamplerAllocationCount: !0,
+                        bufferImageGranularity: 1,
+                        sparseAddressSpaceSize: 0,
+                        maxBoundDescriptorSets: !0,
+                        maxPerStageDescriptorSamplers: !0,
+                        maxPerStageDescriptorUniformBuffers: !0,
+                        maxPerStageDescriptorStorageBuffers: !0,
+                        maxPerStageDescriptorSampledImages: !0,
+                        maxPerStageDescriptorStorageImages: !0,
+                        maxPerStageDescriptorInputAttachments: !0,
+                        maxPerStageResources: !0,
+                        maxDescriptorSetSamplers: !0,
+                        maxDescriptorSetUniformBuffers: !0,
+                        maxDescriptorSetUniformBuffersDynamic: !0,
+                        maxDescriptorSetStorageBuffers: !0,
+                        maxDescriptorSetStorageBuffersDynamic: !0,
+                        maxDescriptorSetSampledImages: !0,
+                        maxDescriptorSetStorageImages: !0,
+                        maxDescriptorSetInputAttachments: !0,
+                        maxVertexInputAttributes: !0,
+                        maxVertexInputBindings: !0,
+                        maxVertexInputAttributeOffset: !0,
+                        maxVertexInputBindingStride: !0,
+                        maxVertexOutputComponents: !0,
+                        maxTessellationGenerationLevel: 0,
+                        maxTessellationPatchSize: 0,
+                        maxTessellationControlPerVertexInputComponents: 0,
+                        maxTessellationControlPerVertexOutputComponents: 0,
+                        maxTessellationControlPerPatchOutputComponents: 0,
+                        maxTessellationControlTotalOutputComponents: 0,
+                        maxTessellationEvaluationInputComponents: 0,
+                        maxTessellationEvaluationOutputComponents: 0,
+                        maxGeometryShaderInvocations: 0,
+                        maxGeometryInputComponents: 0,
+                        maxGeometryOutputComponents: 0,
+                        maxGeometryOutputVertices: 0,
+                        maxGeometryTotalOutputComponents: 0,
+                        maxFragmentInputComponents: !0,
+                        maxFragmentOutputAttachments: !0,
+                        maxFragmentDualSrcAttachments: 0,
+                        maxFragmentCombinedOutputResources: !0,
+                        maxComputeSharedMemorySize: !0,
+                        maxComputeWorkGroupCount: [!0; 3],
+                        maxComputeWorkGroupInvocations: !0,
+                        maxComputeWorkGroupSize: [!0; 3],
+                        subPixelPrecisionBits: 4, // FIXME: update to correct value
+                        subTexelPrecisionBits: 4, // FIXME: update to correct value
+                        mipmapPrecisionBits: 4,   // FIXME: update to correct value
+                        maxDrawIndexedIndexValue: !0,
+                        maxDrawIndirectCount: !0,
+                        maxSamplerLodBias: 2.0, // FIXME: update to correct value
+                        maxSamplerAnisotropy: 1.0,
+                        maxViewports: 1,
+                        maxViewportDimensions: [4096; 2], // FIXME: update to correct value
+                        viewportBoundsRange: [-8192.0, 8191.0], // FIXME: update to correct value
+                        viewportSubPixelBits: 0,
+                        minMemoryMapAlignment: MIN_MEMORY_MAP_ALIGNMENT,
+                        minTexelBufferOffsetAlignment: 256, // FIXME: update to correct value
+                        minUniformBufferOffsetAlignment: 256, // FIXME: update to correct value
+                        minStorageBufferOffsetAlignment: 256, // FIXME: update to correct value
+                        minTexelOffset: -8,                 // FIXME: update to correct value
+                        maxTexelOffset: 7,                  // FIXME: update to correct value
+                        minTexelGatherOffset: 0,
+                        maxTexelGatherOffset: 0,
+                        minInterpolationOffset: 0.0,
+                        maxInterpolationOffset: 0.0,
+                        subPixelInterpolationOffsetBits: 0,
+                        maxFramebufferWidth: 4096, // FIXME: update to correct value
+                        maxFramebufferHeight: 4096, // FIXME: update to correct value
+                        maxFramebufferLayers: 256, // FIXME: update to correct value
+                        framebufferColorSampleCounts: api::VK_SAMPLE_COUNT_1_BIT
+                            | api::VK_SAMPLE_COUNT_4_BIT, // FIXME: update to correct value
+                        framebufferDepthSampleCounts: api::VK_SAMPLE_COUNT_1_BIT
+                            | api::VK_SAMPLE_COUNT_4_BIT, // FIXME: update to correct value
+                        framebufferStencilSampleCounts: api::VK_SAMPLE_COUNT_1_BIT
+                            | api::VK_SAMPLE_COUNT_4_BIT, // FIXME: update to correct value
+                        framebufferNoAttachmentsSampleCounts: api::VK_SAMPLE_COUNT_1_BIT
+                            | api::VK_SAMPLE_COUNT_4_BIT, // FIXME: update to correct value
+                        maxColorAttachments: 4,
+                        sampledImageColorSampleCounts: api::VK_SAMPLE_COUNT_1_BIT
+                            | api::VK_SAMPLE_COUNT_4_BIT, // FIXME: update to correct value
+                        sampledImageIntegerSampleCounts: api::VK_SAMPLE_COUNT_1_BIT
+                            | api::VK_SAMPLE_COUNT_4_BIT, // FIXME: update to correct value
+                        sampledImageDepthSampleCounts: api::VK_SAMPLE_COUNT_1_BIT
+                            | api::VK_SAMPLE_COUNT_4_BIT, // FIXME: update to correct value
+                        sampledImageStencilSampleCounts: api::VK_SAMPLE_COUNT_1_BIT
+                            | api::VK_SAMPLE_COUNT_4_BIT, // FIXME: update to correct value
+                        storageImageSampleCounts: api::VK_SAMPLE_COUNT_1_BIT, // FIXME: update to correct value
+                        maxSampleMaskWords: 1,
+                        timestampComputeAndGraphics: api::VK_FALSE,
+                        timestampPeriod: 0.0,
+                        maxClipDistances: 0,
+                        maxCullDistances: 0,
+                        maxCombinedClipAndCullDistances: 0,
+                        discreteQueuePriorities: 2,
+                        pointSizeRange: [1.0; 2],
+                        lineWidthRange: [1.0; 2],
+                        pointSizeGranularity: 0.0,
+                        lineWidthGranularity: 0.0,
+                        strictLines: api::VK_FALSE,
+                        standardSampleLocations: api::VK_TRUE,
+                        optimalBufferCopyOffsetAlignment: 16,
+                        optimalBufferCopyRowPitchAlignment: 16,
+                        nonCoherentAtomSize: 1, //TODO: check if this is correct
+                    },
+                    sparseProperties: api::VkPhysicalDeviceSparseProperties {
+                        residencyStandard2DBlockShape: api::VK_FALSE,
+                        residencyStandard2DMultisampleBlockShape: api::VK_FALSE,
+                        residencyStandard3DBlockShape: api::VK_FALSE,
+                        residencyAlignedMipSize: api::VK_FALSE,
+                        residencyNonResidentStrict: api::VK_FALSE,
+                    },
+                },
+            }),
+        });
+        Ok(retval.take())
+    }
 }
 
 #[allow(non_snake_case)]
-pub extern "system" fn vkGetInstanceProcAddr(
+pub unsafe extern "system" fn vkGetInstanceProcAddr(
     instance: api::VkInstance,
     name: *const c_char,
 ) -> api::PFN_vkVoidFunction {
     match instance.get() {
-        Some(instance) => get_proc_address(name, ProcAddressScope::Instance, unsafe {
-            &instance.as_ref().enabled_extensions
-        }),
-        None => get_proc_address(name, ProcAddressScope::Global, &Extensions::default()),
+        Some(_) => get_proc_address(
+            name,
+            true,
+            &SharedHandle::from(instance)
+                .physical_device
+                .allowed_extensions,
+        ),
+        None => get_proc_address(name, false, &enum_map!{_ => false}),
     }
+}
+
+pub fn make_api_version(major: u32, minor: u32, patch: u32) -> u32 {
+    assert!(major < (1 << 10));
+    assert!(minor < (1 << 10));
+    assert!(patch < (1 << 12));
+    (major << 22) | (minor << 12) | patch
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkEnumerateInstanceVersion(api_version: *mut u32) -> api::VkResult {
+    *api_version = make_api_version(1, 1, api::VK_HEADER_VERSION);
+    api::VK_SUCCESS
+}
+
+pub unsafe fn enumerate_helper<T: Clone, R: Borrow<T>, I: IntoIterator<Item = R>>(
+    api_value_count: *mut u32,
+    api_values: *mut T,
+    values: I,
+) -> api::VkResult {
+    let mut retval = api::VK_SUCCESS;
+    let mut api_values = if api_values.is_null() {
+        None
+    } else {
+        Some(slice::from_raw_parts_mut(
+            api_values,
+            *api_value_count as usize,
+        ))
+    };
+    let mut final_count = 0;
+    for value in values {
+        if let Some(api_values) = &mut api_values {
+            if final_count >= api_values.len() {
+                retval = api::VK_INCOMPLETE;
+                break;
+            } else {
+                api_values[final_count] = value.borrow().clone();
+                final_count += 1;
+            }
+        } else {
+            final_count += 1;
+        }
+    }
+    assert_eq!(final_count as u32 as usize, final_count);
+    *api_value_count = final_count as u32;
+    retval
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkEnumerateInstanceLayerProperties(
+    property_count: *mut u32,
+    properties: *mut api::VkLayerProperties,
+) -> api::VkResult {
+    enumerate_helper(property_count, properties, &[])
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkEnumerateInstanceExtensionProperties(
+    pLayerName: *const ::std::os::raw::c_char,
+    property_count: *mut u32,
+    properties: *mut api::VkExtensionProperties,
+) -> api::VkResult {
+    if !pLayerName.is_null() {
+        return enumerate_helper(property_count, properties, &[]);
+    }
+    enumerate_helper(
+        property_count,
+        properties,
+        Extensions::default()
+            .iter()
+            .map(|(extension, _)| extension.get_properties()),
+    )
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkCreateInstance(
+    pCreateInfo: *const api::VkInstanceCreateInfo,
+    _pAllocator: *const api::VkAllocationCallbacks,
+    pInstance: *mut api::VkInstance,
+) -> api::VkResult {
+    *pInstance = Handle::null();
+    match Instance::new(&*pCreateInfo) {
+        Ok(instance) => {
+            *pInstance = instance;
+            api::VK_SUCCESS
+        }
+        Err(error) => error,
+    }
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkDestroyInstance(
+    instance: api::VkInstance,
+    _pAllocator: *const api::VkAllocationCallbacks,
+) {
+    instance.free();
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkEnumeratePhysicalDevices(
+    instance: api::VkInstance,
+    pPhysicalDeviceCount: *mut u32,
+    pPhysicalDevices: *mut api::VkPhysicalDevice,
+) -> api::VkResult {
+    let instance = SharedHandle::from(instance);
+    enumerate_helper(
+        pPhysicalDeviceCount,
+        pPhysicalDevices,
+        iter::once(instance.physical_device.get_handle()),
+    )
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkGetPhysicalDeviceFeatures(
+    _physicalDevice: api::VkPhysicalDevice,
+    _pFeatures: *mut api::VkPhysicalDeviceFeatures,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkGetPhysicalDeviceFormatProperties(
+    _physicalDevice: api::VkPhysicalDevice,
+    _format: api::VkFormat,
+    _pFormatProperties: *mut api::VkFormatProperties,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkGetPhysicalDeviceImageFormatProperties(
+    _physicalDevice: api::VkPhysicalDevice,
+    _format: api::VkFormat,
+    _type_: api::VkImageType,
+    _tiling: api::VkImageTiling,
+    _usage: api::VkImageUsageFlags,
+    _flags: api::VkImageCreateFlags,
+    _pImageFormatProperties: *mut api::VkImageFormatProperties,
+) -> api::VkResult {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkGetPhysicalDeviceProperties(
+    physical_device: api::VkPhysicalDevice,
+    properties: *mut api::VkPhysicalDeviceProperties,
+) {
+    let physical_device = SharedHandle::from(physical_device);
+    *properties = physical_device.properties;
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkGetPhysicalDeviceQueueFamilyProperties(
+    _physicalDevice: api::VkPhysicalDevice,
+    _pQueueFamilyPropertyCount: *mut u32,
+    _pQueueFamilyProperties: *mut api::VkQueueFamilyProperties,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkGetPhysicalDeviceMemoryProperties(
+    _physicalDevice: api::VkPhysicalDevice,
+    _pMemoryProperties: *mut api::VkPhysicalDeviceMemoryProperties,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkGetDeviceProcAddr(
+    _device: api::VkDevice,
+    _pName: *const ::std::os::raw::c_char,
+) -> api::PFN_vkVoidFunction {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkCreateDevice(
+    _physicalDevice: api::VkPhysicalDevice,
+    _pCreateInfo: *const api::VkDeviceCreateInfo,
+    _pAllocator: *const api::VkAllocationCallbacks,
+    _pDevice: *mut api::VkDevice,
+) -> api::VkResult {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkDestroyDevice(
+    _device: api::VkDevice,
+    _pAllocator: *const api::VkAllocationCallbacks,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkEnumerateDeviceExtensionProperties(
+    _physicalDevice: api::VkPhysicalDevice,
+    _pLayerName: *const ::std::os::raw::c_char,
+    _pPropertyCount: *mut u32,
+    _pProperties: *mut api::VkExtensionProperties,
+) -> api::VkResult {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkEnumerateDeviceLayerProperties(
+    _physicalDevice: api::VkPhysicalDevice,
+    _pPropertyCount: *mut u32,
+    _pProperties: *mut api::VkLayerProperties,
+) -> api::VkResult {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkGetDeviceQueue(
+    _device: api::VkDevice,
+    _queueFamilyIndex: u32,
+    _queueIndex: u32,
+    _pQueue: *mut api::VkQueue,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkQueueSubmit(
+    _queue: api::VkQueue,
+    _submitCount: u32,
+    _pSubmits: *const api::VkSubmitInfo,
+    _fence: api::VkFence,
+) -> api::VkResult {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkQueueWaitIdle(_queue: api::VkQueue) -> api::VkResult {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkDeviceWaitIdle(_device: api::VkDevice) -> api::VkResult {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkAllocateMemory(
+    _device: api::VkDevice,
+    _pAllocateInfo: *const api::VkMemoryAllocateInfo,
+    _pAllocator: *const api::VkAllocationCallbacks,
+    _pMemory: *mut api::VkDeviceMemory,
+) -> api::VkResult {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkFreeMemory(
+    _device: api::VkDevice,
+    _memory: api::VkDeviceMemory,
+    _pAllocator: *const api::VkAllocationCallbacks,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkMapMemory(
+    _device: api::VkDevice,
+    _memory: api::VkDeviceMemory,
+    _offset: api::VkDeviceSize,
+    _size: api::VkDeviceSize,
+    _flags: api::VkMemoryMapFlags,
+    _ppData: *mut *mut ::std::os::raw::c_void,
+) -> api::VkResult {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkUnmapMemory(_device: api::VkDevice, _memory: api::VkDeviceMemory) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkFlushMappedMemoryRanges(
+    _device: api::VkDevice,
+    _memoryRangeCount: u32,
+    _pMemoryRanges: *const api::VkMappedMemoryRange,
+) -> api::VkResult {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkInvalidateMappedMemoryRanges(
+    _device: api::VkDevice,
+    _memoryRangeCount: u32,
+    _pMemoryRanges: *const api::VkMappedMemoryRange,
+) -> api::VkResult {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkGetDeviceMemoryCommitment(
+    _device: api::VkDevice,
+    _memory: api::VkDeviceMemory,
+    _pCommittedMemoryInBytes: *mut api::VkDeviceSize,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkBindBufferMemory(
+    _device: api::VkDevice,
+    _buffer: api::VkBuffer,
+    _memory: api::VkDeviceMemory,
+    _memoryOffset: api::VkDeviceSize,
+) -> api::VkResult {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkBindImageMemory(
+    _device: api::VkDevice,
+    _image: api::VkImage,
+    _memory: api::VkDeviceMemory,
+    _memoryOffset: api::VkDeviceSize,
+) -> api::VkResult {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkGetBufferMemoryRequirements(
+    _device: api::VkDevice,
+    _buffer: api::VkBuffer,
+    _pMemoryRequirements: *mut api::VkMemoryRequirements,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkGetImageMemoryRequirements(
+    _device: api::VkDevice,
+    _image: api::VkImage,
+    _pMemoryRequirements: *mut api::VkMemoryRequirements,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkGetImageSparseMemoryRequirements(
+    _device: api::VkDevice,
+    _image: api::VkImage,
+    _pSparseMemoryRequirementCount: *mut u32,
+    _pSparseMemoryRequirements: *mut api::VkSparseImageMemoryRequirements,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkGetPhysicalDeviceSparseImageFormatProperties(
+    _physicalDevice: api::VkPhysicalDevice,
+    _format: api::VkFormat,
+    _type_: api::VkImageType,
+    _samples: api::VkSampleCountFlagBits,
+    _usage: api::VkImageUsageFlags,
+    _tiling: api::VkImageTiling,
+    _pPropertyCount: *mut u32,
+    _pProperties: *mut api::VkSparseImageFormatProperties,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkQueueBindSparse(
+    _queue: api::VkQueue,
+    _bindInfoCount: u32,
+    _pBindInfo: *const api::VkBindSparseInfo,
+    _fence: api::VkFence,
+) -> api::VkResult {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkCreateFence(
+    _device: api::VkDevice,
+    _pCreateInfo: *const api::VkFenceCreateInfo,
+    _pAllocator: *const api::VkAllocationCallbacks,
+    _pFence: *mut api::VkFence,
+) -> api::VkResult {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkDestroyFence(
+    _device: api::VkDevice,
+    _fence: api::VkFence,
+    _pAllocator: *const api::VkAllocationCallbacks,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkResetFences(
+    _device: api::VkDevice,
+    _fenceCount: u32,
+    _pFences: *const api::VkFence,
+) -> api::VkResult {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkGetFenceStatus(
+    _device: api::VkDevice,
+    _fence: api::VkFence,
+) -> api::VkResult {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkWaitForFences(
+    _device: api::VkDevice,
+    _fenceCount: u32,
+    _pFences: *const api::VkFence,
+    _waitAll: api::VkBool32,
+    _timeout: u64,
+) -> api::VkResult {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkCreateSemaphore(
+    _device: api::VkDevice,
+    _pCreateInfo: *const api::VkSemaphoreCreateInfo,
+    _pAllocator: *const api::VkAllocationCallbacks,
+    _pSemaphore: *mut api::VkSemaphore,
+) -> api::VkResult {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkDestroySemaphore(
+    _device: api::VkDevice,
+    _semaphore: api::VkSemaphore,
+    _pAllocator: *const api::VkAllocationCallbacks,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkCreateEvent(
+    _device: api::VkDevice,
+    _pCreateInfo: *const api::VkEventCreateInfo,
+    _pAllocator: *const api::VkAllocationCallbacks,
+    _pEvent: *mut api::VkEvent,
+) -> api::VkResult {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkDestroyEvent(
+    _device: api::VkDevice,
+    _event: api::VkEvent,
+    _pAllocator: *const api::VkAllocationCallbacks,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkGetEventStatus(
+    _device: api::VkDevice,
+    _event: api::VkEvent,
+) -> api::VkResult {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkSetEvent(
+    _device: api::VkDevice,
+    _event: api::VkEvent,
+) -> api::VkResult {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkResetEvent(
+    _device: api::VkDevice,
+    _event: api::VkEvent,
+) -> api::VkResult {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkCreateQueryPool(
+    _device: api::VkDevice,
+    _pCreateInfo: *const api::VkQueryPoolCreateInfo,
+    _pAllocator: *const api::VkAllocationCallbacks,
+    _pQueryPool: *mut api::VkQueryPool,
+) -> api::VkResult {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkDestroyQueryPool(
+    _device: api::VkDevice,
+    _queryPool: api::VkQueryPool,
+    _pAllocator: *const api::VkAllocationCallbacks,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkGetQueryPoolResults(
+    _device: api::VkDevice,
+    _queryPool: api::VkQueryPool,
+    _firstQuery: u32,
+    _queryCount: u32,
+    _dataSize: usize,
+    _pData: *mut ::std::os::raw::c_void,
+    _stride: api::VkDeviceSize,
+    _flags: api::VkQueryResultFlags,
+) -> api::VkResult {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkCreateBuffer(
+    _device: api::VkDevice,
+    _pCreateInfo: *const api::VkBufferCreateInfo,
+    _pAllocator: *const api::VkAllocationCallbacks,
+    _pBuffer: *mut api::VkBuffer,
+) -> api::VkResult {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkDestroyBuffer(
+    _device: api::VkDevice,
+    _buffer: api::VkBuffer,
+    _pAllocator: *const api::VkAllocationCallbacks,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkCreateBufferView(
+    _device: api::VkDevice,
+    _pCreateInfo: *const api::VkBufferViewCreateInfo,
+    _pAllocator: *const api::VkAllocationCallbacks,
+    _pView: *mut api::VkBufferView,
+) -> api::VkResult {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkDestroyBufferView(
+    _device: api::VkDevice,
+    _bufferView: api::VkBufferView,
+    _pAllocator: *const api::VkAllocationCallbacks,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkCreateImage(
+    _device: api::VkDevice,
+    _pCreateInfo: *const api::VkImageCreateInfo,
+    _pAllocator: *const api::VkAllocationCallbacks,
+    _pImage: *mut api::VkImage,
+) -> api::VkResult {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkDestroyImage(
+    _device: api::VkDevice,
+    _image: api::VkImage,
+    _pAllocator: *const api::VkAllocationCallbacks,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkGetImageSubresourceLayout(
+    _device: api::VkDevice,
+    _image: api::VkImage,
+    _pSubresource: *const api::VkImageSubresource,
+    _pLayout: *mut api::VkSubresourceLayout,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkCreateImageView(
+    _device: api::VkDevice,
+    _pCreateInfo: *const api::VkImageViewCreateInfo,
+    _pAllocator: *const api::VkAllocationCallbacks,
+    _pView: *mut api::VkImageView,
+) -> api::VkResult {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkDestroyImageView(
+    _device: api::VkDevice,
+    _imageView: api::VkImageView,
+    _pAllocator: *const api::VkAllocationCallbacks,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkCreateShaderModule(
+    _device: api::VkDevice,
+    _pCreateInfo: *const api::VkShaderModuleCreateInfo,
+    _pAllocator: *const api::VkAllocationCallbacks,
+    _pShaderModule: *mut api::VkShaderModule,
+) -> api::VkResult {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkDestroyShaderModule(
+    _device: api::VkDevice,
+    _shaderModule: api::VkShaderModule,
+    _pAllocator: *const api::VkAllocationCallbacks,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkCreatePipelineCache(
+    _device: api::VkDevice,
+    _pCreateInfo: *const api::VkPipelineCacheCreateInfo,
+    _pAllocator: *const api::VkAllocationCallbacks,
+    _pPipelineCache: *mut api::VkPipelineCache,
+) -> api::VkResult {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkDestroyPipelineCache(
+    _device: api::VkDevice,
+    _pipelineCache: api::VkPipelineCache,
+    _pAllocator: *const api::VkAllocationCallbacks,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkGetPipelineCacheData(
+    _device: api::VkDevice,
+    _pipelineCache: api::VkPipelineCache,
+    _pDataSize: *mut usize,
+    _pData: *mut ::std::os::raw::c_void,
+) -> api::VkResult {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkMergePipelineCaches(
+    _device: api::VkDevice,
+    _dstCache: api::VkPipelineCache,
+    _srcCacheCount: u32,
+    _pSrcCaches: *const api::VkPipelineCache,
+) -> api::VkResult {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkCreateGraphicsPipelines(
+    _device: api::VkDevice,
+    _pipelineCache: api::VkPipelineCache,
+    _createInfoCount: u32,
+    _pCreateInfos: *const api::VkGraphicsPipelineCreateInfo,
+    _pAllocator: *const api::VkAllocationCallbacks,
+    _pPipelines: *mut api::VkPipeline,
+) -> api::VkResult {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkCreateComputePipelines(
+    _device: api::VkDevice,
+    _pipelineCache: api::VkPipelineCache,
+    _createInfoCount: u32,
+    _pCreateInfos: *const api::VkComputePipelineCreateInfo,
+    _pAllocator: *const api::VkAllocationCallbacks,
+    _pPipelines: *mut api::VkPipeline,
+) -> api::VkResult {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkDestroyPipeline(
+    _device: api::VkDevice,
+    _pipeline: api::VkPipeline,
+    _pAllocator: *const api::VkAllocationCallbacks,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkCreatePipelineLayout(
+    _device: api::VkDevice,
+    _pCreateInfo: *const api::VkPipelineLayoutCreateInfo,
+    _pAllocator: *const api::VkAllocationCallbacks,
+    _pPipelineLayout: *mut api::VkPipelineLayout,
+) -> api::VkResult {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkDestroyPipelineLayout(
+    _device: api::VkDevice,
+    _pipelineLayout: api::VkPipelineLayout,
+    _pAllocator: *const api::VkAllocationCallbacks,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkCreateSampler(
+    _device: api::VkDevice,
+    _pCreateInfo: *const api::VkSamplerCreateInfo,
+    _pAllocator: *const api::VkAllocationCallbacks,
+    _pSampler: *mut api::VkSampler,
+) -> api::VkResult {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkDestroySampler(
+    _device: api::VkDevice,
+    _sampler: api::VkSampler,
+    _pAllocator: *const api::VkAllocationCallbacks,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkCreateDescriptorSetLayout(
+    _device: api::VkDevice,
+    _pCreateInfo: *const api::VkDescriptorSetLayoutCreateInfo,
+    _pAllocator: *const api::VkAllocationCallbacks,
+    _pSetLayout: *mut api::VkDescriptorSetLayout,
+) -> api::VkResult {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkDestroyDescriptorSetLayout(
+    _device: api::VkDevice,
+    _descriptorSetLayout: api::VkDescriptorSetLayout,
+    _pAllocator: *const api::VkAllocationCallbacks,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkCreateDescriptorPool(
+    _device: api::VkDevice,
+    _pCreateInfo: *const api::VkDescriptorPoolCreateInfo,
+    _pAllocator: *const api::VkAllocationCallbacks,
+    _pDescriptorPool: *mut api::VkDescriptorPool,
+) -> api::VkResult {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkDestroyDescriptorPool(
+    _device: api::VkDevice,
+    _descriptorPool: api::VkDescriptorPool,
+    _pAllocator: *const api::VkAllocationCallbacks,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkResetDescriptorPool(
+    _device: api::VkDevice,
+    _descriptorPool: api::VkDescriptorPool,
+    _flags: api::VkDescriptorPoolResetFlags,
+) -> api::VkResult {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkAllocateDescriptorSets(
+    _device: api::VkDevice,
+    _pAllocateInfo: *const api::VkDescriptorSetAllocateInfo,
+    _pDescriptorSets: *mut api::VkDescriptorSet,
+) -> api::VkResult {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkFreeDescriptorSets(
+    _device: api::VkDevice,
+    _descriptorPool: api::VkDescriptorPool,
+    _descriptorSetCount: u32,
+    _pDescriptorSets: *const api::VkDescriptorSet,
+) -> api::VkResult {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkUpdateDescriptorSets(
+    _device: api::VkDevice,
+    _descriptorWriteCount: u32,
+    _pDescriptorWrites: *const api::VkWriteDescriptorSet,
+    _descriptorCopyCount: u32,
+    _pDescriptorCopies: *const api::VkCopyDescriptorSet,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkCreateFramebuffer(
+    _device: api::VkDevice,
+    _pCreateInfo: *const api::VkFramebufferCreateInfo,
+    _pAllocator: *const api::VkAllocationCallbacks,
+    _pFramebuffer: *mut api::VkFramebuffer,
+) -> api::VkResult {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkDestroyFramebuffer(
+    _device: api::VkDevice,
+    _framebuffer: api::VkFramebuffer,
+    _pAllocator: *const api::VkAllocationCallbacks,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkCreateRenderPass(
+    _device: api::VkDevice,
+    _pCreateInfo: *const api::VkRenderPassCreateInfo,
+    _pAllocator: *const api::VkAllocationCallbacks,
+    _pRenderPass: *mut api::VkRenderPass,
+) -> api::VkResult {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkDestroyRenderPass(
+    _device: api::VkDevice,
+    _renderPass: api::VkRenderPass,
+    _pAllocator: *const api::VkAllocationCallbacks,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkGetRenderAreaGranularity(
+    _device: api::VkDevice,
+    _renderPass: api::VkRenderPass,
+    _pGranularity: *mut api::VkExtent2D,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkCreateCommandPool(
+    _device: api::VkDevice,
+    _pCreateInfo: *const api::VkCommandPoolCreateInfo,
+    _pAllocator: *const api::VkAllocationCallbacks,
+    _pCommandPool: *mut api::VkCommandPool,
+) -> api::VkResult {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkDestroyCommandPool(
+    _device: api::VkDevice,
+    _commandPool: api::VkCommandPool,
+    _pAllocator: *const api::VkAllocationCallbacks,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkResetCommandPool(
+    _device: api::VkDevice,
+    _commandPool: api::VkCommandPool,
+    _flags: api::VkCommandPoolResetFlags,
+) -> api::VkResult {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkAllocateCommandBuffers(
+    _device: api::VkDevice,
+    _pAllocateInfo: *const api::VkCommandBufferAllocateInfo,
+    _pCommandBuffers: *mut api::VkCommandBuffer,
+) -> api::VkResult {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkFreeCommandBuffers(
+    _device: api::VkDevice,
+    _commandPool: api::VkCommandPool,
+    _commandBufferCount: u32,
+    _pCommandBuffers: *const api::VkCommandBuffer,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkBeginCommandBuffer(
+    _commandBuffer: api::VkCommandBuffer,
+    _pBeginInfo: *const api::VkCommandBufferBeginInfo,
+) -> api::VkResult {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkEndCommandBuffer(
+    _commandBuffer: api::VkCommandBuffer,
+) -> api::VkResult {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkResetCommandBuffer(
+    _commandBuffer: api::VkCommandBuffer,
+    _flags: api::VkCommandBufferResetFlags,
+) -> api::VkResult {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkCmdBindPipeline(
+    _commandBuffer: api::VkCommandBuffer,
+    _pipelineBindPoint: api::VkPipelineBindPoint,
+    _pipeline: api::VkPipeline,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkCmdSetViewport(
+    _commandBuffer: api::VkCommandBuffer,
+    _firstViewport: u32,
+    _viewportCount: u32,
+    _pViewports: *const api::VkViewport,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkCmdSetScissor(
+    _commandBuffer: api::VkCommandBuffer,
+    _firstScissor: u32,
+    _scissorCount: u32,
+    _pScissors: *const api::VkRect2D,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkCmdSetLineWidth(
+    _commandBuffer: api::VkCommandBuffer,
+    _lineWidth: f32,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkCmdSetDepthBias(
+    _commandBuffer: api::VkCommandBuffer,
+    _depthBiasConstantFactor: f32,
+    _depthBiasClamp: f32,
+    _depthBiasSlopeFactor: f32,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkCmdSetBlendConstants(
+    _commandBuffer: api::VkCommandBuffer,
+    _blendConstants: *const f32,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkCmdSetDepthBounds(
+    _commandBuffer: api::VkCommandBuffer,
+    _minDepthBounds: f32,
+    _maxDepthBounds: f32,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkCmdSetStencilCompareMask(
+    _commandBuffer: api::VkCommandBuffer,
+    _faceMask: api::VkStencilFaceFlags,
+    _compareMask: u32,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkCmdSetStencilWriteMask(
+    _commandBuffer: api::VkCommandBuffer,
+    _faceMask: api::VkStencilFaceFlags,
+    _writeMask: u32,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkCmdSetStencilReference(
+    _commandBuffer: api::VkCommandBuffer,
+    _faceMask: api::VkStencilFaceFlags,
+    _reference: u32,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkCmdBindDescriptorSets(
+    _commandBuffer: api::VkCommandBuffer,
+    _pipelineBindPoint: api::VkPipelineBindPoint,
+    _layout: api::VkPipelineLayout,
+    _firstSet: u32,
+    _descriptorSetCount: u32,
+    _pDescriptorSets: *const api::VkDescriptorSet,
+    _dynamicOffsetCount: u32,
+    _pDynamicOffsets: *const u32,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkCmdBindIndexBuffer(
+    _commandBuffer: api::VkCommandBuffer,
+    _buffer: api::VkBuffer,
+    _offset: api::VkDeviceSize,
+    _indexType: api::VkIndexType,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkCmdBindVertexBuffers(
+    _commandBuffer: api::VkCommandBuffer,
+    _firstBinding: u32,
+    _bindingCount: u32,
+    _pBuffers: *const api::VkBuffer,
+    _pOffsets: *const api::VkDeviceSize,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkCmdDraw(
+    _commandBuffer: api::VkCommandBuffer,
+    _vertexCount: u32,
+    _instanceCount: u32,
+    _firstVertex: u32,
+    _firstInstance: u32,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkCmdDrawIndexed(
+    _commandBuffer: api::VkCommandBuffer,
+    _indexCount: u32,
+    _instanceCount: u32,
+    _firstIndex: u32,
+    _vertexOffset: i32,
+    _firstInstance: u32,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkCmdDrawIndirect(
+    _commandBuffer: api::VkCommandBuffer,
+    _buffer: api::VkBuffer,
+    _offset: api::VkDeviceSize,
+    _drawCount: u32,
+    _stride: u32,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkCmdDrawIndexedIndirect(
+    _commandBuffer: api::VkCommandBuffer,
+    _buffer: api::VkBuffer,
+    _offset: api::VkDeviceSize,
+    _drawCount: u32,
+    _stride: u32,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkCmdDispatch(
+    _commandBuffer: api::VkCommandBuffer,
+    _groupCountX: u32,
+    _groupCountY: u32,
+    _groupCountZ: u32,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkCmdDispatchIndirect(
+    _commandBuffer: api::VkCommandBuffer,
+    _buffer: api::VkBuffer,
+    _offset: api::VkDeviceSize,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkCmdCopyBuffer(
+    _commandBuffer: api::VkCommandBuffer,
+    _srcBuffer: api::VkBuffer,
+    _dstBuffer: api::VkBuffer,
+    _regionCount: u32,
+    _pRegions: *const api::VkBufferCopy,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkCmdCopyImage(
+    _commandBuffer: api::VkCommandBuffer,
+    _srcImage: api::VkImage,
+    _srcImageLayout: api::VkImageLayout,
+    _dstImage: api::VkImage,
+    _dstImageLayout: api::VkImageLayout,
+    _regionCount: u32,
+    _pRegions: *const api::VkImageCopy,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkCmdBlitImage(
+    _commandBuffer: api::VkCommandBuffer,
+    _srcImage: api::VkImage,
+    _srcImageLayout: api::VkImageLayout,
+    _dstImage: api::VkImage,
+    _dstImageLayout: api::VkImageLayout,
+    _regionCount: u32,
+    _pRegions: *const api::VkImageBlit,
+    _filter: api::VkFilter,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkCmdCopyBufferToImage(
+    _commandBuffer: api::VkCommandBuffer,
+    _srcBuffer: api::VkBuffer,
+    _dstImage: api::VkImage,
+    _dstImageLayout: api::VkImageLayout,
+    _regionCount: u32,
+    _pRegions: *const api::VkBufferImageCopy,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkCmdCopyImageToBuffer(
+    _commandBuffer: api::VkCommandBuffer,
+    _srcImage: api::VkImage,
+    _srcImageLayout: api::VkImageLayout,
+    _dstBuffer: api::VkBuffer,
+    _regionCount: u32,
+    _pRegions: *const api::VkBufferImageCopy,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkCmdUpdateBuffer(
+    _commandBuffer: api::VkCommandBuffer,
+    _dstBuffer: api::VkBuffer,
+    _dstOffset: api::VkDeviceSize,
+    _dataSize: api::VkDeviceSize,
+    _pData: *const ::std::os::raw::c_void,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkCmdFillBuffer(
+    _commandBuffer: api::VkCommandBuffer,
+    _dstBuffer: api::VkBuffer,
+    _dstOffset: api::VkDeviceSize,
+    _size: api::VkDeviceSize,
+    _data: u32,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkCmdClearColorImage(
+    _commandBuffer: api::VkCommandBuffer,
+    _image: api::VkImage,
+    _imageLayout: api::VkImageLayout,
+    _pColor: *const api::VkClearColorValue,
+    _rangeCount: u32,
+    _pRanges: *const api::VkImageSubresourceRange,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkCmdClearDepthStencilImage(
+    _commandBuffer: api::VkCommandBuffer,
+    _image: api::VkImage,
+    _imageLayout: api::VkImageLayout,
+    _pDepthStencil: *const api::VkClearDepthStencilValue,
+    _rangeCount: u32,
+    _pRanges: *const api::VkImageSubresourceRange,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkCmdClearAttachments(
+    _commandBuffer: api::VkCommandBuffer,
+    _attachmentCount: u32,
+    _pAttachments: *const api::VkClearAttachment,
+    _rectCount: u32,
+    _pRects: *const api::VkClearRect,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkCmdResolveImage(
+    _commandBuffer: api::VkCommandBuffer,
+    _srcImage: api::VkImage,
+    _srcImageLayout: api::VkImageLayout,
+    _dstImage: api::VkImage,
+    _dstImageLayout: api::VkImageLayout,
+    _regionCount: u32,
+    _pRegions: *const api::VkImageResolve,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkCmdSetEvent(
+    _commandBuffer: api::VkCommandBuffer,
+    _event: api::VkEvent,
+    _stageMask: api::VkPipelineStageFlags,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkCmdResetEvent(
+    _commandBuffer: api::VkCommandBuffer,
+    _event: api::VkEvent,
+    _stageMask: api::VkPipelineStageFlags,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkCmdWaitEvents(
+    _commandBuffer: api::VkCommandBuffer,
+    _eventCount: u32,
+    _pEvents: *const api::VkEvent,
+    _srcStageMask: api::VkPipelineStageFlags,
+    _dstStageMask: api::VkPipelineStageFlags,
+    _memoryBarrierCount: u32,
+    _pMemoryBarriers: *const api::VkMemoryBarrier,
+    _bufferMemoryBarrierCount: u32,
+    _pBufferMemoryBarriers: *const api::VkBufferMemoryBarrier,
+    _imageMemoryBarrierCount: u32,
+    _pImageMemoryBarriers: *const api::VkImageMemoryBarrier,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkCmdPipelineBarrier(
+    _commandBuffer: api::VkCommandBuffer,
+    _srcStageMask: api::VkPipelineStageFlags,
+    _dstStageMask: api::VkPipelineStageFlags,
+    _dependencyFlags: api::VkDependencyFlags,
+    _memoryBarrierCount: u32,
+    _pMemoryBarriers: *const api::VkMemoryBarrier,
+    _bufferMemoryBarrierCount: u32,
+    _pBufferMemoryBarriers: *const api::VkBufferMemoryBarrier,
+    _imageMemoryBarrierCount: u32,
+    _pImageMemoryBarriers: *const api::VkImageMemoryBarrier,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkCmdBeginQuery(
+    _commandBuffer: api::VkCommandBuffer,
+    _queryPool: api::VkQueryPool,
+    _query: u32,
+    _flags: api::VkQueryControlFlags,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkCmdEndQuery(
+    _commandBuffer: api::VkCommandBuffer,
+    _queryPool: api::VkQueryPool,
+    _query: u32,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkCmdResetQueryPool(
+    _commandBuffer: api::VkCommandBuffer,
+    _queryPool: api::VkQueryPool,
+    _firstQuery: u32,
+    _queryCount: u32,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkCmdWriteTimestamp(
+    _commandBuffer: api::VkCommandBuffer,
+    _pipelineStage: api::VkPipelineStageFlagBits,
+    _queryPool: api::VkQueryPool,
+    _query: u32,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkCmdCopyQueryPoolResults(
+    _commandBuffer: api::VkCommandBuffer,
+    _queryPool: api::VkQueryPool,
+    _firstQuery: u32,
+    _queryCount: u32,
+    _dstBuffer: api::VkBuffer,
+    _dstOffset: api::VkDeviceSize,
+    _stride: api::VkDeviceSize,
+    _flags: api::VkQueryResultFlags,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkCmdPushConstants(
+    _commandBuffer: api::VkCommandBuffer,
+    _layout: api::VkPipelineLayout,
+    _stageFlags: api::VkShaderStageFlags,
+    _offset: u32,
+    _size: u32,
+    _pValues: *const ::std::os::raw::c_void,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkCmdBeginRenderPass(
+    _commandBuffer: api::VkCommandBuffer,
+    _pRenderPassBegin: *const api::VkRenderPassBeginInfo,
+    _contents: api::VkSubpassContents,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkCmdNextSubpass(
+    _commandBuffer: api::VkCommandBuffer,
+    _contents: api::VkSubpassContents,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkCmdEndRenderPass(_commandBuffer: api::VkCommandBuffer) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkCmdExecuteCommands(
+    _commandBuffer: api::VkCommandBuffer,
+    _commandBufferCount: u32,
+    _pCommandBuffers: *const api::VkCommandBuffer,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkBindBufferMemory2(
+    _device: api::VkDevice,
+    _bindInfoCount: u32,
+    _pBindInfos: *const api::VkBindBufferMemoryInfo,
+) -> api::VkResult {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkBindImageMemory2(
+    _device: api::VkDevice,
+    _bindInfoCount: u32,
+    _pBindInfos: *const api::VkBindImageMemoryInfo,
+) -> api::VkResult {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkGetDeviceGroupPeerMemoryFeatures(
+    _device: api::VkDevice,
+    _heapIndex: u32,
+    _localDeviceIndex: u32,
+    _remoteDeviceIndex: u32,
+    _pPeerMemoryFeatures: *mut api::VkPeerMemoryFeatureFlags,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkCmdSetDeviceMask(
+    _commandBuffer: api::VkCommandBuffer,
+    _deviceMask: u32,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkCmdDispatchBase(
+    _commandBuffer: api::VkCommandBuffer,
+    _baseGroupX: u32,
+    _baseGroupY: u32,
+    _baseGroupZ: u32,
+    _groupCountX: u32,
+    _groupCountY: u32,
+    _groupCountZ: u32,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkEnumeratePhysicalDeviceGroups(
+    _instance: api::VkInstance,
+    _pPhysicalDeviceGroupCount: *mut u32,
+    _pPhysicalDeviceGroupProperties: *mut api::VkPhysicalDeviceGroupProperties,
+) -> api::VkResult {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkGetImageMemoryRequirements2(
+    _device: api::VkDevice,
+    _pInfo: *const api::VkImageMemoryRequirementsInfo2,
+    _pMemoryRequirements: *mut api::VkMemoryRequirements2,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkGetBufferMemoryRequirements2(
+    _device: api::VkDevice,
+    _pInfo: *const api::VkBufferMemoryRequirementsInfo2,
+    _pMemoryRequirements: *mut api::VkMemoryRequirements2,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkGetImageSparseMemoryRequirements2(
+    _device: api::VkDevice,
+    _pInfo: *const api::VkImageSparseMemoryRequirementsInfo2,
+    _pSparseMemoryRequirementCount: *mut u32,
+    _pSparseMemoryRequirements: *mut api::VkSparseImageMemoryRequirements2,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkGetPhysicalDeviceFeatures2(
+    _physicalDevice: api::VkPhysicalDevice,
+    _pFeatures: *mut api::VkPhysicalDeviceFeatures2,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkGetPhysicalDeviceProperties2(
+    _physicalDevice: api::VkPhysicalDevice,
+    _pProperties: *mut api::VkPhysicalDeviceProperties2,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkGetPhysicalDeviceFormatProperties2(
+    _physicalDevice: api::VkPhysicalDevice,
+    _format: api::VkFormat,
+    _pFormatProperties: *mut api::VkFormatProperties2,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkGetPhysicalDeviceImageFormatProperties2(
+    _physicalDevice: api::VkPhysicalDevice,
+    _pImageFormatInfo: *const api::VkPhysicalDeviceImageFormatInfo2,
+    _pImageFormatProperties: *mut api::VkImageFormatProperties2,
+) -> api::VkResult {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkGetPhysicalDeviceQueueFamilyProperties2(
+    _physicalDevice: api::VkPhysicalDevice,
+    _pQueueFamilyPropertyCount: *mut u32,
+    _pQueueFamilyProperties: *mut api::VkQueueFamilyProperties2,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkGetPhysicalDeviceMemoryProperties2(
+    _physicalDevice: api::VkPhysicalDevice,
+    _pMemoryProperties: *mut api::VkPhysicalDeviceMemoryProperties2,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkGetPhysicalDeviceSparseImageFormatProperties2(
+    _physicalDevice: api::VkPhysicalDevice,
+    _pFormatInfo: *const api::VkPhysicalDeviceSparseImageFormatInfo2,
+    _pPropertyCount: *mut u32,
+    _pProperties: *mut api::VkSparseImageFormatProperties2,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkTrimCommandPool(
+    _device: api::VkDevice,
+    _commandPool: api::VkCommandPool,
+    _flags: api::VkCommandPoolTrimFlags,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkGetDeviceQueue2(
+    _device: api::VkDevice,
+    _pQueueInfo: *const api::VkDeviceQueueInfo2,
+    _pQueue: *mut api::VkQueue,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkCreateSamplerYcbcrConversion(
+    _device: api::VkDevice,
+    _pCreateInfo: *const api::VkSamplerYcbcrConversionCreateInfo,
+    _pAllocator: *const api::VkAllocationCallbacks,
+    _pYcbcrConversion: *mut api::VkSamplerYcbcrConversion,
+) -> api::VkResult {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkDestroySamplerYcbcrConversion(
+    _device: api::VkDevice,
+    _ycbcrConversion: api::VkSamplerYcbcrConversion,
+    _pAllocator: *const api::VkAllocationCallbacks,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkCreateDescriptorUpdateTemplate(
+    _device: api::VkDevice,
+    _pCreateInfo: *const api::VkDescriptorUpdateTemplateCreateInfo,
+    _pAllocator: *const api::VkAllocationCallbacks,
+    _pDescriptorUpdateTemplate: *mut api::VkDescriptorUpdateTemplate,
+) -> api::VkResult {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkDestroyDescriptorUpdateTemplate(
+    _device: api::VkDevice,
+    _descriptorUpdateTemplate: api::VkDescriptorUpdateTemplate,
+    _pAllocator: *const api::VkAllocationCallbacks,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkUpdateDescriptorSetWithTemplate(
+    _device: api::VkDevice,
+    _descriptorSet: api::VkDescriptorSet,
+    _descriptorUpdateTemplate: api::VkDescriptorUpdateTemplate,
+    _pData: *const ::std::os::raw::c_void,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkGetPhysicalDeviceExternalBufferProperties(
+    _physicalDevice: api::VkPhysicalDevice,
+    _pExternalBufferInfo: *const api::VkPhysicalDeviceExternalBufferInfo,
+    _pExternalBufferProperties: *mut api::VkExternalBufferProperties,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkGetPhysicalDeviceExternalFenceProperties(
+    _physicalDevice: api::VkPhysicalDevice,
+    _pExternalFenceInfo: *const api::VkPhysicalDeviceExternalFenceInfo,
+    _pExternalFenceProperties: *mut api::VkExternalFenceProperties,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkGetPhysicalDeviceExternalSemaphoreProperties(
+    _physicalDevice: api::VkPhysicalDevice,
+    _pExternalSemaphoreInfo: *const api::VkPhysicalDeviceExternalSemaphoreInfo,
+    _pExternalSemaphoreProperties: *mut api::VkExternalSemaphoreProperties,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkGetDescriptorSetLayoutSupport(
+    _device: api::VkDevice,
+    _pCreateInfo: *const api::VkDescriptorSetLayoutCreateInfo,
+    _pSupport: *mut api::VkDescriptorSetLayoutSupport,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkDestroySurfaceKHR(
+    _instance: api::VkInstance,
+    _surface: api::VkSurfaceKHR,
+    _pAllocator: *const api::VkAllocationCallbacks,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkGetPhysicalDeviceSurfaceSupportKHR(
+    _physicalDevice: api::VkPhysicalDevice,
+    _queueFamilyIndex: u32,
+    _surface: api::VkSurfaceKHR,
+    _pSupported: *mut api::VkBool32,
+) -> api::VkResult {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkGetPhysicalDeviceSurfaceCapabilitiesKHR(
+    _physicalDevice: api::VkPhysicalDevice,
+    _surface: api::VkSurfaceKHR,
+    _pSurfaceCapabilities: *mut api::VkSurfaceCapabilitiesKHR,
+) -> api::VkResult {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkGetPhysicalDeviceSurfaceFormatsKHR(
+    _physicalDevice: api::VkPhysicalDevice,
+    _surface: api::VkSurfaceKHR,
+    _pSurfaceFormatCount: *mut u32,
+    _pSurfaceFormats: *mut api::VkSurfaceFormatKHR,
+) -> api::VkResult {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkGetPhysicalDeviceSurfacePresentModesKHR(
+    _physicalDevice: api::VkPhysicalDevice,
+    _surface: api::VkSurfaceKHR,
+    _pPresentModeCount: *mut u32,
+    _pPresentModes: *mut api::VkPresentModeKHR,
+) -> api::VkResult {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkCreateSwapchainKHR(
+    _device: api::VkDevice,
+    _pCreateInfo: *const api::VkSwapchainCreateInfoKHR,
+    _pAllocator: *const api::VkAllocationCallbacks,
+    _pSwapchain: *mut api::VkSwapchainKHR,
+) -> api::VkResult {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkDestroySwapchainKHR(
+    _device: api::VkDevice,
+    _swapchain: api::VkSwapchainKHR,
+    _pAllocator: *const api::VkAllocationCallbacks,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkGetSwapchainImagesKHR(
+    _device: api::VkDevice,
+    _swapchain: api::VkSwapchainKHR,
+    _pSwapchainImageCount: *mut u32,
+    _pSwapchainImages: *mut api::VkImage,
+) -> api::VkResult {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkAcquireNextImageKHR(
+    _device: api::VkDevice,
+    _swapchain: api::VkSwapchainKHR,
+    _timeout: u64,
+    _semaphore: api::VkSemaphore,
+    _fence: api::VkFence,
+    _pImageIndex: *mut u32,
+) -> api::VkResult {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkQueuePresentKHR(
+    _queue: api::VkQueue,
+    _pPresentInfo: *const api::VkPresentInfoKHR,
+) -> api::VkResult {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkGetDeviceGroupPresentCapabilitiesKHR(
+    _device: api::VkDevice,
+    _pDeviceGroupPresentCapabilities: *mut api::VkDeviceGroupPresentCapabilitiesKHR,
+) -> api::VkResult {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkGetDeviceGroupSurfacePresentModesKHR(
+    _device: api::VkDevice,
+    _surface: api::VkSurfaceKHR,
+    _pModes: *mut api::VkDeviceGroupPresentModeFlagsKHR,
+) -> api::VkResult {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkGetPhysicalDevicePresentRectanglesKHR(
+    _physicalDevice: api::VkPhysicalDevice,
+    _surface: api::VkSurfaceKHR,
+    _pRectCount: *mut u32,
+    _pRects: *mut api::VkRect2D,
+) -> api::VkResult {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkAcquireNextImage2KHR(
+    _device: api::VkDevice,
+    _pAcquireInfo: *const api::VkAcquireNextImageInfoKHR,
+    _pImageIndex: *mut u32,
+) -> api::VkResult {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkGetPhysicalDeviceDisplayPropertiesKHR(
+    _physicalDevice: api::VkPhysicalDevice,
+    _pPropertyCount: *mut u32,
+    _pProperties: *mut api::VkDisplayPropertiesKHR,
+) -> api::VkResult {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkGetPhysicalDeviceDisplayPlanePropertiesKHR(
+    _physicalDevice: api::VkPhysicalDevice,
+    _pPropertyCount: *mut u32,
+    _pProperties: *mut api::VkDisplayPlanePropertiesKHR,
+) -> api::VkResult {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkGetDisplayPlaneSupportedDisplaysKHR(
+    _physicalDevice: api::VkPhysicalDevice,
+    _planeIndex: u32,
+    _pDisplayCount: *mut u32,
+    _pDisplays: *mut api::VkDisplayKHR,
+) -> api::VkResult {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkGetDisplayModePropertiesKHR(
+    _physicalDevice: api::VkPhysicalDevice,
+    _display: api::VkDisplayKHR,
+    _pPropertyCount: *mut u32,
+    _pProperties: *mut api::VkDisplayModePropertiesKHR,
+) -> api::VkResult {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkCreateDisplayModeKHR(
+    _physicalDevice: api::VkPhysicalDevice,
+    _display: api::VkDisplayKHR,
+    _pCreateInfo: *const api::VkDisplayModeCreateInfoKHR,
+    _pAllocator: *const api::VkAllocationCallbacks,
+    _pMode: *mut api::VkDisplayModeKHR,
+) -> api::VkResult {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkGetDisplayPlaneCapabilitiesKHR(
+    _physicalDevice: api::VkPhysicalDevice,
+    _mode: api::VkDisplayModeKHR,
+    _planeIndex: u32,
+    _pCapabilities: *mut api::VkDisplayPlaneCapabilitiesKHR,
+) -> api::VkResult {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkCreateDisplayPlaneSurfaceKHR(
+    _instance: api::VkInstance,
+    _pCreateInfo: *const api::VkDisplaySurfaceCreateInfoKHR,
+    _pAllocator: *const api::VkAllocationCallbacks,
+    _pSurface: *mut api::VkSurfaceKHR,
+) -> api::VkResult {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkCreateSharedSwapchainsKHR(
+    _device: api::VkDevice,
+    _swapchainCount: u32,
+    _pCreateInfos: *const api::VkSwapchainCreateInfoKHR,
+    _pAllocator: *const api::VkAllocationCallbacks,
+    _pSwapchains: *mut api::VkSwapchainKHR,
+) -> api::VkResult {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkGetPhysicalDeviceFeatures2KHR(
+    _physicalDevice: api::VkPhysicalDevice,
+    _pFeatures: *mut api::VkPhysicalDeviceFeatures2,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkGetPhysicalDeviceProperties2KHR(
+    _physicalDevice: api::VkPhysicalDevice,
+    _pProperties: *mut api::VkPhysicalDeviceProperties2,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkGetPhysicalDeviceFormatProperties2KHR(
+    _physicalDevice: api::VkPhysicalDevice,
+    _format: api::VkFormat,
+    _pFormatProperties: *mut api::VkFormatProperties2,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkGetPhysicalDeviceImageFormatProperties2KHR(
+    _physicalDevice: api::VkPhysicalDevice,
+    _pImageFormatInfo: *const api::VkPhysicalDeviceImageFormatInfo2,
+    _pImageFormatProperties: *mut api::VkImageFormatProperties2,
+) -> api::VkResult {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkGetPhysicalDeviceQueueFamilyProperties2KHR(
+    _physicalDevice: api::VkPhysicalDevice,
+    _pQueueFamilyPropertyCount: *mut u32,
+    _pQueueFamilyProperties: *mut api::VkQueueFamilyProperties2,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkGetPhysicalDeviceMemoryProperties2KHR(
+    _physicalDevice: api::VkPhysicalDevice,
+    _pMemoryProperties: *mut api::VkPhysicalDeviceMemoryProperties2,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkGetPhysicalDeviceSparseImageFormatProperties2KHR(
+    _physicalDevice: api::VkPhysicalDevice,
+    _pFormatInfo: *const api::VkPhysicalDeviceSparseImageFormatInfo2,
+    _pPropertyCount: *mut u32,
+    _pProperties: *mut api::VkSparseImageFormatProperties2,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkGetDeviceGroupPeerMemoryFeaturesKHR(
+    _device: api::VkDevice,
+    _heapIndex: u32,
+    _localDeviceIndex: u32,
+    _remoteDeviceIndex: u32,
+    _pPeerMemoryFeatures: *mut api::VkPeerMemoryFeatureFlags,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkCmdSetDeviceMaskKHR(
+    _commandBuffer: api::VkCommandBuffer,
+    _deviceMask: u32,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkCmdDispatchBaseKHR(
+    _commandBuffer: api::VkCommandBuffer,
+    _baseGroupX: u32,
+    _baseGroupY: u32,
+    _baseGroupZ: u32,
+    _groupCountX: u32,
+    _groupCountY: u32,
+    _groupCountZ: u32,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkTrimCommandPoolKHR(
+    _device: api::VkDevice,
+    _commandPool: api::VkCommandPool,
+    _flags: api::VkCommandPoolTrimFlags,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkEnumeratePhysicalDeviceGroupsKHR(
+    _instance: api::VkInstance,
+    _pPhysicalDeviceGroupCount: *mut u32,
+    _pPhysicalDeviceGroupProperties: *mut api::VkPhysicalDeviceGroupProperties,
+) -> api::VkResult {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkGetPhysicalDeviceExternalBufferPropertiesKHR(
+    _physicalDevice: api::VkPhysicalDevice,
+    _pExternalBufferInfo: *const api::VkPhysicalDeviceExternalBufferInfo,
+    _pExternalBufferProperties: *mut api::VkExternalBufferProperties,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkGetMemoryFdKHR(
+    _device: api::VkDevice,
+    _pGetFdInfo: *const api::VkMemoryGetFdInfoKHR,
+    _pFd: *mut ::std::os::raw::c_int,
+) -> api::VkResult {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkGetMemoryFdPropertiesKHR(
+    _device: api::VkDevice,
+    _handleType: api::VkExternalMemoryHandleTypeFlagBits,
+    _fd: ::std::os::raw::c_int,
+    _pMemoryFdProperties: *mut api::VkMemoryFdPropertiesKHR,
+) -> api::VkResult {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkGetPhysicalDeviceExternalSemaphorePropertiesKHR(
+    _physicalDevice: api::VkPhysicalDevice,
+    _pExternalSemaphoreInfo: *const api::VkPhysicalDeviceExternalSemaphoreInfo,
+    _pExternalSemaphoreProperties: *mut api::VkExternalSemaphoreProperties,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkImportSemaphoreFdKHR(
+    _device: api::VkDevice,
+    _pImportSemaphoreFdInfo: *const api::VkImportSemaphoreFdInfoKHR,
+) -> api::VkResult {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkGetSemaphoreFdKHR(
+    _device: api::VkDevice,
+    _pGetFdInfo: *const api::VkSemaphoreGetFdInfoKHR,
+    _pFd: *mut ::std::os::raw::c_int,
+) -> api::VkResult {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkCmdPushDescriptorSetKHR(
+    _commandBuffer: api::VkCommandBuffer,
+    _pipelineBindPoint: api::VkPipelineBindPoint,
+    _layout: api::VkPipelineLayout,
+    _set: u32,
+    _descriptorWriteCount: u32,
+    _pDescriptorWrites: *const api::VkWriteDescriptorSet,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkCmdPushDescriptorSetWithTemplateKHR(
+    _commandBuffer: api::VkCommandBuffer,
+    _descriptorUpdateTemplate: api::VkDescriptorUpdateTemplate,
+    _layout: api::VkPipelineLayout,
+    _set: u32,
+    _pData: *const ::std::os::raw::c_void,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkCreateDescriptorUpdateTemplateKHR(
+    _device: api::VkDevice,
+    _pCreateInfo: *const api::VkDescriptorUpdateTemplateCreateInfo,
+    _pAllocator: *const api::VkAllocationCallbacks,
+    _pDescriptorUpdateTemplate: *mut api::VkDescriptorUpdateTemplate,
+) -> api::VkResult {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkDestroyDescriptorUpdateTemplateKHR(
+    _device: api::VkDevice,
+    _descriptorUpdateTemplate: api::VkDescriptorUpdateTemplate,
+    _pAllocator: *const api::VkAllocationCallbacks,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkUpdateDescriptorSetWithTemplateKHR(
+    _device: api::VkDevice,
+    _descriptorSet: api::VkDescriptorSet,
+    _descriptorUpdateTemplate: api::VkDescriptorUpdateTemplate,
+    _pData: *const ::std::os::raw::c_void,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkCreateRenderPass2KHR(
+    _device: api::VkDevice,
+    _pCreateInfo: *const api::VkRenderPassCreateInfo2KHR,
+    _pAllocator: *const api::VkAllocationCallbacks,
+    _pRenderPass: *mut api::VkRenderPass,
+) -> api::VkResult {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkCmdBeginRenderPass2KHR(
+    _commandBuffer: api::VkCommandBuffer,
+    _pRenderPassBegin: *const api::VkRenderPassBeginInfo,
+    _pSubpassBeginInfo: *const api::VkSubpassBeginInfoKHR,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkCmdNextSubpass2KHR(
+    _commandBuffer: api::VkCommandBuffer,
+    _pSubpassBeginInfo: *const api::VkSubpassBeginInfoKHR,
+    _pSubpassEndInfo: *const api::VkSubpassEndInfoKHR,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkCmdEndRenderPass2KHR(
+    _commandBuffer: api::VkCommandBuffer,
+    _pSubpassEndInfo: *const api::VkSubpassEndInfoKHR,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkGetSwapchainStatusKHR(
+    _device: api::VkDevice,
+    _swapchain: api::VkSwapchainKHR,
+) -> api::VkResult {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkGetPhysicalDeviceExternalFencePropertiesKHR(
+    _physicalDevice: api::VkPhysicalDevice,
+    _pExternalFenceInfo: *const api::VkPhysicalDeviceExternalFenceInfo,
+    _pExternalFenceProperties: *mut api::VkExternalFenceProperties,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkImportFenceFdKHR(
+    _device: api::VkDevice,
+    _pImportFenceFdInfo: *const api::VkImportFenceFdInfoKHR,
+) -> api::VkResult {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkGetFenceFdKHR(
+    _device: api::VkDevice,
+    _pGetFdInfo: *const api::VkFenceGetFdInfoKHR,
+    _pFd: *mut ::std::os::raw::c_int,
+) -> api::VkResult {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkGetPhysicalDeviceSurfaceCapabilities2KHR(
+    _physicalDevice: api::VkPhysicalDevice,
+    _pSurfaceInfo: *const api::VkPhysicalDeviceSurfaceInfo2KHR,
+    _pSurfaceCapabilities: *mut api::VkSurfaceCapabilities2KHR,
+) -> api::VkResult {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkGetPhysicalDeviceSurfaceFormats2KHR(
+    _physicalDevice: api::VkPhysicalDevice,
+    _pSurfaceInfo: *const api::VkPhysicalDeviceSurfaceInfo2KHR,
+    _pSurfaceFormatCount: *mut u32,
+    _pSurfaceFormats: *mut api::VkSurfaceFormat2KHR,
+) -> api::VkResult {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkGetPhysicalDeviceDisplayProperties2KHR(
+    _physicalDevice: api::VkPhysicalDevice,
+    _pPropertyCount: *mut u32,
+    _pProperties: *mut api::VkDisplayProperties2KHR,
+) -> api::VkResult {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkGetPhysicalDeviceDisplayPlaneProperties2KHR(
+    _physicalDevice: api::VkPhysicalDevice,
+    _pPropertyCount: *mut u32,
+    _pProperties: *mut api::VkDisplayPlaneProperties2KHR,
+) -> api::VkResult {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkGetDisplayModeProperties2KHR(
+    _physicalDevice: api::VkPhysicalDevice,
+    _display: api::VkDisplayKHR,
+    _pPropertyCount: *mut u32,
+    _pProperties: *mut api::VkDisplayModeProperties2KHR,
+) -> api::VkResult {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkGetDisplayPlaneCapabilities2KHR(
+    _physicalDevice: api::VkPhysicalDevice,
+    _pDisplayPlaneInfo: *const api::VkDisplayPlaneInfo2KHR,
+    _pCapabilities: *mut api::VkDisplayPlaneCapabilities2KHR,
+) -> api::VkResult {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkGetImageMemoryRequirements2KHR(
+    _device: api::VkDevice,
+    _pInfo: *const api::VkImageMemoryRequirementsInfo2,
+    _pMemoryRequirements: *mut api::VkMemoryRequirements2,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkGetBufferMemoryRequirements2KHR(
+    _device: api::VkDevice,
+    _pInfo: *const api::VkBufferMemoryRequirementsInfo2,
+    _pMemoryRequirements: *mut api::VkMemoryRequirements2,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkGetImageSparseMemoryRequirements2KHR(
+    _device: api::VkDevice,
+    _pInfo: *const api::VkImageSparseMemoryRequirementsInfo2,
+    _pSparseMemoryRequirementCount: *mut u32,
+    _pSparseMemoryRequirements: *mut api::VkSparseImageMemoryRequirements2,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkCreateSamplerYcbcrConversionKHR(
+    _device: api::VkDevice,
+    _pCreateInfo: *const api::VkSamplerYcbcrConversionCreateInfo,
+    _pAllocator: *const api::VkAllocationCallbacks,
+    _pYcbcrConversion: *mut api::VkSamplerYcbcrConversion,
+) -> api::VkResult {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkDestroySamplerYcbcrConversionKHR(
+    _device: api::VkDevice,
+    _ycbcrConversion: api::VkSamplerYcbcrConversion,
+    _pAllocator: *const api::VkAllocationCallbacks,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkBindBufferMemory2KHR(
+    _device: api::VkDevice,
+    _bindInfoCount: u32,
+    _pBindInfos: *const api::VkBindBufferMemoryInfo,
+) -> api::VkResult {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkBindImageMemory2KHR(
+    _device: api::VkDevice,
+    _bindInfoCount: u32,
+    _pBindInfos: *const api::VkBindImageMemoryInfo,
+) -> api::VkResult {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkGetDescriptorSetLayoutSupportKHR(
+    _device: api::VkDevice,
+    _pCreateInfo: *const api::VkDescriptorSetLayoutCreateInfo,
+    _pSupport: *mut api::VkDescriptorSetLayoutSupport,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkCmdDrawIndirectCountKHR(
+    _commandBuffer: api::VkCommandBuffer,
+    _buffer: api::VkBuffer,
+    _offset: api::VkDeviceSize,
+    _countBuffer: api::VkBuffer,
+    _countBufferOffset: api::VkDeviceSize,
+    _maxDrawCount: u32,
+    _stride: u32,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkCmdDrawIndexedIndirectCountKHR(
+    _commandBuffer: api::VkCommandBuffer,
+    _buffer: api::VkBuffer,
+    _offset: api::VkDeviceSize,
+    _countBuffer: api::VkBuffer,
+    _countBufferOffset: api::VkDeviceSize,
+    _maxDrawCount: u32,
+    _stride: u32,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkCreateDebugReportCallbackEXT(
+    _instance: api::VkInstance,
+    _pCreateInfo: *const api::VkDebugReportCallbackCreateInfoEXT,
+    _pAllocator: *const api::VkAllocationCallbacks,
+    _pCallback: *mut api::VkDebugReportCallbackEXT,
+) -> api::VkResult {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkDestroyDebugReportCallbackEXT(
+    _instance: api::VkInstance,
+    _callback: api::VkDebugReportCallbackEXT,
+    _pAllocator: *const api::VkAllocationCallbacks,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkDebugReportMessageEXT(
+    _instance: api::VkInstance,
+    _flags: api::VkDebugReportFlagsEXT,
+    _objectType: api::VkDebugReportObjectTypeEXT,
+    _object: u64,
+    _location: usize,
+    _messageCode: i32,
+    _pLayerPrefix: *const ::std::os::raw::c_char,
+    _pMessage: *const ::std::os::raw::c_char,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkDebugMarkerSetObjectTagEXT(
+    _device: api::VkDevice,
+    _pTagInfo: *const api::VkDebugMarkerObjectTagInfoEXT,
+) -> api::VkResult {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkDebugMarkerSetObjectNameEXT(
+    _device: api::VkDevice,
+    _pNameInfo: *const api::VkDebugMarkerObjectNameInfoEXT,
+) -> api::VkResult {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkCmdDebugMarkerBeginEXT(
+    _commandBuffer: api::VkCommandBuffer,
+    _pMarkerInfo: *const api::VkDebugMarkerMarkerInfoEXT,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkCmdDebugMarkerEndEXT(_commandBuffer: api::VkCommandBuffer) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkCmdDebugMarkerInsertEXT(
+    _commandBuffer: api::VkCommandBuffer,
+    _pMarkerInfo: *const api::VkDebugMarkerMarkerInfoEXT,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkCmdDrawIndirectCountAMD(
+    _commandBuffer: api::VkCommandBuffer,
+    _buffer: api::VkBuffer,
+    _offset: api::VkDeviceSize,
+    _countBuffer: api::VkBuffer,
+    _countBufferOffset: api::VkDeviceSize,
+    _maxDrawCount: u32,
+    _stride: u32,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkCmdDrawIndexedIndirectCountAMD(
+    _commandBuffer: api::VkCommandBuffer,
+    _buffer: api::VkBuffer,
+    _offset: api::VkDeviceSize,
+    _countBuffer: api::VkBuffer,
+    _countBufferOffset: api::VkDeviceSize,
+    _maxDrawCount: u32,
+    _stride: u32,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkGetShaderInfoAMD(
+    _device: api::VkDevice,
+    _pipeline: api::VkPipeline,
+    _shaderStage: api::VkShaderStageFlagBits,
+    _infoType: api::VkShaderInfoTypeAMD,
+    _pInfoSize: *mut usize,
+    _pInfo: *mut ::std::os::raw::c_void,
+) -> api::VkResult {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkGetPhysicalDeviceExternalImageFormatPropertiesNV(
+    _physicalDevice: api::VkPhysicalDevice,
+    _format: api::VkFormat,
+    _type_: api::VkImageType,
+    _tiling: api::VkImageTiling,
+    _usage: api::VkImageUsageFlags,
+    _flags: api::VkImageCreateFlags,
+    _externalHandleType: api::VkExternalMemoryHandleTypeFlagsNV,
+    _pExternalImageFormatProperties: *mut api::VkExternalImageFormatPropertiesNV,
+) -> api::VkResult {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkCmdBeginConditionalRenderingEXT(
+    _commandBuffer: api::VkCommandBuffer,
+    _pConditionalRenderingBegin: *const api::VkConditionalRenderingBeginInfoEXT,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkCmdEndConditionalRenderingEXT(
+    _commandBuffer: api::VkCommandBuffer,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkCmdSetViewportWScalingNV(
+    _commandBuffer: api::VkCommandBuffer,
+    _firstViewport: u32,
+    _viewportCount: u32,
+    _pViewportWScalings: *const api::VkViewportWScalingNV,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkReleaseDisplayEXT(
+    _physicalDevice: api::VkPhysicalDevice,
+    _display: api::VkDisplayKHR,
+) -> api::VkResult {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkGetPhysicalDeviceSurfaceCapabilities2EXT(
+    _physicalDevice: api::VkPhysicalDevice,
+    _surface: api::VkSurfaceKHR,
+    _pSurfaceCapabilities: *mut api::VkSurfaceCapabilities2EXT,
+) -> api::VkResult {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkDisplayPowerControlEXT(
+    _device: api::VkDevice,
+    _display: api::VkDisplayKHR,
+    _pDisplayPowerInfo: *const api::VkDisplayPowerInfoEXT,
+) -> api::VkResult {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkRegisterDeviceEventEXT(
+    _device: api::VkDevice,
+    _pDeviceEventInfo: *const api::VkDeviceEventInfoEXT,
+    _pAllocator: *const api::VkAllocationCallbacks,
+    _pFence: *mut api::VkFence,
+) -> api::VkResult {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkRegisterDisplayEventEXT(
+    _device: api::VkDevice,
+    _display: api::VkDisplayKHR,
+    _pDisplayEventInfo: *const api::VkDisplayEventInfoEXT,
+    _pAllocator: *const api::VkAllocationCallbacks,
+    _pFence: *mut api::VkFence,
+) -> api::VkResult {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkGetSwapchainCounterEXT(
+    _device: api::VkDevice,
+    _swapchain: api::VkSwapchainKHR,
+    _counter: api::VkSurfaceCounterFlagBitsEXT,
+    _pCounterValue: *mut u64,
+) -> api::VkResult {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkGetRefreshCycleDurationGOOGLE(
+    _device: api::VkDevice,
+    _swapchain: api::VkSwapchainKHR,
+    _pDisplayTimingProperties: *mut api::VkRefreshCycleDurationGOOGLE,
+) -> api::VkResult {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkGetPastPresentationTimingGOOGLE(
+    _device: api::VkDevice,
+    _swapchain: api::VkSwapchainKHR,
+    _pPresentationTimingCount: *mut u32,
+    _pPresentationTimings: *mut api::VkPastPresentationTimingGOOGLE,
+) -> api::VkResult {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkCmdSetDiscardRectangleEXT(
+    _commandBuffer: api::VkCommandBuffer,
+    _firstDiscardRectangle: u32,
+    _discardRectangleCount: u32,
+    _pDiscardRectangles: *const api::VkRect2D,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkSetHdrMetadataEXT(
+    _device: api::VkDevice,
+    _swapchainCount: u32,
+    _pSwapchains: *const api::VkSwapchainKHR,
+    _pMetadata: *const api::VkHdrMetadataEXT,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkSetDebugUtilsObjectNameEXT(
+    _device: api::VkDevice,
+    _pNameInfo: *const api::VkDebugUtilsObjectNameInfoEXT,
+) -> api::VkResult {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkSetDebugUtilsObjectTagEXT(
+    _device: api::VkDevice,
+    _pTagInfo: *const api::VkDebugUtilsObjectTagInfoEXT,
+) -> api::VkResult {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkQueueBeginDebugUtilsLabelEXT(
+    _queue: api::VkQueue,
+    _pLabelInfo: *const api::VkDebugUtilsLabelEXT,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkQueueEndDebugUtilsLabelEXT(_queue: api::VkQueue) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkQueueInsertDebugUtilsLabelEXT(
+    _queue: api::VkQueue,
+    _pLabelInfo: *const api::VkDebugUtilsLabelEXT,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkCmdBeginDebugUtilsLabelEXT(
+    _commandBuffer: api::VkCommandBuffer,
+    _pLabelInfo: *const api::VkDebugUtilsLabelEXT,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkCmdEndDebugUtilsLabelEXT(_commandBuffer: api::VkCommandBuffer) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkCmdInsertDebugUtilsLabelEXT(
+    _commandBuffer: api::VkCommandBuffer,
+    _pLabelInfo: *const api::VkDebugUtilsLabelEXT,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkCreateDebugUtilsMessengerEXT(
+    _instance: api::VkInstance,
+    _pCreateInfo: *const api::VkDebugUtilsMessengerCreateInfoEXT,
+    _pAllocator: *const api::VkAllocationCallbacks,
+    _pMessenger: *mut api::VkDebugUtilsMessengerEXT,
+) -> api::VkResult {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkDestroyDebugUtilsMessengerEXT(
+    _instance: api::VkInstance,
+    _messenger: api::VkDebugUtilsMessengerEXT,
+    _pAllocator: *const api::VkAllocationCallbacks,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkSubmitDebugUtilsMessageEXT(
+    _instance: api::VkInstance,
+    _messageSeverity: api::VkDebugUtilsMessageSeverityFlagBitsEXT,
+    _messageTypes: api::VkDebugUtilsMessageTypeFlagsEXT,
+    _pCallbackData: *const api::VkDebugUtilsMessengerCallbackDataEXT,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkCmdSetSampleLocationsEXT(
+    _commandBuffer: api::VkCommandBuffer,
+    _pSampleLocationsInfo: *const api::VkSampleLocationsInfoEXT,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkGetPhysicalDeviceMultisamplePropertiesEXT(
+    _physicalDevice: api::VkPhysicalDevice,
+    _samples: api::VkSampleCountFlagBits,
+    _pMultisampleProperties: *mut api::VkMultisamplePropertiesEXT,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkCreateValidationCacheEXT(
+    _device: api::VkDevice,
+    _pCreateInfo: *const api::VkValidationCacheCreateInfoEXT,
+    _pAllocator: *const api::VkAllocationCallbacks,
+    _pValidationCache: *mut api::VkValidationCacheEXT,
+) -> api::VkResult {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkDestroyValidationCacheEXT(
+    _device: api::VkDevice,
+    _validationCache: api::VkValidationCacheEXT,
+    _pAllocator: *const api::VkAllocationCallbacks,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkMergeValidationCachesEXT(
+    _device: api::VkDevice,
+    _dstCache: api::VkValidationCacheEXT,
+    _srcCacheCount: u32,
+    _pSrcCaches: *const api::VkValidationCacheEXT,
+) -> api::VkResult {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkGetValidationCacheDataEXT(
+    _device: api::VkDevice,
+    _validationCache: api::VkValidationCacheEXT,
+    _pDataSize: *mut usize,
+    _pData: *mut ::std::os::raw::c_void,
+) -> api::VkResult {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkCmdBindShadingRateImageNV(
+    _commandBuffer: api::VkCommandBuffer,
+    _imageView: api::VkImageView,
+    _imageLayout: api::VkImageLayout,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkCmdSetViewportShadingRatePaletteNV(
+    _commandBuffer: api::VkCommandBuffer,
+    _firstViewport: u32,
+    _viewportCount: u32,
+    _pShadingRatePalettes: *const api::VkShadingRatePaletteNV,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkCmdSetCoarseSampleOrderNV(
+    _commandBuffer: api::VkCommandBuffer,
+    _sampleOrderType: api::VkCoarseSampleOrderTypeNV,
+    _customSampleOrderCount: u32,
+    _pCustomSampleOrders: *const api::VkCoarseSampleOrderCustomNV,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkGetMemoryHostPointerPropertiesEXT(
+    _device: api::VkDevice,
+    _handleType: api::VkExternalMemoryHandleTypeFlagBits,
+    _pHostPointer: *const ::std::os::raw::c_void,
+    _pMemoryHostPointerProperties: *mut api::VkMemoryHostPointerPropertiesEXT,
+) -> api::VkResult {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkCmdWriteBufferMarkerAMD(
+    _commandBuffer: api::VkCommandBuffer,
+    _pipelineStage: api::VkPipelineStageFlagBits,
+    _dstBuffer: api::VkBuffer,
+    _dstOffset: api::VkDeviceSize,
+    _marker: u32,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkCmdDrawMeshTasksNV(
+    _commandBuffer: api::VkCommandBuffer,
+    _taskCount: u32,
+    _firstTask: u32,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkCmdDrawMeshTasksIndirectNV(
+    _commandBuffer: api::VkCommandBuffer,
+    _buffer: api::VkBuffer,
+    _offset: api::VkDeviceSize,
+    _drawCount: u32,
+    _stride: u32,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkCmdDrawMeshTasksIndirectCountNV(
+    _commandBuffer: api::VkCommandBuffer,
+    _buffer: api::VkBuffer,
+    _offset: api::VkDeviceSize,
+    _countBuffer: api::VkBuffer,
+    _countBufferOffset: api::VkDeviceSize,
+    _maxDrawCount: u32,
+    _stride: u32,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkCmdSetExclusiveScissorNV(
+    _commandBuffer: api::VkCommandBuffer,
+    _firstExclusiveScissor: u32,
+    _exclusiveScissorCount: u32,
+    _pExclusiveScissors: *const api::VkRect2D,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkCmdSetCheckpointNV(
+    _commandBuffer: api::VkCommandBuffer,
+    _pCheckpointMarker: *const ::std::os::raw::c_void,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkGetQueueCheckpointDataNV(
+    _queue: api::VkQueue,
+    _pCheckpointDataCount: *mut u32,
+    _pCheckpointData: *mut api::VkCheckpointDataNV,
+) {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkCreateXcbSurfaceKHR(
+    _instance: api::VkInstance,
+    _pCreateInfo: *const api::VkXcbSurfaceCreateInfoKHR,
+    _pAllocator: *const api::VkAllocationCallbacks,
+    _pSurface: *mut api::VkSurfaceKHR,
+) -> api::VkResult {
+    unimplemented!()
+}
+
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkGetPhysicalDeviceXcbPresentationSupportKHR(
+    _physicalDevice: api::VkPhysicalDevice,
+    _queueFamilyIndex: u32,
+    _connection: *mut xcb::ffi::xcb_connection_t,
+    _visual_id: xcb::ffi::xcb_visualid_t,
+) -> api::VkBool32 {
+    unimplemented!()
 }

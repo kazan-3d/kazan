@@ -4,7 +4,12 @@ version = "0.1.0"
 authors = ["Jacob Lifshay <programmerjake@gmail.com>"]
 
 [lib]
+name = "kazan_driver"
 crate-type = ["cdylib"]
+
+[dependencies]
+enum-map = "0.4"
+uuid = {version = "0.7", features = ["v5"]}
 
 [target.'cfg(unix)'.dependencies]
 xcb = "0.8"

@@ -1,3 +1,6 @@
+#[macro_use]
+extern crate enum_map;
+extern crate uuid;
 #[cfg(unix)]
 extern crate xcb;
 mod api;
@@ -6,8 +9,12 @@ mod handle;
 use std::ffi::CStr;
 use std::os::raw::c_char;
 
+pub const KAZAN_VENDOR_ID: u32 = 0x10003;
+pub const KAZAN_DEVICE_NAME: &'static str = "Kazan Software Renderer";
+pub const MIN_MEMORY_MAP_ALIGNMENT: usize = 128; // must be at least 64 and a power of 2 according to Vulkan spec
+
 #[no_mangle]
-pub extern "system" fn vk_icdGetInstanceProcAddr(
+pub unsafe extern "system" fn vk_icdGetInstanceProcAddr(
     instance: api::VkInstance,
     name: *const c_char,
 ) -> api::PFN_vkVoidFunction {
@@ -37,11 +44,11 @@ const ASSERT_TYPE_VK_ICD_NEGOTIATE_LOADER_ICD_INTERFACE_VERSION:
     api::PFN_vkNegotiateLoaderICDInterfaceVersion = Some(vk_icdNegotiateLoaderICDInterfaceVersion);
 
 #[no_mangle]
-pub extern "system" fn vk_icdGetPhysicalDeviceProcAddr(
+pub unsafe extern "system" fn vk_icdGetPhysicalDeviceProcAddr(
     instance: api::VkInstance,
     name: *const c_char,
 ) -> api::PFN_vkVoidFunction {
-    match unsafe { CStr::from_ptr(name) }.to_str().ok()? {
+    match CStr::from_ptr(name).to_str().ok()? {
         "vkCreateDevice"
         | "vkCreateDisplayModeKHR"
         | "vkEnumerateDeviceExtensionProperties"

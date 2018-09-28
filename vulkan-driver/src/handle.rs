@@ -1,5 +1,7 @@
 use api;
+use api_impl::{Instance, PhysicalDevice};
 use std::marker::PhantomData;
+use std::mem;
 use std::ops::Deref;
 use std::ops::DerefMut;
 use std::ptr::null_mut;
@@ -39,27 +41,43 @@ pub trait Handle: Clone {
     type Value;
     fn get(&self) -> Option<NonNull<Self::Value>>;
     fn new(v: Option<NonNull<Self::Value>>) -> Self;
+    unsafe fn allocate<T: Into<Self::Value>>(v: T) -> Self {
+        Self::new(Some(NonNull::new_unchecked(Box::into_raw(Box::new(
+            v.into(),
+        )))))
+    }
+    unsafe fn free(self) {
+        Box::from_raw(self.get().unwrap().as_ptr());
+    }
     fn null() -> Self {
         Self::new(None)
+    }
+    fn is_null(&self) -> bool {
+        self.get().is_none()
+    }
+    fn take(&mut self) -> Self {
+        let retval = self.clone();
+        *self = Self::null();
+        retval
     }
 }
 
 #[repr(transparent)]
-pub struct DispatchableHandle<T>(Option<NonNull<DispatchableType<T>>>);
+pub struct DispatchableHandle<T>(Option<NonNull<()>>, PhantomData<*mut DispatchableType<T>>);
 
 impl<T> Clone for DispatchableHandle<T> {
     fn clone(&self) -> Self {
-        DispatchableHandle(self.0)
+        DispatchableHandle(self.0, PhantomData)
     }
 }
 
 impl<T> Handle for DispatchableHandle<T> {
     type Value = DispatchableType<T>;
     fn get(&self) -> Option<NonNull<DispatchableType<T>>> {
-        self.0
+        unsafe { mem::transmute(self.0) }
     }
     fn new(v: Option<NonNull<DispatchableType<T>>>) -> Self {
-        DispatchableHandle(v)
+        unsafe { DispatchableHandle(mem::transmute(v), PhantomData) }
     }
 }
 
@@ -85,9 +103,72 @@ impl<T> Handle for NondispatchableHandle<T> {
     }
 }
 
-pub type VkInstance = DispatchableHandle<::api_impl::Instance>;
+#[derive(Debug)]
+#[repr(transparent)]
+pub struct OwnedHandle<T: Handle>(T);
 
-pub struct PhysicalDevice {}
+impl<T: Handle> OwnedHandle<T> {
+    pub fn new<I: Into<T::Value>>(v: I) -> Self {
+        unsafe { OwnedHandle(T::allocate(v)) }
+    }
+    pub unsafe fn from(v: T) -> Self {
+        OwnedHandle(v)
+    }
+    pub unsafe fn take(mut self) -> T {
+        self.0.take()
+    }
+    pub unsafe fn get_handle(&self) -> &T {
+        &self.0
+    }
+}
+
+impl<T: Handle> Deref for OwnedHandle<T> {
+    type Target = T::Value;
+    fn deref(&self) -> &T::Value {
+        unsafe { &*self.0.get().unwrap().as_ptr() }
+    }
+}
+
+impl<T: Handle> DerefMut for OwnedHandle<T> {
+    fn deref_mut(&mut self) -> &mut T::Value {
+        unsafe { &mut *self.0.get().unwrap().as_ptr() }
+    }
+}
+
+impl<T: Handle> Drop for OwnedHandle<T> {
+    fn drop(&mut self) {
+        if !self.0.is_null() {
+            unsafe {
+                self.0.take().free();
+            }
+        }
+    }
+}
+
+#[derive(Debug)]
+#[repr(transparent)]
+pub struct SharedHandle<T: Handle>(T);
+
+impl<T: Handle> SharedHandle<T> {
+    pub unsafe fn from(v: T) -> Self {
+        SharedHandle(v)
+    }
+    pub unsafe fn take(mut self) -> T {
+        self.0.take()
+    }
+    pub unsafe fn get_handle(&self) -> &T {
+        &self.0
+    }
+}
+
+impl<T: Handle> Deref for SharedHandle<T> {
+    type Target = T::Value;
+    fn deref(&self) -> &T::Value {
+        unsafe { &*self.0.get().unwrap().as_ptr() }
+    }
+}
+
+pub type VkInstance = DispatchableHandle<Instance>;
 
 pub type VkPhysicalDevice = DispatchableHandle<PhysicalDevice>;
 
