@@ -37,7 +37,7 @@ impl<T> DerefMut for DispatchableType<T> {
     }
 }
 
-pub trait Handle: Clone {
+pub trait Handle: Copy {
     type Value;
     fn get(&self) -> Option<NonNull<Self::Value>>;
     fn new(v: Option<NonNull<Self::Value>>) -> Self;
@@ -71,6 +71,8 @@ impl<T> Clone for DispatchableHandle<T> {
     }
 }
 
+impl<T> Copy for DispatchableHandle<T> {}
+
 impl<T> Handle for DispatchableHandle<T> {
     type Value = DispatchableType<T>;
     fn get(&self) -> Option<NonNull<DispatchableType<T>>> {
@@ -89,6 +91,8 @@ impl<T> Clone for NondispatchableHandle<T> {
         NondispatchableHandle(self.0, PhantomData)
     }
 }
+
+impl<T> Copy for NondispatchableHandle<T> {}
 
 impl<T> Handle for NondispatchableHandle<T> {
     type Value = T;

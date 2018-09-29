@@ -1,5 +1,6 @@
 #[macro_use]
 extern crate enum_map;
+extern crate sys_info;
 extern crate uuid;
 #[cfg(unix)]
 extern crate xcb;
@@ -9,9 +10,12 @@ mod handle;
 use std::ffi::CStr;
 use std::os::raw::c_char;
 
-pub const KAZAN_VENDOR_ID: u32 = 0x10003;
-pub const KAZAN_DEVICE_NAME: &'static str = "Kazan Software Renderer";
-pub const MIN_MEMORY_MAP_ALIGNMENT: usize = 128; // must be at least 64 and a power of 2 according to Vulkan spec
+mod constants {
+    pub const KAZAN_DEVICE_NAME: &'static str = "Kazan Software Renderer";
+    pub const MIN_MEMORY_MAP_ALIGNMENT: usize = 128; // must be at least 64 and a power of 2 according to Vulkan spec
+    pub const QUEUE_FAMILY_COUNT: u32 = 1;
+    pub const QUEUE_COUNTS: [u32; QUEUE_FAMILY_COUNT as usize] = [1];
+}
 
 #[no_mangle]
 pub unsafe extern "system" fn vk_icdGetInstanceProcAddr(

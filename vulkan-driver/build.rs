@@ -97,14 +97,15 @@ fn main() -> io::Result<()> {
             continue;
         }
         builder = builder
-            .blacklist_type(name)
-            .blacklist_type(format!("{}_T", name));
+            .blacklist_type(format!("^{}$", name))
+            .blacklist_type(format!("^{}_T$", name));
     }
     builder = builder
         .whitelist_type("PFN_.*")
+        .whitelist_type("^Vk.*")
         .blacklist_type("^xcb_.*")
         .derive_debug(false)
-        .blacklist_function(".*")
+        .ignore_functions()
         .constified_enum(".*");
     let mut code = builder
         .generate()

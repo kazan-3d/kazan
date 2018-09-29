@@ -1,5 +1,6 @@
 #![allow(dead_code)]
 use api;
+use constants::*;
 use enum_map::EnumMap;
 use handle::{Handle, OwnedHandle, SharedHandle};
 use std::borrow::Borrow;
@@ -10,11 +11,9 @@ use std::ops::*;
 use std::os::raw::c_char;
 use std::slice;
 use std::str::FromStr;
+use sys_info;
 use uuid;
 use xcb;
-use KAZAN_DEVICE_NAME;
-use KAZAN_VENDOR_ID;
-use MIN_MEMORY_MAP_ALIGNMENT;
 
 fn copy_str_to_char_array(dest: &mut [c_char], src: &str) {
     assert!(dest.len() >= src.len() + 1);
@@ -533,6 +532,7 @@ pub struct PhysicalDevice {
     enabled_extensions: Extensions,
     allowed_extensions: Extensions,
     properties: api::VkPhysicalDeviceProperties,
+    system_memory_size: u64,
 }
 
 impl PhysicalDevice {
@@ -585,6 +585,14 @@ impl Instance {
                 );
             }
         }
+        let system_memory_size;
+        match sys_info::mem_info() {
+            Err(error) => {
+                eprintln!("mem_info error: {}", error);
+                return Err(api::VK_ERROR_INITIALIZATION_FAILED);
+            }
+            Ok(info) => system_memory_size = info.total * 1024,
+        }
         let mut device_name = [0; api::VK_MAX_PHYSICAL_DEVICE_NAME_SIZE as usize];
         copy_str_to_char_array(&mut device_name, KAZAN_DEVICE_NAME);
         let retval = OwnedHandle::<api::VkInstance>::new(Instance {
@@ -598,7 +606,7 @@ impl Instance {
                         env!("CARGO_PKG_VERSION_MINOR").parse().unwrap(),
                         env!("CARGO_PKG_VERSION_PATCH").parse().unwrap(),
                     ),
-                    vendorID: KAZAN_VENDOR_ID,
+                    vendorID: api::VK_VENDOR_ID_KAZAN,
                     deviceID: 1,
                     deviceType: api::VK_PHYSICAL_DEVICE_TYPE_CPU,
                     deviceName: device_name,
@@ -727,6 +735,7 @@ impl Instance {
                         residencyNonResidentStrict: api::VK_FALSE,
                     },
                 },
+                system_memory_size,
             }),
         });
         Ok(retval.take())
@@ -901,19 +910,51 @@ pub unsafe extern "system" fn vkGetPhysicalDeviceProperties(
 
 #[allow(non_snake_case)]
 pub unsafe extern "system" fn vkGetPhysicalDeviceQueueFamilyProperties(
-    _physicalDevice: api::VkPhysicalDevice,
-    _pQueueFamilyPropertyCount: *mut u32,
-    _pQueueFamilyProperties: *mut api::VkQueueFamilyProperties,
+    _physical_device: api::VkPhysicalDevice,
+    queue_family_property_count: *mut u32,
+    queue_family_properties: *mut api::VkQueueFamilyProperties,
 ) {
-    unimplemented!()
+    enumerate_helper(
+        queue_family_property_count,
+        queue_family_properties,
+        QUEUE_COUNTS
+            .iter()
+            .map(|&count| api::VkQueueFamilyProperties {
+                queueFlags: api::VK_QUEUE_GRAPHICS_BIT
+                    | api::VK_QUEUE_COMPUTE_BIT
+                    | api::VK_QUEUE_TRANSFER_BIT,
+                queueCount: count,
+                timestampValidBits: 0,
+                minImageTransferGranularity: api::VkExtent3D {
+                    width: 1,
+                    height: 1,
+                    depth: 1,
+                },
+            }),
+    );
 }
 
 #[allow(non_snake_case)]
 pub unsafe extern "system" fn vkGetPhysicalDeviceMemoryProperties(
-    _physicalDevice: api::VkPhysicalDevice,
-    _pMemoryProperties: *mut api::VkPhysicalDeviceMemoryProperties,
+    physical_device: api::VkPhysicalDevice,
+    memory_properties: *mut api::VkPhysicalDeviceMemoryProperties,
 ) {
-    unimplemented!()
+    let physical_device = SharedHandle::from(physical_device);
+    let mut properties: api::VkPhysicalDeviceMemoryProperties = mem::zeroed();
+    properties.memoryTypeCount = 1;
+    properties.memoryTypes[0] = api::VkMemoryType {
+        propertyFlags: api::VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT
+            | api::VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT
+            | api::VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
+            | api::VK_MEMORY_PROPERTY_HOST_CACHED_BIT,
+        heapIndex: 0,
+    };
+    properties.memoryHeapCount = 1;
+    properties.memoryHeaps[0] = api::VkMemoryHeap {
+        size: physical_device.system_memory_size * 7 / 8,
+        flags: api::VK_MEMORY_HEAP_DEVICE_LOCAL_BIT,
+    };
+    *memory_properties = properties;
 }
 
 #[allow(non_snake_case)]
