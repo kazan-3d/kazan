@@ -9,11 +9,220 @@ use std::iter;
 use std::mem;
 use std::ops::*;
 use std::os::raw::c_char;
+use std::ptr::null;
+use std::ptr::null_mut;
 use std::slice;
 use std::str::FromStr;
 use sys_info;
 use uuid;
 use xcb;
+
+/// structure types the driver should know about
+fn is_supported_structure_type(v: api::VkStructureType) -> bool {
+    match v {
+        api::VK_STRUCTURE_TYPE_APPLICATION_INFO
+        | api::VK_STRUCTURE_TYPE_BIND_BUFFER_MEMORY_DEVICE_GROUP_INFO
+        | api::VK_STRUCTURE_TYPE_BIND_BUFFER_MEMORY_INFO
+        | api::VK_STRUCTURE_TYPE_BIND_IMAGE_MEMORY_DEVICE_GROUP_INFO
+        | api::VK_STRUCTURE_TYPE_BIND_IMAGE_MEMORY_INFO
+        | api::VK_STRUCTURE_TYPE_BIND_IMAGE_PLANE_MEMORY_INFO
+        | api::VK_STRUCTURE_TYPE_BIND_SPARSE_INFO
+        | api::VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO
+        | api::VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER
+        | api::VK_STRUCTURE_TYPE_BUFFER_MEMORY_REQUIREMENTS_INFO_2
+        | api::VK_STRUCTURE_TYPE_BUFFER_VIEW_CREATE_INFO
+        | api::VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO
+        | api::VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO
+        | api::VK_STRUCTURE_TYPE_COMMAND_BUFFER_INHERITANCE_INFO
+        | api::VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO
+        | api::VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO
+        | api::VK_STRUCTURE_TYPE_COPY_DESCRIPTOR_SET
+        | api::VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO
+        | api::VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO
+        | api::VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO
+        | api::VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_SUPPORT
+        | api::VK_STRUCTURE_TYPE_DESCRIPTOR_UPDATE_TEMPLATE_CREATE_INFO
+        | api::VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO
+        | api::VK_STRUCTURE_TYPE_DEVICE_GROUP_BIND_SPARSE_INFO
+        | api::VK_STRUCTURE_TYPE_DEVICE_GROUP_COMMAND_BUFFER_BEGIN_INFO
+        | api::VK_STRUCTURE_TYPE_DEVICE_GROUP_DEVICE_CREATE_INFO
+        | api::VK_STRUCTURE_TYPE_DEVICE_GROUP_RENDER_PASS_BEGIN_INFO
+        | api::VK_STRUCTURE_TYPE_DEVICE_GROUP_SUBMIT_INFO
+        | api::VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO
+        | api::VK_STRUCTURE_TYPE_DEVICE_QUEUE_INFO_2
+        | api::VK_STRUCTURE_TYPE_EVENT_CREATE_INFO
+        | api::VK_STRUCTURE_TYPE_EXPORT_FENCE_CREATE_INFO
+        | api::VK_STRUCTURE_TYPE_EXPORT_MEMORY_ALLOCATE_INFO
+        | api::VK_STRUCTURE_TYPE_EXPORT_SEMAPHORE_CREATE_INFO
+        | api::VK_STRUCTURE_TYPE_EXTERNAL_BUFFER_PROPERTIES
+        | api::VK_STRUCTURE_TYPE_EXTERNAL_FENCE_PROPERTIES
+        | api::VK_STRUCTURE_TYPE_EXTERNAL_IMAGE_FORMAT_PROPERTIES
+        | api::VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_BUFFER_CREATE_INFO
+        | api::VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_IMAGE_CREATE_INFO
+        | api::VK_STRUCTURE_TYPE_EXTERNAL_SEMAPHORE_PROPERTIES
+        | api::VK_STRUCTURE_TYPE_FENCE_CREATE_INFO
+        | api::VK_STRUCTURE_TYPE_FORMAT_PROPERTIES_2
+        | api::VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO
+        | api::VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO
+        | api::VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO
+        | api::VK_STRUCTURE_TYPE_IMAGE_FORMAT_PROPERTIES_2
+        | api::VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER
+        | api::VK_STRUCTURE_TYPE_IMAGE_MEMORY_REQUIREMENTS_INFO_2
+        | api::VK_STRUCTURE_TYPE_IMAGE_PLANE_MEMORY_REQUIREMENTS_INFO
+        | api::VK_STRUCTURE_TYPE_IMAGE_SPARSE_MEMORY_REQUIREMENTS_INFO_2
+        | api::VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO
+        | api::VK_STRUCTURE_TYPE_IMAGE_VIEW_USAGE_CREATE_INFO
+        | api::VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO
+        | api::VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE
+        | api::VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_FLAGS_INFO
+        | api::VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO
+        | api::VK_STRUCTURE_TYPE_MEMORY_BARRIER
+        | api::VK_STRUCTURE_TYPE_MEMORY_DEDICATED_ALLOCATE_INFO
+        | api::VK_STRUCTURE_TYPE_MEMORY_DEDICATED_REQUIREMENTS
+        | api::VK_STRUCTURE_TYPE_MEMORY_REQUIREMENTS_2
+        | api::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_16BIT_STORAGE_FEATURES
+        | api::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_EXTERNAL_BUFFER_INFO
+        | api::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_EXTERNAL_FENCE_INFO
+        | api::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_EXTERNAL_IMAGE_FORMAT_INFO
+        | api::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_EXTERNAL_SEMAPHORE_INFO
+        | api::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2
+        | api::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_GROUP_PROPERTIES
+        | api::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ID_PROPERTIES
+        | api::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_IMAGE_FORMAT_INFO_2
+        | api::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MAINTENANCE_3_PROPERTIES
+        | api::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MEMORY_PROPERTIES_2
+        | api::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MULTIVIEW_FEATURES
+        | api::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MULTIVIEW_PROPERTIES
+        | api::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_POINT_CLIPPING_PROPERTIES
+        | api::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2
+        | api::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROTECTED_MEMORY_FEATURES
+        | api::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROTECTED_MEMORY_PROPERTIES
+        | api::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SAMPLER_YCBCR_CONVERSION_FEATURES
+        | api::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_DRAW_PARAMETER_FEATURES
+        | api::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SPARSE_IMAGE_FORMAT_INFO_2
+        | api::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SUBGROUP_PROPERTIES
+        | api::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VARIABLE_POINTER_FEATURES
+        | api::VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO
+        | api::VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO
+        | api::VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO
+        | api::VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO
+        | api::VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO
+        | api::VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO
+        | api::VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO
+        | api::VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO
+        | api::VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO
+        | api::VK_STRUCTURE_TYPE_PIPELINE_TESSELLATION_DOMAIN_ORIGIN_STATE_CREATE_INFO
+        | api::VK_STRUCTURE_TYPE_PIPELINE_TESSELLATION_STATE_CREATE_INFO
+        | api::VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO
+        | api::VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO
+        | api::VK_STRUCTURE_TYPE_PROTECTED_SUBMIT_INFO
+        | api::VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO
+        | api::VK_STRUCTURE_TYPE_QUEUE_FAMILY_PROPERTIES_2
+        | api::VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO
+        | api::VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO
+        | api::VK_STRUCTURE_TYPE_RENDER_PASS_INPUT_ATTACHMENT_ASPECT_CREATE_INFO
+        | api::VK_STRUCTURE_TYPE_RENDER_PASS_MULTIVIEW_CREATE_INFO
+        | api::VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO
+        | api::VK_STRUCTURE_TYPE_SAMPLER_YCBCR_CONVERSION_CREATE_INFO
+        | api::VK_STRUCTURE_TYPE_SAMPLER_YCBCR_CONVERSION_IMAGE_FORMAT_PROPERTIES
+        | api::VK_STRUCTURE_TYPE_SAMPLER_YCBCR_CONVERSION_INFO
+        | api::VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO
+        | api::VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO
+        | api::VK_STRUCTURE_TYPE_SPARSE_IMAGE_FORMAT_PROPERTIES_2
+        | api::VK_STRUCTURE_TYPE_SPARSE_IMAGE_MEMORY_REQUIREMENTS_2
+        | api::VK_STRUCTURE_TYPE_SUBMIT_INFO
+        | api::VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET => true,
+        _ => false,
+    }
+}
+
+fn verify_structure_type_is_supported(v: api::VkStructureType) {
+    assert!(
+        is_supported_structure_type(v),
+        "missing structure type in is_supported_structure_type: {:?}",
+        v
+    );
+}
+
+unsafe fn parse_next_chain_const(
+    root: *const api::VkBaseInStructure,
+    expected_root_struct_type: api::VkStructureType,
+    expected_child_structs: &[(api::VkStructureType, *mut *const api::VkBaseInStructure)],
+) {
+    verify_structure_type_is_supported(expected_root_struct_type);
+    let ref root = *root;
+    assert_eq!(root.sType, expected_root_struct_type);
+    for &(child_struct_type, child_struct) in expected_child_structs.iter() {
+        verify_structure_type_is_supported(child_struct_type);
+        *child_struct = null();
+    }
+    let mut child = root.pNext as *const api::VkBaseInStructure;
+    while !child.is_null() {
+        let ref child_ref = *child;
+        let search_for_type = child_ref.sType;
+        let mut found = false;
+        for &(child_struct_type, child_struct) in expected_child_structs.iter() {
+            if child_struct_type == search_for_type {
+                assert!(
+                    (*child_struct).is_null(),
+                    "duplicate struct type in pNext chain: {:?}",
+                    search_for_type
+                );
+                *child_struct = child;
+                found = true;
+                break;
+            }
+        }
+        assert!(
+            found || !is_supported_structure_type(search_for_type),
+            "unexpected struct type in pNext chain: {:?}",
+            search_for_type
+        );
+        child = child_ref.pNext as *const _;
+    }
+}
+
+unsafe fn parse_next_chain_mut(
+    root: *mut api::VkBaseOutStructure,
+    expected_root_struct_type: api::VkStructureType,
+    expected_child_structs: &[(api::VkStructureType, *mut *mut api::VkBaseOutStructure)],
+) {
+    parse_next_chain_const(
+        root as *const api::VkBaseInStructure,
+        expected_root_struct_type,
+        mem::transmute(expected_child_structs),
+    )
+}
+
+macro_rules! parse_next_chain_const {
+    {
+        $root:expr,
+        root = $root_type:expr,
+        $($name:ident: $var_type:ty = $struct_type:expr,)*
+    } => {
+        $(let mut $name: *const $var_type = null();)*
+        parse_next_chain_const(
+            $root as *const api::VkBaseInStructure,
+            $root_type,
+            &[$(($struct_type, &mut $name as *mut *const $var_type as *mut *const api::VkBaseInStructure)),*]
+        );
+    };
+}
+
+macro_rules! parse_next_chain_mut {
+    {
+        $root:expr,
+        root = $root_type:expr,
+        $($name:ident: $var_type:ty = $struct_type:expr,)*
+    } => {
+        $(let mut $name: *mut $var_type = null_mut();)*
+        parse_next_chain_mut(
+            $root as *mut api::VkBaseOutStructure,
+            $root_type,
+            &[$(($struct_type, &mut $name as *mut *mut $var_type as *mut *mut api::VkBaseOutStructure)),*]
+        );
+    };
+}
 
 fn copy_str_to_char_array(dest: &mut [c_char], src: &str) {
     assert!(dest.len() >= src.len() + 1);
@@ -31,6 +240,7 @@ fn copy_str_to_char_array(dest: &mut [c_char], src: &str) {
 #[allow(non_camel_case_types)]
 pub enum Extension {
     VK_KHR_surface,
+    VK_KHR_bind_memory2,
 }
 
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
@@ -42,7 +252,7 @@ pub enum ExtensionScope {
 impl Extension {
     pub fn get_required_extensions(self) -> Extensions {
         Extensions(match self {
-            Extension::VK_KHR_surface => enum_map!{_ => false},
+            Extension::VK_KHR_surface | Extension::VK_KHR_bind_memory2 => enum_map!{_ => false},
         })
     }
     pub fn get_recursively_required_extensions(self) -> Extensions {
@@ -65,17 +275,18 @@ impl Extension {
     }
     pub fn get_name(self) -> &'static str {
         macro_rules! name {
-            ($($name:ident),*) => {
+            ($($name:ident,)*) => {
                 match self {
                     $(Extension::$name => stringify!($name),)*
                 }
             }
         }
-        name!(VK_KHR_surface)
+        name!(VK_KHR_surface, VK_KHR_bind_memory2,)
     }
     pub fn get_spec_version(self) -> u32 {
         match self {
             Extension::VK_KHR_surface => api::VK_KHR_SURFACE_SPEC_VERSION,
+            Extension::VK_KHR_bind_memory2 => api::VK_KHR_BIND_MEMORY_2_SPEC_VERSION,
         }
     }
     pub fn get_properties(self) -> api::VkExtensionProperties {
@@ -89,6 +300,7 @@ impl Extension {
     pub fn get_scope(self) -> ExtensionScope {
         match self {
             Extension::VK_KHR_surface => ExtensionScope::Instance,
+            Extension::VK_KHR_bind_memory2 => ExtensionScope::Device,
         }
     }
 }
@@ -207,9 +419,9 @@ impl Not for Extensions {
 fn get_proc_address(
     name: *const c_char,
     has_instance_or_device: bool,
-    extensions: &EnumMap<Extension, bool>,
+    extensions: &Extensions,
 ) -> api::PFN_vkVoidFunction {
-    let name = unsafe { CStr::from_ptr(name) }.to_str().ok()?;
+    let mut name = unsafe { CStr::from_ptr(name) }.to_str().ok()?;
     use api::*;
     use std::mem::transmute;
     struct Scope {
@@ -220,11 +432,61 @@ fn get_proc_address(
         global: true,
         instance: has_instance_or_device,
     };
+    macro_rules! proc_alias_khr {
+        ($base_name:ident, $required_extension:expr) => {
+            if name == concat!(stringify!($base_name), "KHR") {
+                if scope.instance && $required_extension {
+                    name = stringify!($base_name);
+                } else {
+                    return None;
+                }
+            }
+        };
+    }
+    proc_alias_khr!(
+        vkBindBufferMemory2,
+        extensions[Extension::VK_KHR_bind_memory2]
+    );
+    proc_alias_khr!(
+        vkBindImageMemory2,
+        extensions[Extension::VK_KHR_bind_memory2]
+    );
+    eprintln!("finish adding functions");
+    /* FIXME: finish adding alias functions -- need to check each for interaction with VK_KHR_surface:
+    vkCmdDispatchBaseKHR
+    vkCmdSetDeviceMaskKHR
+    vkCreateDescriptorUpdateTemplateKHR
+    vkCreateSamplerYcbcrConversionKHR
+    vkDestroyDescriptorUpdateTemplateKHR
+    vkDestroySamplerYcbcrConversionKHR
+    vkEnumeratePhysicalDeviceGroupsKHR
+    vkGetBufferMemoryRequirements2KHR
+    vkGetDescriptorSetLayoutSupportKHR
+    vkGetDeviceGroupPeerMemoryFeaturesKHR
+    vkGetImageMemoryRequirements2KHR
+    vkGetImageSparseMemoryRequirements2KHR
+    vkGetPhysicalDeviceExternalBufferPropertiesKHR
+    vkGetPhysicalDeviceExternalFencePropertiesKHR
+    vkGetPhysicalDeviceExternalSemaphorePropertiesKHR
+    vkGetPhysicalDeviceFeatures2KHR
+    vkGetPhysicalDeviceFormatProperties2KHR
+    vkGetPhysicalDeviceImageFormatProperties2KHR
+    vkGetPhysicalDeviceMemoryProperties2KHR
+    vkGetPhysicalDeviceProperties2KHR
+    vkGetPhysicalDeviceQueueFamilyProperties2KHR
+    vkGetPhysicalDeviceSparseImageFormatProperties2KHR
+    vkTrimCommandPoolKHR
+    vkUpdateDescriptorSetWithTemplateKHR
+    */
     macro_rules! proc_address {
         ($name:ident, $pfn_name:ident, $required_scope:ident, $required_extension:expr) => {
-            if scope.$required_scope && $required_extension && stringify!($name) == name {
-                let f: $pfn_name = Some($name);
-                return unsafe { transmute(f) };
+            if stringify!($name) == name {
+                if scope.$required_scope && $required_extension {
+                    let f: $pfn_name = Some($name);
+                    return unsafe { transmute(f) };
+                } else {
+                    return None;
+                }
             }
         };
     }
@@ -234,6 +496,7 @@ fn get_proc_address(
         proc_address!(vkEnumerateInstanceExtensionProperties, PFN_vkEnumerateInstanceExtensionProperties, global, true);
         proc_address!(vkEnumerateInstanceLayerProperties, PFN_vkEnumerateInstanceLayerProperties, global, true);
         proc_address!(vkEnumerateInstanceVersion, PFN_vkEnumerateInstanceVersion, global, true);
+
         proc_address!(vkAllocateCommandBuffers, PFN_vkAllocateCommandBuffers, instance, true);
         proc_address!(vkAllocateDescriptorSets, PFN_vkAllocateDescriptorSets, instance, true);
         proc_address!(vkAllocateMemory, PFN_vkAllocateMemory, instance, true);
@@ -395,11 +658,16 @@ fn get_proc_address(
         proc_address!(vkUpdateDescriptorSets, PFN_vkUpdateDescriptorSets, instance, true);
         proc_address!(vkUpdateDescriptorSetWithTemplate, PFN_vkUpdateDescriptorSetWithTemplate, instance, true);
         proc_address!(vkWaitForFences, PFN_vkWaitForFences, instance, true);
+
+        proc_address!(vkDestroySurfaceKHR, PFN_vkDestroySurfaceKHR, instance, extensions[Extension::VK_KHR_surface]);
+        proc_address!(vkGetPhysicalDeviceSurfaceSupportKHR, PFN_vkGetPhysicalDeviceSurfaceSupportKHR, instance, extensions[Extension::VK_KHR_surface]);
+        proc_address!(vkGetPhysicalDeviceSurfaceCapabilitiesKHR, PFN_vkGetPhysicalDeviceSurfaceCapabilitiesKHR, instance, extensions[Extension::VK_KHR_surface]);
+        proc_address!(vkGetPhysicalDeviceSurfaceFormatsKHR, PFN_vkGetPhysicalDeviceSurfaceFormatsKHR, instance, extensions[Extension::VK_KHR_surface]);
+        proc_address!(vkGetPhysicalDeviceSurfacePresentModesKHR, PFN_vkGetPhysicalDeviceSurfacePresentModesKHR, instance, extensions[Extension::VK_KHR_surface]);
+
         /*
         proc_address!(vkAcquireNextImage2KHR, PFN_vkAcquireNextImage2KHR, instance, unknown);
         proc_address!(vkAcquireNextImageKHR, PFN_vkAcquireNextImageKHR, instance, unknown);
-        proc_address!(vkBindBufferMemory2KHR, PFN_vkBindBufferMemory2KHR, instance, unknown);
-        proc_address!(vkBindImageMemory2KHR, PFN_vkBindImageMemory2KHR, instance, unknown);
         proc_address!(vkCmdBeginConditionalRenderingEXT, PFN_vkCmdBeginConditionalRenderingEXT, instance, unknown);
         proc_address!(vkCmdBeginDebugUtilsLabelEXT, PFN_vkCmdBeginDebugUtilsLabelEXT, instance, unknown);
         proc_address!(vkCmdBeginRenderPass2KHR, PFN_vkCmdBeginRenderPass2KHR, instance, unknown);
@@ -451,7 +719,6 @@ fn get_proc_address(
         proc_address!(vkDestroyDebugUtilsMessengerEXT, PFN_vkDestroyDebugUtilsMessengerEXT, instance, unknown);
         proc_address!(vkDestroyDescriptorUpdateTemplateKHR, PFN_vkDestroyDescriptorUpdateTemplateKHR, instance, unknown);
         proc_address!(vkDestroySamplerYcbcrConversionKHR, PFN_vkDestroySamplerYcbcrConversionKHR, instance, unknown);
-        proc_address!(vkDestroySurfaceKHR, PFN_vkDestroySurfaceKHR, instance, unknown);
         proc_address!(vkDestroySwapchainKHR, PFN_vkDestroySwapchainKHR, instance, unknown);
         proc_address!(vkDestroyValidationCacheEXT, PFN_vkDestroyValidationCacheEXT, instance, unknown);
         proc_address!(vkDisplayPowerControlEXT, PFN_vkDisplayPowerControlEXT, instance, unknown);
@@ -492,11 +759,7 @@ fn get_proc_address(
         proc_address!(vkGetPhysicalDeviceSparseImageFormatProperties2KHR, PFN_vkGetPhysicalDeviceSparseImageFormatProperties2KHR, instance, unknown);
         proc_address!(vkGetPhysicalDeviceSurfaceCapabilities2EXT, PFN_vkGetPhysicalDeviceSurfaceCapabilities2EXT, instance, unknown);
         proc_address!(vkGetPhysicalDeviceSurfaceCapabilities2KHR, PFN_vkGetPhysicalDeviceSurfaceCapabilities2KHR, instance, unknown);
-        proc_address!(vkGetPhysicalDeviceSurfaceCapabilitiesKHR, PFN_vkGetPhysicalDeviceSurfaceCapabilitiesKHR, instance, unknown);
         proc_address!(vkGetPhysicalDeviceSurfaceFormats2KHR, PFN_vkGetPhysicalDeviceSurfaceFormats2KHR, instance, unknown);
-        proc_address!(vkGetPhysicalDeviceSurfaceFormatsKHR, PFN_vkGetPhysicalDeviceSurfaceFormatsKHR, instance, unknown);
-        proc_address!(vkGetPhysicalDeviceSurfacePresentModesKHR, PFN_vkGetPhysicalDeviceSurfacePresentModesKHR, instance, unknown);
-        proc_address!(vkGetPhysicalDeviceSurfaceSupportKHR, PFN_vkGetPhysicalDeviceSurfaceSupportKHR, instance, unknown);
         proc_address!(vkGetPhysicalDeviceXcbPresentationSupportKHR, PFN_vkGetPhysicalDeviceXcbPresentationSupportKHR, instance, unknown);
         proc_address!(vkGetQueueCheckpointDataNV, PFN_vkGetQueueCheckpointDataNV, instance, unknown);
         proc_address!(vkGetRefreshCycleDurationGOOGLE, PFN_vkGetRefreshCycleDurationGOOGLE, instance, unknown);
@@ -532,6 +795,7 @@ pub struct PhysicalDevice {
     enabled_extensions: Extensions,
     allowed_extensions: Extensions,
     properties: api::VkPhysicalDeviceProperties,
+    features: api::VkPhysicalDeviceFeatures,
     system_memory_size: u64,
 }
 
@@ -548,12 +812,13 @@ pub struct Instance {
 
 impl Instance {
     pub unsafe fn new(
-        create_info: &api::VkInstanceCreateInfo,
+        create_info: *const api::VkInstanceCreateInfo,
     ) -> Result<api::VkInstance, api::VkResult> {
-        assert_eq!(
-            create_info.sType,
-            api::VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO
-        );
+        parse_next_chain_const!{
+            create_info,
+            root = api::VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
+        }
+        let ref create_info = *create_info;
         if create_info.enabledLayerCount != 0 {
             return Err(api::VK_ERROR_LAYER_NOT_PRESENT);
         }
@@ -735,6 +1000,63 @@ impl Instance {
                         residencyNonResidentStrict: api::VK_FALSE,
                     },
                 },
+                features: api::VkPhysicalDeviceFeatures {
+                    robustBufferAccess: api::VK_TRUE,
+                    fullDrawIndexUint32: api::VK_TRUE,
+                    imageCubeArray: api::VK_TRUE,
+                    independentBlend: api::VK_FALSE,
+                    geometryShader: api::VK_FALSE,
+                    tessellationShader: api::VK_FALSE,
+                    sampleRateShading: api::VK_FALSE,
+                    dualSrcBlend: api::VK_FALSE,
+                    logicOp: api::VK_TRUE,
+                    multiDrawIndirect: api::VK_TRUE,
+                    drawIndirectFirstInstance: api::VK_TRUE,
+                    depthClamp: api::VK_FALSE,
+                    depthBiasClamp: api::VK_FALSE,
+                    fillModeNonSolid: api::VK_TRUE,
+                    depthBounds: api::VK_FALSE,
+                    wideLines: api::VK_FALSE,
+                    largePoints: api::VK_FALSE,
+                    alphaToOne: api::VK_TRUE,
+                    multiViewport: api::VK_TRUE,
+                    samplerAnisotropy: api::VK_FALSE,
+                    textureCompressionETC2: api::VK_FALSE, // FIXME: enable texture compression
+                    textureCompressionASTC_LDR: api::VK_FALSE, // FIXME: enable texture compression
+                    textureCompressionBC: api::VK_FALSE,   // FIXME: enable texture compression
+                    occlusionQueryPrecise: api::VK_FALSE,
+                    pipelineStatisticsQuery: api::VK_FALSE,
+                    vertexPipelineStoresAndAtomics: api::VK_FALSE,
+                    fragmentStoresAndAtomics: api::VK_FALSE,
+                    shaderTessellationAndGeometryPointSize: api::VK_FALSE,
+                    shaderImageGatherExtended: api::VK_FALSE,
+                    shaderStorageImageExtendedFormats: api::VK_FALSE,
+                    shaderStorageImageMultisample: api::VK_FALSE,
+                    shaderStorageImageReadWithoutFormat: api::VK_FALSE,
+                    shaderStorageImageWriteWithoutFormat: api::VK_FALSE,
+                    shaderUniformBufferArrayDynamicIndexing: api::VK_TRUE,
+                    shaderSampledImageArrayDynamicIndexing: api::VK_TRUE,
+                    shaderStorageBufferArrayDynamicIndexing: api::VK_TRUE,
+                    shaderStorageImageArrayDynamicIndexing: api::VK_TRUE,
+                    shaderClipDistance: api::VK_FALSE,
+                    shaderCullDistance: api::VK_FALSE,
+                    shaderFloat64: api::VK_TRUE,
+                    shaderInt64: api::VK_TRUE,
+                    shaderInt16: api::VK_TRUE,
+                    shaderResourceResidency: api::VK_FALSE,
+                    shaderResourceMinLod: api::VK_FALSE,
+                    sparseBinding: api::VK_FALSE,
+                    sparseResidencyBuffer: api::VK_FALSE,
+                    sparseResidencyImage2D: api::VK_FALSE,
+                    sparseResidencyImage3D: api::VK_FALSE,
+                    sparseResidency2Samples: api::VK_FALSE,
+                    sparseResidency4Samples: api::VK_FALSE,
+                    sparseResidency8Samples: api::VK_FALSE,
+                    sparseResidency16Samples: api::VK_FALSE,
+                    sparseResidencyAliased: api::VK_FALSE,
+                    variableMultisampleRate: api::VK_FALSE,
+                    inheritedQueries: api::VK_FALSE,
+                },
                 system_memory_size,
             }),
         });
@@ -755,7 +1077,7 @@ pub unsafe extern "system" fn vkGetInstanceProcAddr(
                 .physical_device
                 .allowed_extensions,
         ),
-        None => get_proc_address(name, false, &enum_map!{_ => false}),
+        None => get_proc_address(name, false, &Extensions::create_empty()),
     }
 }
 
@@ -815,32 +1137,28 @@ pub unsafe extern "system" fn vkEnumerateInstanceLayerProperties(
 
 #[allow(non_snake_case)]
 pub unsafe extern "system" fn vkEnumerateInstanceExtensionProperties(
-    pLayerName: *const ::std::os::raw::c_char,
+    layer_name: *const ::std::os::raw::c_char,
     property_count: *mut u32,
     properties: *mut api::VkExtensionProperties,
 ) -> api::VkResult {
-    if !pLayerName.is_null() {
-        return enumerate_helper(property_count, properties, &[]);
-    }
-    enumerate_helper(
+    enumerate_extension_properties(
+        layer_name,
         property_count,
         properties,
-        Extensions::default()
-            .iter()
-            .map(|(extension, _)| extension.get_properties()),
+        ExtensionScope::Instance,
     )
 }
 
 #[allow(non_snake_case)]
 pub unsafe extern "system" fn vkCreateInstance(
-    pCreateInfo: *const api::VkInstanceCreateInfo,
-    _pAllocator: *const api::VkAllocationCallbacks,
-    pInstance: *mut api::VkInstance,
+    create_info: *const api::VkInstanceCreateInfo,
+    _allocator: *const api::VkAllocationCallbacks,
+    instance: *mut api::VkInstance,
 ) -> api::VkResult {
-    *pInstance = Handle::null();
-    match Instance::new(&*pCreateInfo) {
-        Ok(instance) => {
-            *pInstance = instance;
+    *instance = Handle::null();
+    match Instance::new(create_info) {
+        Ok(v) => {
+            *instance = v;
             api::VK_SUCCESS
         }
         Err(error) => error,
@@ -850,7 +1168,7 @@ pub unsafe extern "system" fn vkCreateInstance(
 #[allow(non_snake_case)]
 pub unsafe extern "system" fn vkDestroyInstance(
     instance: api::VkInstance,
-    _pAllocator: *const api::VkAllocationCallbacks,
+    _allocator: *const api::VkAllocationCallbacks,
 ) {
     instance.free();
 }
@@ -858,23 +1176,29 @@ pub unsafe extern "system" fn vkDestroyInstance(
 #[allow(non_snake_case)]
 pub unsafe extern "system" fn vkEnumeratePhysicalDevices(
     instance: api::VkInstance,
-    pPhysicalDeviceCount: *mut u32,
-    pPhysicalDevices: *mut api::VkPhysicalDevice,
+    physical_device_count: *mut u32,
+    physical_devices: *mut api::VkPhysicalDevice,
 ) -> api::VkResult {
     let instance = SharedHandle::from(instance);
     enumerate_helper(
-        pPhysicalDeviceCount,
-        pPhysicalDevices,
+        physical_device_count,
+        physical_devices,
         iter::once(instance.physical_device.get_handle()),
     )
 }
 
 #[allow(non_snake_case)]
 pub unsafe extern "system" fn vkGetPhysicalDeviceFeatures(
-    _physicalDevice: api::VkPhysicalDevice,
-    _pFeatures: *mut api::VkPhysicalDeviceFeatures,
+    physical_device: api::VkPhysicalDevice,
+    features: *mut api::VkPhysicalDeviceFeatures,
 ) {
-    unimplemented!()
+    let mut v = api::VkPhysicalDeviceFeatures2 {
+        sType: api::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2,
+        pNext: null_mut(),
+        features: mem::zeroed(),
+    };
+    vkGetPhysicalDeviceFeatures2(physical_device, &mut v);
+    *features = v.features;
 }
 
 #[allow(non_snake_case)]
@@ -983,14 +1307,43 @@ pub unsafe extern "system" fn vkDestroyDevice(
     unimplemented!()
 }
 
+unsafe fn enumerate_extension_properties(
+    layer_name: *const ::std::os::raw::c_char,
+    property_count: *mut u32,
+    properties: *mut api::VkExtensionProperties,
+    extension_scope: ExtensionScope,
+) -> api::VkResult {
+    if !layer_name.is_null() {
+        return api::VK_ERROR_LAYER_NOT_PRESENT;
+    }
+    enumerate_helper(
+        property_count,
+        properties,
+        Extensions::default().iter().filter_map(
+            |(extension, _): (Extension, _)| -> Option<api::VkExtensionProperties> {
+                if extension.get_scope() == extension_scope {
+                    Some(extension.get_properties())
+                } else {
+                    None
+                }
+            },
+        ),
+    )
+}
+
 #[allow(non_snake_case)]
 pub unsafe extern "system" fn vkEnumerateDeviceExtensionProperties(
-    _physicalDevice: api::VkPhysicalDevice,
-    _pLayerName: *const ::std::os::raw::c_char,
-    _pPropertyCount: *mut u32,
-    _pProperties: *mut api::VkExtensionProperties,
+    _physical_device: api::VkPhysicalDevice,
+    layer_name: *const ::std::os::raw::c_char,
+    property_count: *mut u32,
+    properties: *mut api::VkExtensionProperties,
 ) -> api::VkResult {
-    unimplemented!()
+    enumerate_extension_properties(
+        layer_name,
+        property_count,
+        properties,
+        ExtensionScope::Device,
+    )
 }
 
 #[allow(non_snake_case)]
@@ -2276,10 +2629,35 @@ pub unsafe extern "system" fn vkGetImageSparseMemoryRequirements2(
 
 #[allow(non_snake_case)]
 pub unsafe extern "system" fn vkGetPhysicalDeviceFeatures2(
-    _physicalDevice: api::VkPhysicalDevice,
-    _pFeatures: *mut api::VkPhysicalDeviceFeatures2,
+    physical_device: api::VkPhysicalDevice,
+    features: *mut api::VkPhysicalDeviceFeatures2,
 ) {
-    unimplemented!()
+    parse_next_chain_mut!{
+        features,
+        root = api::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2,
+        sampler_ycbcr_conversion_features: api::VkPhysicalDeviceSamplerYcbcrConversionFeatures = api::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SAMPLER_YCBCR_CONVERSION_FEATURES,
+        physical_device_16bit_storage_features: api::VkPhysicalDevice16BitStorageFeatures = api::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_16BIT_STORAGE_FEATURES,
+        variable_pointer_features: api::VkPhysicalDeviceVariablePointerFeatures = api::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VARIABLE_POINTER_FEATURES,
+    }
+    let ref mut features = *features;
+    features.features = SharedHandle::from(physical_device).features;
+    if !sampler_ycbcr_conversion_features.is_null() {
+        let ref mut sampler_ycbcr_conversion_features = *sampler_ycbcr_conversion_features;
+        sampler_ycbcr_conversion_features.samplerYcbcrConversion = api::VK_FALSE;
+    }
+    if !physical_device_16bit_storage_features.is_null() {
+        let ref mut physical_device_16bit_storage_features =
+            *physical_device_16bit_storage_features;
+        physical_device_16bit_storage_features.storageBuffer16BitAccess = api::VK_TRUE;
+        physical_device_16bit_storage_features.uniformAndStorageBuffer16BitAccess = api::VK_TRUE;
+        physical_device_16bit_storage_features.storagePushConstant16 = api::VK_TRUE;
+        physical_device_16bit_storage_features.storageInputOutput16 = api::VK_TRUE;
+    }
+    if !variable_pointer_features.is_null() {
+        let ref mut variable_pointer_features = *variable_pointer_features;
+        variable_pointer_features.variablePointersStorageBuffer = api::VK_TRUE;
+        variable_pointer_features.variablePointers = api::VK_TRUE;
+    }
 }
 
 #[allow(non_snake_case)]
@@ -3037,24 +3415,6 @@ pub unsafe extern "system" fn vkDestroySamplerYcbcrConversionKHR(
     _ycbcrConversion: api::VkSamplerYcbcrConversion,
     _pAllocator: *const api::VkAllocationCallbacks,
 ) {
-    unimplemented!()
-}
-
-#[allow(non_snake_case)]
-pub unsafe extern "system" fn vkBindBufferMemory2KHR(
-    _device: api::VkDevice,
-    _bindInfoCount: u32,
-    _pBindInfos: *const api::VkBindBufferMemoryInfo,
-) -> api::VkResult {
-    unimplemented!()
-}
-
-#[allow(non_snake_case)]
-pub unsafe extern "system" fn vkBindImageMemory2KHR(
-    _device: api::VkDevice,
-    _bindInfoCount: u32,
-    _pBindInfos: *const api::VkBindImageMemoryInfo,
-) -> api::VkResult {
     unimplemented!()
 }
 
