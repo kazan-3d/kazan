@@ -1,4 +1,7 @@
 #!/bin/sh
+# SPDX-License-Identifier: LGPL-2.1-or-later
+# Copyright 2018 Jacob Lifshay
+
 set -e
 cargo build
 export VK_ICD_FILENAMES="$(realpath "$(ls --sort=time target/debug/build/vulkan-driver-*/out/kazan_driver.json | head -n 1)")"

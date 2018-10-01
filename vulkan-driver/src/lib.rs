@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+// Copyright 2018 Jacob Lifshay
 #[macro_use]
 extern crate enum_map;
 extern crate sys_info;

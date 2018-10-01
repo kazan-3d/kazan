@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+// Copyright 2018 Jacob Lifshay
 use api;
 use api_impl::{Instance, PhysicalDevice};
 use std::marker::PhantomData;
