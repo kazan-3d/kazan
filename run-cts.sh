@@ -12,6 +12,8 @@ elif [[ "$*" != '' ]]; then
     exit 1
 fi
 
+cts_output="$(realpath TestResults.qpa)"
+
 cts_source="$(realpath VK-GL-CTS)"
 
 if [[ ! -d "$cts_source" ]]; then
@@ -46,4 +48,4 @@ fi
     cd "$cts_build"
     ninja
 )
-exec ./run.sh bash -c "cd '$cts_build'/external/vulkancts/modules/vulkan; exec ./deqp-vk --deqp-caselist-file='$cts_source'/external/vulkancts/mustpass/1.1.3/vk-default.txt --deqp-log-images=disable --deqp-log-shader-sources=disable"
+exec ./run.sh bash -c "cd '$cts_build'/external/vulkancts/modules/vulkan; exec ./deqp-vk --deqp-caselist-file='$cts_source'/external/vulkancts/mustpass/1.1.3/vk-default.txt --deqp-log-images=disable --deqp-log-shader-sources=disable --deqp-log-filename='$cts_output'"
