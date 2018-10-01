@@ -6,6 +6,7 @@ use handle::{Handle, OwnedHandle, SharedHandle};
 use std::borrow::Borrow;
 use std::ffi::CStr;
 use std::iter;
+use std::iter::FromIterator;
 use std::mem;
 use std::ops::*;
 use std::os::raw::c_char;
@@ -241,6 +242,10 @@ fn copy_str_to_char_array(dest: &mut [c_char], src: &str) {
 pub enum Extension {
     VK_KHR_surface,
     VK_KHR_bind_memory2,
+    VK_KHR_device_group_creation,
+    VK_KHR_device_group,
+    VK_KHR_descriptor_update_template,
+    VK_KHR_maintenance1,
 }
 
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
@@ -249,11 +254,25 @@ pub enum ExtensionScope {
     Instance,
 }
 
+macro_rules! extensions {
+    [$($extension:expr),*] => {
+        {
+            let extensions: Extensions = [$($extension),*].iter().map(|v|*v).collect();
+            extensions
+        }
+    };
+}
+
 impl Extension {
     pub fn get_required_extensions(self) -> Extensions {
-        Extensions(match self {
-            Extension::VK_KHR_surface | Extension::VK_KHR_bind_memory2 => enum_map!{_ => false},
-        })
+        match self {
+            Extension::VK_KHR_surface
+            | Extension::VK_KHR_bind_memory2
+            | Extension::VK_KHR_device_group_creation
+            | Extension::VK_KHR_descriptor_update_template
+            | Extension::VK_KHR_maintenance1 => extensions![],
+            Extension::VK_KHR_device_group => extensions![Extension::VK_KHR_device_group_creation],
+        }
     }
     pub fn get_recursively_required_extensions(self) -> Extensions {
         let mut retval = self.get_required_extensions();
@@ -281,12 +300,27 @@ impl Extension {
                 }
             }
         }
-        name!(VK_KHR_surface, VK_KHR_bind_memory2,)
+        name!(
+            VK_KHR_surface,
+            VK_KHR_bind_memory2,
+            VK_KHR_device_group,
+            VK_KHR_device_group_creation,
+            VK_KHR_descriptor_update_template,
+            VK_KHR_maintenance1,
+        )
     }
     pub fn get_spec_version(self) -> u32 {
         match self {
             Extension::VK_KHR_surface => api::VK_KHR_SURFACE_SPEC_VERSION,
             Extension::VK_KHR_bind_memory2 => api::VK_KHR_BIND_MEMORY_2_SPEC_VERSION,
+            Extension::VK_KHR_device_group => api::VK_KHR_DEVICE_GROUP_SPEC_VERSION,
+            Extension::VK_KHR_device_group_creation => {
+                api::VK_KHR_DEVICE_GROUP_CREATION_SPEC_VERSION
+            }
+            Extension::VK_KHR_descriptor_update_template => {
+                api::VK_KHR_DESCRIPTOR_UPDATE_TEMPLATE_SPEC_VERSION
+            }
+            Extension::VK_KHR_maintenance1 => api::VK_KHR_MAINTENANCE1_SPEC_VERSION,
         }
     }
     pub fn get_properties(self) -> api::VkExtensionProperties {
@@ -299,8 +333,13 @@ impl Extension {
     }
     pub fn get_scope(self) -> ExtensionScope {
         match self {
-            Extension::VK_KHR_surface => ExtensionScope::Instance,
-            Extension::VK_KHR_bind_memory2 => ExtensionScope::Device,
+            Extension::VK_KHR_surface | Extension::VK_KHR_device_group_creation => {
+                ExtensionScope::Instance
+            }
+            Extension::VK_KHR_bind_memory2
+            | Extension::VK_KHR_device_group
+            | Extension::VK_KHR_descriptor_update_template
+            | Extension::VK_KHR_maintenance1 => ExtensionScope::Device,
         }
     }
 }
@@ -351,6 +390,16 @@ impl Extensions {
     }
     pub fn device_extensions() -> Self {
         !Self::instance_extensions()
+    }
+}
+
+impl FromIterator<Extension> for Extensions {
+    fn from_iter<T: IntoIterator<Item = Extension>>(v: T) -> Extensions {
+        let mut retval = Extensions::create_empty();
+        for extension in v {
+            retval[extension] = true;
+        }
+        retval
     }
 }
 
@@ -451,11 +500,20 @@ fn get_proc_address(
         vkBindImageMemory2,
         extensions[Extension::VK_KHR_bind_memory2]
     );
+    proc_alias_khr!(
+        vkCmdDispatchBase,
+        extensions[Extension::VK_KHR_device_group]
+    );
+    proc_alias_khr!(
+        vkCmdSetDeviceMask,
+        extensions[Extension::VK_KHR_device_group]
+    );
+    proc_alias_khr!(
+        vkCreateDescriptorUpdateTemplate,
+        extensions[Extension::VK_KHR_descriptor_update_template]
+    );
     eprintln!("finish adding functions");
     /* FIXME: finish adding alias functions -- need to check each for interaction with VK_KHR_surface:
-    vkCmdDispatchBaseKHR
-    vkCmdSetDeviceMaskKHR
-    vkCreateDescriptorUpdateTemplateKHR
     vkCreateSamplerYcbcrConversionKHR
     vkDestroyDescriptorUpdateTemplateKHR
     vkDestroySamplerYcbcrConversionKHR
@@ -666,7 +724,11 @@ fn get_proc_address(
         proc_address!(vkGetPhysicalDeviceSurfacePresentModesKHR, PFN_vkGetPhysicalDeviceSurfacePresentModesKHR, instance, extensions[Extension::VK_KHR_surface]);
 
         /*
-        proc_address!(vkAcquireNextImage2KHR, PFN_vkAcquireNextImage2KHR, instance, unknown);
+        proc_address!(vkGetDeviceGroupPresentCapabilitiesKHR, PFN_vkGetDeviceGroupPresentCapabilitiesKHR, instance, extensions[Extension::VK_KHR_swapchain]);
+        proc_address!(vkGetDeviceGroupSurfacePresentModesKHR, PFN_vkGetDeviceGroupSurfacePresentModesKHR, instance, extensions[Extension::VK_KHR_swapchain]);
+        proc_address!(vkGetPhysicalDevicePresentRectanglesKHR, PFN_vkGetPhysicalDevicePresentRectanglesKHR, instance, extensions[Extension::VK_KHR_swapchain]);
+        proc_address!(vkAcquireNextImage2KHR, PFN_vkAcquireNextImage2KHR, instance, extensions[Extension::VK_KHR_swapchain]);
+
         proc_address!(vkAcquireNextImageKHR, PFN_vkAcquireNextImageKHR, instance, unknown);
         proc_address!(vkCmdBeginConditionalRenderingEXT, PFN_vkCmdBeginConditionalRenderingEXT, instance, unknown);
         proc_address!(vkCmdBeginDebugUtilsLabelEXT, PFN_vkCmdBeginDebugUtilsLabelEXT, instance, unknown);
@@ -726,8 +788,6 @@ fn get_proc_address(
         proc_address!(vkGetBufferMemoryRequirements2KHR, PFN_vkGetBufferMemoryRequirements2KHR, instance, unknown);
         proc_address!(vkGetDescriptorSetLayoutSupportKHR, PFN_vkGetDescriptorSetLayoutSupportKHR, instance, unknown);
         proc_address!(vkGetDeviceGroupPeerMemoryFeaturesKHR, PFN_vkGetDeviceGroupPeerMemoryFeaturesKHR, instance, unknown);
-        proc_address!(vkGetDeviceGroupPresentCapabilitiesKHR, PFN_vkGetDeviceGroupPresentCapabilitiesKHR, instance, unknown);
-        proc_address!(vkGetDeviceGroupSurfacePresentModesKHR, PFN_vkGetDeviceGroupSurfacePresentModesKHR, instance, unknown);
         proc_address!(vkGetDisplayModeProperties2KHR, PFN_vkGetDisplayModeProperties2KHR, instance, unknown);
         proc_address!(vkGetDisplayModePropertiesKHR, PFN_vkGetDisplayModePropertiesKHR, instance, unknown);
         proc_address!(vkGetDisplayPlaneCapabilities2KHR, PFN_vkGetDisplayPlaneCapabilities2KHR, instance, unknown);
@@ -753,7 +813,6 @@ fn get_proc_address(
         proc_address!(vkGetPhysicalDeviceImageFormatProperties2KHR, PFN_vkGetPhysicalDeviceImageFormatProperties2KHR, instance, unknown);
         proc_address!(vkGetPhysicalDeviceMemoryProperties2KHR, PFN_vkGetPhysicalDeviceMemoryProperties2KHR, instance, unknown);
         proc_address!(vkGetPhysicalDeviceMultisamplePropertiesEXT, PFN_vkGetPhysicalDeviceMultisamplePropertiesEXT, instance, unknown);
-        proc_address!(vkGetPhysicalDevicePresentRectanglesKHR, PFN_vkGetPhysicalDevicePresentRectanglesKHR, instance, unknown);
         proc_address!(vkGetPhysicalDeviceProperties2KHR, PFN_vkGetPhysicalDeviceProperties2KHR, instance, unknown);
         proc_address!(vkGetPhysicalDeviceQueueFamilyProperties2KHR, PFN_vkGetPhysicalDeviceQueueFamilyProperties2KHR, instance, unknown);
         proc_address!(vkGetPhysicalDeviceSparseImageFormatProperties2KHR, PFN_vkGetPhysicalDeviceSparseImageFormatProperties2KHR, instance, unknown);
