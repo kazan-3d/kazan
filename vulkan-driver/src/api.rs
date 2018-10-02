@@ -16,3 +16,36 @@ pub use handle::{
 #[cfg(unix)]
 use xcb::ffi::{xcb_connection_t, xcb_visualid_t, xcb_window_t};
 include!(concat!(env!("OUT_DIR"), "/vulkan-types.rs"));
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct VkDebugReportCallbackCreateInfoEXT {
+    pub sType: VkStructureType,
+    pub pNext: *const ::std::os::raw::c_void,
+    pub flags: VkDebugReportFlagsEXT,
+    pub pfnCallback: PFN_vkDebugReportCallbackEXT,
+    pub pUserData: *mut ::std::os::raw::c_void,
+}
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct VkDebugUtilsMessengerCreateInfoEXT {
+    pub sType: VkStructureType,
+    pub pNext: *const ::std::os::raw::c_void,
+    pub flags: VkDebugUtilsMessengerCreateFlagsEXT,
+    pub messageSeverity: VkDebugUtilsMessageSeverityFlagsEXT,
+    pub messageType: VkDebugUtilsMessageTypeFlagsEXT,
+    pub pfnUserCallback: PFN_vkDebugUtilsMessengerCallbackEXT,
+    pub pUserData: *mut ::std::os::raw::c_void,
+}
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct VkAllocationCallbacks {
+    pub pUserData: *mut ::std::os::raw::c_void,
+    pub pfnAllocation: PFN_vkAllocationFunction,
+    pub pfnReallocation: PFN_vkReallocationFunction,
+    pub pfnFree: PFN_vkFreeFunction,
+    pub pfnInternalAllocation: PFN_vkInternalAllocationNotification,
+    pub pfnInternalFree: PFN_vkInternalFreeNotification,
+}

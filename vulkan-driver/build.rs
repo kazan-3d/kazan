@@ -106,7 +106,9 @@ fn main() -> io::Result<()> {
         .whitelist_type("PFN_.*")
         .whitelist_type("^Vk.*")
         .blacklist_type("^xcb_.*")
-        .derive_debug(false)
+        .blacklist_type("^VkDebugReportCallbackCreateInfoEXT$")
+        .blacklist_type("^VkDebugUtilsMessengerCreateInfoEXT$")
+        .blacklist_type("^VkAllocationCallbacks$")
         .ignore_functions()
         .constified_enum(".*");
     let mut code = builder

@@ -1009,12 +1009,15 @@ fn get_proc_address(
     None
 }
 
-#[derive(Copy, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub struct Features {
     features: api::VkPhysicalDeviceFeatures,
     physical_device_16bit_storage_features: api::VkPhysicalDevice16BitStorageFeatures,
     sampler_ycbcr_conversion_features: api::VkPhysicalDeviceSamplerYcbcrConversionFeatures,
     variable_pointer_features: api::VkPhysicalDeviceVariablePointerFeatures,
+    shader_draw_parameter_features: api::VkPhysicalDeviceShaderDrawParameterFeatures,
+    protected_memory_features: api::VkPhysicalDeviceProtectedMemoryFeatures,
+    multiview_features: api::VkPhysicalDeviceMultiviewFeatures,
 }
 
 impl Features {
@@ -1097,6 +1100,23 @@ impl Features {
                 variablePointersStorageBuffer: api::VK_TRUE,
                 variablePointers: api::VK_TRUE,
             },
+            shader_draw_parameter_features: api::VkPhysicalDeviceShaderDrawParameterFeatures {
+                sType: api::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_DRAW_PARAMETER_FEATURES,
+                pNext: null_mut(),
+                shaderDrawParameters: api::VK_FALSE,
+            },
+            protected_memory_features: api::VkPhysicalDeviceProtectedMemoryFeatures {
+                sType: api::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROTECTED_MEMORY_FEATURES,
+                pNext: null_mut(),
+                protectedMemory: api::VK_FALSE,
+            },
+            multiview_features: api::VkPhysicalDeviceMultiviewFeatures {
+                sType: api::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MULTIVIEW_FEATURES,
+                pNext: null_mut(),
+                multiview: api::VK_FALSE,
+                multiviewGeometryShader: api::VK_FALSE,
+                multiviewTessellationShader: api::VK_FALSE,
+            },
         }
     }
     fn splat(value: bool) -> Self {
@@ -1178,6 +1198,23 @@ impl Features {
                 pNext: null_mut(),
                 variablePointersStorageBuffer: value32,
                 variablePointers: value32,
+            },
+            shader_draw_parameter_features: api::VkPhysicalDeviceShaderDrawParameterFeatures {
+                sType: api::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_DRAW_PARAMETER_FEATURES,
+                pNext: null_mut(),
+                shaderDrawParameters: value32,
+            },
+            protected_memory_features: api::VkPhysicalDeviceProtectedMemoryFeatures {
+                sType: api::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROTECTED_MEMORY_FEATURES,
+                pNext: null_mut(),
+                protectedMemory: value32,
+            },
+            multiview_features: api::VkPhysicalDeviceMultiviewFeatures {
+                sType: api::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MULTIVIEW_FEATURES,
+                pNext: null_mut(),
+                multiview: value32,
+                multiviewGeometryShader: value32,
+                multiviewTessellationShader: value32,
             },
         }
     }
@@ -1271,6 +1308,11 @@ impl Features {
         visit!(sampler_ycbcr_conversion_features.samplerYcbcrConversion);
         visit!(variable_pointer_features.variablePointersStorageBuffer);
         visit!(variable_pointer_features.variablePointers);
+        visit!(shader_draw_parameter_features.shaderDrawParameters);
+        visit!(protected_memory_features.protectedMemory);
+        visit!(multiview_features.multiview);
+        visit!(multiview_features.multiviewGeometryShader);
+        visit!(multiview_features.multiviewTessellationShader);
     }
     fn visit2<F: FnMut(bool, bool)>(mut self, mut rhs: Self, mut f: F) {
         self.visit2_mut(&mut rhs, |v1, v2| f(*v1, *v2));
@@ -1342,6 +1384,18 @@ impl_import_export_feature_set!(
     VkPhysicalDeviceVariablePointerFeatures,
     variable_pointer_features
 );
+
+impl_import_export_feature_set!(
+    VkPhysicalDeviceShaderDrawParameterFeatures,
+    shader_draw_parameter_features
+);
+
+impl_import_export_feature_set!(
+    VkPhysicalDeviceProtectedMemoryFeatures,
+    protected_memory_features
+);
+
+impl_import_export_feature_set!(VkPhysicalDeviceMultiviewFeatures, multiview_features);
 
 impl Eq for Features {}
 
@@ -1437,7 +1491,7 @@ impl Device {
         }
         if !physical_device_features_2.is_null() {
             selected_features.import_feature_set(&*physical_device_features_2);
-        } else {
+        } else if !create_info.pEnabledFeatures.is_null() {
             selected_features.import_feature_set(&*create_info.pEnabledFeatures);
         }
         if !physical_device_multiview_features.is_null() {
@@ -1459,6 +1513,10 @@ impl Device {
         if !physical_device_variable_pointer_features.is_null() {
             selected_features.import_feature_set(&*physical_device_variable_pointer_features);
         }
+        assert_eq!(
+            selected_features & !physical_device.features,
+            Features::splat(false)
+        );
         unimplemented!()
     }
 }
@@ -1469,10 +1527,24 @@ pub struct PhysicalDevice {
     properties: api::VkPhysicalDeviceProperties,
     features: Features,
     system_memory_size: u64,
+    point_clipping_properties: api::VkPhysicalDevicePointClippingProperties,
+    multiview_properties: api::VkPhysicalDeviceMultiviewProperties,
+    id_properties: api::VkPhysicalDeviceIDProperties,
+    maintenance_3_properties: api::VkPhysicalDeviceMaintenance3Properties,
+    protected_memory_properties: api::VkPhysicalDeviceProtectedMemoryProperties,
+    subgroup_properties: api::VkPhysicalDeviceSubgroupProperties,
 }
 
 impl PhysicalDevice {
     pub fn get_pipeline_cache_uuid() -> uuid::Uuid {
+        // FIXME: return real uuid
+        uuid::Uuid::nil()
+    }
+    pub fn get_device_uuid() -> uuid::Uuid {
+        // FIXME: return real uuid
+        uuid::Uuid::nil()
+    }
+    pub fn get_driver_uuid() -> uuid::Uuid {
         // FIXME: return real uuid
         uuid::Uuid::nil()
     }
@@ -2992,6 +3064,45 @@ impl Instance {
                 },
                 features: Features::new(),
                 system_memory_size,
+                point_clipping_properties: api::VkPhysicalDevicePointClippingProperties {
+                    sType: api::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_POINT_CLIPPING_PROPERTIES,
+                    pNext: null_mut(),
+                    pointClippingBehavior: api::VK_POINT_CLIPPING_BEHAVIOR_ALL_CLIP_PLANES,
+                },
+                multiview_properties: api::VkPhysicalDeviceMultiviewProperties {
+                    sType: api::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MULTIVIEW_PROPERTIES,
+                    pNext: null_mut(),
+                    maxMultiviewViewCount: 6,
+                    maxMultiviewInstanceIndex: !0,
+                },
+                id_properties: api::VkPhysicalDeviceIDProperties {
+                    sType: api::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ID_PROPERTIES,
+                    pNext: null_mut(),
+                    deviceUUID: *PhysicalDevice::get_device_uuid().as_bytes(),
+                    driverUUID: *PhysicalDevice::get_driver_uuid().as_bytes(),
+                    deviceLUID: [0; api::VK_LUID_SIZE as usize],
+                    deviceNodeMask: 1,
+                    deviceLUIDValid: api::VK_FALSE,
+                },
+                maintenance_3_properties: api::VkPhysicalDeviceMaintenance3Properties {
+                    sType: api::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MAINTENANCE_3_PROPERTIES,
+                    pNext: null_mut(),
+                    maxPerSetDescriptors: !0,
+                    maxMemoryAllocationSize: isize::max_value() as u64,
+                },
+                protected_memory_properties: api::VkPhysicalDeviceProtectedMemoryProperties {
+                    sType: api::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROTECTED_MEMORY_PROPERTIES,
+                    pNext: null_mut(),
+                    protectedNoFault: api::VK_FALSE,
+                },
+                subgroup_properties: api::VkPhysicalDeviceSubgroupProperties {
+                    sType: api::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SUBGROUP_PROPERTIES,
+                    pNext: null_mut(),
+                    subgroupSize: 1, // FIXME fill in correct value
+                    supportedStages: api::VK_SHADER_STAGE_COMPUTE_BIT,
+                    supportedOperations: api::VK_SUBGROUP_FEATURE_BASIC_BIT,
+                    quadOperationsInAllStages: api::VK_FALSE,
+                },
             }),
         });
         Ok(retval.take())
@@ -4556,11 +4667,30 @@ pub unsafe extern "system" fn vkCmdDispatchBase(
 
 #[allow(non_snake_case)]
 pub unsafe extern "system" fn vkEnumeratePhysicalDeviceGroups(
-    _instance: api::VkInstance,
-    _pPhysicalDeviceGroupCount: *mut u32,
-    _pPhysicalDeviceGroupProperties: *mut api::VkPhysicalDeviceGroupProperties,
+    instance: api::VkInstance,
+    physical_device_group_count: *mut u32,
+    physical_device_group_properties: *mut api::VkPhysicalDeviceGroupProperties,
 ) -> api::VkResult {
-    unimplemented!()
+    enumerate_helper(
+        physical_device_group_count,
+        physical_device_group_properties,
+        iter::once(()),
+        |physical_device_group_properties, _| {
+            parse_next_chain_mut!{
+                physical_device_group_properties as *mut api::VkPhysicalDeviceGroupProperties,
+                root = api::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_GROUP_PROPERTIES,
+            }
+            let mut physical_devices = [Handle::null(); api::VK_MAX_DEVICE_GROUP_SIZE as usize];
+            physical_devices[0] = *SharedHandle::from(instance).physical_device.get_handle();
+            *physical_device_group_properties = api::VkPhysicalDeviceGroupProperties {
+                sType: physical_device_group_properties.sType,
+                pNext: physical_device_group_properties.pNext,
+                physicalDeviceCount: 1,
+                physicalDevices: physical_devices,
+                subsetAllocation: api::VK_TRUE,
+            };
+        },
+    )
 }
 
 #[allow(non_snake_case)]
@@ -4602,6 +4732,9 @@ pub unsafe extern "system" fn vkGetPhysicalDeviceFeatures2(
         sampler_ycbcr_conversion_features: api::VkPhysicalDeviceSamplerYcbcrConversionFeatures = api::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SAMPLER_YCBCR_CONVERSION_FEATURES,
         physical_device_16bit_storage_features: api::VkPhysicalDevice16BitStorageFeatures = api::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_16BIT_STORAGE_FEATURES,
         variable_pointer_features: api::VkPhysicalDeviceVariablePointerFeatures = api::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VARIABLE_POINTER_FEATURES,
+        physical_device_shader_draw_parameter_features: api::VkPhysicalDeviceShaderDrawParameterFeatures = api::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_DRAW_PARAMETER_FEATURES,
+        physical_device_protected_memory_features: api::VkPhysicalDeviceProtectedMemoryFeatures = api::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROTECTED_MEMORY_FEATURES,
+        physical_device_multiview_features: api::VkPhysicalDeviceMultiviewFeatures = api::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MULTIVIEW_FEATURES,
     }
     SharedHandle::from(physical_device)
         .features
@@ -4620,10 +4753,21 @@ pub unsafe extern "system" fn vkGetPhysicalDeviceFeatures2(
         SharedHandle::from(physical_device)
             .features
             .export_feature_set(&mut *variable_pointer_features);
-        //FIXME: finish
-        let ref mut variable_pointer_features = *variable_pointer_features;
-        variable_pointer_features.variablePointersStorageBuffer = api::VK_TRUE;
-        variable_pointer_features.variablePointers = api::VK_TRUE;
+    }
+    if !physical_device_shader_draw_parameter_features.is_null() {
+        SharedHandle::from(physical_device)
+            .features
+            .export_feature_set(&mut *physical_device_shader_draw_parameter_features);
+    }
+    if !physical_device_protected_memory_features.is_null() {
+        SharedHandle::from(physical_device)
+            .features
+            .export_feature_set(&mut *physical_device_protected_memory_features);
+    }
+    if !physical_device_multiview_features.is_null() {
+        SharedHandle::from(physical_device)
+            .features
+            .export_feature_set(&mut *physical_device_multiview_features);
     }
 }
 
@@ -4635,10 +4779,28 @@ pub unsafe extern "system" fn vkGetPhysicalDeviceProperties2(
     parse_next_chain_mut!{
         properties,
         root = api::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2,
+        point_clipping_properties: api::VkPhysicalDevicePointClippingProperties = api::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_POINT_CLIPPING_PROPERTIES,
+        multiview_properties: api::VkPhysicalDeviceMultiviewProperties = api::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MULTIVIEW_PROPERTIES,
     }
     let ref mut properties = *properties;
     let physical_device = SharedHandle::from(physical_device);
     properties.properties = physical_device.properties;
+    if !point_clipping_properties.is_null() {
+        let ref mut point_clipping_properties = *point_clipping_properties;
+        *point_clipping_properties = api::VkPhysicalDevicePointClippingProperties {
+            sType: point_clipping_properties.sType,
+            pNext: point_clipping_properties.pNext,
+            ..physical_device.point_clipping_properties
+        };
+    }
+    if !multiview_properties.is_null() {
+        let ref mut multiview_properties = *multiview_properties;
+        *multiview_properties = api::VkPhysicalDeviceMultiviewProperties {
+            sType: multiview_properties.sType,
+            pNext: multiview_properties.pNext,
+            ..physical_device.multiview_properties
+        };
+    }
 }
 
 #[allow(non_snake_case)]
