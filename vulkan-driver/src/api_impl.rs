@@ -5,7 +5,6 @@ use api;
 use constants::*;
 use enum_map::EnumMap;
 use handle::{Handle, OwnedHandle, SharedHandle};
-use std::borrow::Borrow;
 use std::ffi::CStr;
 use std::iter;
 use std::iter::FromIterator;
@@ -1010,11 +1009,465 @@ fn get_proc_address(
     None
 }
 
+#[derive(Copy, Clone)]
+pub struct Features {
+    features: api::VkPhysicalDeviceFeatures,
+    physical_device_16bit_storage_features: api::VkPhysicalDevice16BitStorageFeatures,
+    sampler_ycbcr_conversion_features: api::VkPhysicalDeviceSamplerYcbcrConversionFeatures,
+    variable_pointer_features: api::VkPhysicalDeviceVariablePointerFeatures,
+}
+
+impl Features {
+    fn new() -> Self {
+        Self {
+            features: api::VkPhysicalDeviceFeatures {
+                robustBufferAccess: api::VK_TRUE,
+                fullDrawIndexUint32: api::VK_TRUE,
+                imageCubeArray: api::VK_TRUE,
+                independentBlend: api::VK_FALSE,
+                geometryShader: api::VK_FALSE,
+                tessellationShader: api::VK_FALSE,
+                sampleRateShading: api::VK_FALSE,
+                dualSrcBlend: api::VK_FALSE,
+                logicOp: api::VK_TRUE,
+                multiDrawIndirect: api::VK_TRUE,
+                drawIndirectFirstInstance: api::VK_TRUE,
+                depthClamp: api::VK_FALSE,
+                depthBiasClamp: api::VK_FALSE,
+                fillModeNonSolid: api::VK_TRUE,
+                depthBounds: api::VK_FALSE,
+                wideLines: api::VK_FALSE,
+                largePoints: api::VK_FALSE,
+                alphaToOne: api::VK_TRUE,
+                multiViewport: api::VK_TRUE,
+                samplerAnisotropy: api::VK_FALSE,
+                textureCompressionETC2: api::VK_FALSE, // FIXME: enable texture compression
+                textureCompressionASTC_LDR: api::VK_FALSE, // FIXME: enable texture compression
+                textureCompressionBC: api::VK_FALSE,   // FIXME: enable texture compression
+                occlusionQueryPrecise: api::VK_FALSE,
+                pipelineStatisticsQuery: api::VK_FALSE,
+                vertexPipelineStoresAndAtomics: api::VK_TRUE,
+                fragmentStoresAndAtomics: api::VK_TRUE,
+                shaderTessellationAndGeometryPointSize: api::VK_FALSE,
+                shaderImageGatherExtended: api::VK_FALSE,
+                shaderStorageImageExtendedFormats: api::VK_FALSE,
+                shaderStorageImageMultisample: api::VK_FALSE,
+                shaderStorageImageReadWithoutFormat: api::VK_FALSE,
+                shaderStorageImageWriteWithoutFormat: api::VK_FALSE,
+                shaderUniformBufferArrayDynamicIndexing: api::VK_TRUE,
+                shaderSampledImageArrayDynamicIndexing: api::VK_TRUE,
+                shaderStorageBufferArrayDynamicIndexing: api::VK_TRUE,
+                shaderStorageImageArrayDynamicIndexing: api::VK_TRUE,
+                shaderClipDistance: api::VK_FALSE,
+                shaderCullDistance: api::VK_FALSE,
+                shaderFloat64: api::VK_TRUE,
+                shaderInt64: api::VK_TRUE,
+                shaderInt16: api::VK_TRUE,
+                shaderResourceResidency: api::VK_FALSE,
+                shaderResourceMinLod: api::VK_FALSE,
+                sparseBinding: api::VK_FALSE,
+                sparseResidencyBuffer: api::VK_FALSE,
+                sparseResidencyImage2D: api::VK_FALSE,
+                sparseResidencyImage3D: api::VK_FALSE,
+                sparseResidency2Samples: api::VK_FALSE,
+                sparseResidency4Samples: api::VK_FALSE,
+                sparseResidency8Samples: api::VK_FALSE,
+                sparseResidency16Samples: api::VK_FALSE,
+                sparseResidencyAliased: api::VK_FALSE,
+                variableMultisampleRate: api::VK_FALSE,
+                inheritedQueries: api::VK_FALSE,
+            },
+            physical_device_16bit_storage_features: api::VkPhysicalDevice16BitStorageFeatures {
+                sType: api::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_16BIT_STORAGE_FEATURES,
+                pNext: null_mut(),
+                storageBuffer16BitAccess: api::VK_TRUE,
+                uniformAndStorageBuffer16BitAccess: api::VK_TRUE,
+                storagePushConstant16: api::VK_TRUE,
+                storageInputOutput16: api::VK_TRUE,
+            },
+            sampler_ycbcr_conversion_features:
+                api::VkPhysicalDeviceSamplerYcbcrConversionFeatures {
+                    sType: api::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SAMPLER_YCBCR_CONVERSION_FEATURES,
+                    pNext: null_mut(),
+                    samplerYcbcrConversion: api::VK_FALSE,
+                },
+            variable_pointer_features: api::VkPhysicalDeviceVariablePointerFeatures {
+                sType: api::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VARIABLE_POINTER_FEATURES,
+                pNext: null_mut(),
+                variablePointersStorageBuffer: api::VK_TRUE,
+                variablePointers: api::VK_TRUE,
+            },
+        }
+    }
+    fn splat(value: bool) -> Self {
+        let value32 = if value { api::VK_TRUE } else { api::VK_FALSE };
+        Self {
+            features: api::VkPhysicalDeviceFeatures {
+                robustBufferAccess: value32,
+                fullDrawIndexUint32: value32,
+                imageCubeArray: value32,
+                independentBlend: value32,
+                geometryShader: value32,
+                tessellationShader: value32,
+                sampleRateShading: value32,
+                dualSrcBlend: value32,
+                logicOp: value32,
+                multiDrawIndirect: value32,
+                drawIndirectFirstInstance: value32,
+                depthClamp: value32,
+                depthBiasClamp: value32,
+                fillModeNonSolid: value32,
+                depthBounds: value32,
+                wideLines: value32,
+                largePoints: value32,
+                alphaToOne: value32,
+                multiViewport: value32,
+                samplerAnisotropy: value32,
+                textureCompressionETC2: value32,
+                textureCompressionASTC_LDR: value32,
+                textureCompressionBC: value32,
+                occlusionQueryPrecise: value32,
+                pipelineStatisticsQuery: value32,
+                vertexPipelineStoresAndAtomics: value32,
+                fragmentStoresAndAtomics: value32,
+                shaderTessellationAndGeometryPointSize: value32,
+                shaderImageGatherExtended: value32,
+                shaderStorageImageExtendedFormats: value32,
+                shaderStorageImageMultisample: value32,
+                shaderStorageImageReadWithoutFormat: value32,
+                shaderStorageImageWriteWithoutFormat: value32,
+                shaderUniformBufferArrayDynamicIndexing: value32,
+                shaderSampledImageArrayDynamicIndexing: value32,
+                shaderStorageBufferArrayDynamicIndexing: value32,
+                shaderStorageImageArrayDynamicIndexing: value32,
+                shaderClipDistance: value32,
+                shaderCullDistance: value32,
+                shaderFloat64: value32,
+                shaderInt64: value32,
+                shaderInt16: value32,
+                shaderResourceResidency: value32,
+                shaderResourceMinLod: value32,
+                sparseBinding: value32,
+                sparseResidencyBuffer: value32,
+                sparseResidencyImage2D: value32,
+                sparseResidencyImage3D: value32,
+                sparseResidency2Samples: value32,
+                sparseResidency4Samples: value32,
+                sparseResidency8Samples: value32,
+                sparseResidency16Samples: value32,
+                sparseResidencyAliased: value32,
+                variableMultisampleRate: value32,
+                inheritedQueries: value32,
+            },
+            physical_device_16bit_storage_features: api::VkPhysicalDevice16BitStorageFeatures {
+                sType: api::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_16BIT_STORAGE_FEATURES,
+                pNext: null_mut(),
+                storageBuffer16BitAccess: value32,
+                uniformAndStorageBuffer16BitAccess: value32,
+                storagePushConstant16: value32,
+                storageInputOutput16: value32,
+            },
+            sampler_ycbcr_conversion_features:
+                api::VkPhysicalDeviceSamplerYcbcrConversionFeatures {
+                    sType: api::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SAMPLER_YCBCR_CONVERSION_FEATURES,
+                    pNext: null_mut(),
+                    samplerYcbcrConversion: value32,
+                },
+            variable_pointer_features: api::VkPhysicalDeviceVariablePointerFeatures {
+                sType: api::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VARIABLE_POINTER_FEATURES,
+                pNext: null_mut(),
+                variablePointersStorageBuffer: value32,
+                variablePointers: value32,
+            },
+        }
+    }
+    fn visit2_mut<F: FnMut(&mut bool, &mut bool)>(&mut self, rhs: &mut Self, f: F) {
+        struct VisitorStruct<F: FnMut(&mut bool, &mut bool)>(F);
+        trait Visitor<T> {
+            fn visit(&mut self, v1: &mut T, v2: &mut T);
+        }
+        impl<F: FnMut(&mut bool, &mut bool)> Visitor<bool> for VisitorStruct<F> {
+            fn visit(&mut self, v1: &mut bool, v2: &mut bool) {
+                (self.0)(v1, v2);
+            }
+        }
+        impl<F: FnMut(&mut bool, &mut bool)> Visitor<api::VkBool32> for VisitorStruct<F> {
+            fn visit(&mut self, value1: &mut api::VkBool32, value2: &mut api::VkBool32) {
+                let mut temp1 = *value1 != api::VK_FALSE;
+                let mut temp2 = *value2 != api::VK_FALSE;
+                (self.0)(&mut temp1, &mut temp2);
+                *value1 = if temp1 { api::VK_TRUE } else { api::VK_FALSE };
+                *value2 = if temp2 { api::VK_TRUE } else { api::VK_FALSE };
+            }
+        }
+        let mut visitor = VisitorStruct(f);
+        macro_rules! visit {
+            ($member1:ident.$member2:ident) => {
+                visitor.visit(&mut self.$member1.$member2, &mut rhs.$member1.$member2)
+            };
+            ($member:ident) => {
+                visitor.visit(&mut self.$member1, &mut rhs.$member1)
+            };
+        }
+        visit!(features.robustBufferAccess);
+        visit!(features.fullDrawIndexUint32);
+        visit!(features.imageCubeArray);
+        visit!(features.independentBlend);
+        visit!(features.geometryShader);
+        visit!(features.tessellationShader);
+        visit!(features.sampleRateShading);
+        visit!(features.dualSrcBlend);
+        visit!(features.logicOp);
+        visit!(features.multiDrawIndirect);
+        visit!(features.drawIndirectFirstInstance);
+        visit!(features.depthClamp);
+        visit!(features.depthBiasClamp);
+        visit!(features.fillModeNonSolid);
+        visit!(features.depthBounds);
+        visit!(features.wideLines);
+        visit!(features.largePoints);
+        visit!(features.alphaToOne);
+        visit!(features.multiViewport);
+        visit!(features.samplerAnisotropy);
+        visit!(features.textureCompressionETC2);
+        visit!(features.textureCompressionASTC_LDR);
+        visit!(features.textureCompressionBC);
+        visit!(features.occlusionQueryPrecise);
+        visit!(features.pipelineStatisticsQuery);
+        visit!(features.vertexPipelineStoresAndAtomics);
+        visit!(features.fragmentStoresAndAtomics);
+        visit!(features.shaderTessellationAndGeometryPointSize);
+        visit!(features.shaderImageGatherExtended);
+        visit!(features.shaderStorageImageExtendedFormats);
+        visit!(features.shaderStorageImageMultisample);
+        visit!(features.shaderStorageImageReadWithoutFormat);
+        visit!(features.shaderStorageImageWriteWithoutFormat);
+        visit!(features.shaderUniformBufferArrayDynamicIndexing);
+        visit!(features.shaderSampledImageArrayDynamicIndexing);
+        visit!(features.shaderStorageBufferArrayDynamicIndexing);
+        visit!(features.shaderStorageImageArrayDynamicIndexing);
+        visit!(features.shaderClipDistance);
+        visit!(features.shaderCullDistance);
+        visit!(features.shaderFloat64);
+        visit!(features.shaderInt64);
+        visit!(features.shaderInt16);
+        visit!(features.shaderResourceResidency);
+        visit!(features.shaderResourceMinLod);
+        visit!(features.sparseBinding);
+        visit!(features.sparseResidencyBuffer);
+        visit!(features.sparseResidencyImage2D);
+        visit!(features.sparseResidencyImage3D);
+        visit!(features.sparseResidency2Samples);
+        visit!(features.sparseResidency4Samples);
+        visit!(features.sparseResidency8Samples);
+        visit!(features.sparseResidency16Samples);
+        visit!(features.sparseResidencyAliased);
+        visit!(features.variableMultisampleRate);
+        visit!(features.inheritedQueries);
+        visit!(physical_device_16bit_storage_features.storageBuffer16BitAccess);
+        visit!(physical_device_16bit_storage_features.uniformAndStorageBuffer16BitAccess);
+        visit!(physical_device_16bit_storage_features.storagePushConstant16);
+        visit!(physical_device_16bit_storage_features.storageInputOutput16);
+        visit!(sampler_ycbcr_conversion_features.samplerYcbcrConversion);
+        visit!(variable_pointer_features.variablePointersStorageBuffer);
+        visit!(variable_pointer_features.variablePointers);
+    }
+    fn visit2<F: FnMut(bool, bool)>(mut self, mut rhs: Self, mut f: F) {
+        self.visit2_mut(&mut rhs, |v1, v2| f(*v1, *v2));
+    }
+    fn visit_mut<F: FnMut(&mut bool)>(&mut self, mut f: F) {
+        let mut rhs = *self;
+        self.visit2_mut(&mut rhs, |v, _| f(v));
+    }
+    fn visit<F: FnMut(bool)>(mut self, mut f: F) {
+        self.visit_mut(|v| f(*v));
+    }
+}
+
+trait ImportExportFeatureSet<T> {
+    fn import_feature_set(&mut self, features: &T);
+    fn export_feature_set(&self, features: &mut T);
+}
+
+impl ImportExportFeatureSet<api::VkPhysicalDeviceFeatures> for Features {
+    fn import_feature_set(&mut self, features: &api::VkPhysicalDeviceFeatures) {
+        self.features = *features;
+    }
+    fn export_feature_set(&self, features: &mut api::VkPhysicalDeviceFeatures) {
+        *features = self.features;
+    }
+}
+
+impl ImportExportFeatureSet<api::VkPhysicalDeviceFeatures2> for Features {
+    fn import_feature_set(&mut self, features: &api::VkPhysicalDeviceFeatures2) {
+        self.features = features.features;
+    }
+    fn export_feature_set(&self, features: &mut api::VkPhysicalDeviceFeatures2) {
+        features.features = self.features;
+    }
+}
+
+macro_rules! impl_import_export_feature_set {
+    ($type:ident, $member:ident) => {
+        impl ImportExportFeatureSet<api::$type> for Features {
+            fn import_feature_set(&mut self, features: &api::$type) {
+                self.$member = api::$type {
+                    sType: self.$member.sType,
+                    pNext: self.$member.pNext,
+                    ..*features
+                };
+            }
+            fn export_feature_set(&self, features: &mut api::$type) {
+                *features = api::$type {
+                    sType: features.sType,
+                    pNext: features.pNext,
+                    ..self.$member
+                };
+            }
+        }
+    };
+}
+
+impl_import_export_feature_set!(
+    VkPhysicalDevice16BitStorageFeatures,
+    physical_device_16bit_storage_features
+);
+
+impl_import_export_feature_set!(
+    VkPhysicalDeviceSamplerYcbcrConversionFeatures,
+    sampler_ycbcr_conversion_features
+);
+
+impl_import_export_feature_set!(
+    VkPhysicalDeviceVariablePointerFeatures,
+    variable_pointer_features
+);
+
+impl Eq for Features {}
+
+impl PartialEq for Features {
+    fn eq(&self, rhs: &Self) -> bool {
+        let mut equal = true;
+        self.visit2(*rhs, |a, b| equal &= a == b);
+        equal
+    }
+}
+
+impl BitAndAssign for Features {
+    fn bitand_assign(&mut self, mut rhs: Self) {
+        self.visit2_mut(&mut rhs, |l, r| *l &= *r);
+    }
+}
+
+impl BitOrAssign for Features {
+    fn bitor_assign(&mut self, mut rhs: Self) {
+        self.visit2_mut(&mut rhs, |l, r| *l |= *r);
+    }
+}
+
+impl BitXorAssign for Features {
+    fn bitxor_assign(&mut self, mut rhs: Self) {
+        self.visit2_mut(&mut rhs, |l, r| *l ^= *r);
+    }
+}
+
+impl BitAnd for Features {
+    type Output = Self;
+    fn bitand(mut self, rhs: Self) -> Self {
+        self &= rhs;
+        self
+    }
+}
+
+impl BitOr for Features {
+    type Output = Self;
+    fn bitor(mut self, rhs: Self) -> Self {
+        self |= rhs;
+        self
+    }
+}
+
+impl BitXor for Features {
+    type Output = Self;
+    fn bitxor(mut self, rhs: Self) -> Self {
+        self ^= rhs;
+        self
+    }
+}
+
+impl Not for Features {
+    type Output = Self;
+    fn not(mut self) -> Self {
+        self.visit_mut(|v| *v = !*v);
+        self
+    }
+}
+
+pub struct Device {
+    physical_device: SharedHandle<api::VkPhysicalDevice>,
+    extensions: Extensions,
+    features: Features,
+}
+
+impl Device {
+    unsafe fn new(
+        physical_device: SharedHandle<api::VkPhysicalDevice>,
+        create_info: *const api::VkDeviceCreateInfo,
+    ) -> Result<OwnedHandle<api::VkDevice>, api::VkResult> {
+        parse_next_chain_const!{
+            create_info,
+            root = api::VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
+            device_group_device_create_info: api::VkDeviceGroupDeviceCreateInfo = api::VK_STRUCTURE_TYPE_DEVICE_GROUP_DEVICE_CREATE_INFO,
+            physical_device_16bit_storage_features: api::VkPhysicalDevice16BitStorageFeatures = api::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_16BIT_STORAGE_FEATURES,
+            physical_device_features_2: api::VkPhysicalDeviceFeatures2 = api::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2,
+            physical_device_multiview_features: api::VkPhysicalDeviceMultiviewFeatures = api::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MULTIVIEW_FEATURES,
+            physical_device_protected_memory_features: api::VkPhysicalDeviceProtectedMemoryFeatures = api::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROTECTED_MEMORY_FEATURES,
+            physical_device_sampler_ycbcr_conversion_features: api::VkPhysicalDeviceSamplerYcbcrConversionFeatures = api::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SAMPLER_YCBCR_CONVERSION_FEATURES,
+            physical_device_shader_draw_parameter_features: api::VkPhysicalDeviceShaderDrawParameterFeatures = api::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_DRAW_PARAMETER_FEATURES,
+            physical_device_variable_pointer_features: api::VkPhysicalDeviceVariablePointerFeatures = api::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VARIABLE_POINTER_FEATURES,
+        }
+        let ref create_info = *create_info;
+        let mut selected_features = Features::splat(false);
+        if !device_group_device_create_info.is_null() {
+            // FIXME: implement
+            unimplemented!()
+        }
+        if !physical_device_16bit_storage_features.is_null() {
+            selected_features.import_feature_set(&*physical_device_16bit_storage_features);
+        }
+        if !physical_device_features_2.is_null() {
+            selected_features.import_feature_set(&*physical_device_features_2);
+        } else {
+            selected_features.import_feature_set(&*create_info.pEnabledFeatures);
+        }
+        if !physical_device_multiview_features.is_null() {
+            // FIXME: implement
+            unimplemented!()
+        }
+        if !physical_device_protected_memory_features.is_null() {
+            // FIXME: implement
+            unimplemented!()
+        }
+        if !physical_device_sampler_ycbcr_conversion_features.is_null() {
+            selected_features
+                .import_feature_set(&*physical_device_sampler_ycbcr_conversion_features);
+        }
+        if !physical_device_shader_draw_parameter_features.is_null() {
+            // FIXME: implement
+            unimplemented!()
+        }
+        if !physical_device_variable_pointer_features.is_null() {
+            selected_features.import_feature_set(&*physical_device_variable_pointer_features);
+        }
+        unimplemented!()
+    }
+}
+
 pub struct PhysicalDevice {
     enabled_extensions: Extensions,
     allowed_extensions: Extensions,
     properties: api::VkPhysicalDeviceProperties,
-    features: api::VkPhysicalDeviceFeatures,
+    features: Features,
     system_memory_size: u64,
 }
 
@@ -1022,6 +1475,1324 @@ impl PhysicalDevice {
     pub fn get_pipeline_cache_uuid() -> uuid::Uuid {
         // FIXME: return real uuid
         uuid::Uuid::nil()
+    }
+    pub fn get_format_properties(format: api::VkFormat) -> api::VkFormatProperties {
+        match format {
+            api::VK_FORMAT_UNDEFINED => api::VkFormatProperties {
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_R4G4_UNORM_PACK8 => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_R4G4B4A4_UNORM_PACK16 => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_B4G4R4A4_UNORM_PACK16 => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_R5G6B5_UNORM_PACK16 => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_B5G6R5_UNORM_PACK16 => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_R5G5B5A1_UNORM_PACK16 => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_B5G5R5A1_UNORM_PACK16 => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_A1R5G5B5_UNORM_PACK16 => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_R8_UNORM => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_R8_SNORM => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_R8_USCALED => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_R8_SSCALED => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_R8_UINT => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_R8_SINT => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_R8_SRGB => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_R8G8_UNORM => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_R8G8_SNORM => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_R8G8_USCALED => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_R8G8_SSCALED => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_R8G8_UINT => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_R8G8_SINT => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_R8G8_SRGB => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_R8G8B8_UNORM => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_R8G8B8_SNORM => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_R8G8B8_USCALED => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_R8G8B8_SSCALED => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_R8G8B8_UINT => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_R8G8B8_SINT => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_R8G8B8_SRGB => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_B8G8R8_UNORM => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_B8G8R8_SNORM => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_B8G8R8_USCALED => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_B8G8R8_SSCALED => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_B8G8R8_UINT => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_B8G8R8_SINT => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_B8G8R8_SRGB => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_R8G8B8A8_UNORM => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_R8G8B8A8_SNORM => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_R8G8B8A8_USCALED => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_R8G8B8A8_SSCALED => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_R8G8B8A8_UINT => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_R8G8B8A8_SINT => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_R8G8B8A8_SRGB => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_B8G8R8A8_UNORM => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_B8G8R8A8_SNORM => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_B8G8R8A8_USCALED => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_B8G8R8A8_SSCALED => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_B8G8R8A8_UINT => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_B8G8R8A8_SINT => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_B8G8R8A8_SRGB => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_A8B8G8R8_UNORM_PACK32 => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_A8B8G8R8_SNORM_PACK32 => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_A8B8G8R8_USCALED_PACK32 => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_A8B8G8R8_SSCALED_PACK32 => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_A8B8G8R8_UINT_PACK32 => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_A8B8G8R8_SINT_PACK32 => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_A8B8G8R8_SRGB_PACK32 => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_A2R10G10B10_UNORM_PACK32 => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_A2R10G10B10_SNORM_PACK32 => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_A2R10G10B10_USCALED_PACK32 => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_A2R10G10B10_SSCALED_PACK32 => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_A2R10G10B10_UINT_PACK32 => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_A2R10G10B10_SINT_PACK32 => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_A2B10G10R10_UNORM_PACK32 => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_A2B10G10R10_SNORM_PACK32 => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_A2B10G10R10_USCALED_PACK32 => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_A2B10G10R10_SSCALED_PACK32 => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_A2B10G10R10_UINT_PACK32 => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_A2B10G10R10_SINT_PACK32 => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_R16_UNORM => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_R16_SNORM => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_R16_USCALED => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_R16_SSCALED => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_R16_UINT => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_R16_SINT => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_R16_SFLOAT => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_R16G16_UNORM => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_R16G16_SNORM => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_R16G16_USCALED => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_R16G16_SSCALED => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_R16G16_UINT => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_R16G16_SINT => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_R16G16_SFLOAT => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_R16G16B16_UNORM => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_R16G16B16_SNORM => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_R16G16B16_USCALED => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_R16G16B16_SSCALED => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_R16G16B16_UINT => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_R16G16B16_SINT => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_R16G16B16_SFLOAT => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_R16G16B16A16_UNORM => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_R16G16B16A16_SNORM => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_R16G16B16A16_USCALED => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_R16G16B16A16_SSCALED => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_R16G16B16A16_UINT => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_R16G16B16A16_SINT => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_R16G16B16A16_SFLOAT => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_R32_UINT => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_R32_SINT => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_R32_SFLOAT => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_R32G32_UINT => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_R32G32_SINT => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_R32G32_SFLOAT => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_R32G32B32_UINT => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_R32G32B32_SINT => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_R32G32B32_SFLOAT => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_R32G32B32A32_UINT => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_R32G32B32A32_SINT => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_R32G32B32A32_SFLOAT => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_R64_UINT => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_R64_SINT => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_R64_SFLOAT => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_R64G64_UINT => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_R64G64_SINT => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_R64G64_SFLOAT => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_R64G64B64_UINT => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_R64G64B64_SINT => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_R64G64B64_SFLOAT => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_R64G64B64A64_UINT => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_R64G64B64A64_SINT => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_R64G64B64A64_SFLOAT => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_B10G11R11_UFLOAT_PACK32 => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_E5B9G9R9_UFLOAT_PACK32 => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_D16_UNORM => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_X8_D24_UNORM_PACK32 => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_D32_SFLOAT => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_S8_UINT => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_D16_UNORM_S8_UINT => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_D24_UNORM_S8_UINT => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_D32_SFLOAT_S8_UINT => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_BC1_RGB_UNORM_BLOCK => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_BC1_RGB_SRGB_BLOCK => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_BC1_RGBA_UNORM_BLOCK => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_BC1_RGBA_SRGB_BLOCK => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_BC2_UNORM_BLOCK => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_BC2_SRGB_BLOCK => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_BC3_UNORM_BLOCK => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_BC3_SRGB_BLOCK => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_BC4_UNORM_BLOCK => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_BC4_SNORM_BLOCK => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_BC5_UNORM_BLOCK => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_BC5_SNORM_BLOCK => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_BC6H_UFLOAT_BLOCK => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_BC6H_SFLOAT_BLOCK => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_BC7_UNORM_BLOCK => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_BC7_SRGB_BLOCK => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_ETC2_R8G8B8_UNORM_BLOCK => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_ETC2_R8G8B8_SRGB_BLOCK => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_ETC2_R8G8B8A1_UNORM_BLOCK => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_ETC2_R8G8B8A1_SRGB_BLOCK => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_ETC2_R8G8B8A8_UNORM_BLOCK => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_ETC2_R8G8B8A8_SRGB_BLOCK => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_EAC_R11_UNORM_BLOCK => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_EAC_R11_SNORM_BLOCK => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_EAC_R11G11_UNORM_BLOCK => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_EAC_R11G11_SNORM_BLOCK => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_ASTC_4x4_UNORM_BLOCK => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_ASTC_4x4_SRGB_BLOCK => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_ASTC_5x4_UNORM_BLOCK => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_ASTC_5x4_SRGB_BLOCK => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_ASTC_5x5_UNORM_BLOCK => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_ASTC_5x5_SRGB_BLOCK => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_ASTC_6x5_UNORM_BLOCK => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_ASTC_6x5_SRGB_BLOCK => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_ASTC_6x6_UNORM_BLOCK => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_ASTC_6x6_SRGB_BLOCK => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_ASTC_8x5_UNORM_BLOCK => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_ASTC_8x5_SRGB_BLOCK => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_ASTC_8x6_UNORM_BLOCK => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_ASTC_8x6_SRGB_BLOCK => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_ASTC_8x8_UNORM_BLOCK => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_ASTC_8x8_SRGB_BLOCK => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_ASTC_10x5_UNORM_BLOCK => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_ASTC_10x5_SRGB_BLOCK => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_ASTC_10x6_UNORM_BLOCK => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_ASTC_10x6_SRGB_BLOCK => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_ASTC_10x8_UNORM_BLOCK => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_ASTC_10x8_SRGB_BLOCK => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_ASTC_10x10_UNORM_BLOCK => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_ASTC_10x10_SRGB_BLOCK => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_ASTC_12x10_UNORM_BLOCK => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_ASTC_12x10_SRGB_BLOCK => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_ASTC_12x12_UNORM_BLOCK => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_ASTC_12x12_SRGB_BLOCK => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_G8B8G8R8_422_UNORM => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_B8G8R8G8_422_UNORM => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_G8_B8_R8_3PLANE_420_UNORM => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_G8_B8R8_2PLANE_420_UNORM => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_G8_B8_R8_3PLANE_422_UNORM => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_G8_B8R8_2PLANE_422_UNORM => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_G8_B8_R8_3PLANE_444_UNORM => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_R10X6_UNORM_PACK16 => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_R10X6G10X6_UNORM_2PACK16 => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_R10X6G10X6B10X6A10X6_UNORM_4PACK16 => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_G10X6B10X6G10X6R10X6_422_UNORM_4PACK16 => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_B10X6G10X6R10X6G10X6_422_UNORM_4PACK16 => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_G10X6_B10X6_R10X6_3PLANE_420_UNORM_3PACK16 => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_G10X6_B10X6R10X6_2PLANE_420_UNORM_3PACK16 => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_G10X6_B10X6_R10X6_3PLANE_422_UNORM_3PACK16 => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_G10X6_B10X6R10X6_2PLANE_422_UNORM_3PACK16 => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_G10X6_B10X6_R10X6_3PLANE_444_UNORM_3PACK16 => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_R12X4_UNORM_PACK16 => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_R12X4G12X4_UNORM_2PACK16 => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_R12X4G12X4B12X4A12X4_UNORM_4PACK16 => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_G12X4B12X4G12X4R12X4_422_UNORM_4PACK16 => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_B12X4G12X4R12X4G12X4_422_UNORM_4PACK16 => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_G12X4_B12X4_R12X4_3PLANE_420_UNORM_3PACK16 => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_G12X4_B12X4R12X4_2PLANE_420_UNORM_3PACK16 => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_G12X4_B12X4_R12X4_3PLANE_422_UNORM_3PACK16 => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_G12X4_B12X4R12X4_2PLANE_422_UNORM_3PACK16 => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_G12X4_B12X4_R12X4_3PLANE_444_UNORM_3PACK16 => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_G16B16G16R16_422_UNORM => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_B16G16R16G16_422_UNORM => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_G16_B16_R16_3PLANE_420_UNORM => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_G16_B16R16_2PLANE_420_UNORM => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_G16_B16_R16_3PLANE_422_UNORM => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_G16_B16R16_2PLANE_422_UNORM => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            api::VK_FORMAT_G16_B16_R16_3PLANE_444_UNORM => api::VkFormatProperties {
+                // FIXME: finish
+                linearTilingFeatures: 0,
+                optimalTilingFeatures: 0,
+                bufferFeatures: 0,
+            },
+            _ => panic!("unknown format {}", format),
+        }
     }
 }
 
@@ -1219,63 +2990,7 @@ impl Instance {
                         residencyNonResidentStrict: api::VK_FALSE,
                     },
                 },
-                features: api::VkPhysicalDeviceFeatures {
-                    robustBufferAccess: api::VK_TRUE,
-                    fullDrawIndexUint32: api::VK_TRUE,
-                    imageCubeArray: api::VK_TRUE,
-                    independentBlend: api::VK_FALSE,
-                    geometryShader: api::VK_FALSE,
-                    tessellationShader: api::VK_FALSE,
-                    sampleRateShading: api::VK_FALSE,
-                    dualSrcBlend: api::VK_FALSE,
-                    logicOp: api::VK_TRUE,
-                    multiDrawIndirect: api::VK_TRUE,
-                    drawIndirectFirstInstance: api::VK_TRUE,
-                    depthClamp: api::VK_FALSE,
-                    depthBiasClamp: api::VK_FALSE,
-                    fillModeNonSolid: api::VK_TRUE,
-                    depthBounds: api::VK_FALSE,
-                    wideLines: api::VK_FALSE,
-                    largePoints: api::VK_FALSE,
-                    alphaToOne: api::VK_TRUE,
-                    multiViewport: api::VK_TRUE,
-                    samplerAnisotropy: api::VK_FALSE,
-                    textureCompressionETC2: api::VK_FALSE, // FIXME: enable texture compression
-                    textureCompressionASTC_LDR: api::VK_FALSE, // FIXME: enable texture compression
-                    textureCompressionBC: api::VK_FALSE,   // FIXME: enable texture compression
-                    occlusionQueryPrecise: api::VK_FALSE,
-                    pipelineStatisticsQuery: api::VK_FALSE,
-                    vertexPipelineStoresAndAtomics: api::VK_FALSE,
-                    fragmentStoresAndAtomics: api::VK_FALSE,
-                    shaderTessellationAndGeometryPointSize: api::VK_FALSE,
-                    shaderImageGatherExtended: api::VK_FALSE,
-                    shaderStorageImageExtendedFormats: api::VK_FALSE,
-                    shaderStorageImageMultisample: api::VK_FALSE,
-                    shaderStorageImageReadWithoutFormat: api::VK_FALSE,
-                    shaderStorageImageWriteWithoutFormat: api::VK_FALSE,
-                    shaderUniformBufferArrayDynamicIndexing: api::VK_TRUE,
-                    shaderSampledImageArrayDynamicIndexing: api::VK_TRUE,
-                    shaderStorageBufferArrayDynamicIndexing: api::VK_TRUE,
-                    shaderStorageImageArrayDynamicIndexing: api::VK_TRUE,
-                    shaderClipDistance: api::VK_FALSE,
-                    shaderCullDistance: api::VK_FALSE,
-                    shaderFloat64: api::VK_TRUE,
-                    shaderInt64: api::VK_TRUE,
-                    shaderInt16: api::VK_TRUE,
-                    shaderResourceResidency: api::VK_FALSE,
-                    shaderResourceMinLod: api::VK_FALSE,
-                    sparseBinding: api::VK_FALSE,
-                    sparseResidencyBuffer: api::VK_FALSE,
-                    sparseResidencyImage2D: api::VK_FALSE,
-                    sparseResidencyImage3D: api::VK_FALSE,
-                    sparseResidency2Samples: api::VK_FALSE,
-                    sparseResidency4Samples: api::VK_FALSE,
-                    sparseResidency8Samples: api::VK_FALSE,
-                    sparseResidency16Samples: api::VK_FALSE,
-                    sparseResidencyAliased: api::VK_FALSE,
-                    variableMultisampleRate: api::VK_FALSE,
-                    inheritedQueries: api::VK_FALSE,
-                },
+                features: Features::new(),
                 system_memory_size,
             }),
         });
@@ -1313,10 +3028,11 @@ pub unsafe extern "system" fn vkEnumerateInstanceVersion(api_version: *mut u32) 
     api::VK_SUCCESS
 }
 
-pub unsafe fn enumerate_helper<T: Clone, R: Borrow<T>, I: IntoIterator<Item = R>>(
+pub unsafe fn enumerate_helper<T, Item, I: IntoIterator<Item = Item>, AF: FnMut(&mut T, Item)>(
     api_value_count: *mut u32,
     api_values: *mut T,
     values: I,
+    mut assign_function: AF,
 ) -> api::VkResult {
     let mut retval = api::VK_SUCCESS;
     let mut api_values = if api_values.is_null() {
@@ -1334,7 +3050,7 @@ pub unsafe fn enumerate_helper<T: Clone, R: Borrow<T>, I: IntoIterator<Item = R>
                 retval = api::VK_INCOMPLETE;
                 break;
             } else {
-                api_values[final_count] = value.borrow().clone();
+                assign_function(&mut api_values[final_count], value);
                 final_count += 1;
             }
         } else {
@@ -1351,7 +3067,7 @@ pub unsafe extern "system" fn vkEnumerateInstanceLayerProperties(
     property_count: *mut u32,
     properties: *mut api::VkLayerProperties,
 ) -> api::VkResult {
-    enumerate_helper(property_count, properties, &[])
+    enumerate_helper(property_count, properties, &[], |l, r| *l = *r)
 }
 
 #[allow(non_snake_case)]
@@ -1389,7 +3105,7 @@ pub unsafe extern "system" fn vkDestroyInstance(
     instance: api::VkInstance,
     _allocator: *const api::VkAllocationCallbacks,
 ) {
-    instance.free();
+    OwnedHandle::from(instance);
 }
 
 #[allow(non_snake_case)]
@@ -1402,7 +3118,8 @@ pub unsafe extern "system" fn vkEnumeratePhysicalDevices(
     enumerate_helper(
         physical_device_count,
         physical_devices,
-        iter::once(instance.physical_device.get_handle()),
+        iter::once(*instance.physical_device.get_handle()),
+        |l, r| *l = r,
     )
 }
 
@@ -1422,11 +3139,17 @@ pub unsafe extern "system" fn vkGetPhysicalDeviceFeatures(
 
 #[allow(non_snake_case)]
 pub unsafe extern "system" fn vkGetPhysicalDeviceFormatProperties(
-    _physicalDevice: api::VkPhysicalDevice,
-    _format: api::VkFormat,
-    _pFormatProperties: *mut api::VkFormatProperties,
+    physical_device: api::VkPhysicalDevice,
+    format: api::VkFormat,
+    format_properties: *mut api::VkFormatProperties,
 ) {
-    unimplemented!()
+    let mut format_properties2 = api::VkFormatProperties2 {
+        sType: api::VK_STRUCTURE_TYPE_FORMAT_PROPERTIES_2,
+        pNext: null_mut(),
+        formatProperties: mem::zeroed(),
+    };
+    vkGetPhysicalDeviceFormatProperties2(physical_device, format, &mut format_properties2);
+    *format_properties = format_properties2.formatProperties;
 }
 
 #[allow(non_snake_case)]
@@ -1451,29 +3174,52 @@ pub unsafe extern "system" fn vkGetPhysicalDeviceProperties(
     *properties = physical_device.properties;
 }
 
+unsafe fn get_physical_device_queue_family_properties(
+    _physical_device: SharedHandle<api::VkPhysicalDevice>,
+    queue_family_properties: &mut api::VkQueueFamilyProperties2,
+    queue_count: u32,
+) {
+    parse_next_chain_mut!{
+        queue_family_properties as *mut api::VkQueueFamilyProperties2,
+        root = api::VK_STRUCTURE_TYPE_QUEUE_FAMILY_PROPERTIES_2,
+    }
+    queue_family_properties.queueFamilyProperties = api::VkQueueFamilyProperties {
+        queueFlags: api::VK_QUEUE_GRAPHICS_BIT
+            | api::VK_QUEUE_COMPUTE_BIT
+            | api::VK_QUEUE_TRANSFER_BIT,
+        queueCount: queue_count,
+        timestampValidBits: 0,
+        minImageTransferGranularity: api::VkExtent3D {
+            width: 1,
+            height: 1,
+            depth: 1,
+        },
+    };
+}
+
 #[allow(non_snake_case)]
 pub unsafe extern "system" fn vkGetPhysicalDeviceQueueFamilyProperties(
-    _physical_device: api::VkPhysicalDevice,
+    physical_device: api::VkPhysicalDevice,
     queue_family_property_count: *mut u32,
     queue_family_properties: *mut api::VkQueueFamilyProperties,
 ) {
     enumerate_helper(
         queue_family_property_count,
         queue_family_properties,
-        QUEUE_COUNTS
-            .iter()
-            .map(|&count| api::VkQueueFamilyProperties {
-                queueFlags: api::VK_QUEUE_GRAPHICS_BIT
-                    | api::VK_QUEUE_COMPUTE_BIT
-                    | api::VK_QUEUE_TRANSFER_BIT,
-                queueCount: count,
-                timestampValidBits: 0,
-                minImageTransferGranularity: api::VkExtent3D {
-                    width: 1,
-                    height: 1,
-                    depth: 1,
-                },
-            }),
+        QUEUE_COUNTS.iter(),
+        |queue_family_properties, &count| {
+            let mut queue_family_properties2 = api::VkQueueFamilyProperties2 {
+                sType: api::VK_STRUCTURE_TYPE_QUEUE_FAMILY_PROPERTIES_2,
+                pNext: null_mut(),
+                queueFamilyProperties: mem::zeroed(),
+            };
+            get_physical_device_queue_family_properties(
+                SharedHandle::from(physical_device),
+                &mut queue_family_properties2,
+                count,
+            );
+            *queue_family_properties = queue_family_properties2.queueFamilyProperties;
+        },
     );
 }
 
@@ -1482,22 +3228,13 @@ pub unsafe extern "system" fn vkGetPhysicalDeviceMemoryProperties(
     physical_device: api::VkPhysicalDevice,
     memory_properties: *mut api::VkPhysicalDeviceMemoryProperties,
 ) {
-    let physical_device = SharedHandle::from(physical_device);
-    let mut properties: api::VkPhysicalDeviceMemoryProperties = mem::zeroed();
-    properties.memoryTypeCount = 1;
-    properties.memoryTypes[0] = api::VkMemoryType {
-        propertyFlags: api::VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT
-            | api::VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT
-            | api::VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
-            | api::VK_MEMORY_PROPERTY_HOST_CACHED_BIT,
-        heapIndex: 0,
+    let mut memory_properties2 = api::VkPhysicalDeviceMemoryProperties2 {
+        sType: api::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MEMORY_PROPERTIES_2,
+        pNext: null_mut(),
+        memoryProperties: mem::zeroed(),
     };
-    properties.memoryHeapCount = 1;
-    properties.memoryHeaps[0] = api::VkMemoryHeap {
-        size: physical_device.system_memory_size * 7 / 8,
-        flags: api::VK_MEMORY_HEAP_DEVICE_LOCAL_BIT,
-    };
-    *memory_properties = properties;
+    vkGetPhysicalDeviceMemoryProperties2(physical_device, &mut memory_properties2);
+    *memory_properties = memory_properties2.memoryProperties;
 }
 
 #[allow(non_snake_case)]
@@ -1510,20 +3247,27 @@ pub unsafe extern "system" fn vkGetDeviceProcAddr(
 
 #[allow(non_snake_case)]
 pub unsafe extern "system" fn vkCreateDevice(
-    _physicalDevice: api::VkPhysicalDevice,
-    _pCreateInfo: *const api::VkDeviceCreateInfo,
-    _pAllocator: *const api::VkAllocationCallbacks,
-    _pDevice: *mut api::VkDevice,
+    physical_device: api::VkPhysicalDevice,
+    create_info: *const api::VkDeviceCreateInfo,
+    _allocator: *const api::VkAllocationCallbacks,
+    device: *mut api::VkDevice,
 ) -> api::VkResult {
-    unimplemented!()
+    *device = Handle::null();
+    match Device::new(SharedHandle::from(physical_device), create_info) {
+        Ok(v) => {
+            *device = v.take();
+            api::VK_SUCCESS
+        }
+        Err(error) => error,
+    }
 }
 
 #[allow(non_snake_case)]
 pub unsafe extern "system" fn vkDestroyDevice(
-    _device: api::VkDevice,
-    _pAllocator: *const api::VkAllocationCallbacks,
+    device: api::VkDevice,
+    _allocator: *const api::VkAllocationCallbacks,
 ) {
-    unimplemented!()
+    OwnedHandle::from(device);
 }
 
 unsafe fn enumerate_extension_properties(
@@ -1547,6 +3291,7 @@ unsafe fn enumerate_extension_properties(
                 }
             },
         ),
+        |l, r| *l = r,
     )
 }
 
@@ -2858,21 +4603,24 @@ pub unsafe extern "system" fn vkGetPhysicalDeviceFeatures2(
         physical_device_16bit_storage_features: api::VkPhysicalDevice16BitStorageFeatures = api::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_16BIT_STORAGE_FEATURES,
         variable_pointer_features: api::VkPhysicalDeviceVariablePointerFeatures = api::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VARIABLE_POINTER_FEATURES,
     }
-    let ref mut features = *features;
-    features.features = SharedHandle::from(physical_device).features;
+    SharedHandle::from(physical_device)
+        .features
+        .export_feature_set(&mut *features);
     if !sampler_ycbcr_conversion_features.is_null() {
-        let ref mut sampler_ycbcr_conversion_features = *sampler_ycbcr_conversion_features;
-        sampler_ycbcr_conversion_features.samplerYcbcrConversion = api::VK_FALSE;
+        SharedHandle::from(physical_device)
+            .features
+            .export_feature_set(&mut *sampler_ycbcr_conversion_features);
     }
     if !physical_device_16bit_storage_features.is_null() {
-        let ref mut physical_device_16bit_storage_features =
-            *physical_device_16bit_storage_features;
-        physical_device_16bit_storage_features.storageBuffer16BitAccess = api::VK_TRUE;
-        physical_device_16bit_storage_features.uniformAndStorageBuffer16BitAccess = api::VK_TRUE;
-        physical_device_16bit_storage_features.storagePushConstant16 = api::VK_TRUE;
-        physical_device_16bit_storage_features.storageInputOutput16 = api::VK_TRUE;
+        SharedHandle::from(physical_device)
+            .features
+            .export_feature_set(&mut *physical_device_16bit_storage_features);
     }
     if !variable_pointer_features.is_null() {
+        SharedHandle::from(physical_device)
+            .features
+            .export_feature_set(&mut *variable_pointer_features);
+        //FIXME: finish
         let ref mut variable_pointer_features = *variable_pointer_features;
         variable_pointer_features.variablePointersStorageBuffer = api::VK_TRUE;
         variable_pointer_features.variablePointers = api::VK_TRUE;
@@ -2881,19 +4629,30 @@ pub unsafe extern "system" fn vkGetPhysicalDeviceFeatures2(
 
 #[allow(non_snake_case)]
 pub unsafe extern "system" fn vkGetPhysicalDeviceProperties2(
-    _physicalDevice: api::VkPhysicalDevice,
-    _pProperties: *mut api::VkPhysicalDeviceProperties2,
+    physical_device: api::VkPhysicalDevice,
+    properties: *mut api::VkPhysicalDeviceProperties2,
 ) {
-    unimplemented!()
+    parse_next_chain_mut!{
+        properties,
+        root = api::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2,
+    }
+    let ref mut properties = *properties;
+    let physical_device = SharedHandle::from(physical_device);
+    properties.properties = physical_device.properties;
 }
 
 #[allow(non_snake_case)]
 pub unsafe extern "system" fn vkGetPhysicalDeviceFormatProperties2(
-    _physicalDevice: api::VkPhysicalDevice,
-    _format: api::VkFormat,
-    _pFormatProperties: *mut api::VkFormatProperties2,
+    _physical_device: api::VkPhysicalDevice,
+    format: api::VkFormat,
+    format_properties: *mut api::VkFormatProperties2,
 ) {
-    unimplemented!()
+    parse_next_chain_mut!{
+        format_properties,
+        root = api::VK_STRUCTURE_TYPE_FORMAT_PROPERTIES_2,
+    }
+    let ref mut format_properties = *format_properties;
+    format_properties.formatProperties = PhysicalDevice::get_format_properties(format);
 }
 
 #[allow(non_snake_case)]
@@ -2907,19 +4666,50 @@ pub unsafe extern "system" fn vkGetPhysicalDeviceImageFormatProperties2(
 
 #[allow(non_snake_case)]
 pub unsafe extern "system" fn vkGetPhysicalDeviceQueueFamilyProperties2(
-    _physicalDevice: api::VkPhysicalDevice,
-    _pQueueFamilyPropertyCount: *mut u32,
-    _pQueueFamilyProperties: *mut api::VkQueueFamilyProperties2,
+    physical_device: api::VkPhysicalDevice,
+    queue_family_property_count: *mut u32,
+    queue_family_properties: *mut api::VkQueueFamilyProperties2,
 ) {
-    unimplemented!()
+    enumerate_helper(
+        queue_family_property_count,
+        queue_family_properties,
+        QUEUE_COUNTS.iter(),
+        |queue_family_properties, &count| {
+            get_physical_device_queue_family_properties(
+                SharedHandle::from(physical_device),
+                queue_family_properties,
+                count,
+            );
+        },
+    );
 }
 
 #[allow(non_snake_case)]
 pub unsafe extern "system" fn vkGetPhysicalDeviceMemoryProperties2(
-    _physicalDevice: api::VkPhysicalDevice,
-    _pMemoryProperties: *mut api::VkPhysicalDeviceMemoryProperties2,
+    physical_device: api::VkPhysicalDevice,
+    memory_properties: *mut api::VkPhysicalDeviceMemoryProperties2,
 ) {
-    unimplemented!()
+    let physical_device = SharedHandle::from(physical_device);
+    parse_next_chain_mut!{
+        memory_properties,
+        root = api::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MEMORY_PROPERTIES_2,
+    }
+    let ref mut memory_properties = *memory_properties;
+    let mut properties: api::VkPhysicalDeviceMemoryProperties = mem::zeroed();
+    properties.memoryTypeCount = 1;
+    properties.memoryTypes[0] = api::VkMemoryType {
+        propertyFlags: api::VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT
+            | api::VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT
+            | api::VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
+            | api::VK_MEMORY_PROPERTY_HOST_CACHED_BIT,
+        heapIndex: 0,
+    };
+    properties.memoryHeapCount = 1;
+    properties.memoryHeaps[0] = api::VkMemoryHeap {
+        size: physical_device.system_memory_size * 7 / 8,
+        flags: api::VK_MEMORY_HEAP_DEVICE_LOCAL_BIT,
+    };
+    memory_properties.memoryProperties = properties;
 }
 
 #[allow(non_snake_case)]

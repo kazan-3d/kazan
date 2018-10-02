@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 // Copyright 2018 Jacob Lifshay
 use api;
-use api_impl::{Instance, PhysicalDevice};
+use api_impl::{Device, Instance, PhysicalDevice};
 use std::marker::PhantomData;
 use std::mem;
 use std::ops::Deref;
@@ -177,8 +177,6 @@ impl<T: Handle> Deref for SharedHandle<T> {
 pub type VkInstance = DispatchableHandle<Instance>;
 
 pub type VkPhysicalDevice = DispatchableHandle<PhysicalDevice>;
-
-pub struct Device {}
 
 pub type VkDevice = DispatchableHandle<Device>;
 
