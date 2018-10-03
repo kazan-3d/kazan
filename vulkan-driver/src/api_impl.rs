@@ -3502,25 +3502,11 @@ pub unsafe extern "system" fn vkGetDeviceProcAddr(
     device: api::VkDevice,
     name: *const ::std::os::raw::c_char,
 ) -> api::PFN_vkVoidFunction {
-    let retval = get_proc_address(
+    get_proc_address(
         name,
         GetProcAddressScope::Device,
         &SharedHandle::from(device).extensions,
-    );
-    if let Ok(name) = CStr::from_ptr(name).to_str().map_err(|_| ()).and_then(|v| {
-        if v == "vkCreateSwapchainKHR" || true {
-            Ok(v)
-        } else {
-            Err(())
-        }
-    }) {
-        eprintln!(
-            "vkGetDeviceProcAddr(device, {:?}) -> {:?}",
-            name,
-            retval.map(|v| v as *const ())
-        );
-    }
-    retval
+    )
 }
 
 #[allow(non_snake_case)]
