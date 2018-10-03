@@ -17,6 +17,7 @@ mod constants {
     pub const MIN_MEMORY_MAP_ALIGNMENT: usize = 128; // must be at least 64 and a power of 2 according to Vulkan spec
     pub const QUEUE_FAMILY_COUNT: u32 = 1;
     pub const QUEUE_COUNTS: [u32; QUEUE_FAMILY_COUNT as usize] = [1];
+    pub const TOTAL_QUEUE_COUNT: usize = 1;
 }
 
 #[no_mangle]

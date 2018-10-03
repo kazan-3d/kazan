@@ -17,16 +17,26 @@ use std::slice;
 use std::str::FromStr;
 use sys_info;
 use uuid;
+#[cfg(unix)]
 use xcb;
 
 /// structure types the driver should know about
 fn is_supported_structure_type(v: api::VkStructureType) -> bool {
+    #[cfg(unix)]
+    {
+        match v {
+            api::VK_STRUCTURE_TYPE_XCB_SURFACE_CREATE_INFO_KHR => return true,
+            _ => {}
+        }
+    }
     match v {
-        api::VK_STRUCTURE_TYPE_APPLICATION_INFO
+        api::VK_STRUCTURE_TYPE_ACQUIRE_NEXT_IMAGE_INFO_KHR
+        | api::VK_STRUCTURE_TYPE_APPLICATION_INFO
         | api::VK_STRUCTURE_TYPE_BIND_BUFFER_MEMORY_DEVICE_GROUP_INFO
         | api::VK_STRUCTURE_TYPE_BIND_BUFFER_MEMORY_INFO
         | api::VK_STRUCTURE_TYPE_BIND_IMAGE_MEMORY_DEVICE_GROUP_INFO
         | api::VK_STRUCTURE_TYPE_BIND_IMAGE_MEMORY_INFO
+        | api::VK_STRUCTURE_TYPE_BIND_IMAGE_MEMORY_SWAPCHAIN_INFO_KHR
         | api::VK_STRUCTURE_TYPE_BIND_IMAGE_PLANE_MEMORY_INFO
         | api::VK_STRUCTURE_TYPE_BIND_SPARSE_INFO
         | api::VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO
@@ -48,8 +58,11 @@ fn is_supported_structure_type(v: api::VkStructureType) -> bool {
         | api::VK_STRUCTURE_TYPE_DEVICE_GROUP_BIND_SPARSE_INFO
         | api::VK_STRUCTURE_TYPE_DEVICE_GROUP_COMMAND_BUFFER_BEGIN_INFO
         | api::VK_STRUCTURE_TYPE_DEVICE_GROUP_DEVICE_CREATE_INFO
+        | api::VK_STRUCTURE_TYPE_DEVICE_GROUP_PRESENT_CAPABILITIES_KHR
+        | api::VK_STRUCTURE_TYPE_DEVICE_GROUP_PRESENT_INFO_KHR
         | api::VK_STRUCTURE_TYPE_DEVICE_GROUP_RENDER_PASS_BEGIN_INFO
         | api::VK_STRUCTURE_TYPE_DEVICE_GROUP_SUBMIT_INFO
+        | api::VK_STRUCTURE_TYPE_DEVICE_GROUP_SWAPCHAIN_CREATE_INFO_KHR
         | api::VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO
         | api::VK_STRUCTURE_TYPE_DEVICE_QUEUE_INFO_2
         | api::VK_STRUCTURE_TYPE_EVENT_CREATE_INFO
@@ -72,6 +85,7 @@ fn is_supported_structure_type(v: api::VkStructureType) -> bool {
         | api::VK_STRUCTURE_TYPE_IMAGE_MEMORY_REQUIREMENTS_INFO_2
         | api::VK_STRUCTURE_TYPE_IMAGE_PLANE_MEMORY_REQUIREMENTS_INFO
         | api::VK_STRUCTURE_TYPE_IMAGE_SPARSE_MEMORY_REQUIREMENTS_INFO_2
+        | api::VK_STRUCTURE_TYPE_IMAGE_SWAPCHAIN_CREATE_INFO_KHR
         | api::VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO
         | api::VK_STRUCTURE_TYPE_IMAGE_VIEW_USAGE_CREATE_INFO
         | api::VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO
@@ -117,6 +131,7 @@ fn is_supported_structure_type(v: api::VkStructureType) -> bool {
         | api::VK_STRUCTURE_TYPE_PIPELINE_TESSELLATION_STATE_CREATE_INFO
         | api::VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO
         | api::VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO
+        | api::VK_STRUCTURE_TYPE_PRESENT_INFO_KHR
         | api::VK_STRUCTURE_TYPE_PROTECTED_SUBMIT_INFO
         | api::VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO
         | api::VK_STRUCTURE_TYPE_QUEUE_FAMILY_PROPERTIES_2
@@ -133,6 +148,7 @@ fn is_supported_structure_type(v: api::VkStructureType) -> bool {
         | api::VK_STRUCTURE_TYPE_SPARSE_IMAGE_FORMAT_PROPERTIES_2
         | api::VK_STRUCTURE_TYPE_SPARSE_IMAGE_MEMORY_REQUIREMENTS_2
         | api::VK_STRUCTURE_TYPE_SUBMIT_INFO
+        | api::VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR
         | api::VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET => true,
         _ => false,
     }
@@ -265,6 +281,9 @@ pub enum Extension {
     VK_KHR_relaxed_block_layout,
     VK_KHR_shader_draw_parameters,
     VK_KHR_variable_pointers,
+    VK_KHR_swapchain,
+    #[cfg(unix)]
+    VK_KHR_xcb_surface,
 }
 
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
@@ -326,6 +345,9 @@ impl Extension {
             Extension::VK_KHR_external_semaphore => {
                 extensions![Extension::VK_KHR_external_semaphore_capabilities]
             }
+            Extension::VK_KHR_swapchain => extensions![Extension::VK_KHR_surface],
+            #[cfg(unix)]
+            Extension::VK_KHR_xcb_surface => extensions![Extension::VK_KHR_surface],
         }
     }
     pub fn get_recursively_required_extensions(self) -> Extensions {
@@ -348,9 +370,9 @@ impl Extension {
     }
     pub fn get_name(self) -> &'static str {
         macro_rules! name {
-            ($($name:ident,)*) => {
+            ($($(#[$attributes:meta])* $name:ident,)*) => {
                 match self {
-                    $(Extension::$name => stringify!($name),)*
+                    $($(#[$attributes])* Extension::$name => stringify!($name),)*
                 }
             }
         }
@@ -379,6 +401,9 @@ impl Extension {
             VK_KHR_relaxed_block_layout,
             VK_KHR_shader_draw_parameters,
             VK_KHR_variable_pointers,
+            VK_KHR_swapchain,
+            #[cfg(unix)]
+            VK_KHR_xcb_surface,
         )
     }
     pub fn get_spec_version(self) -> u32 {
@@ -427,6 +452,9 @@ impl Extension {
                 api::VK_KHR_SHADER_DRAW_PARAMETERS_SPEC_VERSION
             }
             Extension::VK_KHR_variable_pointers => api::VK_KHR_VARIABLE_POINTERS_SPEC_VERSION,
+            Extension::VK_KHR_swapchain => api::VK_KHR_SWAPCHAIN_SPEC_VERSION,
+            #[cfg(unix)]
+            Extension::VK_KHR_xcb_surface => api::VK_KHR_XCB_SURFACE_SPEC_VERSION,
         }
     }
     pub fn get_properties(self) -> api::VkExtensionProperties {
@@ -462,7 +490,10 @@ impl Extension {
             | Extension::VK_KHR_multiview
             | Extension::VK_KHR_relaxed_block_layout
             | Extension::VK_KHR_shader_draw_parameters
-            | Extension::VK_KHR_variable_pointers => ExtensionScope::Device,
+            | Extension::VK_KHR_variable_pointers
+            | Extension::VK_KHR_swapchain => ExtensionScope::Device,
+            #[cfg(unix)]
+            Extension::VK_KHR_xcb_surface => ExtensionScope::Instance,
         }
     }
 }
@@ -588,9 +619,16 @@ impl Not for Extensions {
     }
 }
 
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
+enum GetProcAddressScope {
+    Global,
+    Instance,
+    Device,
+}
+
 fn get_proc_address(
     name: *const c_char,
-    has_instance_or_device: bool,
+    scope: GetProcAddressScope,
     extensions: &Extensions,
 ) -> api::PFN_vkVoidFunction {
     let mut name = unsafe { CStr::from_ptr(name) }.to_str().ok()?;
@@ -599,10 +637,12 @@ fn get_proc_address(
     struct Scope {
         global: bool,
         instance: bool,
+        device: bool,
     }
     let scope = Scope {
-        global: true,
-        instance: has_instance_or_device,
+        global: scope != GetProcAddressScope::Device,
+        instance: scope == GetProcAddressScope::Instance,
+        device: scope != GetProcAddressScope::Global,
     };
     macro_rules! proc_alias_khr {
         ($base_name:ident, $required_extension:expr) => {
@@ -738,130 +778,130 @@ fn get_proc_address(
         proc_address!(vkEnumerateInstanceLayerProperties, PFN_vkEnumerateInstanceLayerProperties, global, true);
         proc_address!(vkEnumerateInstanceVersion, PFN_vkEnumerateInstanceVersion, global, true);
 
-        proc_address!(vkAllocateCommandBuffers, PFN_vkAllocateCommandBuffers, instance, true);
-        proc_address!(vkAllocateDescriptorSets, PFN_vkAllocateDescriptorSets, instance, true);
-        proc_address!(vkAllocateMemory, PFN_vkAllocateMemory, instance, true);
-        proc_address!(vkBeginCommandBuffer, PFN_vkBeginCommandBuffer, instance, true);
-        proc_address!(vkBindBufferMemory, PFN_vkBindBufferMemory, instance, true);
-        proc_address!(vkBindBufferMemory2, PFN_vkBindBufferMemory2, instance, true);
-        proc_address!(vkBindImageMemory, PFN_vkBindImageMemory, instance, true);
-        proc_address!(vkBindImageMemory2, PFN_vkBindImageMemory2, instance, true);
-        proc_address!(vkCmdBeginQuery, PFN_vkCmdBeginQuery, instance, true);
-        proc_address!(vkCmdBeginRenderPass, PFN_vkCmdBeginRenderPass, instance, true);
-        proc_address!(vkCmdBindDescriptorSets, PFN_vkCmdBindDescriptorSets, instance, true);
-        proc_address!(vkCmdBindIndexBuffer, PFN_vkCmdBindIndexBuffer, instance, true);
-        proc_address!(vkCmdBindPipeline, PFN_vkCmdBindPipeline, instance, true);
-        proc_address!(vkCmdBindVertexBuffers, PFN_vkCmdBindVertexBuffers, instance, true);
-        proc_address!(vkCmdBlitImage, PFN_vkCmdBlitImage, instance, true);
-        proc_address!(vkCmdClearAttachments, PFN_vkCmdClearAttachments, instance, true);
-        proc_address!(vkCmdClearColorImage, PFN_vkCmdClearColorImage, instance, true);
-        proc_address!(vkCmdClearDepthStencilImage, PFN_vkCmdClearDepthStencilImage, instance, true);
-        proc_address!(vkCmdCopyBuffer, PFN_vkCmdCopyBuffer, instance, true);
-        proc_address!(vkCmdCopyBufferToImage, PFN_vkCmdCopyBufferToImage, instance, true);
-        proc_address!(vkCmdCopyImage, PFN_vkCmdCopyImage, instance, true);
-        proc_address!(vkCmdCopyImageToBuffer, PFN_vkCmdCopyImageToBuffer, instance, true);
-        proc_address!(vkCmdCopyQueryPoolResults, PFN_vkCmdCopyQueryPoolResults, instance, true);
-        proc_address!(vkCmdDispatch, PFN_vkCmdDispatch, instance, true);
-        proc_address!(vkCmdDispatchBase, PFN_vkCmdDispatchBase, instance, true);
-        proc_address!(vkCmdDispatchIndirect, PFN_vkCmdDispatchIndirect, instance, true);
-        proc_address!(vkCmdDraw, PFN_vkCmdDraw, instance, true);
-        proc_address!(vkCmdDrawIndexed, PFN_vkCmdDrawIndexed, instance, true);
-        proc_address!(vkCmdDrawIndexedIndirect, PFN_vkCmdDrawIndexedIndirect, instance, true);
-        proc_address!(vkCmdDrawIndirect, PFN_vkCmdDrawIndirect, instance, true);
-        proc_address!(vkCmdEndQuery, PFN_vkCmdEndQuery, instance, true);
-        proc_address!(vkCmdEndRenderPass, PFN_vkCmdEndRenderPass, instance, true);
-        proc_address!(vkCmdExecuteCommands, PFN_vkCmdExecuteCommands, instance, true);
-        proc_address!(vkCmdFillBuffer, PFN_vkCmdFillBuffer, instance, true);
-        proc_address!(vkCmdNextSubpass, PFN_vkCmdNextSubpass, instance, true);
-        proc_address!(vkCmdPipelineBarrier, PFN_vkCmdPipelineBarrier, instance, true);
-        proc_address!(vkCmdPushConstants, PFN_vkCmdPushConstants, instance, true);
-        proc_address!(vkCmdResetEvent, PFN_vkCmdResetEvent, instance, true);
-        proc_address!(vkCmdResetQueryPool, PFN_vkCmdResetQueryPool, instance, true);
-        proc_address!(vkCmdResolveImage, PFN_vkCmdResolveImage, instance, true);
-        proc_address!(vkCmdSetBlendConstants, PFN_vkCmdSetBlendConstants, instance, true);
-        proc_address!(vkCmdSetDepthBias, PFN_vkCmdSetDepthBias, instance, true);
-        proc_address!(vkCmdSetDepthBounds, PFN_vkCmdSetDepthBounds, instance, true);
-        proc_address!(vkCmdSetDeviceMask, PFN_vkCmdSetDeviceMask, instance, true);
-        proc_address!(vkCmdSetEvent, PFN_vkCmdSetEvent, instance, true);
-        proc_address!(vkCmdSetLineWidth, PFN_vkCmdSetLineWidth, instance, true);
-        proc_address!(vkCmdSetScissor, PFN_vkCmdSetScissor, instance, true);
-        proc_address!(vkCmdSetStencilCompareMask, PFN_vkCmdSetStencilCompareMask, instance, true);
-        proc_address!(vkCmdSetStencilReference, PFN_vkCmdSetStencilReference, instance, true);
-        proc_address!(vkCmdSetStencilWriteMask, PFN_vkCmdSetStencilWriteMask, instance, true);
-        proc_address!(vkCmdSetViewport, PFN_vkCmdSetViewport, instance, true);
-        proc_address!(vkCmdUpdateBuffer, PFN_vkCmdUpdateBuffer, instance, true);
-        proc_address!(vkCmdWaitEvents, PFN_vkCmdWaitEvents, instance, true);
-        proc_address!(vkCmdWriteTimestamp, PFN_vkCmdWriteTimestamp, instance, true);
-        proc_address!(vkCreateBuffer, PFN_vkCreateBuffer, instance, true);
-        proc_address!(vkCreateBufferView, PFN_vkCreateBufferView, instance, true);
-        proc_address!(vkCreateCommandPool, PFN_vkCreateCommandPool, instance, true);
-        proc_address!(vkCreateComputePipelines, PFN_vkCreateComputePipelines, instance, true);
-        proc_address!(vkCreateDescriptorPool, PFN_vkCreateDescriptorPool, instance, true);
-        proc_address!(vkCreateDescriptorSetLayout, PFN_vkCreateDescriptorSetLayout, instance, true);
-        proc_address!(vkCreateDescriptorUpdateTemplate, PFN_vkCreateDescriptorUpdateTemplate, instance, true);
+        proc_address!(vkAllocateCommandBuffers, PFN_vkAllocateCommandBuffers, device, true);
+        proc_address!(vkAllocateDescriptorSets, PFN_vkAllocateDescriptorSets, device, true);
+        proc_address!(vkAllocateMemory, PFN_vkAllocateMemory, device, true);
+        proc_address!(vkBeginCommandBuffer, PFN_vkBeginCommandBuffer, device, true);
+        proc_address!(vkBindBufferMemory, PFN_vkBindBufferMemory, device, true);
+        proc_address!(vkBindBufferMemory2, PFN_vkBindBufferMemory2, device, true);
+        proc_address!(vkBindImageMemory, PFN_vkBindImageMemory, device, true);
+        proc_address!(vkBindImageMemory2, PFN_vkBindImageMemory2, device, true);
+        proc_address!(vkCmdBeginQuery, PFN_vkCmdBeginQuery, device, true);
+        proc_address!(vkCmdBeginRenderPass, PFN_vkCmdBeginRenderPass, device, true);
+        proc_address!(vkCmdBindDescriptorSets, PFN_vkCmdBindDescriptorSets, device, true);
+        proc_address!(vkCmdBindIndexBuffer, PFN_vkCmdBindIndexBuffer, device, true);
+        proc_address!(vkCmdBindPipeline, PFN_vkCmdBindPipeline, device, true);
+        proc_address!(vkCmdBindVertexBuffers, PFN_vkCmdBindVertexBuffers, device, true);
+        proc_address!(vkCmdBlitImage, PFN_vkCmdBlitImage, device, true);
+        proc_address!(vkCmdClearAttachments, PFN_vkCmdClearAttachments, device, true);
+        proc_address!(vkCmdClearColorImage, PFN_vkCmdClearColorImage, device, true);
+        proc_address!(vkCmdClearDepthStencilImage, PFN_vkCmdClearDepthStencilImage, device, true);
+        proc_address!(vkCmdCopyBuffer, PFN_vkCmdCopyBuffer, device, true);
+        proc_address!(vkCmdCopyBufferToImage, PFN_vkCmdCopyBufferToImage, device, true);
+        proc_address!(vkCmdCopyImage, PFN_vkCmdCopyImage, device, true);
+        proc_address!(vkCmdCopyImageToBuffer, PFN_vkCmdCopyImageToBuffer, device, true);
+        proc_address!(vkCmdCopyQueryPoolResults, PFN_vkCmdCopyQueryPoolResults, device, true);
+        proc_address!(vkCmdDispatch, PFN_vkCmdDispatch, device, true);
+        proc_address!(vkCmdDispatchBase, PFN_vkCmdDispatchBase, device, true);
+        proc_address!(vkCmdDispatchIndirect, PFN_vkCmdDispatchIndirect, device, true);
+        proc_address!(vkCmdDraw, PFN_vkCmdDraw, device, true);
+        proc_address!(vkCmdDrawIndexed, PFN_vkCmdDrawIndexed, device, true);
+        proc_address!(vkCmdDrawIndexedIndirect, PFN_vkCmdDrawIndexedIndirect, device, true);
+        proc_address!(vkCmdDrawIndirect, PFN_vkCmdDrawIndirect, device, true);
+        proc_address!(vkCmdEndQuery, PFN_vkCmdEndQuery, device, true);
+        proc_address!(vkCmdEndRenderPass, PFN_vkCmdEndRenderPass, device, true);
+        proc_address!(vkCmdExecuteCommands, PFN_vkCmdExecuteCommands, device, true);
+        proc_address!(vkCmdFillBuffer, PFN_vkCmdFillBuffer, device, true);
+        proc_address!(vkCmdNextSubpass, PFN_vkCmdNextSubpass, device, true);
+        proc_address!(vkCmdPipelineBarrier, PFN_vkCmdPipelineBarrier, device, true);
+        proc_address!(vkCmdPushConstants, PFN_vkCmdPushConstants, device, true);
+        proc_address!(vkCmdResetEvent, PFN_vkCmdResetEvent, device, true);
+        proc_address!(vkCmdResetQueryPool, PFN_vkCmdResetQueryPool, device, true);
+        proc_address!(vkCmdResolveImage, PFN_vkCmdResolveImage, device, true);
+        proc_address!(vkCmdSetBlendConstants, PFN_vkCmdSetBlendConstants, device, true);
+        proc_address!(vkCmdSetDepthBias, PFN_vkCmdSetDepthBias, device, true);
+        proc_address!(vkCmdSetDepthBounds, PFN_vkCmdSetDepthBounds, device, true);
+        proc_address!(vkCmdSetDeviceMask, PFN_vkCmdSetDeviceMask, device, true);
+        proc_address!(vkCmdSetEvent, PFN_vkCmdSetEvent, device, true);
+        proc_address!(vkCmdSetLineWidth, PFN_vkCmdSetLineWidth, device, true);
+        proc_address!(vkCmdSetScissor, PFN_vkCmdSetScissor, device, true);
+        proc_address!(vkCmdSetStencilCompareMask, PFN_vkCmdSetStencilCompareMask, device, true);
+        proc_address!(vkCmdSetStencilReference, PFN_vkCmdSetStencilReference, device, true);
+        proc_address!(vkCmdSetStencilWriteMask, PFN_vkCmdSetStencilWriteMask, device, true);
+        proc_address!(vkCmdSetViewport, PFN_vkCmdSetViewport, device, true);
+        proc_address!(vkCmdUpdateBuffer, PFN_vkCmdUpdateBuffer, device, true);
+        proc_address!(vkCmdWaitEvents, PFN_vkCmdWaitEvents, device, true);
+        proc_address!(vkCmdWriteTimestamp, PFN_vkCmdWriteTimestamp, device, true);
+        proc_address!(vkCreateBuffer, PFN_vkCreateBuffer, device, true);
+        proc_address!(vkCreateBufferView, PFN_vkCreateBufferView, device, true);
+        proc_address!(vkCreateCommandPool, PFN_vkCreateCommandPool, device, true);
+        proc_address!(vkCreateComputePipelines, PFN_vkCreateComputePipelines, device, true);
+        proc_address!(vkCreateDescriptorPool, PFN_vkCreateDescriptorPool, device, true);
+        proc_address!(vkCreateDescriptorSetLayout, PFN_vkCreateDescriptorSetLayout, device, true);
+        proc_address!(vkCreateDescriptorUpdateTemplate, PFN_vkCreateDescriptorUpdateTemplate, device, true);
         proc_address!(vkCreateDevice, PFN_vkCreateDevice, instance, true);
-        proc_address!(vkCreateEvent, PFN_vkCreateEvent, instance, true);
-        proc_address!(vkCreateFence, PFN_vkCreateFence, instance, true);
-        proc_address!(vkCreateFramebuffer, PFN_vkCreateFramebuffer, instance, true);
-        proc_address!(vkCreateGraphicsPipelines, PFN_vkCreateGraphicsPipelines, instance, true);
-        proc_address!(vkCreateImage, PFN_vkCreateImage, instance, true);
-        proc_address!(vkCreateImageView, PFN_vkCreateImageView, instance, true);
-        proc_address!(vkCreatePipelineCache, PFN_vkCreatePipelineCache, instance, true);
-        proc_address!(vkCreatePipelineLayout, PFN_vkCreatePipelineLayout, instance, true);
-        proc_address!(vkCreateQueryPool, PFN_vkCreateQueryPool, instance, true);
-        proc_address!(vkCreateRenderPass, PFN_vkCreateRenderPass, instance, true);
-        proc_address!(vkCreateSampler, PFN_vkCreateSampler, instance, true);
-        proc_address!(vkCreateSamplerYcbcrConversion, PFN_vkCreateSamplerYcbcrConversion, instance, true);
-        proc_address!(vkCreateSemaphore, PFN_vkCreateSemaphore, instance, true);
-        proc_address!(vkCreateShaderModule, PFN_vkCreateShaderModule, instance, true);
-        proc_address!(vkDestroyBuffer, PFN_vkDestroyBuffer, instance, true);
-        proc_address!(vkDestroyBufferView, PFN_vkDestroyBufferView, instance, true);
-        proc_address!(vkDestroyCommandPool, PFN_vkDestroyCommandPool, instance, true);
-        proc_address!(vkDestroyDescriptorPool, PFN_vkDestroyDescriptorPool, instance, true);
-        proc_address!(vkDestroyDescriptorSetLayout, PFN_vkDestroyDescriptorSetLayout, instance, true);
-        proc_address!(vkDestroyDescriptorUpdateTemplate, PFN_vkDestroyDescriptorUpdateTemplate, instance, true);
-        proc_address!(vkDestroyDevice, PFN_vkDestroyDevice, instance, true);
-        proc_address!(vkDestroyEvent, PFN_vkDestroyEvent, instance, true);
-        proc_address!(vkDestroyFence, PFN_vkDestroyFence, instance, true);
-        proc_address!(vkDestroyFramebuffer, PFN_vkDestroyFramebuffer, instance, true);
-        proc_address!(vkDestroyImage, PFN_vkDestroyImage, instance, true);
-        proc_address!(vkDestroyImageView, PFN_vkDestroyImageView, instance, true);
+        proc_address!(vkCreateEvent, PFN_vkCreateEvent, device, true);
+        proc_address!(vkCreateFence, PFN_vkCreateFence, device, true);
+        proc_address!(vkCreateFramebuffer, PFN_vkCreateFramebuffer, device, true);
+        proc_address!(vkCreateGraphicsPipelines, PFN_vkCreateGraphicsPipelines, device, true);
+        proc_address!(vkCreateImage, PFN_vkCreateImage, device, true);
+        proc_address!(vkCreateImageView, PFN_vkCreateImageView, device, true);
+        proc_address!(vkCreatePipelineCache, PFN_vkCreatePipelineCache, device, true);
+        proc_address!(vkCreatePipelineLayout, PFN_vkCreatePipelineLayout, device, true);
+        proc_address!(vkCreateQueryPool, PFN_vkCreateQueryPool, device, true);
+        proc_address!(vkCreateRenderPass, PFN_vkCreateRenderPass, device, true);
+        proc_address!(vkCreateSampler, PFN_vkCreateSampler, device, true);
+        proc_address!(vkCreateSamplerYcbcrConversion, PFN_vkCreateSamplerYcbcrConversion, device, true);
+        proc_address!(vkCreateSemaphore, PFN_vkCreateSemaphore, device, true);
+        proc_address!(vkCreateShaderModule, PFN_vkCreateShaderModule, device, true);
+        proc_address!(vkDestroyBuffer, PFN_vkDestroyBuffer, device, true);
+        proc_address!(vkDestroyBufferView, PFN_vkDestroyBufferView, device, true);
+        proc_address!(vkDestroyCommandPool, PFN_vkDestroyCommandPool, device, true);
+        proc_address!(vkDestroyDescriptorPool, PFN_vkDestroyDescriptorPool, device, true);
+        proc_address!(vkDestroyDescriptorSetLayout, PFN_vkDestroyDescriptorSetLayout, device, true);
+        proc_address!(vkDestroyDescriptorUpdateTemplate, PFN_vkDestroyDescriptorUpdateTemplate, device, true);
+        proc_address!(vkDestroyDevice, PFN_vkDestroyDevice, device, true);
+        proc_address!(vkDestroyEvent, PFN_vkDestroyEvent, device, true);
+        proc_address!(vkDestroyFence, PFN_vkDestroyFence, device, true);
+        proc_address!(vkDestroyFramebuffer, PFN_vkDestroyFramebuffer, device, true);
+        proc_address!(vkDestroyImage, PFN_vkDestroyImage, device, true);
+        proc_address!(vkDestroyImageView, PFN_vkDestroyImageView, device, true);
         proc_address!(vkDestroyInstance, PFN_vkDestroyInstance, instance, true);
-        proc_address!(vkDestroyPipeline, PFN_vkDestroyPipeline, instance, true);
-        proc_address!(vkDestroyPipelineCache, PFN_vkDestroyPipelineCache, instance, true);
-        proc_address!(vkDestroyPipelineLayout, PFN_vkDestroyPipelineLayout, instance, true);
-        proc_address!(vkDestroyQueryPool, PFN_vkDestroyQueryPool, instance, true);
-        proc_address!(vkDestroyRenderPass, PFN_vkDestroyRenderPass, instance, true);
-        proc_address!(vkDestroySampler, PFN_vkDestroySampler, instance, true);
-        proc_address!(vkDestroySamplerYcbcrConversion, PFN_vkDestroySamplerYcbcrConversion, instance, true);
-        proc_address!(vkDestroySemaphore, PFN_vkDestroySemaphore, instance, true);
-        proc_address!(vkDestroyShaderModule, PFN_vkDestroyShaderModule, instance, true);
-        proc_address!(vkDeviceWaitIdle, PFN_vkDeviceWaitIdle, instance, true);
-        proc_address!(vkEndCommandBuffer, PFN_vkEndCommandBuffer, instance, true);
+        proc_address!(vkDestroyPipeline, PFN_vkDestroyPipeline, device, true);
+        proc_address!(vkDestroyPipelineCache, PFN_vkDestroyPipelineCache, device, true);
+        proc_address!(vkDestroyPipelineLayout, PFN_vkDestroyPipelineLayout, device, true);
+        proc_address!(vkDestroyQueryPool, PFN_vkDestroyQueryPool, device, true);
+        proc_address!(vkDestroyRenderPass, PFN_vkDestroyRenderPass, device, true);
+        proc_address!(vkDestroySampler, PFN_vkDestroySampler, device, true);
+        proc_address!(vkDestroySamplerYcbcrConversion, PFN_vkDestroySamplerYcbcrConversion, device, true);
+        proc_address!(vkDestroySemaphore, PFN_vkDestroySemaphore, device, true);
+        proc_address!(vkDestroyShaderModule, PFN_vkDestroyShaderModule, device, true);
+        proc_address!(vkDeviceWaitIdle, PFN_vkDeviceWaitIdle, device, true);
+        proc_address!(vkEndCommandBuffer, PFN_vkEndCommandBuffer, device, true);
         proc_address!(vkEnumerateDeviceExtensionProperties, PFN_vkEnumerateDeviceExtensionProperties, instance, true);
         proc_address!(vkEnumerateDeviceLayerProperties, PFN_vkEnumerateDeviceLayerProperties, instance, true);
         proc_address!(vkEnumeratePhysicalDeviceGroups, PFN_vkEnumeratePhysicalDeviceGroups, instance, true);
         proc_address!(vkEnumeratePhysicalDevices, PFN_vkEnumeratePhysicalDevices, instance, true);
-        proc_address!(vkFlushMappedMemoryRanges, PFN_vkFlushMappedMemoryRanges, instance, true);
-        proc_address!(vkFreeCommandBuffers, PFN_vkFreeCommandBuffers, instance, true);
-        proc_address!(vkFreeDescriptorSets, PFN_vkFreeDescriptorSets, instance, true);
-        proc_address!(vkFreeMemory, PFN_vkFreeMemory, instance, true);
-        proc_address!(vkGetBufferMemoryRequirements, PFN_vkGetBufferMemoryRequirements, instance, true);
-        proc_address!(vkGetBufferMemoryRequirements2, PFN_vkGetBufferMemoryRequirements2, instance, true);
-        proc_address!(vkGetDescriptorSetLayoutSupport, PFN_vkGetDescriptorSetLayoutSupport, instance, true);
-        proc_address!(vkGetDeviceGroupPeerMemoryFeatures, PFN_vkGetDeviceGroupPeerMemoryFeatures, instance, true);
-        proc_address!(vkGetDeviceMemoryCommitment, PFN_vkGetDeviceMemoryCommitment, instance, true);
-        proc_address!(vkGetDeviceProcAddr, PFN_vkGetDeviceProcAddr, instance, true);
-        proc_address!(vkGetDeviceQueue, PFN_vkGetDeviceQueue, instance, true);
-        proc_address!(vkGetDeviceQueue2, PFN_vkGetDeviceQueue2, instance, true);
-        proc_address!(vkGetEventStatus, PFN_vkGetEventStatus, instance, true);
-        proc_address!(vkGetFenceStatus, PFN_vkGetFenceStatus, instance, true);
-        proc_address!(vkGetImageMemoryRequirements, PFN_vkGetImageMemoryRequirements, instance, true);
-        proc_address!(vkGetImageMemoryRequirements2, PFN_vkGetImageMemoryRequirements2, instance, true);
-        proc_address!(vkGetImageSparseMemoryRequirements, PFN_vkGetImageSparseMemoryRequirements, instance, true);
-        proc_address!(vkGetImageSparseMemoryRequirements2, PFN_vkGetImageSparseMemoryRequirements2, instance, true);
-        proc_address!(vkGetImageSubresourceLayout, PFN_vkGetImageSubresourceLayout, instance, true);
-        proc_address!(vkGetInstanceProcAddr, PFN_vkGetInstanceProcAddr, instance, true);
+        proc_address!(vkFlushMappedMemoryRanges, PFN_vkFlushMappedMemoryRanges, device, true);
+        proc_address!(vkFreeCommandBuffers, PFN_vkFreeCommandBuffers, device, true);
+        proc_address!(vkFreeDescriptorSets, PFN_vkFreeDescriptorSets, device, true);
+        proc_address!(vkFreeMemory, PFN_vkFreeMemory, device, true);
+        proc_address!(vkGetBufferMemoryRequirements, PFN_vkGetBufferMemoryRequirements, device, true);
+        proc_address!(vkGetBufferMemoryRequirements2, PFN_vkGetBufferMemoryRequirements2, device, true);
+        proc_address!(vkGetDescriptorSetLayoutSupport, PFN_vkGetDescriptorSetLayoutSupport, device, true);
+        proc_address!(vkGetDeviceGroupPeerMemoryFeatures, PFN_vkGetDeviceGroupPeerMemoryFeatures, device, true);
+        proc_address!(vkGetDeviceMemoryCommitment, PFN_vkGetDeviceMemoryCommitment, device, true);
+        proc_address!(vkGetDeviceProcAddr, PFN_vkGetDeviceProcAddr, device, true);
+        proc_address!(vkGetDeviceQueue, PFN_vkGetDeviceQueue, device, true);
+        proc_address!(vkGetDeviceQueue2, PFN_vkGetDeviceQueue2, device, true);
+        proc_address!(vkGetEventStatus, PFN_vkGetEventStatus, device, true);
+        proc_address!(vkGetFenceStatus, PFN_vkGetFenceStatus, device, true);
+        proc_address!(vkGetImageMemoryRequirements, PFN_vkGetImageMemoryRequirements, device, true);
+        proc_address!(vkGetImageMemoryRequirements2, PFN_vkGetImageMemoryRequirements2, device, true);
+        proc_address!(vkGetImageSparseMemoryRequirements, PFN_vkGetImageSparseMemoryRequirements, device, true);
+        proc_address!(vkGetImageSparseMemoryRequirements2, PFN_vkGetImageSparseMemoryRequirements2, device, true);
+        proc_address!(vkGetImageSubresourceLayout, PFN_vkGetImageSubresourceLayout, device, true);
+        proc_address!(vkGetInstanceProcAddr, PFN_vkGetInstanceProcAddr, device, true);
         proc_address!(vkGetPhysicalDeviceExternalBufferProperties, PFN_vkGetPhysicalDeviceExternalBufferProperties, instance, true);
         proc_address!(vkGetPhysicalDeviceExternalFenceProperties, PFN_vkGetPhysicalDeviceExternalFenceProperties, instance, true);
         proc_address!(vkGetPhysicalDeviceExternalSemaphoreProperties, PFN_vkGetPhysicalDeviceExternalSemaphoreProperties, instance, true);
@@ -879,133 +919,135 @@ fn get_proc_address(
         proc_address!(vkGetPhysicalDeviceQueueFamilyProperties2, PFN_vkGetPhysicalDeviceQueueFamilyProperties2, instance, true);
         proc_address!(vkGetPhysicalDeviceSparseImageFormatProperties, PFN_vkGetPhysicalDeviceSparseImageFormatProperties, instance, true);
         proc_address!(vkGetPhysicalDeviceSparseImageFormatProperties2, PFN_vkGetPhysicalDeviceSparseImageFormatProperties2, instance, true);
-        proc_address!(vkGetPipelineCacheData, PFN_vkGetPipelineCacheData, instance, true);
-        proc_address!(vkGetQueryPoolResults, PFN_vkGetQueryPoolResults, instance, true);
-        proc_address!(vkGetRenderAreaGranularity, PFN_vkGetRenderAreaGranularity, instance, true);
-        proc_address!(vkInvalidateMappedMemoryRanges, PFN_vkInvalidateMappedMemoryRanges, instance, true);
-        proc_address!(vkMapMemory, PFN_vkMapMemory, instance, true);
-        proc_address!(vkMergePipelineCaches, PFN_vkMergePipelineCaches, instance, true);
-        proc_address!(vkQueueBindSparse, PFN_vkQueueBindSparse, instance, true);
-        proc_address!(vkQueueSubmit, PFN_vkQueueSubmit, instance, true);
-        proc_address!(vkQueueWaitIdle, PFN_vkQueueWaitIdle, instance, true);
-        proc_address!(vkResetCommandBuffer, PFN_vkResetCommandBuffer, instance, true);
-        proc_address!(vkResetCommandPool, PFN_vkResetCommandPool, instance, true);
-        proc_address!(vkResetDescriptorPool, PFN_vkResetDescriptorPool, instance, true);
-        proc_address!(vkResetEvent, PFN_vkResetEvent, instance, true);
-        proc_address!(vkResetFences, PFN_vkResetFences, instance, true);
-        proc_address!(vkSetEvent, PFN_vkSetEvent, instance, true);
-        proc_address!(vkTrimCommandPool, PFN_vkTrimCommandPool, instance, true);
-        proc_address!(vkUnmapMemory, PFN_vkUnmapMemory, instance, true);
-        proc_address!(vkUpdateDescriptorSets, PFN_vkUpdateDescriptorSets, instance, true);
-        proc_address!(vkUpdateDescriptorSetWithTemplate, PFN_vkUpdateDescriptorSetWithTemplate, instance, true);
-        proc_address!(vkWaitForFences, PFN_vkWaitForFences, instance, true);
+        proc_address!(vkGetPipelineCacheData, PFN_vkGetPipelineCacheData, device, true);
+        proc_address!(vkGetQueryPoolResults, PFN_vkGetQueryPoolResults, device, true);
+        proc_address!(vkGetRenderAreaGranularity, PFN_vkGetRenderAreaGranularity, device, true);
+        proc_address!(vkInvalidateMappedMemoryRanges, PFN_vkInvalidateMappedMemoryRanges, device, true);
+        proc_address!(vkMapMemory, PFN_vkMapMemory, device, true);
+        proc_address!(vkMergePipelineCaches, PFN_vkMergePipelineCaches, device, true);
+        proc_address!(vkQueueBindSparse, PFN_vkQueueBindSparse, device, true);
+        proc_address!(vkQueueSubmit, PFN_vkQueueSubmit, device, true);
+        proc_address!(vkQueueWaitIdle, PFN_vkQueueWaitIdle, device, true);
+        proc_address!(vkResetCommandBuffer, PFN_vkResetCommandBuffer, device, true);
+        proc_address!(vkResetCommandPool, PFN_vkResetCommandPool, device, true);
+        proc_address!(vkResetDescriptorPool, PFN_vkResetDescriptorPool, device, true);
+        proc_address!(vkResetEvent, PFN_vkResetEvent, device, true);
+        proc_address!(vkResetFences, PFN_vkResetFences, device, true);
+        proc_address!(vkSetEvent, PFN_vkSetEvent, device, true);
+        proc_address!(vkTrimCommandPool, PFN_vkTrimCommandPool, device, true);
+        proc_address!(vkUnmapMemory, PFN_vkUnmapMemory, device, true);
+        proc_address!(vkUpdateDescriptorSets, PFN_vkUpdateDescriptorSets, device, true);
+        proc_address!(vkUpdateDescriptorSetWithTemplate, PFN_vkUpdateDescriptorSetWithTemplate, device, true);
+        proc_address!(vkWaitForFences, PFN_vkWaitForFences, device, true);
 
-        proc_address!(vkDestroySurfaceKHR, PFN_vkDestroySurfaceKHR, instance, extensions[Extension::VK_KHR_surface]);
-        proc_address!(vkGetPhysicalDeviceSurfaceSupportKHR, PFN_vkGetPhysicalDeviceSurfaceSupportKHR, instance, extensions[Extension::VK_KHR_surface]);
-        proc_address!(vkGetPhysicalDeviceSurfaceCapabilitiesKHR, PFN_vkGetPhysicalDeviceSurfaceCapabilitiesKHR, instance, extensions[Extension::VK_KHR_surface]);
-        proc_address!(vkGetPhysicalDeviceSurfaceFormatsKHR, PFN_vkGetPhysicalDeviceSurfaceFormatsKHR, instance, extensions[Extension::VK_KHR_surface]);
-        proc_address!(vkGetPhysicalDeviceSurfacePresentModesKHR, PFN_vkGetPhysicalDeviceSurfacePresentModesKHR, instance, extensions[Extension::VK_KHR_surface]);
+        proc_address!(vkDestroySurfaceKHR, PFN_vkDestroySurfaceKHR, device, extensions[Extension::VK_KHR_surface]);
+        proc_address!(vkGetPhysicalDeviceSurfaceSupportKHR, PFN_vkGetPhysicalDeviceSurfaceSupportKHR, device, extensions[Extension::VK_KHR_surface]);
+        proc_address!(vkGetPhysicalDeviceSurfaceCapabilitiesKHR, PFN_vkGetPhysicalDeviceSurfaceCapabilitiesKHR, device, extensions[Extension::VK_KHR_surface]);
+        proc_address!(vkGetPhysicalDeviceSurfaceFormatsKHR, PFN_vkGetPhysicalDeviceSurfaceFormatsKHR, device, extensions[Extension::VK_KHR_surface]);
+        proc_address!(vkGetPhysicalDeviceSurfacePresentModesKHR, PFN_vkGetPhysicalDeviceSurfacePresentModesKHR, device, extensions[Extension::VK_KHR_surface]);
 
+        proc_address!(vkCreateSwapchainKHR, PFN_vkCreateSwapchainKHR, device, extensions[Extension::VK_KHR_swapchain]);
+        proc_address!(vkDestroySwapchainKHR, PFN_vkDestroySwapchainKHR, device, extensions[Extension::VK_KHR_swapchain]);
+        proc_address!(vkGetSwapchainImagesKHR, PFN_vkGetSwapchainImagesKHR, device, extensions[Extension::VK_KHR_swapchain]);
+        proc_address!(vkAcquireNextImageKHR, PFN_vkAcquireNextImageKHR, device, extensions[Extension::VK_KHR_swapchain]);
+        proc_address!(vkQueuePresentKHR, PFN_vkQueuePresentKHR, device, extensions[Extension::VK_KHR_swapchain]);
+        proc_address!(vkGetDeviceGroupPresentCapabilitiesKHR, PFN_vkGetDeviceGroupPresentCapabilitiesKHR, device, extensions[Extension::VK_KHR_swapchain]);
+        proc_address!(vkGetDeviceGroupSurfacePresentModesKHR, PFN_vkGetDeviceGroupSurfacePresentModesKHR, device, extensions[Extension::VK_KHR_swapchain]);
+        proc_address!(vkGetPhysicalDevicePresentRectanglesKHR, PFN_vkGetPhysicalDevicePresentRectanglesKHR, device, extensions[Extension::VK_KHR_swapchain]);
+        proc_address!(vkAcquireNextImage2KHR, PFN_vkAcquireNextImage2KHR, device, extensions[Extension::VK_KHR_swapchain]);
+
+        #[cfg(unix)]
+        proc_address!(vkCreateXcbSurfaceKHR, PFN_vkCreateXcbSurfaceKHR, device, extensions[Extension::VK_KHR_xcb_surface]);
+        #[cfg(unix)]
+        proc_address!(vkGetPhysicalDeviceXcbPresentationSupportKHR, PFN_vkGetPhysicalDeviceXcbPresentationSupportKHR, device, extensions[Extension::VK_KHR_xcb_surface]);
         /*
-        proc_address!(vkGetDeviceGroupPresentCapabilitiesKHR, PFN_vkGetDeviceGroupPresentCapabilitiesKHR, instance, extensions[Extension::VK_KHR_swapchain]);
-        proc_address!(vkGetDeviceGroupSurfacePresentModesKHR, PFN_vkGetDeviceGroupSurfacePresentModesKHR, instance, extensions[Extension::VK_KHR_swapchain]);
-        proc_address!(vkGetPhysicalDevicePresentRectanglesKHR, PFN_vkGetPhysicalDevicePresentRectanglesKHR, instance, extensions[Extension::VK_KHR_swapchain]);
-        proc_address!(vkAcquireNextImage2KHR, PFN_vkAcquireNextImage2KHR, instance, extensions[Extension::VK_KHR_swapchain]);
-
-        proc_address!(vkAcquireNextImageKHR, PFN_vkAcquireNextImageKHR, instance, unknown);
-        proc_address!(vkCmdBeginConditionalRenderingEXT, PFN_vkCmdBeginConditionalRenderingEXT, instance, unknown);
-        proc_address!(vkCmdBeginDebugUtilsLabelEXT, PFN_vkCmdBeginDebugUtilsLabelEXT, instance, unknown);
-        proc_address!(vkCmdBeginRenderPass2KHR, PFN_vkCmdBeginRenderPass2KHR, instance, unknown);
-        proc_address!(vkCmdBindShadingRateImageNV, PFN_vkCmdBindShadingRateImageNV, instance, unknown);
-        proc_address!(vkCmdDebugMarkerBeginEXT, PFN_vkCmdDebugMarkerBeginEXT, instance, unknown);
-        proc_address!(vkCmdDebugMarkerEndEXT, PFN_vkCmdDebugMarkerEndEXT, instance, unknown);
-        proc_address!(vkCmdDebugMarkerInsertEXT, PFN_vkCmdDebugMarkerInsertEXT, instance, unknown);
-        proc_address!(vkCmdDrawIndexedIndirectCountAMD, PFN_vkCmdDrawIndexedIndirectCountAMD, instance, unknown);
-        proc_address!(vkCmdDrawIndexedIndirectCountKHR, PFN_vkCmdDrawIndexedIndirectCountKHR, instance, unknown);
-        proc_address!(vkCmdDrawIndirectCountAMD, PFN_vkCmdDrawIndirectCountAMD, instance, unknown);
-        proc_address!(vkCmdDrawIndirectCountKHR, PFN_vkCmdDrawIndirectCountKHR, instance, unknown);
-        proc_address!(vkCmdDrawMeshTasksIndirectCountNV, PFN_vkCmdDrawMeshTasksIndirectCountNV, instance, unknown);
-        proc_address!(vkCmdDrawMeshTasksIndirectNV, PFN_vkCmdDrawMeshTasksIndirectNV, instance, unknown);
-        proc_address!(vkCmdDrawMeshTasksNV, PFN_vkCmdDrawMeshTasksNV, instance, unknown);
-        proc_address!(vkCmdEndConditionalRenderingEXT, PFN_vkCmdEndConditionalRenderingEXT, instance, unknown);
-        proc_address!(vkCmdEndDebugUtilsLabelEXT, PFN_vkCmdEndDebugUtilsLabelEXT, instance, unknown);
-        proc_address!(vkCmdEndRenderPass2KHR, PFN_vkCmdEndRenderPass2KHR, instance, unknown);
-        proc_address!(vkCmdInsertDebugUtilsLabelEXT, PFN_vkCmdInsertDebugUtilsLabelEXT, instance, unknown);
-        proc_address!(vkCmdNextSubpass2KHR, PFN_vkCmdNextSubpass2KHR, instance, unknown);
-        proc_address!(vkCmdPushDescriptorSetKHR, PFN_vkCmdPushDescriptorSetKHR, instance, unknown);
-        proc_address!(vkCmdPushDescriptorSetWithTemplateKHR, PFN_vkCmdPushDescriptorSetWithTemplateKHR, instance, unknown);
-        proc_address!(vkCmdSetCheckpointNV, PFN_vkCmdSetCheckpointNV, instance, unknown);
-        proc_address!(vkCmdSetCoarseSampleOrderNV, PFN_vkCmdSetCoarseSampleOrderNV, instance, unknown);
-        proc_address!(vkCmdSetDiscardRectangleEXT, PFN_vkCmdSetDiscardRectangleEXT, instance, unknown);
-        proc_address!(vkCmdSetExclusiveScissorNV, PFN_vkCmdSetExclusiveScissorNV, instance, unknown);
-        proc_address!(vkCmdSetSampleLocationsEXT, PFN_vkCmdSetSampleLocationsEXT, instance, unknown);
-        proc_address!(vkCmdSetViewportShadingRatePaletteNV, PFN_vkCmdSetViewportShadingRatePaletteNV, instance, unknown);
-        proc_address!(vkCmdSetViewportWScalingNV, PFN_vkCmdSetViewportWScalingNV, instance, unknown);
-        proc_address!(vkCmdWriteBufferMarkerAMD, PFN_vkCmdWriteBufferMarkerAMD, instance, unknown);
-        proc_address!(vkCreateDebugReportCallbackEXT, PFN_vkCreateDebugReportCallbackEXT, instance, unknown);
-        proc_address!(vkCreateDebugUtilsMessengerEXT, PFN_vkCreateDebugUtilsMessengerEXT, instance, unknown);
-        proc_address!(vkCreateDisplayModeKHR, PFN_vkCreateDisplayModeKHR, instance, unknown);
-        proc_address!(vkCreateDisplayPlaneSurfaceKHR, PFN_vkCreateDisplayPlaneSurfaceKHR, instance, unknown);
-        proc_address!(vkCreateRenderPass2KHR, PFN_vkCreateRenderPass2KHR, instance, unknown);
-        proc_address!(vkCreateSharedSwapchainsKHR, PFN_vkCreateSharedSwapchainsKHR, instance, unknown);
-        proc_address!(vkCreateSwapchainKHR, PFN_vkCreateSwapchainKHR, instance, unknown);
-        proc_address!(vkCreateValidationCacheEXT, PFN_vkCreateValidationCacheEXT, instance, unknown);
-        proc_address!(vkCreateXcbSurfaceKHR, PFN_vkCreateXcbSurfaceKHR, instance, unknown);
-        proc_address!(vkDebugMarkerSetObjectNameEXT, PFN_vkDebugMarkerSetObjectNameEXT, instance, unknown);
-        proc_address!(vkDebugMarkerSetObjectTagEXT, PFN_vkDebugMarkerSetObjectTagEXT, instance, unknown);
-        proc_address!(vkDebugReportCallbackEXT, PFN_vkDebugReportCallbackEXT, instance, unknown);
-        proc_address!(vkDebugReportMessageEXT, PFN_vkDebugReportMessageEXT, instance, unknown);
-        proc_address!(vkDebugUtilsMessengerCallbackEXT, PFN_vkDebugUtilsMessengerCallbackEXT, instance, unknown);
-        proc_address!(vkDestroyDebugReportCallbackEXT, PFN_vkDestroyDebugReportCallbackEXT, instance, unknown);
-        proc_address!(vkDestroyDebugUtilsMessengerEXT, PFN_vkDestroyDebugUtilsMessengerEXT, instance, unknown);
-        proc_address!(vkDestroySwapchainKHR, PFN_vkDestroySwapchainKHR, instance, unknown);
-        proc_address!(vkDestroyValidationCacheEXT, PFN_vkDestroyValidationCacheEXT, instance, unknown);
-        proc_address!(vkDisplayPowerControlEXT, PFN_vkDisplayPowerControlEXT, instance, unknown);
-        proc_address!(vkGetDisplayModeProperties2KHR, PFN_vkGetDisplayModeProperties2KHR, instance, unknown);
-        proc_address!(vkGetDisplayModePropertiesKHR, PFN_vkGetDisplayModePropertiesKHR, instance, unknown);
-        proc_address!(vkGetDisplayPlaneCapabilities2KHR, PFN_vkGetDisplayPlaneCapabilities2KHR, instance, unknown);
-        proc_address!(vkGetDisplayPlaneCapabilitiesKHR, PFN_vkGetDisplayPlaneCapabilitiesKHR, instance, unknown);
-        proc_address!(vkGetDisplayPlaneSupportedDisplaysKHR, PFN_vkGetDisplayPlaneSupportedDisplaysKHR, instance, unknown);
-        proc_address!(vkGetFenceFdKHR, PFN_vkGetFenceFdKHR, instance, unknown);
-        proc_address!(vkGetMemoryFdKHR, PFN_vkGetMemoryFdKHR, instance, unknown);
-        proc_address!(vkGetMemoryFdPropertiesKHR, PFN_vkGetMemoryFdPropertiesKHR, instance, unknown);
-        proc_address!(vkGetMemoryHostPointerPropertiesEXT, PFN_vkGetMemoryHostPointerPropertiesEXT, instance, unknown);
-        proc_address!(vkGetPastPresentationTimingGOOGLE, PFN_vkGetPastPresentationTimingGOOGLE, instance, unknown);
-        proc_address!(vkGetPhysicalDeviceDisplayPlaneProperties2KHR, PFN_vkGetPhysicalDeviceDisplayPlaneProperties2KHR, instance, unknown);
-        proc_address!(vkGetPhysicalDeviceDisplayPlanePropertiesKHR, PFN_vkGetPhysicalDeviceDisplayPlanePropertiesKHR, instance, unknown);
-        proc_address!(vkGetPhysicalDeviceDisplayProperties2KHR, PFN_vkGetPhysicalDeviceDisplayProperties2KHR, instance, unknown);
-        proc_address!(vkGetPhysicalDeviceDisplayPropertiesKHR, PFN_vkGetPhysicalDeviceDisplayPropertiesKHR, instance, unknown);
-        proc_address!(vkGetPhysicalDeviceExternalImageFormatPropertiesNV, PFN_vkGetPhysicalDeviceExternalImageFormatPropertiesNV, instance, unknown);
-        proc_address!(vkGetPhysicalDeviceMultisamplePropertiesEXT, PFN_vkGetPhysicalDeviceMultisamplePropertiesEXT, instance, unknown);
-        proc_address!(vkGetPhysicalDeviceSurfaceCapabilities2EXT, PFN_vkGetPhysicalDeviceSurfaceCapabilities2EXT, instance, unknown);
-        proc_address!(vkGetPhysicalDeviceSurfaceCapabilities2KHR, PFN_vkGetPhysicalDeviceSurfaceCapabilities2KHR, instance, unknown);
-        proc_address!(vkGetPhysicalDeviceSurfaceFormats2KHR, PFN_vkGetPhysicalDeviceSurfaceFormats2KHR, instance, unknown);
-        proc_address!(vkGetPhysicalDeviceXcbPresentationSupportKHR, PFN_vkGetPhysicalDeviceXcbPresentationSupportKHR, instance, unknown);
-        proc_address!(vkGetQueueCheckpointDataNV, PFN_vkGetQueueCheckpointDataNV, instance, unknown);
-        proc_address!(vkGetRefreshCycleDurationGOOGLE, PFN_vkGetRefreshCycleDurationGOOGLE, instance, unknown);
-        proc_address!(vkGetSemaphoreFdKHR, PFN_vkGetSemaphoreFdKHR, instance, unknown);
-        proc_address!(vkGetShaderInfoAMD, PFN_vkGetShaderInfoAMD, instance, unknown);
-        proc_address!(vkGetSwapchainCounterEXT, PFN_vkGetSwapchainCounterEXT, instance, unknown);
-        proc_address!(vkGetSwapchainImagesKHR, PFN_vkGetSwapchainImagesKHR, instance, unknown);
-        proc_address!(vkGetSwapchainStatusKHR, PFN_vkGetSwapchainStatusKHR, instance, unknown);
-        proc_address!(vkGetValidationCacheDataEXT, PFN_vkGetValidationCacheDataEXT, instance, unknown);
-        proc_address!(vkImportFenceFdKHR, PFN_vkImportFenceFdKHR, instance, unknown);
-        proc_address!(vkImportSemaphoreFdKHR, PFN_vkImportSemaphoreFdKHR, instance, unknown);
-        proc_address!(vkMergeValidationCachesEXT, PFN_vkMergeValidationCachesEXT, instance, unknown);
-        proc_address!(vkQueueBeginDebugUtilsLabelEXT, PFN_vkQueueBeginDebugUtilsLabelEXT, instance, unknown);
-        proc_address!(vkQueueEndDebugUtilsLabelEXT, PFN_vkQueueEndDebugUtilsLabelEXT, instance, unknown);
-        proc_address!(vkQueueInsertDebugUtilsLabelEXT, PFN_vkQueueInsertDebugUtilsLabelEXT, instance, unknown);
-        proc_address!(vkQueuePresentKHR, PFN_vkQueuePresentKHR, instance, unknown);
-        proc_address!(vkRegisterDeviceEventEXT, PFN_vkRegisterDeviceEventEXT, instance, unknown);
-        proc_address!(vkRegisterDisplayEventEXT, PFN_vkRegisterDisplayEventEXT, instance, unknown);
-        proc_address!(vkReleaseDisplayEXT, PFN_vkReleaseDisplayEXT, instance, unknown);
-        proc_address!(vkSetDebugUtilsObjectNameEXT, PFN_vkSetDebugUtilsObjectNameEXT, instance, unknown);
-        proc_address!(vkSetDebugUtilsObjectTagEXT, PFN_vkSetDebugUtilsObjectTagEXT, instance, unknown);
-        proc_address!(vkSetHdrMetadataEXT, PFN_vkSetHdrMetadataEXT, instance, unknown);
-        proc_address!(vkSubmitDebugUtilsMessageEXT, PFN_vkSubmitDebugUtilsMessageEXT, instance, unknown);
+        proc_address!(vkCmdBeginConditionalRenderingEXT, PFN_vkCmdBeginConditionalRenderingEXT, device, unknown);
+        proc_address!(vkCmdBeginDebugUtilsLabelEXT, PFN_vkCmdBeginDebugUtilsLabelEXT, device, unknown);
+        proc_address!(vkCmdBeginRenderPass2KHR, PFN_vkCmdBeginRenderPass2KHR, device, unknown);
+        proc_address!(vkCmdBindShadingRateImageNV, PFN_vkCmdBindShadingRateImageNV, device, unknown);
+        proc_address!(vkCmdDebugMarkerBeginEXT, PFN_vkCmdDebugMarkerBeginEXT, device, unknown);
+        proc_address!(vkCmdDebugMarkerEndEXT, PFN_vkCmdDebugMarkerEndEXT, device, unknown);
+        proc_address!(vkCmdDebugMarkerInsertEXT, PFN_vkCmdDebugMarkerInsertEXT, device, unknown);
+        proc_address!(vkCmdDrawIndexedIndirectCountAMD, PFN_vkCmdDrawIndexedIndirectCountAMD, device, unknown);
+        proc_address!(vkCmdDrawIndexedIndirectCountKHR, PFN_vkCmdDrawIndexedIndirectCountKHR, device, unknown);
+        proc_address!(vkCmdDrawIndirectCountAMD, PFN_vkCmdDrawIndirectCountAMD, device, unknown);
+        proc_address!(vkCmdDrawIndirectCountKHR, PFN_vkCmdDrawIndirectCountKHR, device, unknown);
+        proc_address!(vkCmdDrawMeshTasksIndirectCountNV, PFN_vkCmdDrawMeshTasksIndirectCountNV, device, unknown);
+        proc_address!(vkCmdDrawMeshTasksIndirectNV, PFN_vkCmdDrawMeshTasksIndirectNV, device, unknown);
+        proc_address!(vkCmdDrawMeshTasksNV, PFN_vkCmdDrawMeshTasksNV, device, unknown);
+        proc_address!(vkCmdEndConditionalRenderingEXT, PFN_vkCmdEndConditionalRenderingEXT, device, unknown);
+        proc_address!(vkCmdEndDebugUtilsLabelEXT, PFN_vkCmdEndDebugUtilsLabelEXT, device, unknown);
+        proc_address!(vkCmdEndRenderPass2KHR, PFN_vkCmdEndRenderPass2KHR, device, unknown);
+        proc_address!(vkCmdInsertDebugUtilsLabelEXT, PFN_vkCmdInsertDebugUtilsLabelEXT, device, unknown);
+        proc_address!(vkCmdNextSubpass2KHR, PFN_vkCmdNextSubpass2KHR, device, unknown);
+        proc_address!(vkCmdPushDescriptorSetKHR, PFN_vkCmdPushDescriptorSetKHR, device, unknown);
+        proc_address!(vkCmdPushDescriptorSetWithTemplateKHR, PFN_vkCmdPushDescriptorSetWithTemplateKHR, device, unknown);
+        proc_address!(vkCmdSetCheckpointNV, PFN_vkCmdSetCheckpointNV, device, unknown);
+        proc_address!(vkCmdSetCoarseSampleOrderNV, PFN_vkCmdSetCoarseSampleOrderNV, device, unknown);
+        proc_address!(vkCmdSetDiscardRectangleEXT, PFN_vkCmdSetDiscardRectangleEXT, device, unknown);
+        proc_address!(vkCmdSetExclusiveScissorNV, PFN_vkCmdSetExclusiveScissorNV, device, unknown);
+        proc_address!(vkCmdSetSampleLocationsEXT, PFN_vkCmdSetSampleLocationsEXT, device, unknown);
+        proc_address!(vkCmdSetViewportShadingRatePaletteNV, PFN_vkCmdSetViewportShadingRatePaletteNV, device, unknown);
+        proc_address!(vkCmdSetViewportWScalingNV, PFN_vkCmdSetViewportWScalingNV, device, unknown);
+        proc_address!(vkCmdWriteBufferMarkerAMD, PFN_vkCmdWriteBufferMarkerAMD, device, unknown);
+        proc_address!(vkCreateDebugReportCallbackEXT, PFN_vkCreateDebugReportCallbackEXT, device, unknown);
+        proc_address!(vkCreateDebugUtilsMessengerEXT, PFN_vkCreateDebugUtilsMessengerEXT, device, unknown);
+        proc_address!(vkCreateDisplayModeKHR, PFN_vkCreateDisplayModeKHR, device, unknown);
+        proc_address!(vkCreateDisplayPlaneSurfaceKHR, PFN_vkCreateDisplayPlaneSurfaceKHR, device, unknown);
+        proc_address!(vkCreateRenderPass2KHR, PFN_vkCreateRenderPass2KHR, device, unknown);
+        proc_address!(vkCreateSharedSwapchainsKHR, PFN_vkCreateSharedSwapchainsKHR, device, unknown);
+        proc_address!(vkCreateValidationCacheEXT, PFN_vkCreateValidationCacheEXT, device, unknown);
+        proc_address!(vkDebugMarkerSetObjectNameEXT, PFN_vkDebugMarkerSetObjectNameEXT, device, unknown);
+        proc_address!(vkDebugMarkerSetObjectTagEXT, PFN_vkDebugMarkerSetObjectTagEXT, device, unknown);
+        proc_address!(vkDebugReportCallbackEXT, PFN_vkDebugReportCallbackEXT, device, unknown);
+        proc_address!(vkDebugReportMessageEXT, PFN_vkDebugReportMessageEXT, device, unknown);
+        proc_address!(vkDebugUtilsMessengerCallbackEXT, PFN_vkDebugUtilsMessengerCallbackEXT, device, unknown);
+        proc_address!(vkDestroyDebugReportCallbackEXT, PFN_vkDestroyDebugReportCallbackEXT, device, unknown);
+        proc_address!(vkDestroyDebugUtilsMessengerEXT, PFN_vkDestroyDebugUtilsMessengerEXT, device, unknown);
+        proc_address!(vkDestroyValidationCacheEXT, PFN_vkDestroyValidationCacheEXT, device, unknown);
+        proc_address!(vkDisplayPowerControlEXT, PFN_vkDisplayPowerControlEXT, device, unknown);
+        proc_address!(vkGetDisplayModeProperties2KHR, PFN_vkGetDisplayModeProperties2KHR, device, unknown);
+        proc_address!(vkGetDisplayModePropertiesKHR, PFN_vkGetDisplayModePropertiesKHR, device, unknown);
+        proc_address!(vkGetDisplayPlaneCapabilities2KHR, PFN_vkGetDisplayPlaneCapabilities2KHR, device, unknown);
+        proc_address!(vkGetDisplayPlaneCapabilitiesKHR, PFN_vkGetDisplayPlaneCapabilitiesKHR, device, unknown);
+        proc_address!(vkGetDisplayPlaneSupportedDisplaysKHR, PFN_vkGetDisplayPlaneSupportedDisplaysKHR, device, unknown);
+        proc_address!(vkGetFenceFdKHR, PFN_vkGetFenceFdKHR, device, unknown);
+        proc_address!(vkGetMemoryFdKHR, PFN_vkGetMemoryFdKHR, device, unknown);
+        proc_address!(vkGetMemoryFdPropertiesKHR, PFN_vkGetMemoryFdPropertiesKHR, device, unknown);
+        proc_address!(vkGetMemoryHostPointerPropertiesEXT, PFN_vkGetMemoryHostPointerPropertiesEXT, device, unknown);
+        proc_address!(vkGetPastPresentationTimingGOOGLE, PFN_vkGetPastPresentationTimingGOOGLE, device, unknown);
+        proc_address!(vkGetPhysicalDeviceDisplayPlaneProperties2KHR, PFN_vkGetPhysicalDeviceDisplayPlaneProperties2KHR, device, unknown);
+        proc_address!(vkGetPhysicalDeviceDisplayPlanePropertiesKHR, PFN_vkGetPhysicalDeviceDisplayPlanePropertiesKHR, device, unknown);
+        proc_address!(vkGetPhysicalDeviceDisplayProperties2KHR, PFN_vkGetPhysicalDeviceDisplayProperties2KHR, device, unknown);
+        proc_address!(vkGetPhysicalDeviceDisplayPropertiesKHR, PFN_vkGetPhysicalDeviceDisplayPropertiesKHR, device, unknown);
+        proc_address!(vkGetPhysicalDeviceExternalImageFormatPropertiesNV, PFN_vkGetPhysicalDeviceExternalImageFormatPropertiesNV, device, unknown);
+        proc_address!(vkGetPhysicalDeviceMultisamplePropertiesEXT, PFN_vkGetPhysicalDeviceMultisamplePropertiesEXT, device, unknown);
+        proc_address!(vkGetPhysicalDeviceSurfaceCapabilities2EXT, PFN_vkGetPhysicalDeviceSurfaceCapabilities2EXT, device, unknown);
+        proc_address!(vkGetPhysicalDeviceSurfaceCapabilities2KHR, PFN_vkGetPhysicalDeviceSurfaceCapabilities2KHR, device, unknown);
+        proc_address!(vkGetPhysicalDeviceSurfaceFormats2KHR, PFN_vkGetPhysicalDeviceSurfaceFormats2KHR, device, unknown);
+        proc_address!(vkGetQueueCheckpointDataNV, PFN_vkGetQueueCheckpointDataNV, device, unknown);
+        proc_address!(vkGetRefreshCycleDurationGOOGLE, PFN_vkGetRefreshCycleDurationGOOGLE, device, unknown);
+        proc_address!(vkGetSemaphoreFdKHR, PFN_vkGetSemaphoreFdKHR, device, unknown);
+        proc_address!(vkGetShaderInfoAMD, PFN_vkGetShaderInfoAMD, device, unknown);
+        proc_address!(vkGetSwapchainCounterEXT, PFN_vkGetSwapchainCounterEXT, device, unknown);
+        proc_address!(vkGetSwapchainStatusKHR, PFN_vkGetSwapchainStatusKHR, device, unknown);
+        proc_address!(vkGetValidationCacheDataEXT, PFN_vkGetValidationCacheDataEXT, device, unknown);
+        proc_address!(vkImportFenceFdKHR, PFN_vkImportFenceFdKHR, device, unknown);
+        proc_address!(vkImportSemaphoreFdKHR, PFN_vkImportSemaphoreFdKHR, device, unknown);
+        proc_address!(vkMergeValidationCachesEXT, PFN_vkMergeValidationCachesEXT, device, unknown);
+        proc_address!(vkQueueBeginDebugUtilsLabelEXT, PFN_vkQueueBeginDebugUtilsLabelEXT, device, unknown);
+        proc_address!(vkQueueEndDebugUtilsLabelEXT, PFN_vkQueueEndDebugUtilsLabelEXT, device, unknown);
+        proc_address!(vkQueueInsertDebugUtilsLabelEXT, PFN_vkQueueInsertDebugUtilsLabelEXT, device, unknown);
+        proc_address!(vkRegisterDeviceEventEXT, PFN_vkRegisterDeviceEventEXT, device, unknown);
+        proc_address!(vkRegisterDisplayEventEXT, PFN_vkRegisterDisplayEventEXT, device, unknown);
+        proc_address!(vkReleaseDisplayEXT, PFN_vkReleaseDisplayEXT, device, unknown);
+        proc_address!(vkSetDebugUtilsObjectNameEXT, PFN_vkSetDebugUtilsObjectNameEXT, device, unknown);
+        proc_address!(vkSetDebugUtilsObjectTagEXT, PFN_vkSetDebugUtilsObjectTagEXT, device, unknown);
+        proc_address!(vkSetHdrMetadataEXT, PFN_vkSetHdrMetadataEXT, device, unknown);
+        proc_address!(vkSubmitDebugUtilsMessageEXT, PFN_vkSubmitDebugUtilsMessageEXT, device, unknown);
         */
     }
-    eprintln!("unknown function: {:?}", name);
+    //eprintln!("unknown function: {:?}", name);
     None
 }
 
@@ -1103,7 +1145,7 @@ impl Features {
             shader_draw_parameter_features: api::VkPhysicalDeviceShaderDrawParameterFeatures {
                 sType: api::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_DRAW_PARAMETER_FEATURES,
                 pNext: null_mut(),
-                shaderDrawParameters: api::VK_FALSE,
+                shaderDrawParameters: api::VK_TRUE,
             },
             protected_memory_features: api::VkPhysicalDeviceProtectedMemoryFeatures {
                 sType: api::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROTECTED_MEMORY_FEATURES,
@@ -1457,10 +1499,13 @@ impl Not for Features {
     }
 }
 
+pub struct Queue {}
+
 pub struct Device {
     physical_device: SharedHandle<api::VkPhysicalDevice>,
     extensions: Extensions,
     features: Features,
+    queues: Vec<Vec<OwnedHandle<api::VkQueue>>>,
 }
 
 impl Device {
@@ -1481,10 +1526,57 @@ impl Device {
             physical_device_variable_pointer_features: api::VkPhysicalDeviceVariablePointerFeatures = api::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VARIABLE_POINTER_FEATURES,
         }
         let ref create_info = *create_info;
+        if create_info.enabledLayerCount != 0 {
+            return Err(api::VK_ERROR_LAYER_NOT_PRESENT);
+        }
+        let mut enabled_extensions = physical_device.enabled_extensions;
+        if create_info.enabledExtensionCount != 0 {
+            for &extension_name in slice::from_raw_parts(
+                create_info.ppEnabledExtensionNames,
+                create_info.enabledExtensionCount as usize,
+            ) {
+                let extension: Extension = CStr::from_ptr(extension_name)
+                    .to_str()
+                    .map_err(|_| api::VK_ERROR_EXTENSION_NOT_PRESENT)?
+                    .parse()
+                    .map_err(|_| api::VK_ERROR_EXTENSION_NOT_PRESENT)?;
+                assert_eq!(extension.get_scope(), ExtensionScope::Device);
+                enabled_extensions[extension] = true;
+            }
+        }
+        for extension in enabled_extensions
+            .iter()
+            .filter_map(|(extension, &enabled)| if enabled { Some(extension) } else { None })
+        {
+            let missing_extensions = extension.get_required_extensions() & !enabled_extensions;
+            for missing_extension in missing_extensions
+                .iter()
+                .filter_map(|(extension, &enabled)| if enabled { Some(extension) } else { None })
+            {
+                panic!(
+                    "extension {} enabled but required extension {} is not enabled",
+                    extension.get_name(),
+                    missing_extension.get_name()
+                );
+            }
+        }
         let mut selected_features = Features::splat(false);
         if !device_group_device_create_info.is_null() {
-            // FIXME: implement
-            unimplemented!()
+            let api::VkDeviceGroupDeviceCreateInfo {
+                sType: _,
+                pNext: _,
+                physicalDeviceCount: physical_device_count,
+                pPhysicalDevices: physical_devices,
+            } = *device_group_device_create_info;
+            assert_eq!(
+                physical_device_count, 1,
+                "multiple devices in a group are not implemented"
+            );
+            assert_eq!(
+                *physical_devices,
+                *physical_device.get_handle(),
+                "unknown physical_device"
+            );
         }
         if !physical_device_16bit_storage_features.is_null() {
             selected_features.import_feature_set(&*physical_device_16bit_storage_features);
@@ -1495,29 +1587,79 @@ impl Device {
             selected_features.import_feature_set(&*create_info.pEnabledFeatures);
         }
         if !physical_device_multiview_features.is_null() {
-            // FIXME: implement
-            unimplemented!()
+            selected_features.import_feature_set(&*physical_device_multiview_features);
         }
         if !physical_device_protected_memory_features.is_null() {
-            // FIXME: implement
-            unimplemented!()
+            selected_features.import_feature_set(&*physical_device_protected_memory_features);
         }
         if !physical_device_sampler_ycbcr_conversion_features.is_null() {
             selected_features
                 .import_feature_set(&*physical_device_sampler_ycbcr_conversion_features);
         }
         if !physical_device_shader_draw_parameter_features.is_null() {
-            // FIXME: implement
-            unimplemented!()
+            selected_features.import_feature_set(&*physical_device_shader_draw_parameter_features);
+        } else if enabled_extensions[Extension::VK_KHR_shader_draw_parameters] {
+            selected_features
+                .shader_draw_parameter_features
+                .shaderDrawParameters = api::VK_TRUE;
         }
         if !physical_device_variable_pointer_features.is_null() {
             selected_features.import_feature_set(&*physical_device_variable_pointer_features);
         }
-        assert_eq!(
-            selected_features & !physical_device.features,
-            Features::splat(false)
+        if (selected_features & !physical_device.features) != Features::splat(false) {
+            return Err(api::VK_ERROR_FEATURE_NOT_PRESENT);
+        }
+        assert_ne!(create_info.queueCreateInfoCount, 0);
+        let queue_create_infos = slice::from_raw_parts(
+            create_info.pQueueCreateInfos,
+            create_info.queueCreateInfoCount as usize,
         );
-        unimplemented!()
+        assert!(queue_create_infos.len() <= QUEUE_FAMILY_COUNT as usize);
+        let mut total_queue_count = 0;
+        let mut queue_counts: Vec<_> = Vec::new();
+        for queue_create_info in queue_create_infos {
+            parse_next_chain_const!{
+                queue_create_info as *const api::VkDeviceQueueCreateInfo,
+                root = api::VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
+            }
+            let api::VkDeviceQueueCreateInfo {
+                sType: _,
+                pNext: _,
+                flags,
+                queueFamilyIndex: queue_family_index,
+                queueCount: queue_count,
+                pQueuePriorities: queue_priorities,
+            } = *queue_create_info;
+            assert_eq!(flags & api::VK_DEVICE_QUEUE_CREATE_PROTECTED_BIT, 0);
+            assert!(queue_family_index < QUEUE_FAMILY_COUNT);
+            assert!(queue_count <= QUEUE_COUNTS[queue_family_index as usize]);
+            let queue_priorities = slice::from_raw_parts(queue_priorities, queue_count as usize);
+            for &queue_priority in queue_priorities {
+                assert!(queue_priority >= 0.0 && queue_priority <= 1.0);
+            }
+            assert_eq!(QUEUE_FAMILY_COUNT, 1, "multiple queues are not implemented");
+            assert_eq!(
+                QUEUE_COUNTS, [1; QUEUE_FAMILY_COUNT as usize],
+                "multiple queues are not implemented"
+            );
+            queue_counts.push(queue_count as usize);
+            total_queue_count += queue_count as usize;
+        }
+        assert!(total_queue_count <= TOTAL_QUEUE_COUNT);
+        let mut queues = Vec::new();
+        for queue_count in queue_counts {
+            let mut queue_family_queues = Vec::new();
+            for _queue_index in 0..queue_count {
+                queue_family_queues.push(OwnedHandle::<api::VkQueue>::new(Queue {}));
+            }
+            queues.push(queue_family_queues);
+        }
+        Ok(OwnedHandle::<api::VkDevice>::new(Device {
+            physical_device,
+            extensions: enabled_extensions,
+            features: selected_features,
+            queues,
+        }))
     }
 }
 
@@ -2885,16 +3027,19 @@ impl Instance {
             return Err(api::VK_ERROR_LAYER_NOT_PRESENT);
         }
         let mut enabled_extensions = Extensions::create_empty();
-        for &extension_name in slice::from_raw_parts(
-            create_info.ppEnabledExtensionNames,
-            create_info.enabledExtensionCount as usize,
-        ) {
-            let extension: Extension = CStr::from_ptr(extension_name)
-                .to_str()
-                .map_err(|_| api::VK_ERROR_EXTENSION_NOT_PRESENT)?
-                .parse()
-                .map_err(|_| api::VK_ERROR_EXTENSION_NOT_PRESENT)?;
-            enabled_extensions[extension] = true;
+        if create_info.enabledExtensionCount != 0 {
+            for &extension_name in slice::from_raw_parts(
+                create_info.ppEnabledExtensionNames,
+                create_info.enabledExtensionCount as usize,
+            ) {
+                let extension: Extension = CStr::from_ptr(extension_name)
+                    .to_str()
+                    .map_err(|_| api::VK_ERROR_EXTENSION_NOT_PRESENT)?
+                    .parse()
+                    .map_err(|_| api::VK_ERROR_EXTENSION_NOT_PRESENT)?;
+                assert_eq!(extension.get_scope(), ExtensionScope::Instance);
+                enabled_extensions[extension] = true;
+            }
         }
         for extension in enabled_extensions
             .iter()
@@ -3117,12 +3262,16 @@ pub unsafe extern "system" fn vkGetInstanceProcAddr(
     match instance.get() {
         Some(_) => get_proc_address(
             name,
-            true,
+            GetProcAddressScope::Instance,
             &SharedHandle::from(instance)
                 .physical_device
                 .allowed_extensions,
         ),
-        None => get_proc_address(name, false, &Extensions::create_empty()),
+        None => get_proc_address(
+            name,
+            GetProcAddressScope::Global,
+            &Extensions::create_empty(),
+        ),
     }
 }
 
@@ -3350,10 +3499,28 @@ pub unsafe extern "system" fn vkGetPhysicalDeviceMemoryProperties(
 
 #[allow(non_snake_case)]
 pub unsafe extern "system" fn vkGetDeviceProcAddr(
-    _device: api::VkDevice,
-    _pName: *const ::std::os::raw::c_char,
+    device: api::VkDevice,
+    name: *const ::std::os::raw::c_char,
 ) -> api::PFN_vkVoidFunction {
-    unimplemented!()
+    let retval = get_proc_address(
+        name,
+        GetProcAddressScope::Device,
+        &SharedHandle::from(device).extensions,
+    );
+    if let Ok(name) = CStr::from_ptr(name).to_str().map_err(|_| ()).and_then(|v| {
+        if v == "vkCreateSwapchainKHR" || true {
+            Ok(v)
+        } else {
+            Err(())
+        }
+    }) {
+        eprintln!(
+            "vkGetDeviceProcAddr(device, {:?}) -> {:?}",
+            name,
+            retval.map(|v| v as *const ())
+        );
+    }
+    retval
 }
 
 #[allow(non_snake_case)]
@@ -5897,6 +6064,7 @@ pub unsafe extern "system" fn vkGetQueueCheckpointDataNV(
     unimplemented!()
 }
 
+#[cfg(unix)]
 #[allow(non_snake_case)]
 pub unsafe extern "system" fn vkCreateXcbSurfaceKHR(
     _instance: api::VkInstance,
@@ -5907,6 +6075,7 @@ pub unsafe extern "system" fn vkCreateXcbSurfaceKHR(
     unimplemented!()
 }
 
+#[cfg(unix)]
 #[allow(non_snake_case)]
 pub unsafe extern "system" fn vkGetPhysicalDeviceXcbPresentationSupportKHR(
     _physicalDevice: api::VkPhysicalDevice,

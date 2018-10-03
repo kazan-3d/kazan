@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 // Copyright 2018 Jacob Lifshay
 use api;
-use api_impl::{Device, Instance, PhysicalDevice};
+use api_impl::{Device, Instance, PhysicalDevice, Queue};
+use std::fmt;
 use std::marker::PhantomData;
 use std::mem;
 use std::ops::Deref;
@@ -39,7 +40,7 @@ impl<T> DerefMut for DispatchableType<T> {
     }
 }
 
-pub trait Handle: Copy {
+pub trait Handle: Copy + Eq + fmt::Debug {
     type Value;
     fn get(&self) -> Option<NonNull<Self::Value>>;
     fn new(v: Option<NonNull<Self::Value>>) -> Self;
@@ -75,6 +76,22 @@ impl<T> Clone for DispatchableHandle<T> {
 
 impl<T> Copy for DispatchableHandle<T> {}
 
+impl<T> Eq for DispatchableHandle<T> {}
+
+impl<T> PartialEq for DispatchableHandle<T> {
+    fn eq(&self, rhs: &Self) -> bool {
+        self.0 == rhs.0
+    }
+}
+
+impl<T> fmt::Debug for DispatchableHandle<T> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_tuple("DispatchableHandle")
+            .field(&self.get().map(|v| v.as_ptr()).unwrap_or(null_mut()))
+            .finish()
+    }
+}
+
 impl<T> Handle for DispatchableHandle<T> {
     type Value = DispatchableType<T>;
     fn get(&self) -> Option<NonNull<DispatchableType<T>>> {
@@ -96,6 +113,22 @@ impl<T> Clone for NondispatchableHandle<T> {
 
 impl<T> Copy for NondispatchableHandle<T> {}
 
+impl<T> Eq for NondispatchableHandle<T> {}
+
+impl<T> PartialEq for NondispatchableHandle<T> {
+    fn eq(&self, rhs: &Self) -> bool {
+        self.0 == rhs.0
+    }
+}
+
+impl<T> fmt::Debug for NondispatchableHandle<T> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_tuple("NondispatchableHandle")
+            .field(&self.get().map(|v| v.as_ptr()).unwrap_or(null_mut()))
+            .finish()
+    }
+}
+
 impl<T> Handle for NondispatchableHandle<T> {
     type Value = T;
     fn get(&self) -> Option<NonNull<T>> {
@@ -109,7 +142,6 @@ impl<T> Handle for NondispatchableHandle<T> {
     }
 }
 
-#[derive(Debug)]
 #[repr(transparent)]
 pub struct OwnedHandle<T: Handle>(T);
 
@@ -151,7 +183,15 @@ impl<T: Handle> Drop for OwnedHandle<T> {
     }
 }
 
-#[derive(Debug)]
+impl<T: Handle> fmt::Debug for OwnedHandle<T>
+where
+    T::Value: fmt::Debug,
+{
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_tuple("OwnedHandle").field((*self).deref()).finish()
+    }
+}
+
 #[repr(transparent)]
 pub struct SharedHandle<T: Handle>(T);
 
@@ -174,13 +214,22 @@ impl<T: Handle> Deref for SharedHandle<T> {
     }
 }
 
+impl<T: Handle> fmt::Debug for SharedHandle<T>
+where
+    T::Value: fmt::Debug,
+{
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_tuple("SharedHandle")
+            .field((*self).deref())
+            .finish()
+    }
+}
+
 pub type VkInstance = DispatchableHandle<Instance>;
 
 pub type VkPhysicalDevice = DispatchableHandle<PhysicalDevice>;
 
 pub type VkDevice = DispatchableHandle<Device>;
-
-pub struct Queue {}
 
 pub type VkQueue = DispatchableHandle<Queue>;
 
