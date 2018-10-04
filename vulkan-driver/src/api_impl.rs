@@ -13,8 +13,10 @@ use std::ops::*;
 use std::os::raw::c_char;
 use std::ptr::null;
 use std::ptr::null_mut;
+use std::ptr::NonNull;
 use std::slice;
 use std::str::FromStr;
+use swapchain::{SurfaceImplementation, SurfacePlatform, Swapchain};
 use sys_info;
 use uuid;
 #[cfg(unix)]
@@ -117,6 +119,7 @@ fn is_supported_structure_type(v: api::VkStructureType) -> bool {
         | api::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_DRAW_PARAMETER_FEATURES
         | api::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SPARSE_IMAGE_FORMAT_INFO_2
         | api::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SUBGROUP_PROPERTIES
+        | api::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SURFACE_INFO_2_KHR
         | api::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VARIABLE_POINTER_FEATURES
         | api::VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO
         | api::VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO
@@ -148,6 +151,7 @@ fn is_supported_structure_type(v: api::VkStructureType) -> bool {
         | api::VK_STRUCTURE_TYPE_SPARSE_IMAGE_FORMAT_PROPERTIES_2
         | api::VK_STRUCTURE_TYPE_SPARSE_IMAGE_MEMORY_REQUIREMENTS_2
         | api::VK_STRUCTURE_TYPE_SUBMIT_INFO
+        | api::VK_STRUCTURE_TYPE_SURFACE_CAPABILITIES_2_KHR
         | api::VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR
         | api::VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET => true,
         _ => false,
@@ -3365,7 +3369,9 @@ pub unsafe extern "system" fn vkDestroyInstance(
     instance: api::VkInstance,
     _allocator: *const api::VkAllocationCallbacks,
 ) {
-    OwnedHandle::from(instance);
+    if !instance.is_null() {
+        OwnedHandle::from(instance);
+    }
 }
 
 #[allow(non_snake_case)]
@@ -3531,7 +3537,9 @@ pub unsafe extern "system" fn vkDestroyDevice(
     device: api::VkDevice,
     _allocator: *const api::VkAllocationCallbacks,
 ) {
-    OwnedHandle::from(device);
+    if !device.is_null() {
+        OwnedHandle::from(device);
+    }
 }
 
 unsafe fn enumerate_extension_properties(
@@ -5142,10 +5150,42 @@ pub unsafe extern "system" fn vkGetDescriptorSetLayoutSupport(
 #[allow(non_snake_case)]
 pub unsafe extern "system" fn vkDestroySurfaceKHR(
     _instance: api::VkInstance,
-    _surface: api::VkSurfaceKHR,
-    _pAllocator: *const api::VkAllocationCallbacks,
+    surface: api::VkSurfaceKHR,
+    _allocator: *const api::VkAllocationCallbacks,
 ) {
-    unimplemented!()
+    if !surface.is_null() {
+        let surface = SharedHandle::from(surface);
+        match surface.platform {
+            api::VK_ICD_WSI_PLATFORM_MIR => {
+                panic!("unimplemented platform: VK_ICD_WSI_PLATFORM_MIR")
+            }
+            api::VK_ICD_WSI_PLATFORM_WAYLAND => {
+                panic!("unimplemented platform: VK_ICD_WSI_PLATFORM_WAYLAND")
+            }
+            api::VK_ICD_WSI_PLATFORM_WIN32 => {
+                panic!("unimplemented platform: VK_ICD_WSI_PLATFORM_WIN32")
+            }
+            api::VK_ICD_WSI_PLATFORM_XCB => {
+                Box::from_raw(surface.take().get().unwrap().as_ptr() as *mut api::VkIcdSurfaceXcb);
+            }
+            api::VK_ICD_WSI_PLATFORM_XLIB => {
+                panic!("unimplemented platform: VK_ICD_WSI_PLATFORM_XLIB")
+            }
+            api::VK_ICD_WSI_PLATFORM_ANDROID => {
+                panic!("unimplemented platform: VK_ICD_WSI_PLATFORM_ANDROID")
+            }
+            api::VK_ICD_WSI_PLATFORM_MACOS => {
+                panic!("unimplemented platform: VK_ICD_WSI_PLATFORM_MACOS")
+            }
+            api::VK_ICD_WSI_PLATFORM_IOS => {
+                panic!("unimplemented platform: VK_ICD_WSI_PLATFORM_IOS")
+            }
+            api::VK_ICD_WSI_PLATFORM_DISPLAY => {
+                panic!("unimplemented platform: VK_ICD_WSI_PLATFORM_DISPLAY")
+            }
+            platform => panic!("unknown VkSurfaceKHR platform: {:?}", platform),
+        }
+    }
 }
 
 #[allow(non_snake_case)]
@@ -5160,50 +5200,117 @@ pub unsafe extern "system" fn vkGetPhysicalDeviceSurfaceSupportKHR(
 
 #[allow(non_snake_case)]
 pub unsafe extern "system" fn vkGetPhysicalDeviceSurfaceCapabilitiesKHR(
-    _physicalDevice: api::VkPhysicalDevice,
-    _surface: api::VkSurfaceKHR,
-    _pSurfaceCapabilities: *mut api::VkSurfaceCapabilitiesKHR,
+    physical_device: api::VkPhysicalDevice,
+    surface: api::VkSurfaceKHR,
+    surface_capabilities: *mut api::VkSurfaceCapabilitiesKHR,
 ) -> api::VkResult {
-    unimplemented!()
+    let mut surface_capabilities_2 = api::VkSurfaceCapabilities2KHR {
+        sType: api::VK_STRUCTURE_TYPE_SURFACE_CAPABILITIES_2_KHR,
+        pNext: null_mut(),
+        surfaceCapabilities: mem::zeroed(),
+    };
+    match vkGetPhysicalDeviceSurfaceCapabilities2KHR(
+        physical_device,
+        &api::VkPhysicalDeviceSurfaceInfo2KHR {
+            sType: api::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SURFACE_INFO_2_KHR,
+            pNext: null(),
+            surface: surface,
+        },
+        &mut surface_capabilities_2,
+    ) {
+        api::VK_SUCCESS => {
+            *surface_capabilities = surface_capabilities_2.surfaceCapabilities;
+            api::VK_SUCCESS
+        }
+        error => error,
+    }
 }
 
 #[allow(non_snake_case)]
 pub unsafe extern "system" fn vkGetPhysicalDeviceSurfaceFormatsKHR(
-    _physicalDevice: api::VkPhysicalDevice,
-    _surface: api::VkSurfaceKHR,
-    _pSurfaceFormatCount: *mut u32,
-    _pSurfaceFormats: *mut api::VkSurfaceFormatKHR,
+    _physical_device: api::VkPhysicalDevice,
+    surface: api::VkSurfaceKHR,
+    surface_format_count: *mut u32,
+    surface_formats: *mut api::VkSurfaceFormatKHR,
 ) -> api::VkResult {
-    unimplemented!()
+    let surface_implementation = SurfacePlatform::from(SharedHandle::from(surface).platform)
+        .unwrap()
+        .get_surface_implementation();
+    let returned_surface_formats = match surface_implementation.get_surface_formats(surface) {
+        Ok(returned_surface_formats) => returned_surface_formats,
+        Err(result) => return result,
+    };
+    enumerate_helper(
+        surface_format_count,
+        surface_formats,
+        returned_surface_formats.iter(),
+        |a, b| *a = *b,
+    )
 }
 
 #[allow(non_snake_case)]
 pub unsafe extern "system" fn vkGetPhysicalDeviceSurfacePresentModesKHR(
-    _physicalDevice: api::VkPhysicalDevice,
-    _surface: api::VkSurfaceKHR,
-    _pPresentModeCount: *mut u32,
-    _pPresentModes: *mut api::VkPresentModeKHR,
+    _physical_device: api::VkPhysicalDevice,
+    surface: api::VkSurfaceKHR,
+    present_mode_count: *mut u32,
+    present_modes: *mut api::VkPresentModeKHR,
 ) -> api::VkResult {
-    unimplemented!()
+    let surface_implementation = SurfacePlatform::from(SharedHandle::from(surface).platform)
+        .unwrap()
+        .get_surface_implementation();
+    let returned_present_modes = match surface_implementation.get_present_modes(surface) {
+        Ok(returned_present_modes) => returned_present_modes,
+        Err(result) => return result,
+    };
+    enumerate_helper(
+        present_mode_count,
+        present_modes,
+        returned_present_modes.iter(),
+        |a, b| *a = *b,
+    )
 }
 
 #[allow(non_snake_case)]
 pub unsafe extern "system" fn vkCreateSwapchainKHR(
-    _device: api::VkDevice,
-    _pCreateInfo: *const api::VkSwapchainCreateInfoKHR,
-    _pAllocator: *const api::VkAllocationCallbacks,
-    _pSwapchain: *mut api::VkSwapchainKHR,
+    device: api::VkDevice,
+    create_info: *const api::VkSwapchainCreateInfoKHR,
+    _allocator: *const api::VkAllocationCallbacks,
+    swapchain: *mut api::VkSwapchainKHR,
 ) -> api::VkResult {
-    unimplemented!()
+    parse_next_chain_const!{
+        create_info,
+        root = api::VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
+        device_group_swapchain_create_info: api::VkDeviceGroupSwapchainCreateInfoKHR = api::VK_STRUCTURE_TYPE_DEVICE_GROUP_SWAPCHAIN_CREATE_INFO_KHR,
+    }
+    let ref create_info = *create_info;
+    let device_group_swapchain_create_info = if device_group_swapchain_create_info.is_null() {
+        None
+    } else {
+        Some(&*device_group_swapchain_create_info)
+    };
+    *swapchain = Handle::null();
+    let platform = SurfacePlatform::from(SharedHandle::from(create_info.surface).platform).unwrap();
+    match platform
+        .get_surface_implementation()
+        .build(create_info, device_group_swapchain_create_info)
+    {
+        Ok(new_swapchain) => {
+            *swapchain = OwnedHandle::<api::VkSwapchainKHR>::new(new_swapchain).take();
+            api::VK_SUCCESS
+        }
+        Err(error) => error,
+    }
 }
 
 #[allow(non_snake_case)]
 pub unsafe extern "system" fn vkDestroySwapchainKHR(
     _device: api::VkDevice,
-    _swapchain: api::VkSwapchainKHR,
-    _pAllocator: *const api::VkAllocationCallbacks,
+    swapchain: api::VkSwapchainKHR,
+    _allocator: *const api::VkAllocationCallbacks,
 ) {
-    unimplemented!()
+    if !swapchain.is_null() {
+        OwnedHandle::from(swapchain);
+    }
 }
 
 #[allow(non_snake_case)]
@@ -5474,11 +5581,31 @@ pub unsafe extern "system" fn vkGetFenceFdKHR(
 
 #[allow(non_snake_case)]
 pub unsafe extern "system" fn vkGetPhysicalDeviceSurfaceCapabilities2KHR(
-    _physicalDevice: api::VkPhysicalDevice,
-    _pSurfaceInfo: *const api::VkPhysicalDeviceSurfaceInfo2KHR,
-    _pSurfaceCapabilities: *mut api::VkSurfaceCapabilities2KHR,
+    _physical_device: api::VkPhysicalDevice,
+    surface_info: *const api::VkPhysicalDeviceSurfaceInfo2KHR,
+    surface_capabilities: *mut api::VkSurfaceCapabilities2KHR,
 ) -> api::VkResult {
-    unimplemented!()
+    parse_next_chain_const!{
+        surface_info,
+        root = api::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SURFACE_INFO_2_KHR,
+    }
+    let ref surface_info = *surface_info;
+    parse_next_chain_mut!{
+        surface_capabilities,
+        root = api::VK_STRUCTURE_TYPE_SURFACE_CAPABILITIES_2_KHR,
+    }
+    let ref mut surface_capabilities = *surface_capabilities;
+    let surface_implementation =
+        SurfacePlatform::from(SharedHandle::from(surface_info.surface).platform)
+            .unwrap()
+            .get_surface_implementation();
+    match surface_implementation.get_capabilities(surface_info.surface) {
+        Ok(capabilities) => {
+            surface_capabilities.surfaceCapabilities = capabilities;
+            api::VK_SUCCESS
+        }
+        Err(result) => result,
+    }
 }
 
 #[allow(non_snake_case)]
@@ -6054,11 +6181,26 @@ pub unsafe extern "system" fn vkGetQueueCheckpointDataNV(
 #[allow(non_snake_case)]
 pub unsafe extern "system" fn vkCreateXcbSurfaceKHR(
     _instance: api::VkInstance,
-    _pCreateInfo: *const api::VkXcbSurfaceCreateInfoKHR,
-    _pAllocator: *const api::VkAllocationCallbacks,
-    _pSurface: *mut api::VkSurfaceKHR,
+    create_info: *const api::VkXcbSurfaceCreateInfoKHR,
+    _allocator: *const api::VkAllocationCallbacks,
+    surface: *mut api::VkSurfaceKHR,
 ) -> api::VkResult {
-    unimplemented!()
+    parse_next_chain_const!{
+        create_info,
+        root = api::VK_STRUCTURE_TYPE_XCB_SURFACE_CREATE_INFO_KHR,
+    }
+    let ref create_info = *create_info;
+    let new_surface = Box::new(api::VkIcdSurfaceXcb {
+        base: api::VkIcdSurfaceBase {
+            platform: api::VK_ICD_WSI_PLATFORM_XCB,
+        },
+        connection: create_info.connection,
+        window: create_info.window,
+    });
+    *surface = api::VkSurfaceKHR::new(NonNull::new(
+        Box::into_raw(new_surface) as *mut api::VkIcdSurfaceBase
+    ));
+    api::VK_SUCCESS
 }
 
 #[cfg(unix)]

@@ -2,6 +2,10 @@
 // Copyright 2018 Jacob Lifshay
 #[macro_use]
 extern crate enum_map;
+#[cfg(unix)]
+extern crate errno;
+#[cfg(unix)]
+extern crate libc;
 extern crate sys_info;
 extern crate uuid;
 #[cfg(unix)]
@@ -9,6 +13,12 @@ extern crate xcb;
 mod api;
 mod api_impl;
 mod handle;
+mod image;
+#[cfg(unix)]
+mod shm;
+mod swapchain;
+#[cfg(unix)]
+mod xcb_swapchain;
 use std::ffi::CStr;
 use std::os::raw::c_char;
 

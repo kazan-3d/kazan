@@ -9,14 +9,13 @@ use std::ops::Deref;
 use std::ops::DerefMut;
 use std::ptr::null_mut;
 use std::ptr::NonNull;
+use swapchain::Swapchain;
 
 #[repr(C)]
 pub struct DispatchableType<T> {
     loader_dispatch_ptr: usize,
     value: T,
 }
-
-impl<T> DispatchableType<T> {}
 
 impl<T> From<T> for DispatchableType<T> {
     fn from(v: T) -> Self {
@@ -40,10 +39,7 @@ impl<T> DerefMut for DispatchableType<T> {
     }
 }
 
-pub trait Handle: Copy + Eq + fmt::Debug {
-    type Value;
-    fn get(&self) -> Option<NonNull<Self::Value>>;
-    fn new(v: Option<NonNull<Self::Value>>) -> Self;
+pub trait HandleAllocFree: Handle {
     unsafe fn allocate<T: Into<Self::Value>>(v: T) -> Self {
         Self::new(Some(NonNull::new_unchecked(Box::into_raw(Box::new(
             v.into(),
@@ -52,6 +48,12 @@ pub trait Handle: Copy + Eq + fmt::Debug {
     unsafe fn free(self) {
         Box::from_raw(self.get().unwrap().as_ptr());
     }
+}
+
+pub trait Handle: Copy + Eq + fmt::Debug {
+    type Value;
+    fn get(&self) -> Option<NonNull<Self::Value>>;
+    fn new(v: Option<NonNull<Self::Value>>) -> Self;
     fn null() -> Self {
         Self::new(None)
     }
@@ -87,7 +89,12 @@ impl<T> PartialEq for DispatchableHandle<T> {
 impl<T> fmt::Debug for DispatchableHandle<T> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_tuple("DispatchableHandle")
-            .field(&self.get().map(|v| v.as_ptr()).unwrap_or(null_mut()))
+            .field(
+                &self
+                    .get()
+                    .map(|v| v.as_ptr())
+                    .unwrap_or(null_mut::<*mut ()>() as *mut _),
+            )
             .finish()
     }
 }
@@ -143,9 +150,9 @@ impl<T> Handle for NondispatchableHandle<T> {
 }
 
 #[repr(transparent)]
-pub struct OwnedHandle<T: Handle>(T);
+pub struct OwnedHandle<T: HandleAllocFree>(T);
 
-impl<T: Handle> OwnedHandle<T> {
+impl<T: HandleAllocFree> OwnedHandle<T> {
     pub fn new<I: Into<T::Value>>(v: I) -> Self {
         unsafe { OwnedHandle(T::allocate(v)) }
     }
@@ -160,20 +167,20 @@ impl<T: Handle> OwnedHandle<T> {
     }
 }
 
-impl<T: Handle> Deref for OwnedHandle<T> {
+impl<T: HandleAllocFree> Deref for OwnedHandle<T> {
     type Target = T::Value;
     fn deref(&self) -> &T::Value {
         unsafe { &*self.0.get().unwrap().as_ptr() }
     }
 }
 
-impl<T: Handle> DerefMut for OwnedHandle<T> {
+impl<T: HandleAllocFree> DerefMut for OwnedHandle<T> {
     fn deref_mut(&mut self) -> &mut T::Value {
         unsafe { &mut *self.0.get().unwrap().as_ptr() }
     }
 }
 
-impl<T: Handle> Drop for OwnedHandle<T> {
+impl<T: HandleAllocFree> Drop for OwnedHandle<T> {
     fn drop(&mut self) {
         if !self.0.is_null() {
             unsafe {
@@ -183,7 +190,7 @@ impl<T: Handle> Drop for OwnedHandle<T> {
     }
 }
 
-impl<T: Handle> fmt::Debug for OwnedHandle<T>
+impl<T: HandleAllocFree> fmt::Debug for OwnedHandle<T>
 where
     T::Value: fmt::Debug,
 {
@@ -227,128 +234,192 @@ where
 
 pub type VkInstance = DispatchableHandle<Instance>;
 
+impl HandleAllocFree for VkInstance {}
+
 pub type VkPhysicalDevice = DispatchableHandle<PhysicalDevice>;
+
+impl HandleAllocFree for VkPhysicalDevice {}
 
 pub type VkDevice = DispatchableHandle<Device>;
 
+impl HandleAllocFree for VkDevice {}
+
 pub type VkQueue = DispatchableHandle<Queue>;
+
+impl HandleAllocFree for VkQueue {}
 
 pub struct CommandBuffer {}
 
 pub type VkCommandBuffer = DispatchableHandle<CommandBuffer>;
 
+impl HandleAllocFree for VkCommandBuffer {}
+
 pub struct Semaphore {}
 
 pub type VkSemaphore = NondispatchableHandle<Semaphore>;
+
+impl HandleAllocFree for VkSemaphore {}
 
 pub struct Fence {}
 
 pub type VkFence = NondispatchableHandle<Fence>;
 
+impl HandleAllocFree for VkFence {}
+
 pub struct DeviceMemory {}
 
 pub type VkDeviceMemory = NondispatchableHandle<DeviceMemory>;
+
+impl HandleAllocFree for VkDeviceMemory {}
 
 pub struct Buffer {}
 
 pub type VkBuffer = NondispatchableHandle<Buffer>;
 
+impl HandleAllocFree for VkBuffer {}
+
 pub struct Image {}
 
 pub type VkImage = NondispatchableHandle<Image>;
+
+impl HandleAllocFree for VkImage {}
 
 pub struct Event {}
 
 pub type VkEvent = NondispatchableHandle<Event>;
 
+impl HandleAllocFree for VkEvent {}
+
 pub struct QueryPool {}
 
 pub type VkQueryPool = NondispatchableHandle<QueryPool>;
+
+impl HandleAllocFree for VkQueryPool {}
 
 pub struct BufferView {}
 
 pub type VkBufferView = NondispatchableHandle<BufferView>;
 
+impl HandleAllocFree for VkBufferView {}
+
 pub struct ImageView {}
 
 pub type VkImageView = NondispatchableHandle<ImageView>;
+
+impl HandleAllocFree for VkImageView {}
 
 pub struct ShaderModule {}
 
 pub type VkShaderModule = NondispatchableHandle<ShaderModule>;
 
+impl HandleAllocFree for VkShaderModule {}
+
 pub struct PipelineCache {}
 
 pub type VkPipelineCache = NondispatchableHandle<PipelineCache>;
+
+impl HandleAllocFree for VkPipelineCache {}
 
 pub struct PipelineLayout {}
 
 pub type VkPipelineLayout = NondispatchableHandle<PipelineLayout>;
 
+impl HandleAllocFree for VkPipelineLayout {}
+
 pub struct RenderPass {}
 
 pub type VkRenderPass = NondispatchableHandle<RenderPass>;
+
+impl HandleAllocFree for VkRenderPass {}
 
 pub struct Pipeline {}
 
 pub type VkPipeline = NondispatchableHandle<Pipeline>;
 
+impl HandleAllocFree for VkPipeline {}
+
 pub struct DescriptorSetLayout {}
 
 pub type VkDescriptorSetLayout = NondispatchableHandle<DescriptorSetLayout>;
+
+impl HandleAllocFree for VkDescriptorSetLayout {}
 
 pub struct Sampler {}
 
 pub type VkSampler = NondispatchableHandle<Sampler>;
 
+impl HandleAllocFree for VkSampler {}
+
 pub struct DescriptorPool {}
 
 pub type VkDescriptorPool = NondispatchableHandle<DescriptorPool>;
+
+impl HandleAllocFree for VkDescriptorPool {}
 
 pub struct DescriptorSet {}
 
 pub type VkDescriptorSet = NondispatchableHandle<DescriptorSet>;
 
+impl HandleAllocFree for VkDescriptorSet {}
+
 pub struct Framebuffer {}
 
 pub type VkFramebuffer = NondispatchableHandle<Framebuffer>;
+
+impl HandleAllocFree for VkFramebuffer {}
 
 pub struct CommandPool {}
 
 pub type VkCommandPool = NondispatchableHandle<CommandPool>;
 
+impl HandleAllocFree for VkCommandPool {}
+
 pub struct SamplerYcbcrConversion {}
 
 pub type VkSamplerYcbcrConversion = NondispatchableHandle<SamplerYcbcrConversion>;
+
+impl HandleAllocFree for VkSamplerYcbcrConversion {}
 
 pub struct DescriptorUpdateTemplate {}
 
 pub type VkDescriptorUpdateTemplate = NondispatchableHandle<DescriptorUpdateTemplate>;
 
-pub struct SurfaceKHR {}
+impl HandleAllocFree for VkDescriptorUpdateTemplate {}
 
-pub type VkSurfaceKHR = NondispatchableHandle<SurfaceKHR>;
+pub type VkSurfaceKHR = NondispatchableHandle<api::VkIcdSurfaceBase>;
 
-pub struct SwapchainKHR {}
+// HandleAllocFree specifically not implemented for VkSurfaceKHR
 
-pub type VkSwapchainKHR = NondispatchableHandle<SwapchainKHR>;
+pub type VkSwapchainKHR = NondispatchableHandle<Box<Swapchain>>;
+
+impl HandleAllocFree for VkSwapchainKHR {}
 
 pub struct DisplayKHR {}
 
 pub type VkDisplayKHR = NondispatchableHandle<DisplayKHR>;
 
+impl HandleAllocFree for VkDisplayKHR {}
+
 pub struct DisplayModeKHR {}
 
 pub type VkDisplayModeKHR = NondispatchableHandle<DisplayModeKHR>;
+
+impl HandleAllocFree for VkDisplayModeKHR {}
 
 pub struct DebugReportCallbackEXT {}
 
 pub type VkDebugReportCallbackEXT = NondispatchableHandle<DebugReportCallbackEXT>;
 
+impl HandleAllocFree for VkDebugReportCallbackEXT {}
+
 pub struct DebugUtilsMessengerEXT {}
 
 pub type VkDebugUtilsMessengerEXT = NondispatchableHandle<DebugUtilsMessengerEXT>;
 
+impl HandleAllocFree for VkDebugUtilsMessengerEXT {}
+
 pub struct ValidationCacheEXT {}
 
 pub type VkValidationCacheEXT = NondispatchableHandle<ValidationCacheEXT>;
+
+impl HandleAllocFree for VkValidationCacheEXT {}

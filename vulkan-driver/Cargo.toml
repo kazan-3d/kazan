@@ -16,7 +16,9 @@ uuid = {version = "0.7", features = ["v5"]}
 sys-info = "0.5"
 
 [target.'cfg(unix)'.dependencies]
-xcb = "0.8"
+xcb = {version = "0.8", features = ["shm"]}
+libc = "0.2"
+errno = "0.2"
 
 [build-dependencies]
 bindgen = "0.40"
