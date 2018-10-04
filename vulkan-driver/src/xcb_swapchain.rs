@@ -107,10 +107,13 @@ unsafe fn create_shm_seg(
     }
 }
 
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
 enum SurfaceFormatGroup {
+    R8G8B8A8,
     B8G8R8A8,
 }
 
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
 enum SwapchainSetupError {
     BadSurface,
     NoSupport,
@@ -265,6 +268,14 @@ impl SwapchainSetupFirstStage {
                     && b == blue_mask
                     && (alpha_mask == 0 || a == alpha_mask) =>
             {
+                SurfaceFormatGroup::R8G8B8A8
+            }
+            (b, g, r, a)
+                if r == red_mask
+                    && g == green_mask
+                    && b == blue_mask
+                    && (alpha_mask == 0 || a == alpha_mask) =>
+            {
                 SurfaceFormatGroup::B8G8R8A8
             }
             _ => return Err(SwapchainSetupError::NoSupport),
@@ -364,6 +375,19 @@ impl SurfaceImplementation for XcbSurfaceImplementation {
                     },
                     api::VkSurfaceFormatKHR {
                         format: api::VK_FORMAT_B8G8R8A8_UNORM,
+                        colorSpace: api::VK_COLOR_SPACE_SRGB_NONLINEAR_KHR,
+                    },
+                ];
+                Ok(Cow::Borrowed(SURFACE_FORMATS))
+            }
+            SurfaceFormatGroup::R8G8B8A8 => {
+                const SURFACE_FORMATS: &'static [api::VkSurfaceFormatKHR] = &[
+                    api::VkSurfaceFormatKHR {
+                        format: api::VK_FORMAT_R8G8B8A8_SRGB,
+                        colorSpace: api::VK_COLOR_SPACE_SRGB_NONLINEAR_KHR,
+                    },
+                    api::VkSurfaceFormatKHR {
+                        format: api::VK_FORMAT_R8G8B8A8_UNORM,
                         colorSpace: api::VK_COLOR_SPACE_SRGB_NONLINEAR_KHR,
                     },
                 ];
