@@ -12,8 +12,12 @@ extern crate uuid;
 extern crate xcb;
 mod api;
 mod api_impl;
+mod buffer;
+mod device_memory;
 mod handle;
 mod image;
+mod sampler;
+mod shader_module;
 #[cfg(unix)]
 mod shm;
 mod swapchain;
@@ -28,6 +32,8 @@ mod constants {
     pub const QUEUE_FAMILY_COUNT: u32 = 1;
     pub const QUEUE_COUNTS: [u32; QUEUE_FAMILY_COUNT as usize] = [1];
     pub const TOTAL_QUEUE_COUNT: usize = 1;
+    pub const BUFFER_ALIGNMENT: usize = 64; // FIXME: determine correct value
+    pub const IMAGE_ALIGNMENT: usize = 64; // FIXME: determine correct value
 }
 
 #[no_mangle]

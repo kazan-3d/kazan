@@ -2,15 +2,23 @@
 // Copyright 2018 Jacob Lifshay
 #![allow(dead_code)]
 use api;
+use buffer::Buffer;
 use constants::*;
+use device_memory::{
+    DeviceMemory, DeviceMemoryAllocation, DeviceMemoryHeap, DeviceMemoryHeaps, DeviceMemoryLayout,
+    DeviceMemoryType, DeviceMemoryTypes,
+};
 use enum_map::EnumMap;
 use handle::{Handle, OwnedHandle, SharedHandle};
+use sampler;
+use sampler::Sampler;
+use shader_module::ShaderModule;
 use std::ffi::CStr;
 use std::iter;
 use std::iter::FromIterator;
 use std::mem;
 use std::ops::*;
-use std::os::raw::c_char;
+use std::os::raw::{c_char, c_int, c_void};
 use std::ptr::null;
 use std::ptr::null_mut;
 use std::ptr::NonNull;
@@ -1578,7 +1586,7 @@ impl Device {
             );
             assert_eq!(
                 *physical_devices,
-                *physical_device.get_handle(),
+                physical_device.get_handle(),
                 "unknown physical_device"
             );
         }
@@ -1693,6 +1701,119 @@ impl PhysicalDevice {
     pub fn get_driver_uuid() -> uuid::Uuid {
         // FIXME: return real uuid
         uuid::Uuid::nil()
+    }
+    pub fn get_limits() -> api::VkPhysicalDeviceLimits {
+        api::VkPhysicalDeviceLimits {
+            maxImageDimension1D: !0,
+            maxImageDimension2D: !0,
+            maxImageDimension3D: !0,
+            maxImageDimensionCube: !0,
+            maxImageArrayLayers: !0,
+            maxTexelBufferElements: !0,
+            maxUniformBufferRange: !0,
+            maxStorageBufferRange: !0,
+            maxPushConstantsSize: !0,
+            maxMemoryAllocationCount: !0,
+            maxSamplerAllocationCount: !0,
+            bufferImageGranularity: 1,
+            sparseAddressSpaceSize: 0,
+            maxBoundDescriptorSets: !0,
+            maxPerStageDescriptorSamplers: !0,
+            maxPerStageDescriptorUniformBuffers: !0,
+            maxPerStageDescriptorStorageBuffers: !0,
+            maxPerStageDescriptorSampledImages: !0,
+            maxPerStageDescriptorStorageImages: !0,
+            maxPerStageDescriptorInputAttachments: !0,
+            maxPerStageResources: !0,
+            maxDescriptorSetSamplers: !0,
+            maxDescriptorSetUniformBuffers: !0,
+            maxDescriptorSetUniformBuffersDynamic: !0,
+            maxDescriptorSetStorageBuffers: !0,
+            maxDescriptorSetStorageBuffersDynamic: !0,
+            maxDescriptorSetSampledImages: !0,
+            maxDescriptorSetStorageImages: !0,
+            maxDescriptorSetInputAttachments: !0,
+            maxVertexInputAttributes: !0,
+            maxVertexInputBindings: !0,
+            maxVertexInputAttributeOffset: !0,
+            maxVertexInputBindingStride: !0,
+            maxVertexOutputComponents: !0,
+            maxTessellationGenerationLevel: 0,
+            maxTessellationPatchSize: 0,
+            maxTessellationControlPerVertexInputComponents: 0,
+            maxTessellationControlPerVertexOutputComponents: 0,
+            maxTessellationControlPerPatchOutputComponents: 0,
+            maxTessellationControlTotalOutputComponents: 0,
+            maxTessellationEvaluationInputComponents: 0,
+            maxTessellationEvaluationOutputComponents: 0,
+            maxGeometryShaderInvocations: 0,
+            maxGeometryInputComponents: 0,
+            maxGeometryOutputComponents: 0,
+            maxGeometryOutputVertices: 0,
+            maxGeometryTotalOutputComponents: 0,
+            maxFragmentInputComponents: !0,
+            maxFragmentOutputAttachments: !0,
+            maxFragmentDualSrcAttachments: 0,
+            maxFragmentCombinedOutputResources: !0,
+            maxComputeSharedMemorySize: !0,
+            maxComputeWorkGroupCount: [!0; 3],
+            maxComputeWorkGroupInvocations: !0,
+            maxComputeWorkGroupSize: [!0; 3],
+            subPixelPrecisionBits: 4, // FIXME: update to correct value
+            subTexelPrecisionBits: 4, // FIXME: update to correct value
+            mipmapPrecisionBits: 4,   // FIXME: update to correct value
+            maxDrawIndexedIndexValue: !0,
+            maxDrawIndirectCount: !0,
+            maxSamplerLodBias: 2.0, // FIXME: update to correct value
+            maxSamplerAnisotropy: 1.0,
+            maxViewports: 1,
+            maxViewportDimensions: [4096; 2], // FIXME: update to correct value
+            viewportBoundsRange: [-8192.0, 8191.0], // FIXME: update to correct value
+            viewportSubPixelBits: 0,
+            minMemoryMapAlignment: MIN_MEMORY_MAP_ALIGNMENT,
+            minTexelBufferOffsetAlignment: 64, // FIXME: update to correct value
+            minUniformBufferOffsetAlignment: 64, // FIXME: update to correct value
+            minStorageBufferOffsetAlignment: 64, // FIXME: update to correct value
+            minTexelOffset: -8,                // FIXME: update to correct value
+            maxTexelOffset: 7,                 // FIXME: update to correct value
+            minTexelGatherOffset: 0,
+            maxTexelGatherOffset: 0,
+            minInterpolationOffset: 0.0,
+            maxInterpolationOffset: 0.0,
+            subPixelInterpolationOffsetBits: 0,
+            maxFramebufferWidth: 4096,  // FIXME: update to correct value
+            maxFramebufferHeight: 4096, // FIXME: update to correct value
+            maxFramebufferLayers: 256,  // FIXME: update to correct value
+            framebufferColorSampleCounts: api::VK_SAMPLE_COUNT_1_BIT | api::VK_SAMPLE_COUNT_4_BIT, // FIXME: update to correct value
+            framebufferDepthSampleCounts: api::VK_SAMPLE_COUNT_1_BIT | api::VK_SAMPLE_COUNT_4_BIT, // FIXME: update to correct value
+            framebufferStencilSampleCounts: api::VK_SAMPLE_COUNT_1_BIT | api::VK_SAMPLE_COUNT_4_BIT, // FIXME: update to correct value
+            framebufferNoAttachmentsSampleCounts: api::VK_SAMPLE_COUNT_1_BIT
+                | api::VK_SAMPLE_COUNT_4_BIT, // FIXME: update to correct value
+            maxColorAttachments: 4,
+            sampledImageColorSampleCounts: api::VK_SAMPLE_COUNT_1_BIT | api::VK_SAMPLE_COUNT_4_BIT, // FIXME: update to correct value
+            sampledImageIntegerSampleCounts: api::VK_SAMPLE_COUNT_1_BIT
+                | api::VK_SAMPLE_COUNT_4_BIT, // FIXME: update to correct value
+            sampledImageDepthSampleCounts: api::VK_SAMPLE_COUNT_1_BIT | api::VK_SAMPLE_COUNT_4_BIT, // FIXME: update to correct value
+            sampledImageStencilSampleCounts: api::VK_SAMPLE_COUNT_1_BIT
+                | api::VK_SAMPLE_COUNT_4_BIT, // FIXME: update to correct value
+            storageImageSampleCounts: api::VK_SAMPLE_COUNT_1_BIT, // FIXME: update to correct value
+            maxSampleMaskWords: 1,
+            timestampComputeAndGraphics: api::VK_FALSE,
+            timestampPeriod: 0.0,
+            maxClipDistances: 0,
+            maxCullDistances: 0,
+            maxCombinedClipAndCullDistances: 0,
+            discreteQueuePriorities: 2,
+            pointSizeRange: [1.0; 2],
+            lineWidthRange: [1.0; 2],
+            pointSizeGranularity: 0.0,
+            lineWidthGranularity: 0.0,
+            strictLines: api::VK_FALSE,
+            standardSampleLocations: api::VK_TRUE,
+            optimalBufferCopyOffsetAlignment: 16,
+            optimalBufferCopyRowPitchAlignment: 16,
+            nonCoherentAtomSize: 1, //TODO: check if this is correct
+        }
     }
     pub fn get_format_properties(format: api::VkFormat) -> api::VkFormatProperties {
         match format {
@@ -3087,122 +3208,7 @@ impl Instance {
                     deviceType: api::VK_PHYSICAL_DEVICE_TYPE_CPU,
                     deviceName: device_name,
                     pipelineCacheUUID: *PhysicalDevice::get_pipeline_cache_uuid().as_bytes(),
-                    limits: api::VkPhysicalDeviceLimits {
-                        maxImageDimension1D: !0,
-                        maxImageDimension2D: !0,
-                        maxImageDimension3D: !0,
-                        maxImageDimensionCube: !0,
-                        maxImageArrayLayers: !0,
-                        maxTexelBufferElements: !0,
-                        maxUniformBufferRange: !0,
-                        maxStorageBufferRange: !0,
-                        maxPushConstantsSize: !0,
-                        maxMemoryAllocationCount: !0,
-                        maxSamplerAllocationCount: !0,
-                        bufferImageGranularity: 1,
-                        sparseAddressSpaceSize: 0,
-                        maxBoundDescriptorSets: !0,
-                        maxPerStageDescriptorSamplers: !0,
-                        maxPerStageDescriptorUniformBuffers: !0,
-                        maxPerStageDescriptorStorageBuffers: !0,
-                        maxPerStageDescriptorSampledImages: !0,
-                        maxPerStageDescriptorStorageImages: !0,
-                        maxPerStageDescriptorInputAttachments: !0,
-                        maxPerStageResources: !0,
-                        maxDescriptorSetSamplers: !0,
-                        maxDescriptorSetUniformBuffers: !0,
-                        maxDescriptorSetUniformBuffersDynamic: !0,
-                        maxDescriptorSetStorageBuffers: !0,
-                        maxDescriptorSetStorageBuffersDynamic: !0,
-                        maxDescriptorSetSampledImages: !0,
-                        maxDescriptorSetStorageImages: !0,
-                        maxDescriptorSetInputAttachments: !0,
-                        maxVertexInputAttributes: !0,
-                        maxVertexInputBindings: !0,
-                        maxVertexInputAttributeOffset: !0,
-                        maxVertexInputBindingStride: !0,
-                        maxVertexOutputComponents: !0,
-                        maxTessellationGenerationLevel: 0,
-                        maxTessellationPatchSize: 0,
-                        maxTessellationControlPerVertexInputComponents: 0,
-                        maxTessellationControlPerVertexOutputComponents: 0,
-                        maxTessellationControlPerPatchOutputComponents: 0,
-                        maxTessellationControlTotalOutputComponents: 0,
-                        maxTessellationEvaluationInputComponents: 0,
-                        maxTessellationEvaluationOutputComponents: 0,
-                        maxGeometryShaderInvocations: 0,
-                        maxGeometryInputComponents: 0,
-                        maxGeometryOutputComponents: 0,
-                        maxGeometryOutputVertices: 0,
-                        maxGeometryTotalOutputComponents: 0,
-                        maxFragmentInputComponents: !0,
-                        maxFragmentOutputAttachments: !0,
-                        maxFragmentDualSrcAttachments: 0,
-                        maxFragmentCombinedOutputResources: !0,
-                        maxComputeSharedMemorySize: !0,
-                        maxComputeWorkGroupCount: [!0; 3],
-                        maxComputeWorkGroupInvocations: !0,
-                        maxComputeWorkGroupSize: [!0; 3],
-                        subPixelPrecisionBits: 4, // FIXME: update to correct value
-                        subTexelPrecisionBits: 4, // FIXME: update to correct value
-                        mipmapPrecisionBits: 4,   // FIXME: update to correct value
-                        maxDrawIndexedIndexValue: !0,
-                        maxDrawIndirectCount: !0,
-                        maxSamplerLodBias: 2.0, // FIXME: update to correct value
-                        maxSamplerAnisotropy: 1.0,
-                        maxViewports: 1,
-                        maxViewportDimensions: [4096; 2], // FIXME: update to correct value
-                        viewportBoundsRange: [-8192.0, 8191.0], // FIXME: update to correct value
-                        viewportSubPixelBits: 0,
-                        minMemoryMapAlignment: MIN_MEMORY_MAP_ALIGNMENT,
-                        minTexelBufferOffsetAlignment: 256, // FIXME: update to correct value
-                        minUniformBufferOffsetAlignment: 256, // FIXME: update to correct value
-                        minStorageBufferOffsetAlignment: 256, // FIXME: update to correct value
-                        minTexelOffset: -8,                 // FIXME: update to correct value
-                        maxTexelOffset: 7,                  // FIXME: update to correct value
-                        minTexelGatherOffset: 0,
-                        maxTexelGatherOffset: 0,
-                        minInterpolationOffset: 0.0,
-                        maxInterpolationOffset: 0.0,
-                        subPixelInterpolationOffsetBits: 0,
-                        maxFramebufferWidth: 4096, // FIXME: update to correct value
-                        maxFramebufferHeight: 4096, // FIXME: update to correct value
-                        maxFramebufferLayers: 256, // FIXME: update to correct value
-                        framebufferColorSampleCounts: api::VK_SAMPLE_COUNT_1_BIT
-                            | api::VK_SAMPLE_COUNT_4_BIT, // FIXME: update to correct value
-                        framebufferDepthSampleCounts: api::VK_SAMPLE_COUNT_1_BIT
-                            | api::VK_SAMPLE_COUNT_4_BIT, // FIXME: update to correct value
-                        framebufferStencilSampleCounts: api::VK_SAMPLE_COUNT_1_BIT
-                            | api::VK_SAMPLE_COUNT_4_BIT, // FIXME: update to correct value
-                        framebufferNoAttachmentsSampleCounts: api::VK_SAMPLE_COUNT_1_BIT
-                            | api::VK_SAMPLE_COUNT_4_BIT, // FIXME: update to correct value
-                        maxColorAttachments: 4,
-                        sampledImageColorSampleCounts: api::VK_SAMPLE_COUNT_1_BIT
-                            | api::VK_SAMPLE_COUNT_4_BIT, // FIXME: update to correct value
-                        sampledImageIntegerSampleCounts: api::VK_SAMPLE_COUNT_1_BIT
-                            | api::VK_SAMPLE_COUNT_4_BIT, // FIXME: update to correct value
-                        sampledImageDepthSampleCounts: api::VK_SAMPLE_COUNT_1_BIT
-                            | api::VK_SAMPLE_COUNT_4_BIT, // FIXME: update to correct value
-                        sampledImageStencilSampleCounts: api::VK_SAMPLE_COUNT_1_BIT
-                            | api::VK_SAMPLE_COUNT_4_BIT, // FIXME: update to correct value
-                        storageImageSampleCounts: api::VK_SAMPLE_COUNT_1_BIT, // FIXME: update to correct value
-                        maxSampleMaskWords: 1,
-                        timestampComputeAndGraphics: api::VK_FALSE,
-                        timestampPeriod: 0.0,
-                        maxClipDistances: 0,
-                        maxCullDistances: 0,
-                        maxCombinedClipAndCullDistances: 0,
-                        discreteQueuePriorities: 2,
-                        pointSizeRange: [1.0; 2],
-                        lineWidthRange: [1.0; 2],
-                        pointSizeGranularity: 0.0,
-                        lineWidthGranularity: 0.0,
-                        strictLines: api::VK_FALSE,
-                        standardSampleLocations: api::VK_TRUE,
-                        optimalBufferCopyOffsetAlignment: 16,
-                        optimalBufferCopyRowPitchAlignment: 16,
-                        nonCoherentAtomSize: 1, //TODO: check if this is correct
-                    },
+                    limits: PhysicalDevice::get_limits(),
                     sparseProperties: api::VkPhysicalDeviceSparseProperties {
                         residencyStandard2DBlockShape: api::VK_FALSE,
                         residencyStandard2DMultisampleBlockShape: api::VK_FALSE,
@@ -3268,6 +3274,7 @@ pub unsafe extern "system" fn vkGetInstanceProcAddr(
             name,
             GetProcAddressScope::Instance,
             &SharedHandle::from(instance)
+                .unwrap()
                 .physical_device
                 .allowed_extensions,
         ),
@@ -3336,7 +3343,7 @@ pub unsafe extern "system" fn vkEnumerateInstanceLayerProperties(
 
 #[allow(non_snake_case)]
 pub unsafe extern "system" fn vkEnumerateInstanceExtensionProperties(
-    layer_name: *const ::std::os::raw::c_char,
+    layer_name: *const c_char,
     property_count: *mut u32,
     properties: *mut api::VkExtensionProperties,
 ) -> api::VkResult {
@@ -3380,11 +3387,11 @@ pub unsafe extern "system" fn vkEnumeratePhysicalDevices(
     physical_device_count: *mut u32,
     physical_devices: *mut api::VkPhysicalDevice,
 ) -> api::VkResult {
-    let instance = SharedHandle::from(instance);
+    let instance = SharedHandle::from(instance).unwrap();
     enumerate_helper(
         physical_device_count,
         physical_devices,
-        iter::once(*instance.physical_device.get_handle()),
+        iter::once(instance.physical_device.get_handle()),
         |l, r| *l = r,
     )
 }
@@ -3436,7 +3443,7 @@ pub unsafe extern "system" fn vkGetPhysicalDeviceProperties(
     physical_device: api::VkPhysicalDevice,
     properties: *mut api::VkPhysicalDeviceProperties,
 ) {
-    let physical_device = SharedHandle::from(physical_device);
+    let physical_device = SharedHandle::from(physical_device).unwrap();
     *properties = physical_device.properties;
 }
 
@@ -3480,7 +3487,7 @@ pub unsafe extern "system" fn vkGetPhysicalDeviceQueueFamilyProperties(
                 queueFamilyProperties: mem::zeroed(),
             };
             get_physical_device_queue_family_properties(
-                SharedHandle::from(physical_device),
+                SharedHandle::from(physical_device).unwrap(),
                 &mut queue_family_properties2,
                 count,
             );
@@ -3506,12 +3513,12 @@ pub unsafe extern "system" fn vkGetPhysicalDeviceMemoryProperties(
 #[allow(non_snake_case)]
 pub unsafe extern "system" fn vkGetDeviceProcAddr(
     device: api::VkDevice,
-    name: *const ::std::os::raw::c_char,
+    name: *const c_char,
 ) -> api::PFN_vkVoidFunction {
     get_proc_address(
         name,
         GetProcAddressScope::Device,
-        &SharedHandle::from(device).extensions,
+        &SharedHandle::from(device).unwrap().extensions,
     )
 }
 
@@ -3523,7 +3530,7 @@ pub unsafe extern "system" fn vkCreateDevice(
     device: *mut api::VkDevice,
 ) -> api::VkResult {
     *device = Handle::null();
-    match Device::new(SharedHandle::from(physical_device), create_info) {
+    match Device::new(SharedHandle::from(physical_device).unwrap(), create_info) {
         Ok(v) => {
             *device = v.take();
             api::VK_SUCCESS
@@ -3543,7 +3550,7 @@ pub unsafe extern "system" fn vkDestroyDevice(
 }
 
 unsafe fn enumerate_extension_properties(
-    layer_name: *const ::std::os::raw::c_char,
+    layer_name: *const c_char,
     property_count: *mut u32,
     properties: *mut api::VkExtensionProperties,
     extension_scope: ExtensionScope,
@@ -3570,7 +3577,7 @@ unsafe fn enumerate_extension_properties(
 #[allow(non_snake_case)]
 pub unsafe extern "system" fn vkEnumerateDeviceExtensionProperties(
     _physical_device: api::VkPhysicalDevice,
-    layer_name: *const ::std::os::raw::c_char,
+    layer_name: *const c_char,
     property_count: *mut u32,
     properties: *mut api::VkExtensionProperties,
 ) -> api::VkResult {
@@ -3593,12 +3600,22 @@ pub unsafe extern "system" fn vkEnumerateDeviceLayerProperties(
 
 #[allow(non_snake_case)]
 pub unsafe extern "system" fn vkGetDeviceQueue(
-    _device: api::VkDevice,
-    _queueFamilyIndex: u32,
-    _queueIndex: u32,
-    _pQueue: *mut api::VkQueue,
+    device: api::VkDevice,
+    queue_family_index: u32,
+    queue_index: u32,
+    queue: *mut api::VkQueue,
 ) {
-    unimplemented!()
+    vkGetDeviceQueue2(
+        device,
+        &api::VkDeviceQueueInfo2 {
+            sType: api::VK_STRUCTURE_TYPE_DEVICE_QUEUE_INFO_2,
+            pNext: null(),
+            flags: 0,
+            queueFamilyIndex: queue_family_index,
+            queueIndex: queue_index,
+        },
+        queue,
+    );
 }
 
 #[allow(non_snake_case)]
@@ -3624,38 +3641,74 @@ pub unsafe extern "system" fn vkDeviceWaitIdle(_device: api::VkDevice) -> api::V
 #[allow(non_snake_case)]
 pub unsafe extern "system" fn vkAllocateMemory(
     _device: api::VkDevice,
-    _pAllocateInfo: *const api::VkMemoryAllocateInfo,
-    _pAllocator: *const api::VkAllocationCallbacks,
-    _pMemory: *mut api::VkDeviceMemory,
+    allocate_info: *const api::VkMemoryAllocateInfo,
+    _allocator: *const api::VkAllocationCallbacks,
+    memory: *mut api::VkDeviceMemory,
 ) -> api::VkResult {
-    unimplemented!()
+    parse_next_chain_const!{
+        allocate_info,
+        root = api::VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+        export_memory_allocate_info: api::VkExportMemoryAllocateInfo = api::VK_STRUCTURE_TYPE_EXPORT_MEMORY_ALLOCATE_INFO,
+        memory_allocate_flags_info: api::VkMemoryAllocateFlagsInfo = api::VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_FLAGS_INFO,
+        memory_dedicated_allocate_info: api::VkMemoryDedicatedAllocateInfo = api::VK_STRUCTURE_TYPE_MEMORY_DEDICATED_ALLOCATE_INFO,
+    }
+    let ref allocate_info = *allocate_info;
+    if !export_memory_allocate_info.is_null() {
+        unimplemented!()
+    }
+    if !memory_allocate_flags_info.is_null() {
+        unimplemented!()
+    }
+    if !memory_dedicated_allocate_info.is_null() {
+        unimplemented!()
+    }
+    match DeviceMemoryType::from_index(allocate_info.memoryTypeIndex).unwrap() {
+        DeviceMemoryType::Main => {
+            if allocate_info.allocationSize > isize::max_value() as u64 {
+                return api::VK_ERROR_OUT_OF_DEVICE_MEMORY;
+            }
+            match DeviceMemory::allocate_from_default_heap(DeviceMemoryLayout::calculate(
+                allocate_info.allocationSize as usize,
+                MIN_MEMORY_MAP_ALIGNMENT,
+            )) {
+                Ok(new_memory) => {
+                    *memory = OwnedHandle::<api::VkDeviceMemory>::new(new_memory).take();
+                    api::VK_SUCCESS
+                }
+                Err(_) => api::VK_ERROR_OUT_OF_DEVICE_MEMORY,
+            }
+        }
+    }
 }
 
 #[allow(non_snake_case)]
 pub unsafe extern "system" fn vkFreeMemory(
     _device: api::VkDevice,
-    _memory: api::VkDeviceMemory,
-    _pAllocator: *const api::VkAllocationCallbacks,
+    memory: api::VkDeviceMemory,
+    _allocator: *const api::VkAllocationCallbacks,
 ) {
-    unimplemented!()
+    if !memory.is_null() {
+        OwnedHandle::from(memory);
+    }
 }
 
 #[allow(non_snake_case)]
 pub unsafe extern "system" fn vkMapMemory(
     _device: api::VkDevice,
-    _memory: api::VkDeviceMemory,
-    _offset: api::VkDeviceSize,
-    _size: api::VkDeviceSize,
-    _flags: api::VkMemoryMapFlags,
-    _ppData: *mut *mut ::std::os::raw::c_void,
+    memory: api::VkDeviceMemory,
+    offset: api::VkDeviceSize,
+    size: api::VkDeviceSize,
+    flags: api::VkMemoryMapFlags,
+    data: *mut *mut c_void,
 ) -> api::VkResult {
-    unimplemented!()
+    let memory = SharedHandle::from(memory).unwrap();
+    // remember to keep vkUnmapMemory up to date
+    *data = memory.get().as_ptr().offset(offset as isize) as *mut c_void;
+    api::VK_SUCCESS
 }
 
 #[allow(non_snake_case)]
-pub unsafe extern "system" fn vkUnmapMemory(_device: api::VkDevice, _memory: api::VkDeviceMemory) {
-    unimplemented!()
-}
+pub unsafe extern "system" fn vkUnmapMemory(_device: api::VkDevice, _memory: api::VkDeviceMemory) {}
 
 #[allow(non_snake_case)]
 pub unsafe extern "system" fn vkFlushMappedMemoryRanges(
@@ -3686,12 +3739,22 @@ pub unsafe extern "system" fn vkGetDeviceMemoryCommitment(
 
 #[allow(non_snake_case)]
 pub unsafe extern "system" fn vkBindBufferMemory(
-    _device: api::VkDevice,
-    _buffer: api::VkBuffer,
-    _memory: api::VkDeviceMemory,
-    _memoryOffset: api::VkDeviceSize,
+    device: api::VkDevice,
+    buffer: api::VkBuffer,
+    memory: api::VkDeviceMemory,
+    memory_offset: api::VkDeviceSize,
 ) -> api::VkResult {
-    unimplemented!()
+    vkBindBufferMemory2(
+        device,
+        1,
+        &api::VkBindBufferMemoryInfo {
+            sType: api::VK_STRUCTURE_TYPE_BIND_BUFFER_MEMORY_INFO,
+            pNext: null(),
+            buffer,
+            memory,
+            memoryOffset: memory_offset,
+        },
+    )
 }
 
 #[allow(non_snake_case)]
@@ -3706,11 +3769,25 @@ pub unsafe extern "system" fn vkBindImageMemory(
 
 #[allow(non_snake_case)]
 pub unsafe extern "system" fn vkGetBufferMemoryRequirements(
-    _device: api::VkDevice,
-    _buffer: api::VkBuffer,
-    _pMemoryRequirements: *mut api::VkMemoryRequirements,
+    device: api::VkDevice,
+    buffer: api::VkBuffer,
+    memory_requirements: *mut api::VkMemoryRequirements,
 ) {
-    unimplemented!()
+    let mut memory_requirements_2 = api::VkMemoryRequirements2 {
+        sType: api::VK_STRUCTURE_TYPE_MEMORY_REQUIREMENTS_2,
+        pNext: null_mut(),
+        memoryRequirements: mem::zeroed(),
+    };
+    vkGetBufferMemoryRequirements2(
+        device,
+        &api::VkBufferMemoryRequirementsInfo2 {
+            sType: api::VK_STRUCTURE_TYPE_BUFFER_MEMORY_REQUIREMENTS_INFO_2,
+            pNext: null(),
+            buffer,
+        },
+        &mut memory_requirements_2,
+    );
+    *memory_requirements = memory_requirements_2.memoryRequirements;
 }
 
 #[allow(non_snake_case)]
@@ -3891,7 +3968,7 @@ pub unsafe extern "system" fn vkGetQueryPoolResults(
     _firstQuery: u32,
     _queryCount: u32,
     _dataSize: usize,
-    _pData: *mut ::std::os::raw::c_void,
+    _pData: *mut c_void,
     _stride: api::VkDeviceSize,
     _flags: api::VkQueryResultFlags,
 ) -> api::VkResult {
@@ -3901,20 +3978,40 @@ pub unsafe extern "system" fn vkGetQueryPoolResults(
 #[allow(non_snake_case)]
 pub unsafe extern "system" fn vkCreateBuffer(
     _device: api::VkDevice,
-    _pCreateInfo: *const api::VkBufferCreateInfo,
-    _pAllocator: *const api::VkAllocationCallbacks,
-    _pBuffer: *mut api::VkBuffer,
+    create_info: *const api::VkBufferCreateInfo,
+    _allocator: *const api::VkAllocationCallbacks,
+    buffer: *mut api::VkBuffer,
 ) -> api::VkResult {
-    unimplemented!()
+    parse_next_chain_const!{
+        create_info,
+        root = api::VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+        external_memory_buffer: api::VkExternalMemoryBufferCreateInfo = api::VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_BUFFER_CREATE_INFO,
+    }
+    let ref create_info = *create_info;
+    if !external_memory_buffer.is_null() {
+        let ref external_memory_buffer = *external_memory_buffer;
+        assert_eq!(external_memory_buffer.handleTypes, 0);
+    }
+    if create_info.size > isize::max_value() as u64 {
+        return api::VK_ERROR_OUT_OF_DEVICE_MEMORY;
+    }
+    *buffer = OwnedHandle::<api::VkBuffer>::new(Buffer {
+        size: create_info.size as usize,
+        memory: None,
+    })
+    .take();
+    api::VK_SUCCESS
 }
 
 #[allow(non_snake_case)]
 pub unsafe extern "system" fn vkDestroyBuffer(
     _device: api::VkDevice,
-    _buffer: api::VkBuffer,
-    _pAllocator: *const api::VkAllocationCallbacks,
+    buffer: api::VkBuffer,
+    _allocator: *const api::VkAllocationCallbacks,
 ) {
-    unimplemented!()
+    if !buffer.is_null() {
+        OwnedHandle::from(buffer);
+    }
 }
 
 #[allow(non_snake_case)]
@@ -3987,20 +4084,36 @@ pub unsafe extern "system" fn vkDestroyImageView(
 #[allow(non_snake_case)]
 pub unsafe extern "system" fn vkCreateShaderModule(
     _device: api::VkDevice,
-    _pCreateInfo: *const api::VkShaderModuleCreateInfo,
-    _pAllocator: *const api::VkAllocationCallbacks,
-    _pShaderModule: *mut api::VkShaderModule,
+    create_info: *const api::VkShaderModuleCreateInfo,
+    _allocator: *const api::VkAllocationCallbacks,
+    shader_module: *mut api::VkShaderModule,
 ) -> api::VkResult {
-    unimplemented!()
+    parse_next_chain_const!{
+        create_info,
+        root = api::VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
+    }
+    let ref create_info = *create_info;
+    const U32_BYTE_COUNT: usize = 4;
+    assert_eq!(U32_BYTE_COUNT, mem::size_of::<u32>());
+    assert_eq!(create_info.codeSize % U32_BYTE_COUNT, 0);
+    assert_ne!(create_info.codeSize, 0);
+    let code = slice::from_raw_parts(create_info.pCode, create_info.codeSize / U32_BYTE_COUNT);
+    *shader_module = OwnedHandle::<api::VkShaderModule>::new(ShaderModule {
+        code: code.to_owned(),
+    })
+    .take();
+    api::VK_SUCCESS
 }
 
 #[allow(non_snake_case)]
 pub unsafe extern "system" fn vkDestroyShaderModule(
     _device: api::VkDevice,
-    _shaderModule: api::VkShaderModule,
-    _pAllocator: *const api::VkAllocationCallbacks,
+    shader_module: api::VkShaderModule,
+    _allocator: *const api::VkAllocationCallbacks,
 ) {
-    unimplemented!()
+    if !shader_module.is_null() {
+        OwnedHandle::from(shader_module);
+    }
 }
 
 #[allow(non_snake_case)]
@@ -4027,7 +4140,7 @@ pub unsafe extern "system" fn vkGetPipelineCacheData(
     _device: api::VkDevice,
     _pipelineCache: api::VkPipelineCache,
     _pDataSize: *mut usize,
-    _pData: *mut ::std::os::raw::c_void,
+    _pData: *mut c_void,
 ) -> api::VkResult {
     unimplemented!()
 }
@@ -4097,20 +4210,56 @@ pub unsafe extern "system" fn vkDestroyPipelineLayout(
 #[allow(non_snake_case)]
 pub unsafe extern "system" fn vkCreateSampler(
     _device: api::VkDevice,
-    _pCreateInfo: *const api::VkSamplerCreateInfo,
-    _pAllocator: *const api::VkAllocationCallbacks,
-    _pSampler: *mut api::VkSampler,
+    create_info: *const api::VkSamplerCreateInfo,
+    _allocator: *const api::VkAllocationCallbacks,
+    sampler: *mut api::VkSampler,
 ) -> api::VkResult {
-    unimplemented!()
+    parse_next_chain_const!{
+        create_info,
+        root = api::VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
+    }
+    let ref create_info = *create_info;
+    *sampler = OwnedHandle::<api::VkSampler>::new(Sampler {
+        mag_filter: create_info.magFilter,
+        min_filter: create_info.minFilter,
+        mipmap_mode: create_info.mipmapMode,
+        address_modes: [
+            create_info.addressModeU,
+            create_info.addressModeV,
+            create_info.addressModeW,
+        ],
+        mip_lod_bias: create_info.mipLodBias,
+        anisotropy: if create_info.anisotropyEnable != api::VK_FALSE {
+            Some(sampler::AnisotropySettings {
+                max: create_info.maxAnisotropy,
+            })
+        } else {
+            None
+        },
+        compare_op: if create_info.compareEnable != api::VK_FALSE {
+            Some(create_info.compareOp)
+        } else {
+            None
+        },
+        min_lod: create_info.minLod,
+        max_lod: create_info.maxLod,
+        border_color: create_info.borderColor,
+        unnormalized_coordinates: create_info.unnormalizedCoordinates != api::VK_FALSE,
+        sampler_ycbcr_conversion: None,
+    })
+    .take();
+    api::VK_SUCCESS
 }
 
 #[allow(non_snake_case)]
 pub unsafe extern "system" fn vkDestroySampler(
     _device: api::VkDevice,
-    _sampler: api::VkSampler,
-    _pAllocator: *const api::VkAllocationCallbacks,
+    sampler: api::VkSampler,
+    _allocator: *const api::VkAllocationCallbacks,
 ) {
-    unimplemented!()
+    if !sampler.is_null() {
+        OwnedHandle::from(sampler);
+    }
 }
 
 #[allow(non_snake_case)]
@@ -4565,7 +4714,7 @@ pub unsafe extern "system" fn vkCmdUpdateBuffer(
     _dstBuffer: api::VkBuffer,
     _dstOffset: api::VkDeviceSize,
     _dataSize: api::VkDeviceSize,
-    _pData: *const ::std::os::raw::c_void,
+    _pData: *const c_void,
 ) {
     unimplemented!()
 }
@@ -4740,7 +4889,7 @@ pub unsafe extern "system" fn vkCmdPushConstants(
     _stageFlags: api::VkShaderStageFlags,
     _offset: u32,
     _size: u32,
-    _pValues: *const ::std::os::raw::c_void,
+    _pValues: *const c_void,
 ) {
     unimplemented!()
 }
@@ -4842,7 +4991,10 @@ pub unsafe extern "system" fn vkEnumeratePhysicalDeviceGroups(
                 root = api::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_GROUP_PROPERTIES,
             }
             let mut physical_devices = [Handle::null(); api::VK_MAX_DEVICE_GROUP_SIZE as usize];
-            physical_devices[0] = *SharedHandle::from(instance).physical_device.get_handle();
+            physical_devices[0] = SharedHandle::from(instance)
+                .unwrap()
+                .physical_device
+                .get_handle();
             *physical_device_group_properties = api::VkPhysicalDeviceGroupProperties {
                 sType: physical_device_group_properties.sType,
                 pNext: physical_device_group_properties.pNext,
@@ -4866,10 +5018,32 @@ pub unsafe extern "system" fn vkGetImageMemoryRequirements2(
 #[allow(non_snake_case)]
 pub unsafe extern "system" fn vkGetBufferMemoryRequirements2(
     _device: api::VkDevice,
-    _pInfo: *const api::VkBufferMemoryRequirementsInfo2,
-    _pMemoryRequirements: *mut api::VkMemoryRequirements2,
+    info: *const api::VkBufferMemoryRequirementsInfo2,
+    memory_requirements: *mut api::VkMemoryRequirements2,
 ) {
-    unimplemented!()
+    parse_next_chain_const!{
+        info,
+        root = api::VK_STRUCTURE_TYPE_BUFFER_MEMORY_REQUIREMENTS_INFO_2,
+    }
+    parse_next_chain_mut!{
+        memory_requirements,
+        root = api::VK_STRUCTURE_TYPE_MEMORY_REQUIREMENTS_2,
+        dedicated_requirements: api::VkMemoryDedicatedRequirements = api::VK_STRUCTURE_TYPE_MEMORY_DEDICATED_REQUIREMENTS,
+    }
+    let ref mut memory_requirements = *memory_requirements;
+    let ref info = *info;
+    let buffer = SharedHandle::from(info.buffer).unwrap();
+    let layout = DeviceMemoryLayout::calculate(buffer.size, BUFFER_ALIGNMENT);
+    memory_requirements.memoryRequirements = api::VkMemoryRequirements {
+        size: layout.size as u64,
+        alignment: layout.alignment as u64,
+        memoryTypeBits: DeviceMemoryType::Main.to_bits(),
+    };
+    if !dedicated_requirements.is_null() {
+        let ref mut dedicated_requirements = *dedicated_requirements;
+        dedicated_requirements.prefersDedicatedAllocation = api::VK_FALSE;
+        dedicated_requirements.requiresDedicatedAllocation = api::VK_FALSE;
+    }
 }
 
 #[allow(non_snake_case)]
@@ -4897,36 +5071,35 @@ pub unsafe extern "system" fn vkGetPhysicalDeviceFeatures2(
         physical_device_protected_memory_features: api::VkPhysicalDeviceProtectedMemoryFeatures = api::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROTECTED_MEMORY_FEATURES,
         physical_device_multiview_features: api::VkPhysicalDeviceMultiviewFeatures = api::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MULTIVIEW_FEATURES,
     }
-    SharedHandle::from(physical_device)
-        .features
-        .export_feature_set(&mut *features);
+    let physical_device = SharedHandle::from(physical_device).unwrap();
+    physical_device.features.export_feature_set(&mut *features);
     if !sampler_ycbcr_conversion_features.is_null() {
-        SharedHandle::from(physical_device)
+        physical_device
             .features
             .export_feature_set(&mut *sampler_ycbcr_conversion_features);
     }
     if !physical_device_16bit_storage_features.is_null() {
-        SharedHandle::from(physical_device)
+        physical_device
             .features
             .export_feature_set(&mut *physical_device_16bit_storage_features);
     }
     if !variable_pointer_features.is_null() {
-        SharedHandle::from(physical_device)
+        physical_device
             .features
             .export_feature_set(&mut *variable_pointer_features);
     }
     if !physical_device_shader_draw_parameter_features.is_null() {
-        SharedHandle::from(physical_device)
+        physical_device
             .features
             .export_feature_set(&mut *physical_device_shader_draw_parameter_features);
     }
     if !physical_device_protected_memory_features.is_null() {
-        SharedHandle::from(physical_device)
+        physical_device
             .features
             .export_feature_set(&mut *physical_device_protected_memory_features);
     }
     if !physical_device_multiview_features.is_null() {
-        SharedHandle::from(physical_device)
+        physical_device
             .features
             .export_feature_set(&mut *physical_device_multiview_features);
     }
@@ -4942,9 +5115,13 @@ pub unsafe extern "system" fn vkGetPhysicalDeviceProperties2(
         root = api::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2,
         point_clipping_properties: api::VkPhysicalDevicePointClippingProperties = api::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_POINT_CLIPPING_PROPERTIES,
         multiview_properties: api::VkPhysicalDeviceMultiviewProperties = api::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MULTIVIEW_PROPERTIES,
+        id_properties: api::VkPhysicalDeviceIDProperties = api::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ID_PROPERTIES,
+        maintenance_3_properties: api::VkPhysicalDeviceMaintenance3Properties = api::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MAINTENANCE_3_PROPERTIES,
+        protected_memory_properties: api::VkPhysicalDeviceProtectedMemoryProperties = api::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROTECTED_MEMORY_PROPERTIES,
+        subgroup_properties: api::VkPhysicalDeviceSubgroupProperties = api::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SUBGROUP_PROPERTIES,
     }
     let ref mut properties = *properties;
-    let physical_device = SharedHandle::from(physical_device);
+    let physical_device = SharedHandle::from(physical_device).unwrap();
     properties.properties = physical_device.properties;
     if !point_clipping_properties.is_null() {
         let ref mut point_clipping_properties = *point_clipping_properties;
@@ -4960,6 +5137,38 @@ pub unsafe extern "system" fn vkGetPhysicalDeviceProperties2(
             sType: multiview_properties.sType,
             pNext: multiview_properties.pNext,
             ..physical_device.multiview_properties
+        };
+    }
+    if !id_properties.is_null() {
+        let ref mut id_properties = *id_properties;
+        *id_properties = api::VkPhysicalDeviceIDProperties {
+            sType: id_properties.sType,
+            pNext: id_properties.pNext,
+            ..physical_device.id_properties
+        };
+    }
+    if !maintenance_3_properties.is_null() {
+        let ref mut maintenance_3_properties = *maintenance_3_properties;
+        *maintenance_3_properties = api::VkPhysicalDeviceMaintenance3Properties {
+            sType: maintenance_3_properties.sType,
+            pNext: maintenance_3_properties.pNext,
+            ..physical_device.maintenance_3_properties
+        };
+    }
+    if !protected_memory_properties.is_null() {
+        let ref mut protected_memory_properties = *protected_memory_properties;
+        *protected_memory_properties = api::VkPhysicalDeviceProtectedMemoryProperties {
+            sType: protected_memory_properties.sType,
+            pNext: protected_memory_properties.pNext,
+            ..physical_device.protected_memory_properties
+        };
+    }
+    if !subgroup_properties.is_null() {
+        let ref mut subgroup_properties = *subgroup_properties;
+        *subgroup_properties = api::VkPhysicalDeviceSubgroupProperties {
+            sType: subgroup_properties.sType,
+            pNext: subgroup_properties.pNext,
+            ..physical_device.subgroup_properties
         };
     }
 }
@@ -4999,7 +5208,7 @@ pub unsafe extern "system" fn vkGetPhysicalDeviceQueueFamilyProperties2(
         QUEUE_COUNTS.iter(),
         |queue_family_properties, &count| {
             get_physical_device_queue_family_properties(
-                SharedHandle::from(physical_device),
+                SharedHandle::from(physical_device).unwrap(),
                 queue_family_properties,
                 count,
             );
@@ -5012,26 +5221,29 @@ pub unsafe extern "system" fn vkGetPhysicalDeviceMemoryProperties2(
     physical_device: api::VkPhysicalDevice,
     memory_properties: *mut api::VkPhysicalDeviceMemoryProperties2,
 ) {
-    let physical_device = SharedHandle::from(physical_device);
+    let physical_device = SharedHandle::from(physical_device).unwrap();
     parse_next_chain_mut!{
         memory_properties,
         root = api::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MEMORY_PROPERTIES_2,
     }
     let ref mut memory_properties = *memory_properties;
     let mut properties: api::VkPhysicalDeviceMemoryProperties = mem::zeroed();
-    properties.memoryTypeCount = 1;
-    properties.memoryTypes[0] = api::VkMemoryType {
-        propertyFlags: api::VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT
-            | api::VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT
-            | api::VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
-            | api::VK_MEMORY_PROPERTY_HOST_CACHED_BIT,
-        heapIndex: 0,
-    };
-    properties.memoryHeapCount = 1;
-    properties.memoryHeaps[0] = api::VkMemoryHeap {
-        size: physical_device.system_memory_size * 7 / 8,
-        flags: api::VK_MEMORY_HEAP_DEVICE_LOCAL_BIT,
-    };
+    properties.memoryTypeCount = DeviceMemoryTypes::default().len() as u32;
+    for (memory_type, _) in DeviceMemoryTypes::default().iter() {
+        properties.memoryTypes[memory_type as usize] = api::VkMemoryType {
+            propertyFlags: memory_type.flags(),
+            heapIndex: memory_type.heap() as u32,
+        };
+    }
+    properties.memoryHeapCount = DeviceMemoryHeaps::default().len() as u32;
+    for (memory_heap, _) in DeviceMemoryHeaps::default().iter() {
+        properties.memoryHeaps[memory_heap as usize] = api::VkMemoryHeap {
+            size: match memory_heap {
+                DeviceMemoryHeap::Main => physical_device.system_memory_size * 7 / 8,
+            },
+            flags: memory_heap.flags(),
+        }
+    }
     memory_properties.memoryProperties = properties;
 }
 
@@ -5056,11 +5268,19 @@ pub unsafe extern "system" fn vkTrimCommandPool(
 
 #[allow(non_snake_case)]
 pub unsafe extern "system" fn vkGetDeviceQueue2(
-    _device: api::VkDevice,
-    _pQueueInfo: *const api::VkDeviceQueueInfo2,
-    _pQueue: *mut api::VkQueue,
+    device: api::VkDevice,
+    queue_info: *const api::VkDeviceQueueInfo2,
+    queue: *mut api::VkQueue,
 ) {
-    unimplemented!()
+    parse_next_chain_const!{
+        queue_info,
+        root = api::VK_STRUCTURE_TYPE_DEVICE_QUEUE_INFO_2,
+    }
+    let ref queue_info = *queue_info;
+    assert_eq!(queue_info.flags, 0);
+    let device = SharedHandle::from(device).unwrap();
+    *queue = device.queues[queue_info.queueFamilyIndex as usize][queue_info.queueIndex as usize]
+        .get_handle();
 }
 
 #[allow(non_snake_case)]
@@ -5106,7 +5326,7 @@ pub unsafe extern "system" fn vkUpdateDescriptorSetWithTemplate(
     _device: api::VkDevice,
     _descriptorSet: api::VkDescriptorSet,
     _descriptorUpdateTemplate: api::VkDescriptorUpdateTemplate,
-    _pData: *const ::std::os::raw::c_void,
+    _pData: *const c_void,
 ) {
     unimplemented!()
 }
@@ -5154,7 +5374,7 @@ pub unsafe extern "system" fn vkDestroySurfaceKHR(
     _allocator: *const api::VkAllocationCallbacks,
 ) {
     if !surface.is_null() {
-        let surface = SharedHandle::from(surface);
+        let surface = SharedHandle::from(surface).unwrap();
         match surface.platform {
             api::VK_ICD_WSI_PLATFORM_MIR => {
                 panic!("unimplemented platform: VK_ICD_WSI_PLATFORM_MIR")
@@ -5233,9 +5453,10 @@ pub unsafe extern "system" fn vkGetPhysicalDeviceSurfaceFormatsKHR(
     surface_format_count: *mut u32,
     surface_formats: *mut api::VkSurfaceFormatKHR,
 ) -> api::VkResult {
-    let surface_implementation = SurfacePlatform::from(SharedHandle::from(surface).platform)
-        .unwrap()
-        .get_surface_implementation();
+    let surface_implementation =
+        SurfacePlatform::from(SharedHandle::from(surface).unwrap().platform)
+            .unwrap()
+            .get_surface_implementation();
     let returned_surface_formats = match surface_implementation.get_surface_formats(surface) {
         Ok(returned_surface_formats) => returned_surface_formats,
         Err(result) => return result,
@@ -5255,9 +5476,10 @@ pub unsafe extern "system" fn vkGetPhysicalDeviceSurfacePresentModesKHR(
     present_mode_count: *mut u32,
     present_modes: *mut api::VkPresentModeKHR,
 ) -> api::VkResult {
-    let surface_implementation = SurfacePlatform::from(SharedHandle::from(surface).platform)
-        .unwrap()
-        .get_surface_implementation();
+    let surface_implementation =
+        SurfacePlatform::from(SharedHandle::from(surface).unwrap().platform)
+            .unwrap()
+            .get_surface_implementation();
     let returned_present_modes = match surface_implementation.get_present_modes(surface) {
         Ok(returned_present_modes) => returned_present_modes,
         Err(result) => return result,
@@ -5289,7 +5511,8 @@ pub unsafe extern "system" fn vkCreateSwapchainKHR(
         Some(&*device_group_swapchain_create_info)
     };
     *swapchain = Handle::null();
-    let platform = SurfacePlatform::from(SharedHandle::from(create_info.surface).platform).unwrap();
+    let platform =
+        SurfacePlatform::from(SharedHandle::from(create_info.surface).unwrap().platform).unwrap();
     match platform
         .get_surface_implementation()
         .build(create_info, device_group_swapchain_create_info)
@@ -5463,7 +5686,7 @@ pub unsafe extern "system" fn vkCreateSharedSwapchainsKHR(
 pub unsafe extern "system" fn vkGetMemoryFdKHR(
     _device: api::VkDevice,
     _pGetFdInfo: *const api::VkMemoryGetFdInfoKHR,
-    _pFd: *mut ::std::os::raw::c_int,
+    _pFd: *mut c_int,
 ) -> api::VkResult {
     unimplemented!()
 }
@@ -5472,7 +5695,7 @@ pub unsafe extern "system" fn vkGetMemoryFdKHR(
 pub unsafe extern "system" fn vkGetMemoryFdPropertiesKHR(
     _device: api::VkDevice,
     _handleType: api::VkExternalMemoryHandleTypeFlagBits,
-    _fd: ::std::os::raw::c_int,
+    _fd: c_int,
     _pMemoryFdProperties: *mut api::VkMemoryFdPropertiesKHR,
 ) -> api::VkResult {
     unimplemented!()
@@ -5490,7 +5713,7 @@ pub unsafe extern "system" fn vkImportSemaphoreFdKHR(
 pub unsafe extern "system" fn vkGetSemaphoreFdKHR(
     _device: api::VkDevice,
     _pGetFdInfo: *const api::VkSemaphoreGetFdInfoKHR,
-    _pFd: *mut ::std::os::raw::c_int,
+    _pFd: *mut c_int,
 ) -> api::VkResult {
     unimplemented!()
 }
@@ -5513,7 +5736,7 @@ pub unsafe extern "system" fn vkCmdPushDescriptorSetWithTemplateKHR(
     _descriptorUpdateTemplate: api::VkDescriptorUpdateTemplate,
     _layout: api::VkPipelineLayout,
     _set: u32,
-    _pData: *const ::std::os::raw::c_void,
+    _pData: *const c_void,
 ) {
     unimplemented!()
 }
@@ -5574,7 +5797,7 @@ pub unsafe extern "system" fn vkImportFenceFdKHR(
 pub unsafe extern "system" fn vkGetFenceFdKHR(
     _device: api::VkDevice,
     _pGetFdInfo: *const api::VkFenceGetFdInfoKHR,
-    _pFd: *mut ::std::os::raw::c_int,
+    _pFd: *mut c_int,
 ) -> api::VkResult {
     unimplemented!()
 }
@@ -5596,7 +5819,7 @@ pub unsafe extern "system" fn vkGetPhysicalDeviceSurfaceCapabilities2KHR(
     }
     let ref mut surface_capabilities = *surface_capabilities;
     let surface_implementation =
-        SurfacePlatform::from(SharedHandle::from(surface_info.surface).platform)
+        SurfacePlatform::from(SharedHandle::from(surface_info.surface).unwrap().platform)
             .unwrap()
             .get_surface_implementation();
     match surface_implementation.get_capabilities(surface_info.surface) {
@@ -5708,8 +5931,8 @@ pub unsafe extern "system" fn vkDebugReportMessageEXT(
     _object: u64,
     _location: usize,
     _messageCode: i32,
-    _pLayerPrefix: *const ::std::os::raw::c_char,
-    _pMessage: *const ::std::os::raw::c_char,
+    _pLayerPrefix: *const c_char,
+    _pMessage: *const c_char,
 ) {
     unimplemented!()
 }
@@ -5784,7 +6007,7 @@ pub unsafe extern "system" fn vkGetShaderInfoAMD(
     _shaderStage: api::VkShaderStageFlagBits,
     _infoType: api::VkShaderInfoTypeAMD,
     _pInfoSize: *mut usize,
-    _pInfo: *mut ::std::os::raw::c_void,
+    _pInfo: *mut c_void,
 ) -> api::VkResult {
     unimplemented!()
 }
@@ -6062,7 +6285,7 @@ pub unsafe extern "system" fn vkGetValidationCacheDataEXT(
     _device: api::VkDevice,
     _validationCache: api::VkValidationCacheEXT,
     _pDataSize: *mut usize,
-    _pData: *mut ::std::os::raw::c_void,
+    _pData: *mut c_void,
 ) -> api::VkResult {
     unimplemented!()
 }
@@ -6100,7 +6323,7 @@ pub unsafe extern "system" fn vkCmdSetCoarseSampleOrderNV(
 pub unsafe extern "system" fn vkGetMemoryHostPointerPropertiesEXT(
     _device: api::VkDevice,
     _handleType: api::VkExternalMemoryHandleTypeFlagBits,
-    _pHostPointer: *const ::std::os::raw::c_void,
+    _pHostPointer: *const c_void,
     _pMemoryHostPointerProperties: *mut api::VkMemoryHostPointerPropertiesEXT,
 ) -> api::VkResult {
     unimplemented!()
@@ -6163,7 +6386,7 @@ pub unsafe extern "system" fn vkCmdSetExclusiveScissorNV(
 #[allow(non_snake_case)]
 pub unsafe extern "system" fn vkCmdSetCheckpointNV(
     _commandBuffer: api::VkCommandBuffer,
-    _pCheckpointMarker: *const ::std::os::raw::c_void,
+    _pCheckpointMarker: *const c_void,
 ) {
     unimplemented!()
 }

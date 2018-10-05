@@ -2,6 +2,11 @@
 // Copyright 2018 Jacob Lifshay
 use api;
 use api_impl::{Device, Instance, PhysicalDevice, Queue};
+use buffer::Buffer;
+use device_memory::DeviceMemory;
+use sampler::Sampler;
+use sampler::SamplerYcbcrConversion;
+use shader_module::ShaderModule;
 use std::fmt;
 use std::marker::PhantomData;
 use std::mem;
@@ -149,43 +154,42 @@ impl<T> Handle for NondispatchableHandle<T> {
     }
 }
 
-#[repr(transparent)]
-pub struct OwnedHandle<T: HandleAllocFree>(T);
+pub struct OwnedHandle<T: HandleAllocFree>(NonNull<T::Value>);
 
 impl<T: HandleAllocFree> OwnedHandle<T> {
     pub fn new<I: Into<T::Value>>(v: I) -> Self {
-        unsafe { OwnedHandle(T::allocate(v)) }
+        unsafe { OwnedHandle(T::allocate(v).get().unwrap()) }
     }
-    pub unsafe fn from(v: T) -> Self {
-        OwnedHandle(v)
+    pub unsafe fn from(v: T) -> Option<Self> {
+        v.get().map(OwnedHandle)
     }
-    pub unsafe fn take(mut self) -> T {
-        self.0.take()
+    pub unsafe fn take(self) -> T {
+        let retval = self.0;
+        mem::forget(self);
+        T::new(Some(retval))
     }
-    pub unsafe fn get_handle(&self) -> &T {
-        &self.0
+    pub unsafe fn get_handle(&self) -> T {
+        T::new(Some(self.0))
     }
 }
 
 impl<T: HandleAllocFree> Deref for OwnedHandle<T> {
     type Target = T::Value;
     fn deref(&self) -> &T::Value {
-        unsafe { &*self.0.get().unwrap().as_ptr() }
+        unsafe { &*self.0.as_ptr() }
     }
 }
 
 impl<T: HandleAllocFree> DerefMut for OwnedHandle<T> {
     fn deref_mut(&mut self) -> &mut T::Value {
-        unsafe { &mut *self.0.get().unwrap().as_ptr() }
+        unsafe { &mut *self.0.as_ptr() }
     }
 }
 
 impl<T: HandleAllocFree> Drop for OwnedHandle<T> {
     fn drop(&mut self) {
-        if !self.0.is_null() {
-            unsafe {
-                self.0.take().free();
-            }
+        unsafe {
+            T::new(Some(self.0)).free();
         }
     }
 }
@@ -199,25 +203,26 @@ where
     }
 }
 
+#[derive(Copy, Clone)]
 #[repr(transparent)]
-pub struct SharedHandle<T: Handle>(T);
+pub struct SharedHandle<T: Handle>(NonNull<T::Value>);
 
 impl<T: Handle> SharedHandle<T> {
-    pub unsafe fn from(v: T) -> Self {
-        SharedHandle(v)
+    pub unsafe fn from(v: T) -> Option<Self> {
+        v.get().map(SharedHandle)
     }
-    pub unsafe fn take(mut self) -> T {
-        self.0.take()
+    pub unsafe fn take(self) -> T {
+        T::new(Some(self.0))
     }
-    pub unsafe fn get_handle(&self) -> &T {
-        &self.0
+    pub unsafe fn get_handle(&self) -> T {
+        T::new(Some(self.0))
     }
 }
 
 impl<T: Handle> Deref for SharedHandle<T> {
     type Target = T::Value;
     fn deref(&self) -> &T::Value {
-        unsafe { &*self.0.get().unwrap().as_ptr() }
+        unsafe { &*self.0.as_ptr() }
     }
 }
 
@@ -266,13 +271,9 @@ pub type VkFence = NondispatchableHandle<Fence>;
 
 impl HandleAllocFree for VkFence {}
 
-pub struct DeviceMemory {}
-
 pub type VkDeviceMemory = NondispatchableHandle<DeviceMemory>;
 
 impl HandleAllocFree for VkDeviceMemory {}
-
-pub struct Buffer {}
 
 pub type VkBuffer = NondispatchableHandle<Buffer>;
 
@@ -308,8 +309,6 @@ pub type VkImageView = NondispatchableHandle<ImageView>;
 
 impl HandleAllocFree for VkImageView {}
 
-pub struct ShaderModule {}
-
 pub type VkShaderModule = NondispatchableHandle<ShaderModule>;
 
 impl HandleAllocFree for VkShaderModule {}
@@ -344,8 +343,6 @@ pub type VkDescriptorSetLayout = NondispatchableHandle<DescriptorSetLayout>;
 
 impl HandleAllocFree for VkDescriptorSetLayout {}
 
-pub struct Sampler {}
-
 pub type VkSampler = NondispatchableHandle<Sampler>;
 
 impl HandleAllocFree for VkSampler {}
@@ -373,8 +370,6 @@ pub struct CommandPool {}
 pub type VkCommandPool = NondispatchableHandle<CommandPool>;
 
 impl HandleAllocFree for VkCommandPool {}
-
-pub struct SamplerYcbcrConversion {}
 
 pub type VkSamplerYcbcrConversion = NondispatchableHandle<SamplerYcbcrConversion>;
 
