@@ -431,6 +431,9 @@ impl SurfaceImplementation for XcbSurfaceImplementation {
             device_group_create_info,
         )?))
     }
+    unsafe fn destroy_surface(&self, surface: NonNull<api::VkIcdSurfaceBase>) {
+        Box::from_raw(surface.as_ptr() as *mut api::VkIcdSurfaceXcb);
+    }
     fn duplicate(&self) -> Box<dyn SurfaceImplementation> {
         Box::new(Self {})
     }

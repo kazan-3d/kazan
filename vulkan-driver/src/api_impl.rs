@@ -21,6 +21,7 @@ use std::ops::*;
 use std::os::raw::{c_char, c_int, c_void};
 use std::ptr::null;
 use std::ptr::null_mut;
+#[cfg(unix)]
 use std::ptr::NonNull;
 use std::slice;
 use std::str::FromStr;
@@ -1812,7 +1813,8 @@ impl PhysicalDevice {
             standardSampleLocations: api::VK_TRUE,
             optimalBufferCopyOffsetAlignment: 16,
             optimalBufferCopyRowPitchAlignment: 16,
-            nonCoherentAtomSize: 1, //TODO: check if this is correct
+            nonCoherentAtomSize: 1,     //TODO: check if this is correct
+            ..unsafe { mem::zeroed() }  // for padding fields
         }
     }
     pub fn get_format_properties(format: api::VkFormat) -> api::VkFormatProperties {
@@ -3216,6 +3218,7 @@ impl Instance {
                         residencyAlignedMipSize: api::VK_FALSE,
                         residencyNonResidentStrict: api::VK_FALSE,
                     },
+                    ..mem::zeroed() // for padding fields
                 },
                 features: Features::new(),
                 system_memory_size,
@@ -3244,6 +3247,7 @@ impl Instance {
                     pNext: null_mut(),
                     maxPerSetDescriptors: !0,
                     maxMemoryAllocationSize: isize::max_value() as u64,
+                    ..mem::zeroed() // for padding fields
                 },
                 protected_memory_properties: api::VkPhysicalDeviceProtectedMemoryProperties {
                     sType: api::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROTECTED_MEMORY_PROPERTIES,
@@ -3376,9 +3380,7 @@ pub unsafe extern "system" fn vkDestroyInstance(
     instance: api::VkInstance,
     _allocator: *const api::VkAllocationCallbacks,
 ) {
-    if !instance.is_null() {
-        OwnedHandle::from(instance);
-    }
+    OwnedHandle::from(instance);
 }
 
 #[allow(non_snake_case)]
@@ -3544,9 +3546,7 @@ pub unsafe extern "system" fn vkDestroyDevice(
     device: api::VkDevice,
     _allocator: *const api::VkAllocationCallbacks,
 ) {
-    if !device.is_null() {
-        OwnedHandle::from(device);
-    }
+    OwnedHandle::from(device);
 }
 
 unsafe fn enumerate_extension_properties(
@@ -4009,9 +4009,7 @@ pub unsafe extern "system" fn vkDestroyBuffer(
     buffer: api::VkBuffer,
     _allocator: *const api::VkAllocationCallbacks,
 ) {
-    if !buffer.is_null() {
-        OwnedHandle::from(buffer);
-    }
+    OwnedHandle::from(buffer);
 }
 
 #[allow(non_snake_case)]
@@ -4111,9 +4109,7 @@ pub unsafe extern "system" fn vkDestroyShaderModule(
     shader_module: api::VkShaderModule,
     _allocator: *const api::VkAllocationCallbacks,
 ) {
-    if !shader_module.is_null() {
-        OwnedHandle::from(shader_module);
-    }
+    OwnedHandle::from(shader_module);
 }
 
 #[allow(non_snake_case)]
@@ -4257,9 +4253,7 @@ pub unsafe extern "system" fn vkDestroySampler(
     sampler: api::VkSampler,
     _allocator: *const api::VkAllocationCallbacks,
 ) {
-    if !sampler.is_null() {
-        OwnedHandle::from(sampler);
-    }
+    OwnedHandle::from(sampler);
 }
 
 #[allow(non_snake_case)]
@@ -5038,6 +5032,7 @@ pub unsafe extern "system" fn vkGetBufferMemoryRequirements2(
         size: layout.size as u64,
         alignment: layout.alignment as u64,
         memoryTypeBits: DeviceMemoryType::Main.to_bits(),
+        ..mem::zeroed() // for padding fields
     };
     if !dedicated_requirements.is_null() {
         let ref mut dedicated_requirements = *dedicated_requirements;
@@ -5242,6 +5237,7 @@ pub unsafe extern "system" fn vkGetPhysicalDeviceMemoryProperties2(
                 DeviceMemoryHeap::Main => physical_device.system_memory_size * 7 / 8,
             },
             flags: memory_heap.flags(),
+            ..mem::zeroed() // for padding fields
         }
     }
     memory_properties.memoryProperties = properties;
@@ -5373,38 +5369,11 @@ pub unsafe extern "system" fn vkDestroySurfaceKHR(
     surface: api::VkSurfaceKHR,
     _allocator: *const api::VkAllocationCallbacks,
 ) {
-    if !surface.is_null() {
-        let surface = SharedHandle::from(surface).unwrap();
-        match surface.platform {
-            api::VK_ICD_WSI_PLATFORM_MIR => {
-                panic!("unimplemented platform: VK_ICD_WSI_PLATFORM_MIR")
-            }
-            api::VK_ICD_WSI_PLATFORM_WAYLAND => {
-                panic!("unimplemented platform: VK_ICD_WSI_PLATFORM_WAYLAND")
-            }
-            api::VK_ICD_WSI_PLATFORM_WIN32 => {
-                panic!("unimplemented platform: VK_ICD_WSI_PLATFORM_WIN32")
-            }
-            api::VK_ICD_WSI_PLATFORM_XCB => {
-                Box::from_raw(surface.take().get().unwrap().as_ptr() as *mut api::VkIcdSurfaceXcb);
-            }
-            api::VK_ICD_WSI_PLATFORM_XLIB => {
-                panic!("unimplemented platform: VK_ICD_WSI_PLATFORM_XLIB")
-            }
-            api::VK_ICD_WSI_PLATFORM_ANDROID => {
-                panic!("unimplemented platform: VK_ICD_WSI_PLATFORM_ANDROID")
-            }
-            api::VK_ICD_WSI_PLATFORM_MACOS => {
-                panic!("unimplemented platform: VK_ICD_WSI_PLATFORM_MACOS")
-            }
-            api::VK_ICD_WSI_PLATFORM_IOS => {
-                panic!("unimplemented platform: VK_ICD_WSI_PLATFORM_IOS")
-            }
-            api::VK_ICD_WSI_PLATFORM_DISPLAY => {
-                panic!("unimplemented platform: VK_ICD_WSI_PLATFORM_DISPLAY")
-            }
-            platform => panic!("unknown VkSurfaceKHR platform: {:?}", platform),
-        }
+    if let Some(surface) = SharedHandle::from(surface) {
+        let surface_implementation = SurfacePlatform::from(surface.platform)
+            .unwrap()
+            .get_surface_implementation();
+        surface_implementation.destroy_surface(surface.into_nonnull());
     }
 }
 
@@ -5531,9 +5500,7 @@ pub unsafe extern "system" fn vkDestroySwapchainKHR(
     swapchain: api::VkSwapchainKHR,
     _allocator: *const api::VkAllocationCallbacks,
 ) {
-    if !swapchain.is_null() {
-        OwnedHandle::from(swapchain);
-    }
+    OwnedHandle::from(swapchain);
 }
 
 #[allow(non_snake_case)]

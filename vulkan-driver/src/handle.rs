@@ -217,6 +217,9 @@ impl<T: Handle> SharedHandle<T> {
     pub unsafe fn get_handle(&self) -> T {
         T::new(Some(self.0))
     }
+    pub fn into_nonnull(self) -> NonNull<T::Value> {
+        self.0
+    }
 }
 
 impl<T: Handle> Deref for SharedHandle<T> {

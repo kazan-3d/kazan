@@ -133,18 +133,22 @@ fn main() -> io::Result<()> {
         PathBuf::from(env::var("OUT_DIR").unwrap()).join("vulkan-types.rs"),
         code,
     )?;
-    let driver_name_prefix = if cfg!(unix) {
+    let target_family = env::var("CARGO_CFG_TARGET_FAMILY").unwrap();
+    let target_os = env::var("CARGO_CFG_TARGET_OS").unwrap();
+    println!("target_family = {:?}", target_family);
+    println!("target_os = {:?}", target_os);
+    let driver_name_prefix = if target_family == "unix" {
         "lib"
-    } else if cfg!(target_os = "windows") {
+    } else if target_os == "windows" {
         ""
     } else {
         unimplemented!()
     };
-    let driver_name_suffix = if cfg!(any(target_os = "linux", target_os = "android")) {
+    let driver_name_suffix = if target_os == "linux" || target_os == "android" {
         ".so"
-    } else if cfg!(any(target_os = "macos", target_os = "ios")) {
+    } else if target_os == "macos" || target_os == "ios" {
         ".dylib"
-    } else if cfg!(target_os = "windows") {
+    } else if target_os == "windows" {
         ".dll"
     } else {
         unimplemented!()

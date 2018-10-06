@@ -21,6 +21,6 @@ libc = "0.2"
 errno = "0.2"
 
 [build-dependencies]
-bindgen = "0.40"
+bindgen = "0.42"
 regex = "1"
 xmltree = "0.8"

@@ -5,6 +5,7 @@ use std::any::Any;
 use std::borrow::Cow;
 use std::error::Error;
 use std::fmt::{self, Debug};
+use std::ptr::NonNull;
 #[cfg(unix)]
 use xcb_swapchain::XcbSurfaceImplementation;
 
@@ -96,6 +97,7 @@ pub trait SurfaceImplementation: Any + Sync + Send + Debug {
         create_info: &api::VkSwapchainCreateInfoKHR,
         device_group_create_info: Option<&api::VkDeviceGroupSwapchainCreateInfoKHR>,
     ) -> Result<Box<Swapchain>, api::VkResult>;
+    unsafe fn destroy_surface(&self, surface: NonNull<api::VkIcdSurfaceBase>);
     fn duplicate(&self) -> Box<dyn SurfaceImplementation>;
 }
 
@@ -145,6 +147,9 @@ impl SurfaceImplementation for FallbackSurfaceImplementation {
         _create_info: &api::VkSwapchainCreateInfoKHR,
         _device_group_create_info: Option<&api::VkDeviceGroupSwapchainCreateInfoKHR>,
     ) -> Result<Box<Swapchain>, api::VkResult> {
+        self.report_error()
+    }
+    unsafe fn destroy_surface(&self, _surface: NonNull<api::VkIcdSurfaceBase>) {
         self.report_error()
     }
     fn duplicate(&self) -> Box<dyn SurfaceImplementation> {
