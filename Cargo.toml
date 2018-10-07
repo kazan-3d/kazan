@@ -10,6 +10,3 @@ panic = "unwind"
 
 [profile.release]
 panic = "abort"
-
-[profile.bench]
-panic = "abort"
