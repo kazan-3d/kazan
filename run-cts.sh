@@ -5,10 +5,14 @@
 set -e
 
 do_update=1
+do_run=1
 if [[ "$*" == '--no-update' ]]; then
     do_update=0
+elif [[ "$*" == '--update-only' ]]; then
+    do_update=1
+    do_run=0
 elif [[ "$*" != '' ]]; then
-    printf "unknown arguments\nusage: %s [--no-update]\n" "$0" >&2
+    printf "unknown arguments\nusage: %s [--no-update] [--update-only]\n" "$0" >&2
     exit 1
 fi
 
@@ -23,12 +27,16 @@ if [[ ! -d "$cts_source" ]]; then
         echo "need to run without --no-update" >&2
         exit 1
     fi
+elif ((do_update)); then
+    (
+        cd "$cts_source"
+        git pull
+    )
 fi
 cts_build="$(realpath VK-GL-CTS/build)"
 if ((do_update)); then
     (
         cd "$cts_source"
-        git pull
         python2 external/fetch_sources.py
     )
 fi
@@ -48,4 +56,6 @@ fi
     cd "$cts_build"
     ninja
 )
-exec ./run.sh bash -c "cd '$cts_build'/external/vulkancts/modules/vulkan; exec ./deqp-vk --deqp-caselist-file='$cts_source'/external/vulkancts/mustpass/1.1.3/vk-default.txt --deqp-log-images=disable --deqp-log-shader-sources=disable --deqp-log-filename='$cts_output'"
+if ((do_run)); then
+    exec ./run.sh bash -c "cd '$cts_build'/external/vulkancts/modules/vulkan; exec ./deqp-vk --deqp-caselist-file='$cts_source'/external/vulkancts/mustpass/1.1.3/vk-default.txt --deqp-log-images=disable --deqp-log-shader-sources=disable --deqp-log-filename='$cts_output'"
+fi
