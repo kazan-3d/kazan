@@ -2,14 +2,15 @@
 // Copyright 2018 Jacob Lifshay
 #![allow(dead_code)]
 use api;
-use buffer::Buffer;
+use buffer::{Buffer, BufferMemory};
 use constants::*;
 use device_memory::{
     DeviceMemory, DeviceMemoryAllocation, DeviceMemoryHeap, DeviceMemoryHeaps, DeviceMemoryLayout,
     DeviceMemoryType, DeviceMemoryTypes,
 };
 use enum_map::EnumMap;
-use handle::{Handle, OwnedHandle, SharedHandle};
+use handle::{Handle, MutHandle, OwnedHandle, SharedHandle};
+use image::{Image, ImageMemory, ImageMultisampleCount, ImageProperties, SupportedTilings};
 use sampler;
 use sampler::Sampler;
 use shader_module::ShaderModule;
@@ -3759,12 +3760,22 @@ pub unsafe extern "system" fn vkBindBufferMemory(
 
 #[allow(non_snake_case)]
 pub unsafe extern "system" fn vkBindImageMemory(
-    _device: api::VkDevice,
-    _image: api::VkImage,
-    _memory: api::VkDeviceMemory,
-    _memoryOffset: api::VkDeviceSize,
+    device: api::VkDevice,
+    image: api::VkImage,
+    memory: api::VkDeviceMemory,
+    memory_offset: api::VkDeviceSize,
 ) -> api::VkResult {
-    unimplemented!()
+    vkBindImageMemory2(
+        device,
+        1,
+        &api::VkBindImageMemoryInfo {
+            sType: api::VK_STRUCTURE_TYPE_BIND_IMAGE_MEMORY_INFO,
+            pNext: null(),
+            image,
+            memory,
+            memoryOffset: memory_offset,
+        },
+    )
 }
 
 #[allow(non_snake_case)]
@@ -3792,11 +3803,25 @@ pub unsafe extern "system" fn vkGetBufferMemoryRequirements(
 
 #[allow(non_snake_case)]
 pub unsafe extern "system" fn vkGetImageMemoryRequirements(
-    _device: api::VkDevice,
-    _image: api::VkImage,
-    _pMemoryRequirements: *mut api::VkMemoryRequirements,
+    device: api::VkDevice,
+    image: api::VkImage,
+    memory_requirements: *mut api::VkMemoryRequirements,
 ) {
-    unimplemented!()
+    let mut memory_requirements_2 = api::VkMemoryRequirements2 {
+        sType: api::VK_STRUCTURE_TYPE_MEMORY_REQUIREMENTS_2,
+        pNext: null_mut(),
+        memoryRequirements: mem::zeroed(),
+    };
+    vkGetImageMemoryRequirements2(
+        device,
+        &api::VkImageMemoryRequirementsInfo2 {
+            sType: api::VK_STRUCTURE_TYPE_IMAGE_MEMORY_REQUIREMENTS_INFO_2,
+            pNext: null(),
+            image,
+        },
+        &mut memory_requirements_2,
+    );
+    *memory_requirements = memory_requirements_2.memoryRequirements;
 }
 
 #[allow(non_snake_case)]
@@ -4034,20 +4059,54 @@ pub unsafe extern "system" fn vkDestroyBufferView(
 #[allow(non_snake_case)]
 pub unsafe extern "system" fn vkCreateImage(
     _device: api::VkDevice,
-    _pCreateInfo: *const api::VkImageCreateInfo,
-    _pAllocator: *const api::VkAllocationCallbacks,
-    _pImage: *mut api::VkImage,
+    create_info: *const api::VkImageCreateInfo,
+    _allocator: *const api::VkAllocationCallbacks,
+    image: *mut api::VkImage,
 ) -> api::VkResult {
-    unimplemented!()
+    parse_next_chain_const!{
+        create_info,
+        root = api::VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+        external_memory_image_create_info: api::VkExternalMemoryImageCreateInfo = api::VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_IMAGE_CREATE_INFO,
+        image_swapchain_create_info: api::VkImageSwapchainCreateInfoKHR = api::VK_STRUCTURE_TYPE_IMAGE_SWAPCHAIN_CREATE_INFO_KHR,
+    }
+    let ref create_info = *create_info;
+    if !external_memory_image_create_info.is_null() {
+        unimplemented!();
+    }
+    if !image_swapchain_create_info.is_null() {
+        unimplemented!();
+    }
+    *image = OwnedHandle::<api::VkImage>::new(Image {
+        properties: ImageProperties {
+            supported_tilings: match create_info.tiling {
+                api::VK_IMAGE_TILING_OPTIMAL => SupportedTilings::Any,
+                api::VK_IMAGE_TILING_LINEAR => SupportedTilings::LinearOnly,
+                _ => unreachable!("invalid image tiling"),
+            },
+            format: create_info.format,
+            extents: create_info.extent,
+            array_layers: create_info.arrayLayers,
+            mip_levels: create_info.mipLevels,
+            multisample_count: match create_info.samples {
+                api::VK_SAMPLE_COUNT_1_BIT => ImageMultisampleCount::Count1,
+                api::VK_SAMPLE_COUNT_4_BIT => ImageMultisampleCount::Count4,
+                _ => unreachable!("invalid sample count"),
+            },
+            swapchain_present_tiling: None,
+        },
+        memory: None,
+    })
+    .take();
+    api::VK_SUCCESS
 }
 
 #[allow(non_snake_case)]
 pub unsafe extern "system" fn vkDestroyImage(
     _device: api::VkDevice,
-    _image: api::VkImage,
-    _pAllocator: *const api::VkAllocationCallbacks,
+    image: api::VkImage,
+    _allocator: *const api::VkAllocationCallbacks,
 ) {
-    unimplemented!()
+    OwnedHandle::from(image);
 }
 
 #[allow(non_snake_case)]
@@ -4922,19 +4981,86 @@ pub unsafe extern "system" fn vkCmdExecuteCommands(
 #[allow(non_snake_case)]
 pub unsafe extern "system" fn vkBindBufferMemory2(
     _device: api::VkDevice,
-    _bindInfoCount: u32,
-    _pBindInfos: *const api::VkBindBufferMemoryInfo,
+    bind_info_count: u32,
+    bind_infos: *const api::VkBindBufferMemoryInfo,
 ) -> api::VkResult {
-    unimplemented!()
+    assert_ne!(bind_info_count, 0);
+    let bind_infos = slice::from_raw_parts(bind_infos, bind_info_count as usize);
+    for bind_info in bind_infos {
+        parse_next_chain_const!{
+            bind_info as *const api::VkBindBufferMemoryInfo,
+            root = api::VK_STRUCTURE_TYPE_BIND_BUFFER_MEMORY_INFO,
+            device_group_info: api::VkBindBufferMemoryDeviceGroupInfo = api::VK_STRUCTURE_TYPE_BIND_BUFFER_MEMORY_DEVICE_GROUP_INFO,
+        }
+        if !device_group_info.is_null() {
+            let ref device_group_info = *device_group_info;
+            if device_group_info.deviceIndexCount == 0 {
+            } else {
+                assert_eq!(device_group_info.deviceIndexCount, 1);
+                assert_eq!(*device_group_info.pDeviceIndices, 0);
+            }
+        }
+        let ref bind_info = *bind_info;
+        let mut buffer = MutHandle::from(bind_info.buffer).unwrap();
+        let device_memory = SharedHandle::from(bind_info.memory).unwrap();
+        let device_memory_size = device_memory.size();
+        assert!(bind_info.memoryOffset < device_memory_size as u64);
+        let offset = bind_info.memoryOffset as usize;
+        assert!(buffer.size.checked_add(offset).unwrap() <= device_memory_size);
+        assert_eq!(offset % BUFFER_ALIGNMENT, 0);
+        buffer.memory = Some(BufferMemory {
+            device_memory,
+            offset,
+        });
+    }
+    api::VK_SUCCESS
 }
 
 #[allow(non_snake_case)]
 pub unsafe extern "system" fn vkBindImageMemory2(
     _device: api::VkDevice,
-    _bindInfoCount: u32,
-    _pBindInfos: *const api::VkBindImageMemoryInfo,
+    bind_info_count: u32,
+    bind_infos: *const api::VkBindImageMemoryInfo,
 ) -> api::VkResult {
-    unimplemented!()
+    assert_ne!(bind_info_count, 0);
+    let bind_infos = slice::from_raw_parts(bind_infos, bind_info_count as usize);
+    for bind_info in bind_infos {
+        parse_next_chain_const!{
+            bind_info as *const api::VkBindImageMemoryInfo,
+            root = api::VK_STRUCTURE_TYPE_BIND_IMAGE_MEMORY_INFO,
+            device_group_info: api::VkBindImageMemoryDeviceGroupInfo = api::VK_STRUCTURE_TYPE_BIND_IMAGE_MEMORY_DEVICE_GROUP_INFO,
+            swapchain_info: api::VkBindImageMemorySwapchainInfoKHR = api::VK_STRUCTURE_TYPE_BIND_IMAGE_MEMORY_SWAPCHAIN_INFO_KHR,
+            plane_info: api::VkBindImagePlaneMemoryInfo = api::VK_STRUCTURE_TYPE_BIND_IMAGE_PLANE_MEMORY_INFO,
+        }
+        if !device_group_info.is_null() {
+            let ref device_group_info = *device_group_info;
+            if device_group_info.deviceIndexCount == 0 {
+            } else {
+                assert_eq!(device_group_info.deviceIndexCount, 1);
+                assert_eq!(*device_group_info.pDeviceIndices, 0);
+            }
+        }
+        if !swapchain_info.is_null() {
+            unimplemented!();
+        }
+        if !plane_info.is_null() {
+            unimplemented!();
+        }
+        let ref bind_info = *bind_info;
+        let mut image = MutHandle::from(bind_info.image).unwrap();
+        let device_memory = SharedHandle::from(bind_info.memory).unwrap();
+        let device_memory_size = device_memory.size();
+        let image_memory_layout = image.properties.computed_properties().memory_layout;
+        assert!(bind_info.memoryOffset < device_memory_size as u64);
+        let offset = bind_info.memoryOffset as usize;
+        assert!(image_memory_layout.size.checked_add(offset).unwrap() <= device_memory_size);
+        assert_eq!(offset % image_memory_layout.alignment, 0);
+        image.memory = Some(ImageMemory {
+            device_memory,
+            offset,
+        });
+    }
+    api::VK_SUCCESS
 }
 
 #[allow(non_snake_case)]
@@ -5003,10 +5129,37 @@ pub unsafe extern "system" fn vkEnumeratePhysicalDeviceGroups(
 #[allow(non_snake_case)]
 pub unsafe extern "system" fn vkGetImageMemoryRequirements2(
     _device: api::VkDevice,
-    _pInfo: *const api::VkImageMemoryRequirementsInfo2,
-    _pMemoryRequirements: *mut api::VkMemoryRequirements2,
+    info: *const api::VkImageMemoryRequirementsInfo2,
+    memory_requirements: *mut api::VkMemoryRequirements2,
 ) {
-    unimplemented!()
+    parse_next_chain_const!{
+        info,
+        root = api::VK_STRUCTURE_TYPE_IMAGE_MEMORY_REQUIREMENTS_INFO_2,
+        image_plane_memory_requirements_info: api::VkImagePlaneMemoryRequirementsInfo = api::VK_STRUCTURE_TYPE_IMAGE_PLANE_MEMORY_REQUIREMENTS_INFO,
+    }
+    parse_next_chain_mut!{
+        memory_requirements,
+        root = api::VK_STRUCTURE_TYPE_MEMORY_REQUIREMENTS_2,
+        dedicated_requirements: api::VkMemoryDedicatedRequirements = api::VK_STRUCTURE_TYPE_MEMORY_DEDICATED_REQUIREMENTS,
+    }
+    if !image_plane_memory_requirements_info.is_null() {
+        unimplemented!();
+    }
+    let ref info = *info;
+    let image = SharedHandle::from(info.image).unwrap();
+    let ref mut memory_requirements = *memory_requirements;
+    let layout = image.properties.computed_properties().memory_layout;
+    memory_requirements.memoryRequirements = api::VkMemoryRequirements {
+        size: layout.size as u64,
+        alignment: layout.alignment as u64,
+        memoryTypeBits: DeviceMemoryType::Main.to_bits(),
+        ..mem::zeroed() // for padding fields
+    };
+    if !dedicated_requirements.is_null() {
+        let ref mut dedicated_requirements = *dedicated_requirements;
+        dedicated_requirements.prefersDedicatedAllocation = api::VK_FALSE;
+        dedicated_requirements.requiresDedicatedAllocation = api::VK_FALSE;
+    }
 }
 
 #[allow(non_snake_case)]

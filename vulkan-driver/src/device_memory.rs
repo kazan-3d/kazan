@@ -170,7 +170,7 @@ impl DeviceMemoryLayout {
         assert!(required_alignment.is_power_of_two());
         assert_ne!(required_size, 0);
         Self {
-            size: (required_size + required_alignment - 1) / required_alignment,
+            size: (required_size + required_alignment - 1) & !(required_alignment - 1),
             alignment: required_alignment,
         }
     }
@@ -179,6 +179,9 @@ impl DeviceMemoryLayout {
 pub trait DeviceMemoryAllocation: 'static + Send + Sync + Debug {
     unsafe fn get(&self) -> NonNull<u8>;
     fn layout(&self) -> DeviceMemoryLayout;
+    fn size(&self) -> usize {
+        self.layout().size
+    }
 }
 
 #[derive(Debug)]

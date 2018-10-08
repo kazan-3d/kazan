@@ -2,7 +2,7 @@
 // Copyright 2018 Jacob Lifshay
 use api;
 use handle::Handle;
-use image::{ImageDescriptor, SupportedTilings};
+use image::{ImageMultisampleCount, ImageProperties, SupportedTilings, Tiling};
 use libc;
 use std::borrow::Cow;
 use std::mem;
@@ -141,7 +141,7 @@ struct SwapchainSetupFirstStage {
     image_pixel_size: usize,
     scanline_alignment: usize,
     shm_version: Option<xcb::ffi::shm::xcb_shm_query_version_cookie_t>,
-    image_descriptor: ImageDescriptor,
+    image_properties: ImageProperties,
 }
 
 impl SwapchainSetupFirstStage {
@@ -317,7 +317,7 @@ impl SwapchainSetupFirstStage {
             image_pixel_size,
             scanline_alignment,
             shm_version,
-            image_descriptor: ImageDescriptor {
+            image_properties: ImageProperties {
                 supported_tilings: SupportedTilings::Any,
                 format: api::VK_FORMAT_UNDEFINED,
                 extents: api::VkExtent3D {
@@ -325,7 +325,10 @@ impl SwapchainSetupFirstStage {
                     height: image_extent.height,
                     depth: 1,
                 },
+                array_layers: 1,
                 mip_levels: 1,
+                multisample_count: ImageMultisampleCount::Count1,
+                swapchain_present_tiling: Some(Tiling::Linear),
             },
         })
     }

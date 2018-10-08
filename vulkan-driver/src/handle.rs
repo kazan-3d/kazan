@@ -4,6 +4,7 @@ use api;
 use api_impl::{Device, Instance, PhysicalDevice, Queue};
 use buffer::Buffer;
 use device_memory::DeviceMemory;
+use image::Image;
 use sampler::Sampler;
 use sampler::SamplerYcbcrConversion;
 use shader_module::ShaderModule;
@@ -154,6 +155,7 @@ impl<T> Handle for NondispatchableHandle<T> {
     }
 }
 
+#[repr(transparent)]
 pub struct OwnedHandle<T: HandleAllocFree>(NonNull<T::Value>);
 
 impl<T: HandleAllocFree> OwnedHandle<T> {
@@ -240,6 +242,46 @@ where
     }
 }
 
+#[repr(transparent)]
+pub struct MutHandle<T: Handle>(NonNull<T::Value>);
+
+impl<T: Handle> MutHandle<T> {
+    pub unsafe fn from(v: T) -> Option<Self> {
+        v.get().map(MutHandle)
+    }
+    pub unsafe fn take(self) -> T {
+        T::new(Some(self.0))
+    }
+    pub unsafe fn get_handle(&self) -> T {
+        T::new(Some(self.0))
+    }
+    pub fn into_nonnull(self) -> NonNull<T::Value> {
+        self.0
+    }
+}
+
+impl<T: Handle> Deref for MutHandle<T> {
+    type Target = T::Value;
+    fn deref(&self) -> &T::Value {
+        unsafe { &*self.0.as_ptr() }
+    }
+}
+
+impl<T: Handle> DerefMut for MutHandle<T> {
+    fn deref_mut(&mut self) -> &mut T::Value {
+        unsafe { &mut *self.0.as_ptr() }
+    }
+}
+
+impl<T: Handle> fmt::Debug for MutHandle<T>
+where
+    T::Value: fmt::Debug,
+{
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_tuple("MutHandle").field((*self).deref()).finish()
+    }
+}
+
 pub type VkInstance = DispatchableHandle<Instance>;
 
 impl HandleAllocFree for VkInstance {}
@@ -281,8 +323,6 @@ impl HandleAllocFree for VkDeviceMemory {}
 pub type VkBuffer = NondispatchableHandle<Buffer>;
 
 impl HandleAllocFree for VkBuffer {}
-
-pub struct Image {}
 
 pub type VkImage = NondispatchableHandle<Image>;
 
