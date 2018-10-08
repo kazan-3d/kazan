@@ -2,6 +2,8 @@
 # Copyright 2018 Jacob Lifshay
 [workspace]
 members = [
+    "shader-compiler",
+    "shader-compiler-llvm-7",
     "vulkan-driver",
 ]
 
