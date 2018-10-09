@@ -5,7 +5,7 @@ use shader_compiler::backend::*;
 use std::ffi::{CStr, CString};
 use std::fmt;
 use std::ops::Deref;
-use std::os::raw::c_char;
+use std::os::raw::{c_char, c_uint};
 use std::ptr::NonNull;
 
 #[derive(Clone)]
@@ -78,8 +78,7 @@ pub struct LLVM7TypeBuilder {
     variable_vector_length_multiplier: u32,
 }
 
-impl<'a> TypeBuilder<'a> for LLVM7TypeBuilder {
-    type Type = LLVM7Type;
+impl<'a> TypeBuilder<'a, LLVM7Type> for LLVM7TypeBuilder {
     fn build_bool(&self) -> LLVM7Type {
         unsafe { LLVM7Type(llvm_sys::core::LLVMInt1TypeInContext(self.context)) }
     }
@@ -117,6 +116,32 @@ impl<'a> TypeBuilder<'a> for LLVM7TypeBuilder {
         };
         assert_ne!(length, 0);
         unsafe { LLVM7Type(llvm_sys::core::LLVMVectorType(element.0, length)) }
+    }
+    fn build_struct(&self, members: &[LLVM7Type]) -> LLVM7Type {
+        assert_eq!(members.len() as c_uint as usize, members.len());
+        unsafe {
+            LLVM7Type(llvm_sys::core::LLVMStructTypeInContext(
+                self.context,
+                members.as_ptr() as *mut llvm_sys::prelude::LLVMTypeRef,
+                members.len() as c_uint,
+                false as llvm_sys::prelude::LLVMBool,
+            ))
+        }
+    }
+    fn build_function(&self, arguments: &[LLVM7Type], return_type: Option<LLVM7Type>) -> LLVM7Type {
+        assert_eq!(arguments.len() as c_uint as usize, arguments.len());
+        unsafe {
+            LLVM7Type(llvm_sys::core::LLVMFunctionType(
+                return_type
+                    .unwrap_or_else(|| {
+                        LLVM7Type(llvm_sys::core::LLVMVoidTypeInContext(self.context))
+                    })
+                    .0,
+                arguments.as_ptr() as *mut llvm_sys::prelude::LLVMTypeRef,
+                arguments.len() as c_uint,
+                false as llvm_sys::prelude::LLVMBool,
+            ))
+        }
     }
 }
 
