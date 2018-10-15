@@ -3,7 +3,6 @@
 
 //! Shader Compiler Backend traits
 
-use std::borrow::Borrow;
 use std::collections::HashMap;
 use std::error::Error;
 use std::fmt;
@@ -11,8 +10,6 @@ use std::fmt::Debug;
 use std::hash::Hash;
 use std::io;
 use std::marker::PhantomData;
-use std::os::raw::c_void;
-use std::ptr::NonNull;
 
 #[macro_use]
 pub mod types;
@@ -89,7 +86,7 @@ pub struct VerificationFailure<'a, M: Module<'a>> {
 
 impl<'a, M: Module<'a>> VerificationFailure<'a, M> {
     /// create a new `VerificationFailure`
-    pub fn new<T: ToString>(module: M, message: T) -> Self {
+    pub fn new<T: ToString + ?Sized>(module: M, message: &T) -> Self {
         VerificationFailure {
             module,
             message: message.to_string(),

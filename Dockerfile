@@ -1,19 +1,15 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
 # Copyright 2018 Jacob Lifshay
 FROM rust:stretch
-# Note that APT_KEY_DONT_WARN_ON_DANGEROUS_USAGE makes apt-key ignore the output not being a terminal
 RUN set -e; \
-    printf "deb http://apt.llvm.org/stretch/ llvm-toolchain-stretch-7 main\ndeb-src http://apt.llvm.org/stretch/ llvm-toolchain-stretch-7 main" > /etc/apt/sources.list.d/llvm.list; \
-    (wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | APT_KEY_DONT_WARN_ON_DANGEROUS_USAGE=1 apt-key add -) 2>&1; \
     apt-get update; \
     apt-get install -y \
-        clang-7 \
-        libclang-7-dev \
-        llvm-7-dev \
         cmake \
         ninja-build \
         libgl1-mesa-dev \
         libxcb-shm0 \
+        libclang-dev \
+        clang \
         ; \
     rm -rf /var/lib/apt/lists/*
 WORKDIR /build
@@ -35,7 +31,7 @@ RUN set -e; \
     echo "// empty" > vulkan-driver/src/lib.rs; \
     echo "// empty" > shader-compiler/src/lib.rs; \
     echo "// empty" > shader-compiler-llvm-7/src/lib.rs; \
-    cargo build; \
+    cargo build -vv; \
     rm */src/lib.rs
 COPY . .
 RUN touch -c */src/lib.rs && cargo build

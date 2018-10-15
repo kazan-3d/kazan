@@ -11,4 +11,14 @@ crate-type = ["rlib"]
 
 [dependencies]
 shader-compiler = {path = "../shader-compiler"}
-llvm-sys = "70"
+
+[build-dependencies]
+cmake = "0.1.35"
+bindgen = "0.42"
+tar = "0.4.17"
+reqwest = "0.9"
+xz2 = "0.1.6"
+ring = "0.13"
+cc = "1.0"
+fs2 = "0.4.3"
+which = "2.0.0"
