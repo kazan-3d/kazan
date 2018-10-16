@@ -67,7 +67,7 @@ pub trait Handle: Copy + Eq + fmt::Debug {
         self.get().is_none()
     }
     fn take(&mut self) -> Self {
-        let retval = self.clone();
+        let retval = *self;
         *self = Self::null();
         retval
     }
@@ -213,6 +213,7 @@ impl<T: Handle> SharedHandle<T> {
     pub unsafe fn from(v: T) -> Option<Self> {
         v.get().map(SharedHandle)
     }
+    #[allow(dead_code)]
     pub unsafe fn take(self) -> T {
         T::new(Some(self.0))
     }
@@ -249,12 +250,15 @@ impl<T: Handle> MutHandle<T> {
     pub unsafe fn from(v: T) -> Option<Self> {
         v.get().map(MutHandle)
     }
+    #[allow(dead_code)]
     pub unsafe fn take(self) -> T {
         T::new(Some(self.0))
     }
+    #[allow(dead_code)]
     pub unsafe fn get_handle(&self) -> T {
         T::new(Some(self.0))
     }
+    #[allow(dead_code)]
     pub fn into_nonnull(self) -> NonNull<T::Value> {
         self.0
     }

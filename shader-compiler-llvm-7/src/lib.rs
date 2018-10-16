@@ -2,7 +2,7 @@
 // Copyright 2018 Jacob Lifshay
 extern crate shader_compiler;
 
-// TODO: #[allow(clippy::const_static_lifetime)]
+#[cfg_attr(feature = "cargo-clippy", allow(clippy::const_static_lifetime))]
 #[allow(dead_code)]
 #[allow(non_upper_case_globals)]
 #[allow(non_camel_case_types)]

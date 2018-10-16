@@ -376,17 +376,17 @@ impl<'a> backend::Module<'a> for LLVM7Module {
     fn verify(self) -> Result<LLVM7Module, backend::VerificationFailure<'a, LLVM7Module>> {
         unsafe {
             let mut message = null_mut();
-            match to_bool(llvm::LLVMVerifyModule(
+            let broken = to_bool(llvm::LLVMVerifyModule(
                 self.module,
                 llvm::LLVMReturnStatusAction,
                 &mut message,
-            )) {
-                broken if broken != false => {
-                    let message = LLVM7String::from_ptr(message).unwrap();
-                    let message = message.to_string_lossy();
-                    Err(backend::VerificationFailure::new(self, message.as_ref()))
-                }
-                _ => Ok(self),
+            ));
+            if broken {
+                let message = LLVM7String::from_ptr(message).unwrap();
+                let message = message.to_string_lossy();
+                Err(backend::VerificationFailure::new(self, message.as_ref()))
+            } else {
+                Ok(self)
             }
         }
     }

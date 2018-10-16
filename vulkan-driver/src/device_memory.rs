@@ -52,7 +52,8 @@ impl Default for DeviceMemoryTypes {
 }
 
 impl DeviceMemoryTypes {
-    pub fn to_bits(&self) -> u32 {
+    #[allow(dead_code)]
+    pub fn to_bits(self) -> u32 {
         let mut retval = 0;
         for (enumerant, value) in self.iter() {
             if *value {
@@ -100,9 +101,11 @@ impl DeviceMemoryHeap {
             DeviceMemoryHeap::Main => api::VK_MEMORY_HEAP_DEVICE_LOCAL_BIT,
         }
     }
+    #[allow(dead_code)]
     pub fn to_bits(self) -> u32 {
         1 << (self as u32)
     }
+    #[allow(dead_code)]
     pub fn from_index(index: u32) -> Option<Self> {
         for (enumerant, _) in EnumMap::<Self, ()>::from(|_| {}).iter() {
             if enumerant as u32 == index {
@@ -123,7 +126,8 @@ impl Default for DeviceMemoryHeaps {
 }
 
 impl DeviceMemoryHeaps {
-    pub fn to_bits(&self) -> u32 {
+    #[allow(dead_code)]
+    pub fn to_bits(self) -> u32 {
         let mut retval = 0;
         for (enumerant, value) in self.iter() {
             if *value {
@@ -239,6 +243,7 @@ impl Drop for DefaultDeviceMemoryAllocation {
 #[derive(Debug)]
 pub enum DeviceMemory {
     Default(DefaultDeviceMemoryAllocation),
+    #[allow(dead_code)]
     Special(Box<dyn DeviceMemoryAllocation>),
 }
 

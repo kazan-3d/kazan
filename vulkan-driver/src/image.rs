@@ -1,5 +1,9 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 // Copyright 2018 Jacob Lifshay
+#![cfg_attr(
+    feature = "cargo-clippy",
+    allow(clippy::unneeded_field_pattern)
+)]
 use api;
 use constants::IMAGE_ALIGNMENT;
 use device_memory::DeviceMemoryLayout;
@@ -14,6 +18,7 @@ pub enum SupportedTilings {
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
 pub enum Tiling {
     Linear,
+    #[allow(dead_code)]
     Tiled,
 }
 

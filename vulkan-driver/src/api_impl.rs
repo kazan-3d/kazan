@@ -1,6 +1,12 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 // Copyright 2018 Jacob Lifshay
-#![allow(dead_code)]
+
+// allow unneeded_field_pattern to ensure fields aren't accidently missed
+#![cfg_attr(
+    feature = "cargo-clippy",
+    allow(clippy::unneeded_field_pattern)
+)]
+
 use api;
 use buffer::{Buffer, BufferMemory};
 use constants::*;
@@ -19,14 +25,14 @@ use std::iter;
 use std::iter::FromIterator;
 use std::mem;
 use std::ops::*;
-use std::os::raw::{c_char, c_int, c_void};
+use std::os::raw::{c_char, c_void};
 use std::ptr::null;
 use std::ptr::null_mut;
 #[cfg(unix)]
 use std::ptr::NonNull;
 use std::slice;
 use std::str::FromStr;
-use swapchain::{SurfaceImplementation, SurfacePlatform, Swapchain};
+use swapchain::SurfacePlatform;
 use sys_info;
 use uuid;
 #[cfg(unix)]
@@ -36,6 +42,7 @@ use xcb;
 fn is_supported_structure_type(v: api::VkStructureType) -> bool {
     #[cfg(unix)]
     {
+        #[cfg_attr(feature = "cargo-clippy", allow(clippy::single_match))]
         match v {
             api::VK_STRUCTURE_TYPE_XCB_SURFACE_CREATE_INFO_KHR => return true,
             _ => {}
@@ -182,7 +189,7 @@ unsafe fn parse_next_chain_const(
     expected_child_structs: &[(api::VkStructureType, *mut *const api::VkBaseInStructure)],
 ) {
     verify_structure_type_is_supported(expected_root_struct_type);
-    let ref root = *root;
+    let root = &*root;
     assert_eq!(root.sType, expected_root_struct_type);
     for &(child_struct_type, child_struct) in expected_child_structs.iter() {
         verify_structure_type_is_supported(child_struct_type);
@@ -190,7 +197,7 @@ unsafe fn parse_next_chain_const(
     }
     let mut child = root.pNext as *const api::VkBaseInStructure;
     while !child.is_null() {
-        let ref child_ref = *child;
+        let child_ref = &*child;
         let search_for_type = child_ref.sType;
         let mut found = false;
         for &(child_struct_type, child_struct) in expected_child_structs.iter() {
@@ -222,7 +229,8 @@ unsafe fn parse_next_chain_mut(
     parse_next_chain_const(
         root as *const api::VkBaseInStructure,
         expected_root_struct_type,
-        mem::transmute(expected_child_structs),
+        &*(expected_child_structs as *const [(u32, *mut *mut api::VkBaseOutStructure)]
+            as *const [(u32, *mut *const api::VkBaseInStructure)]),
     )
 }
 
@@ -257,13 +265,14 @@ macro_rules! parse_next_chain_mut {
 }
 
 fn copy_str_to_char_array(dest: &mut [c_char], src: &str) {
+    #![cfg_attr(feature = "cargo-clippy", allow(clippy::int_plus_one))]
     assert!(dest.len() >= src.len() + 1);
     let src = src.as_bytes();
     for i in 0..src.len() {
         dest[i] = src[i] as c_char;
     }
-    for i in src.len()..dest.len() {
-        dest[i] = 0;
+    for v in dest.iter_mut().skip(src.len()) {
+        *v = 0;
     }
 }
 
@@ -534,6 +543,7 @@ impl Extensions {
     pub fn is_empty(&self) -> bool {
         self.iter().all(|(_, &v)| !v)
     }
+    #[allow(dead_code)]
     pub fn is_full(&self) -> bool {
         self.iter().all(|(_, &v)| v)
     }
@@ -556,6 +566,7 @@ impl Extensions {
             (|extension: Extension| extension.get_scope() == ExtensionScope::Instance).into(),
         )
     }
+    #[allow(dead_code)]
     pub fn device_extensions() -> Self {
         !Self::instance_extensions()
     }
@@ -640,6 +651,10 @@ enum GetProcAddressScope {
     Device,
 }
 
+#[cfg_attr(
+    feature = "cargo-clippy",
+    allow(clippy::cyclomatic_complexity)
+)]
 fn get_proc_address(
     name: *const c_char,
     scope: GetProcAddressScope,
@@ -1377,6 +1392,7 @@ impl Features {
         let mut rhs = *self;
         self.visit2_mut(&mut rhs, |v, _| f(v));
     }
+    #[allow(dead_code)]
     fn visit<F: FnMut(bool)>(mut self, mut f: F) {
         self.visit_mut(|v| f(*v));
     }
@@ -1516,8 +1532,10 @@ impl Not for Features {
 pub struct Queue {}
 
 pub struct Device {
+    #[allow(dead_code)]
     physical_device: SharedHandle<api::VkPhysicalDevice>,
     extensions: Extensions,
+    #[allow(dead_code)]
     features: Features,
     queues: Vec<Vec<OwnedHandle<api::VkQueue>>>,
 }
@@ -1539,7 +1557,7 @@ impl Device {
             physical_device_shader_draw_parameter_features: api::VkPhysicalDeviceShaderDrawParameterFeatures = api::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_DRAW_PARAMETER_FEATURES,
             physical_device_variable_pointer_features: api::VkPhysicalDeviceVariablePointerFeatures = api::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VARIABLE_POINTER_FEATURES,
         }
-        let ref create_info = *create_info;
+        let create_info = &*create_info;
         if create_info.enabledLayerCount != 0 {
             return Err(api::VK_ERROR_LAYER_NOT_PRESENT);
         }
@@ -1705,6 +1723,7 @@ impl PhysicalDevice {
         uuid::Uuid::nil()
     }
     pub fn get_limits() -> api::VkPhysicalDeviceLimits {
+        #![cfg_attr(feature = "cargo-clippy", allow(clippy::needless_update))]
         api::VkPhysicalDeviceLimits {
             maxImageDimension1D: !0,
             maxImageDimension2D: !0,
@@ -3150,7 +3169,7 @@ impl Instance {
             create_info,
             root = api::VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
         }
-        let ref create_info = *create_info;
+        let create_info = &*create_info;
         if create_info.enabledLayerCount != 0 {
             return Err(api::VK_ERROR_LAYER_NOT_PRESENT);
         }
@@ -3195,6 +3214,7 @@ impl Instance {
         }
         let mut device_name = [0; api::VK_MAX_PHYSICAL_DEVICE_NAME_SIZE as usize];
         copy_str_to_char_array(&mut device_name, KAZAN_DEVICE_NAME);
+        #[cfg_attr(feature = "cargo-clippy", allow(clippy::needless_update))]
         let retval = OwnedHandle::<api::VkInstance>::new(Instance {
             physical_device: OwnedHandle::new(PhysicalDevice {
                 enabled_extensions,
@@ -3451,7 +3471,7 @@ pub unsafe extern "system" fn vkGetPhysicalDeviceProperties(
 }
 
 unsafe fn get_physical_device_queue_family_properties(
-    _physical_device: SharedHandle<api::VkPhysicalDevice>,
+    _physical_device: &SharedHandle<api::VkPhysicalDevice>,
     queue_family_properties: &mut api::VkQueueFamilyProperties2,
     queue_count: u32,
 ) {
@@ -3490,7 +3510,7 @@ pub unsafe extern "system" fn vkGetPhysicalDeviceQueueFamilyProperties(
                 queueFamilyProperties: mem::zeroed(),
             };
             get_physical_device_queue_family_properties(
-                SharedHandle::from(physical_device).unwrap(),
+                &SharedHandle::from(physical_device).unwrap(),
                 &mut queue_family_properties2,
                 count,
             );
@@ -3653,7 +3673,7 @@ pub unsafe extern "system" fn vkAllocateMemory(
         memory_allocate_flags_info: api::VkMemoryAllocateFlagsInfo = api::VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_FLAGS_INFO,
         memory_dedicated_allocate_info: api::VkMemoryDedicatedAllocateInfo = api::VK_STRUCTURE_TYPE_MEMORY_DEDICATED_ALLOCATE_INFO,
     }
-    let ref allocate_info = *allocate_info;
+    let allocate_info = &*allocate_info;
     if !export_memory_allocate_info.is_null() {
         unimplemented!()
     }
@@ -3698,8 +3718,8 @@ pub unsafe extern "system" fn vkMapMemory(
     _device: api::VkDevice,
     memory: api::VkDeviceMemory,
     offset: api::VkDeviceSize,
-    size: api::VkDeviceSize,
-    flags: api::VkMemoryMapFlags,
+    _size: api::VkDeviceSize,
+    _flags: api::VkMemoryMapFlags,
     data: *mut *mut c_void,
 ) -> api::VkResult {
     let memory = SharedHandle::from(memory).unwrap();
@@ -4012,9 +4032,9 @@ pub unsafe extern "system" fn vkCreateBuffer(
         root = api::VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
         external_memory_buffer: api::VkExternalMemoryBufferCreateInfo = api::VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_BUFFER_CREATE_INFO,
     }
-    let ref create_info = *create_info;
+    let create_info = &*create_info;
     if !external_memory_buffer.is_null() {
-        let ref external_memory_buffer = *external_memory_buffer;
+        let external_memory_buffer = &*external_memory_buffer;
         assert_eq!(external_memory_buffer.handleTypes, 0);
     }
     if create_info.size > isize::max_value() as u64 {
@@ -4069,7 +4089,7 @@ pub unsafe extern "system" fn vkCreateImage(
         external_memory_image_create_info: api::VkExternalMemoryImageCreateInfo = api::VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_IMAGE_CREATE_INFO,
         image_swapchain_create_info: api::VkImageSwapchainCreateInfoKHR = api::VK_STRUCTURE_TYPE_IMAGE_SWAPCHAIN_CREATE_INFO_KHR,
     }
-    let ref create_info = *create_info;
+    let create_info = &*create_info;
     if !external_memory_image_create_info.is_null() {
         unimplemented!();
     }
@@ -4149,7 +4169,7 @@ pub unsafe extern "system" fn vkCreateShaderModule(
         create_info,
         root = api::VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
     }
-    let ref create_info = *create_info;
+    let create_info = &*create_info;
     const U32_BYTE_COUNT: usize = 4;
     assert_eq!(U32_BYTE_COUNT, mem::size_of::<u32>());
     assert_eq!(create_info.codeSize % U32_BYTE_COUNT, 0);
@@ -4273,7 +4293,7 @@ pub unsafe extern "system" fn vkCreateSampler(
         create_info,
         root = api::VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
     }
-    let ref create_info = *create_info;
+    let create_info = &*create_info;
     *sampler = OwnedHandle::<api::VkSampler>::new(Sampler {
         mag_filter: create_info.magFilter,
         min_filter: create_info.minFilter,
@@ -4993,14 +5013,14 @@ pub unsafe extern "system" fn vkBindBufferMemory2(
             device_group_info: api::VkBindBufferMemoryDeviceGroupInfo = api::VK_STRUCTURE_TYPE_BIND_BUFFER_MEMORY_DEVICE_GROUP_INFO,
         }
         if !device_group_info.is_null() {
-            let ref device_group_info = *device_group_info;
+            let device_group_info = &*device_group_info;
             if device_group_info.deviceIndexCount == 0 {
             } else {
                 assert_eq!(device_group_info.deviceIndexCount, 1);
                 assert_eq!(*device_group_info.pDeviceIndices, 0);
             }
         }
-        let ref bind_info = *bind_info;
+        let bind_info = &*bind_info;
         let mut buffer = MutHandle::from(bind_info.buffer).unwrap();
         let device_memory = SharedHandle::from(bind_info.memory).unwrap();
         let device_memory_size = device_memory.size();
@@ -5033,7 +5053,7 @@ pub unsafe extern "system" fn vkBindImageMemory2(
             plane_info: api::VkBindImagePlaneMemoryInfo = api::VK_STRUCTURE_TYPE_BIND_IMAGE_PLANE_MEMORY_INFO,
         }
         if !device_group_info.is_null() {
-            let ref device_group_info = *device_group_info;
+            let device_group_info = &*device_group_info;
             if device_group_info.deviceIndexCount == 0 {
             } else {
                 assert_eq!(device_group_info.deviceIndexCount, 1);
@@ -5046,7 +5066,7 @@ pub unsafe extern "system" fn vkBindImageMemory2(
         if !plane_info.is_null() {
             unimplemented!();
         }
-        let ref bind_info = *bind_info;
+        let bind_info = &*bind_info;
         let mut image = MutHandle::from(bind_info.image).unwrap();
         let device_memory = SharedHandle::from(bind_info.memory).unwrap();
         let device_memory_size = device_memory.size();
@@ -5132,6 +5152,7 @@ pub unsafe extern "system" fn vkGetImageMemoryRequirements2(
     info: *const api::VkImageMemoryRequirementsInfo2,
     memory_requirements: *mut api::VkMemoryRequirements2,
 ) {
+    #![cfg_attr(feature = "cargo-clippy", allow(clippy::needless_update))]
     parse_next_chain_const!{
         info,
         root = api::VK_STRUCTURE_TYPE_IMAGE_MEMORY_REQUIREMENTS_INFO_2,
@@ -5145,9 +5166,9 @@ pub unsafe extern "system" fn vkGetImageMemoryRequirements2(
     if !image_plane_memory_requirements_info.is_null() {
         unimplemented!();
     }
-    let ref info = *info;
+    let info = &*info;
     let image = SharedHandle::from(info.image).unwrap();
-    let ref mut memory_requirements = *memory_requirements;
+    let memory_requirements = &mut *memory_requirements;
     let layout = image.properties.computed_properties().memory_layout;
     memory_requirements.memoryRequirements = api::VkMemoryRequirements {
         size: layout.size as u64,
@@ -5156,7 +5177,7 @@ pub unsafe extern "system" fn vkGetImageMemoryRequirements2(
         ..mem::zeroed() // for padding fields
     };
     if !dedicated_requirements.is_null() {
-        let ref mut dedicated_requirements = *dedicated_requirements;
+        let dedicated_requirements = &mut *dedicated_requirements;
         dedicated_requirements.prefersDedicatedAllocation = api::VK_FALSE;
         dedicated_requirements.requiresDedicatedAllocation = api::VK_FALSE;
     }
@@ -5168,6 +5189,7 @@ pub unsafe extern "system" fn vkGetBufferMemoryRequirements2(
     info: *const api::VkBufferMemoryRequirementsInfo2,
     memory_requirements: *mut api::VkMemoryRequirements2,
 ) {
+    #![cfg_attr(feature = "cargo-clippy", allow(clippy::needless_update))]
     parse_next_chain_const!{
         info,
         root = api::VK_STRUCTURE_TYPE_BUFFER_MEMORY_REQUIREMENTS_INFO_2,
@@ -5177,8 +5199,8 @@ pub unsafe extern "system" fn vkGetBufferMemoryRequirements2(
         root = api::VK_STRUCTURE_TYPE_MEMORY_REQUIREMENTS_2,
         dedicated_requirements: api::VkMemoryDedicatedRequirements = api::VK_STRUCTURE_TYPE_MEMORY_DEDICATED_REQUIREMENTS,
     }
-    let ref mut memory_requirements = *memory_requirements;
-    let ref info = *info;
+    let memory_requirements = &mut *memory_requirements;
+    let info = &*info;
     let buffer = SharedHandle::from(info.buffer).unwrap();
     let layout = DeviceMemoryLayout::calculate(buffer.size, BUFFER_ALIGNMENT);
     memory_requirements.memoryRequirements = api::VkMemoryRequirements {
@@ -5188,7 +5210,7 @@ pub unsafe extern "system" fn vkGetBufferMemoryRequirements2(
         ..mem::zeroed() // for padding fields
     };
     if !dedicated_requirements.is_null() {
-        let ref mut dedicated_requirements = *dedicated_requirements;
+        let dedicated_requirements = &mut *dedicated_requirements;
         dedicated_requirements.prefersDedicatedAllocation = api::VK_FALSE;
         dedicated_requirements.requiresDedicatedAllocation = api::VK_FALSE;
     }
@@ -5268,11 +5290,11 @@ pub unsafe extern "system" fn vkGetPhysicalDeviceProperties2(
         protected_memory_properties: api::VkPhysicalDeviceProtectedMemoryProperties = api::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROTECTED_MEMORY_PROPERTIES,
         subgroup_properties: api::VkPhysicalDeviceSubgroupProperties = api::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SUBGROUP_PROPERTIES,
     }
-    let ref mut properties = *properties;
+    let properties = &mut *properties;
     let physical_device = SharedHandle::from(physical_device).unwrap();
     properties.properties = physical_device.properties;
     if !point_clipping_properties.is_null() {
-        let ref mut point_clipping_properties = *point_clipping_properties;
+        let point_clipping_properties = &mut *point_clipping_properties;
         *point_clipping_properties = api::VkPhysicalDevicePointClippingProperties {
             sType: point_clipping_properties.sType,
             pNext: point_clipping_properties.pNext,
@@ -5280,7 +5302,7 @@ pub unsafe extern "system" fn vkGetPhysicalDeviceProperties2(
         };
     }
     if !multiview_properties.is_null() {
-        let ref mut multiview_properties = *multiview_properties;
+        let multiview_properties = &mut *multiview_properties;
         *multiview_properties = api::VkPhysicalDeviceMultiviewProperties {
             sType: multiview_properties.sType,
             pNext: multiview_properties.pNext,
@@ -5288,7 +5310,7 @@ pub unsafe extern "system" fn vkGetPhysicalDeviceProperties2(
         };
     }
     if !id_properties.is_null() {
-        let ref mut id_properties = *id_properties;
+        let id_properties = &mut *id_properties;
         *id_properties = api::VkPhysicalDeviceIDProperties {
             sType: id_properties.sType,
             pNext: id_properties.pNext,
@@ -5296,7 +5318,7 @@ pub unsafe extern "system" fn vkGetPhysicalDeviceProperties2(
         };
     }
     if !maintenance_3_properties.is_null() {
-        let ref mut maintenance_3_properties = *maintenance_3_properties;
+        let maintenance_3_properties = &mut *maintenance_3_properties;
         *maintenance_3_properties = api::VkPhysicalDeviceMaintenance3Properties {
             sType: maintenance_3_properties.sType,
             pNext: maintenance_3_properties.pNext,
@@ -5304,7 +5326,7 @@ pub unsafe extern "system" fn vkGetPhysicalDeviceProperties2(
         };
     }
     if !protected_memory_properties.is_null() {
-        let ref mut protected_memory_properties = *protected_memory_properties;
+        let protected_memory_properties = &mut *protected_memory_properties;
         *protected_memory_properties = api::VkPhysicalDeviceProtectedMemoryProperties {
             sType: protected_memory_properties.sType,
             pNext: protected_memory_properties.pNext,
@@ -5312,7 +5334,7 @@ pub unsafe extern "system" fn vkGetPhysicalDeviceProperties2(
         };
     }
     if !subgroup_properties.is_null() {
-        let ref mut subgroup_properties = *subgroup_properties;
+        let subgroup_properties = &mut *subgroup_properties;
         *subgroup_properties = api::VkPhysicalDeviceSubgroupProperties {
             sType: subgroup_properties.sType,
             pNext: subgroup_properties.pNext,
@@ -5331,7 +5353,7 @@ pub unsafe extern "system" fn vkGetPhysicalDeviceFormatProperties2(
         format_properties,
         root = api::VK_STRUCTURE_TYPE_FORMAT_PROPERTIES_2,
     }
-    let ref mut format_properties = *format_properties;
+    let format_properties = &mut *format_properties;
     format_properties.formatProperties = PhysicalDevice::get_format_properties(format);
 }
 
@@ -5356,7 +5378,7 @@ pub unsafe extern "system" fn vkGetPhysicalDeviceQueueFamilyProperties2(
         QUEUE_COUNTS.iter(),
         |queue_family_properties, &count| {
             get_physical_device_queue_family_properties(
-                SharedHandle::from(physical_device).unwrap(),
+                &SharedHandle::from(physical_device).unwrap(),
                 queue_family_properties,
                 count,
             );
@@ -5369,12 +5391,13 @@ pub unsafe extern "system" fn vkGetPhysicalDeviceMemoryProperties2(
     physical_device: api::VkPhysicalDevice,
     memory_properties: *mut api::VkPhysicalDeviceMemoryProperties2,
 ) {
+    #![cfg_attr(feature = "cargo-clippy", allow(clippy::needless_update))]
     let physical_device = SharedHandle::from(physical_device).unwrap();
     parse_next_chain_mut!{
         memory_properties,
         root = api::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MEMORY_PROPERTIES_2,
     }
-    let ref mut memory_properties = *memory_properties;
+    let memory_properties = &mut *memory_properties;
     let mut properties: api::VkPhysicalDeviceMemoryProperties = mem::zeroed();
     properties.memoryTypeCount = DeviceMemoryTypes::default().len() as u32;
     for (memory_type, _) in DeviceMemoryTypes::default().iter() {
@@ -5425,7 +5448,7 @@ pub unsafe extern "system" fn vkGetDeviceQueue2(
         queue_info,
         root = api::VK_STRUCTURE_TYPE_DEVICE_QUEUE_INFO_2,
     }
-    let ref queue_info = *queue_info;
+    let queue_info = &*queue_info;
     assert_eq!(queue_info.flags, 0);
     let device = SharedHandle::from(device).unwrap();
     *queue = device.queues[queue_info.queueFamilyIndex as usize][queue_info.queueIndex as usize]
@@ -5616,7 +5639,7 @@ pub unsafe extern "system" fn vkGetPhysicalDeviceSurfacePresentModesKHR(
 
 #[allow(non_snake_case)]
 pub unsafe extern "system" fn vkCreateSwapchainKHR(
-    device: api::VkDevice,
+    _device: api::VkDevice,
     create_info: *const api::VkSwapchainCreateInfoKHR,
     _allocator: *const api::VkAllocationCallbacks,
     swapchain: *mut api::VkSwapchainKHR,
@@ -5626,7 +5649,7 @@ pub unsafe extern "system" fn vkCreateSwapchainKHR(
         root = api::VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
         device_group_swapchain_create_info: api::VkDeviceGroupSwapchainCreateInfoKHR = api::VK_STRUCTURE_TYPE_DEVICE_GROUP_SWAPCHAIN_CREATE_INFO_KHR,
     }
-    let ref create_info = *create_info;
+    let create_info = &*create_info;
     let device_group_swapchain_create_info = if device_group_swapchain_create_info.is_null() {
         None
     } else {
@@ -5723,6 +5746,7 @@ pub unsafe extern "system" fn vkAcquireNextImage2KHR(
 }
 
 #[allow(non_snake_case)]
+#[cfg(kazan_include_unused_vulkan_api)]
 pub unsafe extern "system" fn vkGetPhysicalDeviceDisplayPropertiesKHR(
     _physicalDevice: api::VkPhysicalDevice,
     _pPropertyCount: *mut u32,
@@ -5732,6 +5756,7 @@ pub unsafe extern "system" fn vkGetPhysicalDeviceDisplayPropertiesKHR(
 }
 
 #[allow(non_snake_case)]
+#[cfg(kazan_include_unused_vulkan_api)]
 pub unsafe extern "system" fn vkGetPhysicalDeviceDisplayPlanePropertiesKHR(
     _physicalDevice: api::VkPhysicalDevice,
     _pPropertyCount: *mut u32,
@@ -5741,6 +5766,7 @@ pub unsafe extern "system" fn vkGetPhysicalDeviceDisplayPlanePropertiesKHR(
 }
 
 #[allow(non_snake_case)]
+#[cfg(kazan_include_unused_vulkan_api)]
 pub unsafe extern "system" fn vkGetDisplayPlaneSupportedDisplaysKHR(
     _physicalDevice: api::VkPhysicalDevice,
     _planeIndex: u32,
@@ -5751,6 +5777,7 @@ pub unsafe extern "system" fn vkGetDisplayPlaneSupportedDisplaysKHR(
 }
 
 #[allow(non_snake_case)]
+#[cfg(kazan_include_unused_vulkan_api)]
 pub unsafe extern "system" fn vkGetDisplayModePropertiesKHR(
     _physicalDevice: api::VkPhysicalDevice,
     _display: api::VkDisplayKHR,
@@ -5761,6 +5788,7 @@ pub unsafe extern "system" fn vkGetDisplayModePropertiesKHR(
 }
 
 #[allow(non_snake_case)]
+#[cfg(kazan_include_unused_vulkan_api)]
 pub unsafe extern "system" fn vkCreateDisplayModeKHR(
     _physicalDevice: api::VkPhysicalDevice,
     _display: api::VkDisplayKHR,
@@ -5772,6 +5800,7 @@ pub unsafe extern "system" fn vkCreateDisplayModeKHR(
 }
 
 #[allow(non_snake_case)]
+#[cfg(kazan_include_unused_vulkan_api)]
 pub unsafe extern "system" fn vkGetDisplayPlaneCapabilitiesKHR(
     _physicalDevice: api::VkPhysicalDevice,
     _mode: api::VkDisplayModeKHR,
@@ -5782,6 +5811,7 @@ pub unsafe extern "system" fn vkGetDisplayPlaneCapabilitiesKHR(
 }
 
 #[allow(non_snake_case)]
+#[cfg(kazan_include_unused_vulkan_api)]
 pub unsafe extern "system" fn vkCreateDisplayPlaneSurfaceKHR(
     _instance: api::VkInstance,
     _pCreateInfo: *const api::VkDisplaySurfaceCreateInfoKHR,
@@ -5792,6 +5822,7 @@ pub unsafe extern "system" fn vkCreateDisplayPlaneSurfaceKHR(
 }
 
 #[allow(non_snake_case)]
+#[cfg(kazan_include_unused_vulkan_api)]
 pub unsafe extern "system" fn vkCreateSharedSwapchainsKHR(
     _device: api::VkDevice,
     _swapchainCount: u32,
@@ -5803,6 +5834,7 @@ pub unsafe extern "system" fn vkCreateSharedSwapchainsKHR(
 }
 
 #[allow(non_snake_case)]
+#[cfg(kazan_include_unused_vulkan_api)]
 pub unsafe extern "system" fn vkGetMemoryFdKHR(
     _device: api::VkDevice,
     _pGetFdInfo: *const api::VkMemoryGetFdInfoKHR,
@@ -5812,6 +5844,7 @@ pub unsafe extern "system" fn vkGetMemoryFdKHR(
 }
 
 #[allow(non_snake_case)]
+#[cfg(kazan_include_unused_vulkan_api)]
 pub unsafe extern "system" fn vkGetMemoryFdPropertiesKHR(
     _device: api::VkDevice,
     _handleType: api::VkExternalMemoryHandleTypeFlagBits,
@@ -5822,6 +5855,7 @@ pub unsafe extern "system" fn vkGetMemoryFdPropertiesKHR(
 }
 
 #[allow(non_snake_case)]
+#[cfg(kazan_include_unused_vulkan_api)]
 pub unsafe extern "system" fn vkImportSemaphoreFdKHR(
     _device: api::VkDevice,
     _pImportSemaphoreFdInfo: *const api::VkImportSemaphoreFdInfoKHR,
@@ -5830,6 +5864,7 @@ pub unsafe extern "system" fn vkImportSemaphoreFdKHR(
 }
 
 #[allow(non_snake_case)]
+#[cfg(kazan_include_unused_vulkan_api)]
 pub unsafe extern "system" fn vkGetSemaphoreFdKHR(
     _device: api::VkDevice,
     _pGetFdInfo: *const api::VkSemaphoreGetFdInfoKHR,
@@ -5839,6 +5874,7 @@ pub unsafe extern "system" fn vkGetSemaphoreFdKHR(
 }
 
 #[allow(non_snake_case)]
+#[cfg(kazan_include_unused_vulkan_api)]
 pub unsafe extern "system" fn vkCmdPushDescriptorSetKHR(
     _commandBuffer: api::VkCommandBuffer,
     _pipelineBindPoint: api::VkPipelineBindPoint,
@@ -5851,6 +5887,7 @@ pub unsafe extern "system" fn vkCmdPushDescriptorSetKHR(
 }
 
 #[allow(non_snake_case)]
+#[cfg(kazan_include_unused_vulkan_api)]
 pub unsafe extern "system" fn vkCmdPushDescriptorSetWithTemplateKHR(
     _commandBuffer: api::VkCommandBuffer,
     _descriptorUpdateTemplate: api::VkDescriptorUpdateTemplate,
@@ -5862,6 +5899,7 @@ pub unsafe extern "system" fn vkCmdPushDescriptorSetWithTemplateKHR(
 }
 
 #[allow(non_snake_case)]
+#[cfg(kazan_include_unused_vulkan_api)]
 pub unsafe extern "system" fn vkCreateRenderPass2KHR(
     _device: api::VkDevice,
     _pCreateInfo: *const api::VkRenderPassCreateInfo2KHR,
@@ -5872,6 +5910,7 @@ pub unsafe extern "system" fn vkCreateRenderPass2KHR(
 }
 
 #[allow(non_snake_case)]
+#[cfg(kazan_include_unused_vulkan_api)]
 pub unsafe extern "system" fn vkCmdBeginRenderPass2KHR(
     _commandBuffer: api::VkCommandBuffer,
     _pRenderPassBegin: *const api::VkRenderPassBeginInfo,
@@ -5881,6 +5920,7 @@ pub unsafe extern "system" fn vkCmdBeginRenderPass2KHR(
 }
 
 #[allow(non_snake_case)]
+#[cfg(kazan_include_unused_vulkan_api)]
 pub unsafe extern "system" fn vkCmdNextSubpass2KHR(
     _commandBuffer: api::VkCommandBuffer,
     _pSubpassBeginInfo: *const api::VkSubpassBeginInfoKHR,
@@ -5890,6 +5930,7 @@ pub unsafe extern "system" fn vkCmdNextSubpass2KHR(
 }
 
 #[allow(non_snake_case)]
+#[cfg(kazan_include_unused_vulkan_api)]
 pub unsafe extern "system" fn vkCmdEndRenderPass2KHR(
     _commandBuffer: api::VkCommandBuffer,
     _pSubpassEndInfo: *const api::VkSubpassEndInfoKHR,
@@ -5898,6 +5939,7 @@ pub unsafe extern "system" fn vkCmdEndRenderPass2KHR(
 }
 
 #[allow(non_snake_case)]
+#[cfg(kazan_include_unused_vulkan_api)]
 pub unsafe extern "system" fn vkGetSwapchainStatusKHR(
     _device: api::VkDevice,
     _swapchain: api::VkSwapchainKHR,
@@ -5906,6 +5948,7 @@ pub unsafe extern "system" fn vkGetSwapchainStatusKHR(
 }
 
 #[allow(non_snake_case)]
+#[cfg(kazan_include_unused_vulkan_api)]
 pub unsafe extern "system" fn vkImportFenceFdKHR(
     _device: api::VkDevice,
     _pImportFenceFdInfo: *const api::VkImportFenceFdInfoKHR,
@@ -5914,6 +5957,7 @@ pub unsafe extern "system" fn vkImportFenceFdKHR(
 }
 
 #[allow(non_snake_case)]
+#[cfg(kazan_include_unused_vulkan_api)]
 pub unsafe extern "system" fn vkGetFenceFdKHR(
     _device: api::VkDevice,
     _pGetFdInfo: *const api::VkFenceGetFdInfoKHR,
@@ -5932,12 +5976,12 @@ pub unsafe extern "system" fn vkGetPhysicalDeviceSurfaceCapabilities2KHR(
         surface_info,
         root = api::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SURFACE_INFO_2_KHR,
     }
-    let ref surface_info = *surface_info;
+    let surface_info = &*surface_info;
     parse_next_chain_mut!{
         surface_capabilities,
         root = api::VK_STRUCTURE_TYPE_SURFACE_CAPABILITIES_2_KHR,
     }
-    let ref mut surface_capabilities = *surface_capabilities;
+    let surface_capabilities = &mut *surface_capabilities;
     let surface_implementation =
         SurfacePlatform::from(SharedHandle::from(surface_info.surface).unwrap().platform)
             .unwrap()
@@ -5952,6 +5996,7 @@ pub unsafe extern "system" fn vkGetPhysicalDeviceSurfaceCapabilities2KHR(
 }
 
 #[allow(non_snake_case)]
+#[cfg(kazan_include_unused_vulkan_api)]
 pub unsafe extern "system" fn vkGetPhysicalDeviceSurfaceFormats2KHR(
     _physicalDevice: api::VkPhysicalDevice,
     _pSurfaceInfo: *const api::VkPhysicalDeviceSurfaceInfo2KHR,
@@ -5962,6 +6007,7 @@ pub unsafe extern "system" fn vkGetPhysicalDeviceSurfaceFormats2KHR(
 }
 
 #[allow(non_snake_case)]
+#[cfg(kazan_include_unused_vulkan_api)]
 pub unsafe extern "system" fn vkGetPhysicalDeviceDisplayProperties2KHR(
     _physicalDevice: api::VkPhysicalDevice,
     _pPropertyCount: *mut u32,
@@ -5971,6 +6017,7 @@ pub unsafe extern "system" fn vkGetPhysicalDeviceDisplayProperties2KHR(
 }
 
 #[allow(non_snake_case)]
+#[cfg(kazan_include_unused_vulkan_api)]
 pub unsafe extern "system" fn vkGetPhysicalDeviceDisplayPlaneProperties2KHR(
     _physicalDevice: api::VkPhysicalDevice,
     _pPropertyCount: *mut u32,
@@ -5980,6 +6027,7 @@ pub unsafe extern "system" fn vkGetPhysicalDeviceDisplayPlaneProperties2KHR(
 }
 
 #[allow(non_snake_case)]
+#[cfg(kazan_include_unused_vulkan_api)]
 pub unsafe extern "system" fn vkGetDisplayModeProperties2KHR(
     _physicalDevice: api::VkPhysicalDevice,
     _display: api::VkDisplayKHR,
@@ -5990,6 +6038,7 @@ pub unsafe extern "system" fn vkGetDisplayModeProperties2KHR(
 }
 
 #[allow(non_snake_case)]
+#[cfg(kazan_include_unused_vulkan_api)]
 pub unsafe extern "system" fn vkGetDisplayPlaneCapabilities2KHR(
     _physicalDevice: api::VkPhysicalDevice,
     _pDisplayPlaneInfo: *const api::VkDisplayPlaneInfo2KHR,
@@ -5999,6 +6048,7 @@ pub unsafe extern "system" fn vkGetDisplayPlaneCapabilities2KHR(
 }
 
 #[allow(non_snake_case)]
+#[cfg(kazan_include_unused_vulkan_api)]
 pub unsafe extern "system" fn vkCmdDrawIndirectCountKHR(
     _commandBuffer: api::VkCommandBuffer,
     _buffer: api::VkBuffer,
@@ -6012,6 +6062,7 @@ pub unsafe extern "system" fn vkCmdDrawIndirectCountKHR(
 }
 
 #[allow(non_snake_case)]
+#[cfg(kazan_include_unused_vulkan_api)]
 pub unsafe extern "system" fn vkCmdDrawIndexedIndirectCountKHR(
     _commandBuffer: api::VkCommandBuffer,
     _buffer: api::VkBuffer,
@@ -6025,6 +6076,7 @@ pub unsafe extern "system" fn vkCmdDrawIndexedIndirectCountKHR(
 }
 
 #[allow(non_snake_case)]
+#[cfg(kazan_include_unused_vulkan_api)]
 pub unsafe extern "system" fn vkCreateDebugReportCallbackEXT(
     _instance: api::VkInstance,
     _pCreateInfo: *const api::VkDebugReportCallbackCreateInfoEXT,
@@ -6035,6 +6087,7 @@ pub unsafe extern "system" fn vkCreateDebugReportCallbackEXT(
 }
 
 #[allow(non_snake_case)]
+#[cfg(kazan_include_unused_vulkan_api)]
 pub unsafe extern "system" fn vkDestroyDebugReportCallbackEXT(
     _instance: api::VkInstance,
     _callback: api::VkDebugReportCallbackEXT,
@@ -6044,6 +6097,7 @@ pub unsafe extern "system" fn vkDestroyDebugReportCallbackEXT(
 }
 
 #[allow(non_snake_case)]
+#[cfg(kazan_include_unused_vulkan_api)]
 pub unsafe extern "system" fn vkDebugReportMessageEXT(
     _instance: api::VkInstance,
     _flags: api::VkDebugReportFlagsEXT,
@@ -6058,6 +6112,7 @@ pub unsafe extern "system" fn vkDebugReportMessageEXT(
 }
 
 #[allow(non_snake_case)]
+#[cfg(kazan_include_unused_vulkan_api)]
 pub unsafe extern "system" fn vkDebugMarkerSetObjectTagEXT(
     _device: api::VkDevice,
     _pTagInfo: *const api::VkDebugMarkerObjectTagInfoEXT,
@@ -6066,6 +6121,7 @@ pub unsafe extern "system" fn vkDebugMarkerSetObjectTagEXT(
 }
 
 #[allow(non_snake_case)]
+#[cfg(kazan_include_unused_vulkan_api)]
 pub unsafe extern "system" fn vkDebugMarkerSetObjectNameEXT(
     _device: api::VkDevice,
     _pNameInfo: *const api::VkDebugMarkerObjectNameInfoEXT,
@@ -6074,6 +6130,7 @@ pub unsafe extern "system" fn vkDebugMarkerSetObjectNameEXT(
 }
 
 #[allow(non_snake_case)]
+#[cfg(kazan_include_unused_vulkan_api)]
 pub unsafe extern "system" fn vkCmdDebugMarkerBeginEXT(
     _commandBuffer: api::VkCommandBuffer,
     _pMarkerInfo: *const api::VkDebugMarkerMarkerInfoEXT,
@@ -6082,11 +6139,13 @@ pub unsafe extern "system" fn vkCmdDebugMarkerBeginEXT(
 }
 
 #[allow(non_snake_case)]
+#[cfg(kazan_include_unused_vulkan_api)]
 pub unsafe extern "system" fn vkCmdDebugMarkerEndEXT(_commandBuffer: api::VkCommandBuffer) {
     unimplemented!()
 }
 
 #[allow(non_snake_case)]
+#[cfg(kazan_include_unused_vulkan_api)]
 pub unsafe extern "system" fn vkCmdDebugMarkerInsertEXT(
     _commandBuffer: api::VkCommandBuffer,
     _pMarkerInfo: *const api::VkDebugMarkerMarkerInfoEXT,
@@ -6095,6 +6154,7 @@ pub unsafe extern "system" fn vkCmdDebugMarkerInsertEXT(
 }
 
 #[allow(non_snake_case)]
+#[cfg(kazan_include_unused_vulkan_api)]
 pub unsafe extern "system" fn vkCmdDrawIndirectCountAMD(
     _commandBuffer: api::VkCommandBuffer,
     _buffer: api::VkBuffer,
@@ -6108,6 +6168,7 @@ pub unsafe extern "system" fn vkCmdDrawIndirectCountAMD(
 }
 
 #[allow(non_snake_case)]
+#[cfg(kazan_include_unused_vulkan_api)]
 pub unsafe extern "system" fn vkCmdDrawIndexedIndirectCountAMD(
     _commandBuffer: api::VkCommandBuffer,
     _buffer: api::VkBuffer,
@@ -6121,6 +6182,7 @@ pub unsafe extern "system" fn vkCmdDrawIndexedIndirectCountAMD(
 }
 
 #[allow(non_snake_case)]
+#[cfg(kazan_include_unused_vulkan_api)]
 pub unsafe extern "system" fn vkGetShaderInfoAMD(
     _device: api::VkDevice,
     _pipeline: api::VkPipeline,
@@ -6133,6 +6195,7 @@ pub unsafe extern "system" fn vkGetShaderInfoAMD(
 }
 
 #[allow(non_snake_case)]
+#[cfg(kazan_include_unused_vulkan_api)]
 pub unsafe extern "system" fn vkGetPhysicalDeviceExternalImageFormatPropertiesNV(
     _physicalDevice: api::VkPhysicalDevice,
     _format: api::VkFormat,
@@ -6147,6 +6210,7 @@ pub unsafe extern "system" fn vkGetPhysicalDeviceExternalImageFormatPropertiesNV
 }
 
 #[allow(non_snake_case)]
+#[cfg(kazan_include_unused_vulkan_api)]
 pub unsafe extern "system" fn vkCmdBeginConditionalRenderingEXT(
     _commandBuffer: api::VkCommandBuffer,
     _pConditionalRenderingBegin: *const api::VkConditionalRenderingBeginInfoEXT,
@@ -6155,6 +6219,7 @@ pub unsafe extern "system" fn vkCmdBeginConditionalRenderingEXT(
 }
 
 #[allow(non_snake_case)]
+#[cfg(kazan_include_unused_vulkan_api)]
 pub unsafe extern "system" fn vkCmdEndConditionalRenderingEXT(
     _commandBuffer: api::VkCommandBuffer,
 ) {
@@ -6162,6 +6227,7 @@ pub unsafe extern "system" fn vkCmdEndConditionalRenderingEXT(
 }
 
 #[allow(non_snake_case)]
+#[cfg(kazan_include_unused_vulkan_api)]
 pub unsafe extern "system" fn vkCmdSetViewportWScalingNV(
     _commandBuffer: api::VkCommandBuffer,
     _firstViewport: u32,
@@ -6172,6 +6238,7 @@ pub unsafe extern "system" fn vkCmdSetViewportWScalingNV(
 }
 
 #[allow(non_snake_case)]
+#[cfg(kazan_include_unused_vulkan_api)]
 pub unsafe extern "system" fn vkReleaseDisplayEXT(
     _physicalDevice: api::VkPhysicalDevice,
     _display: api::VkDisplayKHR,
@@ -6180,6 +6247,7 @@ pub unsafe extern "system" fn vkReleaseDisplayEXT(
 }
 
 #[allow(non_snake_case)]
+#[cfg(kazan_include_unused_vulkan_api)]
 pub unsafe extern "system" fn vkGetPhysicalDeviceSurfaceCapabilities2EXT(
     _physicalDevice: api::VkPhysicalDevice,
     _surface: api::VkSurfaceKHR,
@@ -6189,6 +6257,7 @@ pub unsafe extern "system" fn vkGetPhysicalDeviceSurfaceCapabilities2EXT(
 }
 
 #[allow(non_snake_case)]
+#[cfg(kazan_include_unused_vulkan_api)]
 pub unsafe extern "system" fn vkDisplayPowerControlEXT(
     _device: api::VkDevice,
     _display: api::VkDisplayKHR,
@@ -6198,6 +6267,7 @@ pub unsafe extern "system" fn vkDisplayPowerControlEXT(
 }
 
 #[allow(non_snake_case)]
+#[cfg(kazan_include_unused_vulkan_api)]
 pub unsafe extern "system" fn vkRegisterDeviceEventEXT(
     _device: api::VkDevice,
     _pDeviceEventInfo: *const api::VkDeviceEventInfoEXT,
@@ -6208,6 +6278,7 @@ pub unsafe extern "system" fn vkRegisterDeviceEventEXT(
 }
 
 #[allow(non_snake_case)]
+#[cfg(kazan_include_unused_vulkan_api)]
 pub unsafe extern "system" fn vkRegisterDisplayEventEXT(
     _device: api::VkDevice,
     _display: api::VkDisplayKHR,
@@ -6219,6 +6290,7 @@ pub unsafe extern "system" fn vkRegisterDisplayEventEXT(
 }
 
 #[allow(non_snake_case)]
+#[cfg(kazan_include_unused_vulkan_api)]
 pub unsafe extern "system" fn vkGetSwapchainCounterEXT(
     _device: api::VkDevice,
     _swapchain: api::VkSwapchainKHR,
@@ -6229,6 +6301,7 @@ pub unsafe extern "system" fn vkGetSwapchainCounterEXT(
 }
 
 #[allow(non_snake_case)]
+#[cfg(kazan_include_unused_vulkan_api)]
 pub unsafe extern "system" fn vkGetRefreshCycleDurationGOOGLE(
     _device: api::VkDevice,
     _swapchain: api::VkSwapchainKHR,
@@ -6238,6 +6311,7 @@ pub unsafe extern "system" fn vkGetRefreshCycleDurationGOOGLE(
 }
 
 #[allow(non_snake_case)]
+#[cfg(kazan_include_unused_vulkan_api)]
 pub unsafe extern "system" fn vkGetPastPresentationTimingGOOGLE(
     _device: api::VkDevice,
     _swapchain: api::VkSwapchainKHR,
@@ -6248,6 +6322,7 @@ pub unsafe extern "system" fn vkGetPastPresentationTimingGOOGLE(
 }
 
 #[allow(non_snake_case)]
+#[cfg(kazan_include_unused_vulkan_api)]
 pub unsafe extern "system" fn vkCmdSetDiscardRectangleEXT(
     _commandBuffer: api::VkCommandBuffer,
     _firstDiscardRectangle: u32,
@@ -6258,6 +6333,7 @@ pub unsafe extern "system" fn vkCmdSetDiscardRectangleEXT(
 }
 
 #[allow(non_snake_case)]
+#[cfg(kazan_include_unused_vulkan_api)]
 pub unsafe extern "system" fn vkSetHdrMetadataEXT(
     _device: api::VkDevice,
     _swapchainCount: u32,
@@ -6268,6 +6344,7 @@ pub unsafe extern "system" fn vkSetHdrMetadataEXT(
 }
 
 #[allow(non_snake_case)]
+#[cfg(kazan_include_unused_vulkan_api)]
 pub unsafe extern "system" fn vkSetDebugUtilsObjectNameEXT(
     _device: api::VkDevice,
     _pNameInfo: *const api::VkDebugUtilsObjectNameInfoEXT,
@@ -6276,6 +6353,7 @@ pub unsafe extern "system" fn vkSetDebugUtilsObjectNameEXT(
 }
 
 #[allow(non_snake_case)]
+#[cfg(kazan_include_unused_vulkan_api)]
 pub unsafe extern "system" fn vkSetDebugUtilsObjectTagEXT(
     _device: api::VkDevice,
     _pTagInfo: *const api::VkDebugUtilsObjectTagInfoEXT,
@@ -6284,6 +6362,7 @@ pub unsafe extern "system" fn vkSetDebugUtilsObjectTagEXT(
 }
 
 #[allow(non_snake_case)]
+#[cfg(kazan_include_unused_vulkan_api)]
 pub unsafe extern "system" fn vkQueueBeginDebugUtilsLabelEXT(
     _queue: api::VkQueue,
     _pLabelInfo: *const api::VkDebugUtilsLabelEXT,
@@ -6292,11 +6371,13 @@ pub unsafe extern "system" fn vkQueueBeginDebugUtilsLabelEXT(
 }
 
 #[allow(non_snake_case)]
+#[cfg(kazan_include_unused_vulkan_api)]
 pub unsafe extern "system" fn vkQueueEndDebugUtilsLabelEXT(_queue: api::VkQueue) {
     unimplemented!()
 }
 
 #[allow(non_snake_case)]
+#[cfg(kazan_include_unused_vulkan_api)]
 pub unsafe extern "system" fn vkQueueInsertDebugUtilsLabelEXT(
     _queue: api::VkQueue,
     _pLabelInfo: *const api::VkDebugUtilsLabelEXT,
@@ -6305,6 +6386,7 @@ pub unsafe extern "system" fn vkQueueInsertDebugUtilsLabelEXT(
 }
 
 #[allow(non_snake_case)]
+#[cfg(kazan_include_unused_vulkan_api)]
 pub unsafe extern "system" fn vkCmdBeginDebugUtilsLabelEXT(
     _commandBuffer: api::VkCommandBuffer,
     _pLabelInfo: *const api::VkDebugUtilsLabelEXT,
@@ -6313,11 +6395,13 @@ pub unsafe extern "system" fn vkCmdBeginDebugUtilsLabelEXT(
 }
 
 #[allow(non_snake_case)]
+#[cfg(kazan_include_unused_vulkan_api)]
 pub unsafe extern "system" fn vkCmdEndDebugUtilsLabelEXT(_commandBuffer: api::VkCommandBuffer) {
     unimplemented!()
 }
 
 #[allow(non_snake_case)]
+#[cfg(kazan_include_unused_vulkan_api)]
 pub unsafe extern "system" fn vkCmdInsertDebugUtilsLabelEXT(
     _commandBuffer: api::VkCommandBuffer,
     _pLabelInfo: *const api::VkDebugUtilsLabelEXT,
@@ -6326,6 +6410,7 @@ pub unsafe extern "system" fn vkCmdInsertDebugUtilsLabelEXT(
 }
 
 #[allow(non_snake_case)]
+#[cfg(kazan_include_unused_vulkan_api)]
 pub unsafe extern "system" fn vkCreateDebugUtilsMessengerEXT(
     _instance: api::VkInstance,
     _pCreateInfo: *const api::VkDebugUtilsMessengerCreateInfoEXT,
@@ -6336,6 +6421,7 @@ pub unsafe extern "system" fn vkCreateDebugUtilsMessengerEXT(
 }
 
 #[allow(non_snake_case)]
+#[cfg(kazan_include_unused_vulkan_api)]
 pub unsafe extern "system" fn vkDestroyDebugUtilsMessengerEXT(
     _instance: api::VkInstance,
     _messenger: api::VkDebugUtilsMessengerEXT,
@@ -6345,6 +6431,7 @@ pub unsafe extern "system" fn vkDestroyDebugUtilsMessengerEXT(
 }
 
 #[allow(non_snake_case)]
+#[cfg(kazan_include_unused_vulkan_api)]
 pub unsafe extern "system" fn vkSubmitDebugUtilsMessageEXT(
     _instance: api::VkInstance,
     _messageSeverity: api::VkDebugUtilsMessageSeverityFlagBitsEXT,
@@ -6355,6 +6442,7 @@ pub unsafe extern "system" fn vkSubmitDebugUtilsMessageEXT(
 }
 
 #[allow(non_snake_case)]
+#[cfg(kazan_include_unused_vulkan_api)]
 pub unsafe extern "system" fn vkCmdSetSampleLocationsEXT(
     _commandBuffer: api::VkCommandBuffer,
     _pSampleLocationsInfo: *const api::VkSampleLocationsInfoEXT,
@@ -6363,6 +6451,7 @@ pub unsafe extern "system" fn vkCmdSetSampleLocationsEXT(
 }
 
 #[allow(non_snake_case)]
+#[cfg(kazan_include_unused_vulkan_api)]
 pub unsafe extern "system" fn vkGetPhysicalDeviceMultisamplePropertiesEXT(
     _physicalDevice: api::VkPhysicalDevice,
     _samples: api::VkSampleCountFlagBits,
@@ -6372,6 +6461,7 @@ pub unsafe extern "system" fn vkGetPhysicalDeviceMultisamplePropertiesEXT(
 }
 
 #[allow(non_snake_case)]
+#[cfg(kazan_include_unused_vulkan_api)]
 pub unsafe extern "system" fn vkCreateValidationCacheEXT(
     _device: api::VkDevice,
     _pCreateInfo: *const api::VkValidationCacheCreateInfoEXT,
@@ -6382,6 +6472,7 @@ pub unsafe extern "system" fn vkCreateValidationCacheEXT(
 }
 
 #[allow(non_snake_case)]
+#[cfg(kazan_include_unused_vulkan_api)]
 pub unsafe extern "system" fn vkDestroyValidationCacheEXT(
     _device: api::VkDevice,
     _validationCache: api::VkValidationCacheEXT,
@@ -6391,6 +6482,7 @@ pub unsafe extern "system" fn vkDestroyValidationCacheEXT(
 }
 
 #[allow(non_snake_case)]
+#[cfg(kazan_include_unused_vulkan_api)]
 pub unsafe extern "system" fn vkMergeValidationCachesEXT(
     _device: api::VkDevice,
     _dstCache: api::VkValidationCacheEXT,
@@ -6401,6 +6493,7 @@ pub unsafe extern "system" fn vkMergeValidationCachesEXT(
 }
 
 #[allow(non_snake_case)]
+#[cfg(kazan_include_unused_vulkan_api)]
 pub unsafe extern "system" fn vkGetValidationCacheDataEXT(
     _device: api::VkDevice,
     _validationCache: api::VkValidationCacheEXT,
@@ -6411,6 +6504,7 @@ pub unsafe extern "system" fn vkGetValidationCacheDataEXT(
 }
 
 #[allow(non_snake_case)]
+#[cfg(kazan_include_unused_vulkan_api)]
 pub unsafe extern "system" fn vkCmdBindShadingRateImageNV(
     _commandBuffer: api::VkCommandBuffer,
     _imageView: api::VkImageView,
@@ -6420,6 +6514,7 @@ pub unsafe extern "system" fn vkCmdBindShadingRateImageNV(
 }
 
 #[allow(non_snake_case)]
+#[cfg(kazan_include_unused_vulkan_api)]
 pub unsafe extern "system" fn vkCmdSetViewportShadingRatePaletteNV(
     _commandBuffer: api::VkCommandBuffer,
     _firstViewport: u32,
@@ -6430,6 +6525,7 @@ pub unsafe extern "system" fn vkCmdSetViewportShadingRatePaletteNV(
 }
 
 #[allow(non_snake_case)]
+#[cfg(kazan_include_unused_vulkan_api)]
 pub unsafe extern "system" fn vkCmdSetCoarseSampleOrderNV(
     _commandBuffer: api::VkCommandBuffer,
     _sampleOrderType: api::VkCoarseSampleOrderTypeNV,
@@ -6440,6 +6536,7 @@ pub unsafe extern "system" fn vkCmdSetCoarseSampleOrderNV(
 }
 
 #[allow(non_snake_case)]
+#[cfg(kazan_include_unused_vulkan_api)]
 pub unsafe extern "system" fn vkGetMemoryHostPointerPropertiesEXT(
     _device: api::VkDevice,
     _handleType: api::VkExternalMemoryHandleTypeFlagBits,
@@ -6450,6 +6547,7 @@ pub unsafe extern "system" fn vkGetMemoryHostPointerPropertiesEXT(
 }
 
 #[allow(non_snake_case)]
+#[cfg(kazan_include_unused_vulkan_api)]
 pub unsafe extern "system" fn vkCmdWriteBufferMarkerAMD(
     _commandBuffer: api::VkCommandBuffer,
     _pipelineStage: api::VkPipelineStageFlagBits,
@@ -6461,6 +6559,7 @@ pub unsafe extern "system" fn vkCmdWriteBufferMarkerAMD(
 }
 
 #[allow(non_snake_case)]
+#[cfg(kazan_include_unused_vulkan_api)]
 pub unsafe extern "system" fn vkCmdDrawMeshTasksNV(
     _commandBuffer: api::VkCommandBuffer,
     _taskCount: u32,
@@ -6470,6 +6569,7 @@ pub unsafe extern "system" fn vkCmdDrawMeshTasksNV(
 }
 
 #[allow(non_snake_case)]
+#[cfg(kazan_include_unused_vulkan_api)]
 pub unsafe extern "system" fn vkCmdDrawMeshTasksIndirectNV(
     _commandBuffer: api::VkCommandBuffer,
     _buffer: api::VkBuffer,
@@ -6481,6 +6581,7 @@ pub unsafe extern "system" fn vkCmdDrawMeshTasksIndirectNV(
 }
 
 #[allow(non_snake_case)]
+#[cfg(kazan_include_unused_vulkan_api)]
 pub unsafe extern "system" fn vkCmdDrawMeshTasksIndirectCountNV(
     _commandBuffer: api::VkCommandBuffer,
     _buffer: api::VkBuffer,
@@ -6494,6 +6595,7 @@ pub unsafe extern "system" fn vkCmdDrawMeshTasksIndirectCountNV(
 }
 
 #[allow(non_snake_case)]
+#[cfg(kazan_include_unused_vulkan_api)]
 pub unsafe extern "system" fn vkCmdSetExclusiveScissorNV(
     _commandBuffer: api::VkCommandBuffer,
     _firstExclusiveScissor: u32,
@@ -6504,6 +6606,7 @@ pub unsafe extern "system" fn vkCmdSetExclusiveScissorNV(
 }
 
 #[allow(non_snake_case)]
+#[cfg(kazan_include_unused_vulkan_api)]
 pub unsafe extern "system" fn vkCmdSetCheckpointNV(
     _commandBuffer: api::VkCommandBuffer,
     _pCheckpointMarker: *const c_void,
@@ -6512,6 +6615,7 @@ pub unsafe extern "system" fn vkCmdSetCheckpointNV(
 }
 
 #[allow(non_snake_case)]
+#[cfg(kazan_include_unused_vulkan_api)]
 pub unsafe extern "system" fn vkGetQueueCheckpointDataNV(
     _queue: api::VkQueue,
     _pCheckpointDataCount: *mut u32,
@@ -6532,7 +6636,7 @@ pub unsafe extern "system" fn vkCreateXcbSurfaceKHR(
         create_info,
         root = api::VK_STRUCTURE_TYPE_XCB_SURFACE_CREATE_INFO_KHR,
     }
-    let ref create_info = *create_info;
+    let create_info = &*create_info;
     let new_surface = Box::new(api::VkIcdSurfaceXcb {
         base: api::VkIcdSurfaceBase {
             platform: api::VK_ICD_WSI_PLATFORM_XCB,

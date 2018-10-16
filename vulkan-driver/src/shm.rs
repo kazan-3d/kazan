@@ -10,6 +10,7 @@ use std::ptr::null_mut;
 use std::slice;
 
 #[derive(Debug)]
+#[allow(dead_code)]
 pub struct SharedMemorySegment {
     id: c_int,
     size: usize,
@@ -20,6 +21,7 @@ unsafe impl Send for SharedMemorySegment {}
 unsafe impl Sync for SharedMemorySegment {}
 
 impl SharedMemorySegment {
+    #[allow(dead_code)]
     pub unsafe fn new(id: c_int, size: usize) -> Self {
         assert_ne!(size, 0);
         assert_ne!(id, -1);
@@ -35,9 +37,11 @@ impl SharedMemorySegment {
             id => Ok(Self::new(id, size)),
         }
     }
+    #[allow(dead_code)]
     pub fn create(size: usize) -> Result<Self, errno::Errno> {
         unsafe { Self::create_with_flags(size, libc::IPC_CREAT | libc::IPC_EXCL | 0o666) }
     }
+    #[allow(dead_code)]
     pub fn map(&self) -> Result<MappedSharedMemorySegment, errno::Errno> {
         unsafe {
             let memory = libc::shmat(self.id, null_mut(), 0);

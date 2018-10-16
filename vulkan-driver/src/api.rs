@@ -4,6 +4,8 @@
 #![allow(non_camel_case_types)]
 #![allow(non_snake_case)]
 #![allow(non_upper_case_globals)]
+#![cfg_attr(feature = "cargo-clippy", allow(clippy::const_static_lifetime))]
+#![cfg_attr(feature = "cargo-clippy", allow(clippy::unreadable_literal))]
 pub use handle::{
     VkBuffer, VkBufferView, VkCommandBuffer, VkCommandPool, VkDebugReportCallbackEXT,
     VkDebugUtilsMessengerEXT, VkDescriptorPool, VkDescriptorSet, VkDescriptorSetLayout,

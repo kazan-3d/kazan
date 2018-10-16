@@ -55,6 +55,7 @@ struct ServerObject<Id: 'static + Copy> {
 }
 
 impl<Id: 'static + Copy> ServerObject<Id> {
+    #[allow(dead_code)]
     fn get(&self) -> Id {
         self.id
     }
@@ -83,6 +84,7 @@ unsafe fn create_gc(
 
 type Pixmap = ServerObject<xcb::ffi::xcb_pixmap_t>;
 
+#[allow(dead_code)]
 unsafe fn create_pixmap(
     id: xcb::ffi::xcb_pixmap_t,
     connection: *mut xcb::ffi::xcb_connection_t,
@@ -96,6 +98,7 @@ unsafe fn create_pixmap(
 
 type ShmSeg = ServerObject<xcb::ffi::shm::xcb_shm_seg_t>;
 
+#[allow(dead_code)]
 unsafe fn create_shm_seg(
     id: xcb::ffi::shm::xcb_shm_seg_t,
     connection: *mut xcb::ffi::xcb_connection_t,
@@ -130,6 +133,7 @@ unsafe fn query_extension(
 
 pub const MAX_SWAPCHAIN_IMAGE_COUNT: u32 = 16;
 
+#[allow(dead_code)]
 struct SwapchainSetupFirstStage {
     gc: Gc,
     shm_supported: bool,
@@ -150,6 +154,7 @@ impl SwapchainSetupFirstStage {
         window: xcb::ffi::xcb_window_t,
         is_full_setup: bool,
     ) -> Result<Self, SwapchainSetupError> {
+        #![cfg_attr(feature = "cargo-clippy", allow(clippy::cast_lossless))]
         let has_mit_shm = query_extension(connection, "MIT-SHM");
         let geometry = xcb::ffi::xcb_get_geometry(connection, window);
         let window_attributes = xcb::ffi::xcb_get_window_attributes(connection, window);
@@ -227,7 +232,7 @@ impl SwapchainSetupFirstStage {
         }
         let (window_visual_type, window_depth) =
             window_visual_type_and_depth.ok_or(SwapchainSetupError::BadSurface)?;
-        let ref window_visual_type = *window_visual_type;
+        let window_visual_type = &*window_visual_type;
         let red_mask = window_visual_type.red_mask;
         let green_mask = window_visual_type.green_mask;
         let blue_mask = window_visual_type.blue_mask;
@@ -246,8 +251,8 @@ impl SwapchainSetupFirstStage {
             }
             xcb::ffi::xcb_format_next(&mut formats_iter);
         }
-        let ref window_pixmap_format =
-            *(window_pixmap_format.ok_or(SwapchainSetupError::BadSurface)?);
+        let window_pixmap_format =
+            &*(window_pixmap_format.ok_or(SwapchainSetupError::BadSurface)?);
         let image_pixel_size = match window_pixmap_format.bits_per_pixel {
             24 => 3,
             32 => 4,
@@ -286,7 +291,7 @@ impl SwapchainSetupFirstStage {
             32 => 4,
             _ => unreachable!("invalid pixmap format scanline_pad"),
         };
-        const PRESENT_MODES: &'static [api::VkPresentModeKHR] = &[
+        const PRESENT_MODES: &[api::VkPresentModeKHR] = &[
             api::VK_PRESENT_MODE_FIFO_KHR, // FIXME: properly implement FIFO present mode using X11 Present extension
             api::VK_PRESENT_MODE_IMMEDIATE_KHR,
         ];
@@ -336,8 +341,8 @@ impl SwapchainSetupFirstStage {
 
 impl XcbSwapchain {
     unsafe fn new(
-        create_info: &api::VkSwapchainCreateInfoKHR,
-        device_group_create_info: Option<&api::VkDeviceGroupSwapchainCreateInfoKHR>,
+        _create_info: &api::VkSwapchainCreateInfoKHR,
+        _device_group_create_info: Option<&api::VkDeviceGroupSwapchainCreateInfoKHR>,
     ) -> Result<Self, api::VkResult> {
         unimplemented!()
     }
@@ -350,6 +355,7 @@ impl XcbSurfaceImplementation {
     unsafe fn get_surface(&self, surface: api::VkSurfaceKHR) -> &api::VkIcdSurfaceXcb {
         let surface = surface.get().unwrap().as_ptr();
         assert_eq!((*surface).platform, api::VK_ICD_WSI_PLATFORM_XCB);
+        #[cfg_attr(feature = "cargo-clippy", allow(clippy::cast_ptr_alignment))]
         &*(surface as *const api::VkIcdSurfaceXcb)
     }
 }
@@ -371,7 +377,7 @@ impl SurfaceImplementation for XcbSurfaceImplementation {
             })?;
         match first_stage.surface_format_group {
             SurfaceFormatGroup::B8G8R8A8 => {
-                const SURFACE_FORMATS: &'static [api::VkSurfaceFormatKHR] = &[
+                const SURFACE_FORMATS: &[api::VkSurfaceFormatKHR] = &[
                     api::VkSurfaceFormatKHR {
                         format: api::VK_FORMAT_B8G8R8A8_SRGB,
                         colorSpace: api::VK_COLOR_SPACE_SRGB_NONLINEAR_KHR,
@@ -384,7 +390,7 @@ impl SurfaceImplementation for XcbSurfaceImplementation {
                 Ok(Cow::Borrowed(SURFACE_FORMATS))
             }
             SurfaceFormatGroup::R8G8B8A8 => {
-                const SURFACE_FORMATS: &'static [api::VkSurfaceFormatKHR] = &[
+                const SURFACE_FORMATS: &[api::VkSurfaceFormatKHR] = &[
                     api::VkSurfaceFormatKHR {
                         format: api::VK_FORMAT_R8G8B8A8_SRGB,
                         colorSpace: api::VK_COLOR_SPACE_SRGB_NONLINEAR_KHR,
@@ -435,6 +441,7 @@ impl SurfaceImplementation for XcbSurfaceImplementation {
         )?))
     }
     unsafe fn destroy_surface(&self, surface: NonNull<api::VkIcdSurfaceBase>) {
+        #[cfg_attr(feature = "cargo-clippy", allow(clippy::cast_ptr_alignment))]
         Box::from_raw(surface.as_ptr() as *mut api::VkIcdSurfaceXcb);
     }
     fn duplicate(&self) -> Box<dyn SurfaceImplementation> {

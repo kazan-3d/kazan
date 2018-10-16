@@ -28,7 +28,7 @@ use std::ffi::CStr;
 use std::os::raw::c_char;
 
 mod constants {
-    pub const KAZAN_DEVICE_NAME: &'static str = "Kazan Software Renderer";
+    pub const KAZAN_DEVICE_NAME: &str = "Kazan Software Renderer";
     pub const MIN_MEMORY_MAP_ALIGNMENT: usize = 128; // must be at least 64 and a power of 2 according to Vulkan spec
     pub const QUEUE_FAMILY_COUNT: u32 = 1;
     pub const QUEUE_COUNTS: [u32; QUEUE_FAMILY_COUNT as usize] = [1];

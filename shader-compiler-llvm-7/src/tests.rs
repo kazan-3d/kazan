@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 // Copyright 2018 Jacob Lifshay
 #[cfg(test)]
+// we have a tests module inside a tests module to have rls parse this tests.rs file
+#[cfg_attr(feature = "cargo-clippy", allow(clippy::module_inception))]
 mod tests {
     use shader_compiler::backend::types::TypeBuilder;
     use shader_compiler::backend::*;
@@ -12,7 +14,7 @@ mod tests {
 
     #[test]
     fn test_basic() {
-        type GeneratedFunctionType = unsafe extern "C" fn();
+        type GeneratedFunctionType = unsafe extern "C" fn(u32);
         #[derive(Copy, Clone, Hash, Eq, PartialEq, Debug)]
         enum FunctionKey {
             Function,
@@ -50,7 +52,7 @@ mod tests {
         let function = compiled_code.get(&FunctionKey::Function).unwrap();
         unsafe {
             let function: GeneratedFunctionType = mem::transmute(function);
-            function();
+            function(0);
         }
     }
 }

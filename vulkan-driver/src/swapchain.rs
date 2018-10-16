@@ -132,13 +132,13 @@ impl SurfaceImplementation for FallbackSurfaceImplementation {
     }
     unsafe fn get_present_modes(
         &self,
-        surface: api::VkSurfaceKHR,
+        _surface: api::VkSurfaceKHR,
     ) -> Result<Cow<'static, [api::VkPresentModeKHR]>, api::VkResult> {
         self.report_error()
     }
     unsafe fn get_capabilities(
         &self,
-        surface: api::VkSurfaceKHR,
+        _surface: api::VkSurfaceKHR,
     ) -> Result<api::VkSurfaceCapabilitiesKHR, api::VkResult> {
         self.report_error()
     }
