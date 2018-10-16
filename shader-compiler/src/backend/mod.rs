@@ -181,7 +181,7 @@ pub trait Context<'a>: Sized {
 }
 
 /// inputs to the final compilation
-pub struct CompileInputs<'a, C: Context<'a>, K: Hash + Eq + Send + Sync> {
+pub struct CompileInputs<'a, C: Context<'a>, K: Hash + Eq + Send + Sync + 'static> {
     /// the input module
     pub module: C::VerifiedModule,
     /// the list of functions that can be called from the final `CompiledCode`
@@ -189,7 +189,7 @@ pub struct CompileInputs<'a, C: Context<'a>, K: Hash + Eq + Send + Sync> {
 }
 
 /// the final compiled code
-pub trait CompiledCode<K: Hash + Eq + Send + Sync>: Send + Sync {
+pub trait CompiledCode<K: Hash + Eq + Send + Sync + 'static>: Send + Sync {
     /// get a function in the final compiled code.
     /// the returned function needs to be cast to the correct type and
     /// `Self` needs to still exist while the returned function exists
@@ -199,7 +199,7 @@ pub trait CompiledCode<K: Hash + Eq + Send + Sync>: Send + Sync {
 /// trait that the user of `Compiler` implements
 pub trait CompilerUser {
     /// the type used as a key for visible functions
-    type FunctionKey: Hash + Eq + Send + Sync;
+    type FunctionKey: Hash + Eq + Send + Sync + 'static;
     /// the user's error type
     type Error;
     /// create an instance of `Error`

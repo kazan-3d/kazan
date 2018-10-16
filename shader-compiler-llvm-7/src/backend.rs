@@ -2,9 +2,13 @@
 // Copyright 2018 Jacob Lifshay
 use llvm;
 use shader_compiler::backend;
-use std::cell::Cell;
+use std::cell::RefCell;
+use std::collections::HashMap;
 use std::ffi::{CStr, CString};
 use std::fmt;
+use std::hash::Hash;
+use std::mem;
+use std::mem::ManuallyDrop;
 use std::ops::Deref;
 use std::os::raw::{c_char, c_uint};
 use std::ptr::null_mut;
@@ -248,18 +252,18 @@ impl<'a> backend::Function<'a> for LLVM7Function {
 }
 
 pub struct LLVM7Context {
-    context: llvm::LLVMContextRef,
-    modules: Cell<Vec<llvm::LLVMModuleRef>>,
+    context: Option<ManuallyDrop<OwnedContext>>,
+    modules: ManuallyDrop<RefCell<Vec<OwnedModule>>>,
     config: LLVM7CompilerConfig,
 }
 
 impl Drop for LLVM7Context {
     fn drop(&mut self) {
         unsafe {
-            for module in self.modules.get_mut().drain(..) {
-                llvm::LLVMDisposeModule(module);
+            ManuallyDrop::drop(&mut self.modules);
+            if let Some(context) = &mut self.context {
+                ManuallyDrop::drop(context);
             }
-            llvm::LLVMContextDispose(self.context);
         }
     }
 }
@@ -277,24 +281,30 @@ impl<'a> backend::Context<'a> for LLVM7Context {
     type DetachedBuilder = LLVM7Builder;
     fn create_module(&self, name: &str) -> LLVM7Module {
         let name = CString::new(name).unwrap();
-        let mut modules = self.modules.take();
-        modules.reserve(1); // so we don't unwind without freeing the new module
+        let mut modules = self.modules.borrow_mut();
         unsafe {
-            let module = llvm::LLVMModuleCreateWithNameInContext(name.as_ptr(), self.context);
+            let module = OwnedModule(llvm::LLVMModuleCreateWithNameInContext(
+                name.as_ptr(),
+                self.context.as_ref().unwrap().0,
+            ));
+            let module_ref = module.0;
             modules.push(module);
-            self.modules.set(modules);
             LLVM7Module {
-                context: self.context,
-                module,
+                context: self.context.as_ref().unwrap().0,
+                module: module_ref,
             }
         }
     }
     fn create_builder(&self) -> LLVM7Builder {
-        unsafe { LLVM7Builder(llvm::LLVMCreateBuilderInContext(self.context)) }
+        unsafe {
+            LLVM7Builder(llvm::LLVMCreateBuilderInContext(
+                self.context.as_ref().unwrap().0,
+            ))
+        }
     }
     fn create_type_builder(&self) -> LLVM7TypeBuilder {
         LLVM7TypeBuilder {
-            context: self.context,
+            context: self.context.as_ref().unwrap().0,
             variable_vector_length_multiplier: self.config.variable_vector_length_multiplier,
         }
     }
@@ -335,6 +345,34 @@ impl<'a> backend::DetachedBuilder<'a> for LLVM7Builder {
             llvm::LLVMPositionBuilderAtEnd(self.0, basic_block.0);
         }
         self
+    }
+}
+
+struct OwnedModule(llvm::LLVMModuleRef);
+
+impl Drop for OwnedModule {
+    fn drop(&mut self) {
+        unsafe {
+            llvm::LLVMDisposeModule(self.0);
+        }
+    }
+}
+
+impl OwnedModule {
+    unsafe fn take(mut self) -> llvm::LLVMModuleRef {
+        let retval = self.0;
+        self.0 = null_mut();
+        retval
+    }
+}
+
+struct OwnedContext(llvm::LLVMContextRef);
+
+impl Drop for OwnedContext {
+    fn drop(&mut self) {
+        unsafe {
+            llvm::LLVMContextDispose(self.0);
+        }
     }
 }
 
@@ -439,6 +477,7 @@ fn initialize_native_target() {
     static ONCE: Once = ONCE_INIT;
     ONCE.call_once(|| unsafe {
         llvm::LLVM_InitializeNativeTarget();
+        llvm::LLVM_InitializeNativeAsmPrinter();
         llvm::LLVM_InitializeNativeAsmParser();
     });
 }
@@ -463,21 +502,36 @@ impl backend::Compiler for LLVM7Compiler {
     ) -> Result<Box<dyn backend::CompiledCode<U::FunctionKey>>, U::Error> {
         unsafe {
             initialize_native_target();
-            let context = LLVM7Context {
-                context: llvm::LLVMContextCreate(),
-                modules: Vec::new().into(),
+            let context = OwnedContext(llvm::LLVMContextCreate());
+            let modules = Vec::new();
+            let mut context = LLVM7Context {
+                context: Some(ManuallyDrop::new(context)),
+                modules: ManuallyDrop::new(RefCell::new(modules)),
                 config: config.clone(),
             };
             let backend::CompileInputs {
                 module,
                 callable_functions,
             } = user.run(&context)?;
-            for callable_function in callable_functions.values() {
-                assert_eq!(
-                    llvm::LLVMGetGlobalParent(callable_function.function),
-                    module.module
-                );
-            }
+            let callable_functions: Vec<_> = callable_functions
+                .into_iter()
+                .map(|(key, callable_function)| {
+                    assert_eq!(
+                        llvm::LLVMGetGlobalParent(callable_function.function),
+                        module.module
+                    );
+                    let name: CString =
+                        CStr::from_ptr(llvm::LLVMGetValueName(callable_function.function)).into();
+                    assert_ne!(name.to_bytes().len(), 0);
+                    (key, name)
+                })
+                .collect();
+            let module = context
+                .modules
+                .get_mut()
+                .drain(..)
+                .find(|v| v.0 == module.module)
+                .unwrap();
             let target_triple = LLVM7String::from_ptr(llvm::LLVMGetDefaultTargetTriple()).unwrap();
             let mut target = null_mut();
             let mut error = null_mut();
@@ -513,15 +567,60 @@ impl backend::Compiler for LLVM7Compiler {
             assert!(!target_machine.0.is_null());
             let orc_jit_stack =
                 LLVM7OrcJITStack(llvm::LLVMOrcCreateInstance(target_machine.take()));
-            let mut orc_module_handle = 0;
-            llvm::LLVMOrcAddEagerlyCompiledIR(
+            let mut module_handle = 0;
+            if llvm::LLVMOrcErrSuccess != llvm::LLVMOrcAddEagerlyCompiledIR(
                 orc_jit_stack.0,
-                &mut orc_module_handle,
-                module.module,
+                &mut module_handle,
+                module.take(),
                 Some(symbol_resolver_fn),
                 null_mut(),
-            );
-            unimplemented!()
+            ) {
+                return Err(U::create_error("compilation failed".into()));
+            }
+            let mut functions: HashMap<_, _> = HashMap::new();
+            for (key, name) in callable_functions {
+                let mut address: llvm::LLVMOrcTargetAddress = mem::zeroed();
+                if llvm::LLVMOrcErrSuccess != llvm::LLVMOrcGetSymbolAddressIn(
+                    orc_jit_stack.0,
+                    &mut address,
+                    module_handle,
+                    name.as_ptr(),
+                ) {
+                    return Err(U::create_error(format!(
+                        "function not found in compiled module: {:?}",
+                        name
+                    )));
+                }
+                let address: Option<unsafe extern "C" fn()> = mem::transmute(address as usize);
+                if functions.insert(key, address.unwrap()).is_some() {
+                    return Err(U::create_error(format!("duplicate function: {:?}", name)));
+                }
+            }
+            struct CompiledCode<K: Hash + Eq + Send + Sync + 'static> {
+                functions: HashMap<K, unsafe extern "C" fn()>,
+                orc_jit_stack: ManuallyDrop<LLVM7OrcJITStack>,
+                context: ManuallyDrop<OwnedContext>,
+            }
+            unsafe impl<K: Hash + Eq + Send + Sync + 'static> Send for CompiledCode<K> {}
+            unsafe impl<K: Hash + Eq + Send + Sync + 'static> Sync for CompiledCode<K> {}
+            impl<K: Hash + Eq + Send + Sync + 'static> Drop for CompiledCode<K> {
+                fn drop(&mut self) {
+                    unsafe {
+                        ManuallyDrop::drop(&mut self.orc_jit_stack);
+                        ManuallyDrop::drop(&mut self.context);
+                    }
+                }
+            }
+            impl<K: Hash + Eq + Send + Sync + 'static> backend::CompiledCode<K> for CompiledCode<K> {
+                fn get(&self, key: &K) -> Option<unsafe extern "C" fn()> {
+                    Some(*self.functions.get(key)?)
+                }
+            }
+            Ok(Box::new(CompiledCode {
+                functions,
+                orc_jit_stack: ManuallyDrop::new(orc_jit_stack),
+                context: context.context.take().unwrap(),
+            }))
         }
     }
 }

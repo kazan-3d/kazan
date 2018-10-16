@@ -126,7 +126,7 @@ fn make_config(llvm_dir: &Path) -> cmake::Config {
             env::var("TARGET").unwrap().split("-").next().unwrap(),
         )
         .out_dir(llvm_dir)
-        .profile("RelWithDebInfo")
+        .profile("Debug")
         .always_configure(false);
     retval
 }
@@ -150,8 +150,9 @@ fn get_libs<A: IntoIterator<Item = S>, S: AsRef<OsStr>>(
     llvm_config_path: &Path,
     args: A,
 ) -> Vec<String> {
-    llvm_config(&llvm_config_path, args)
+    llvm_config(llvm_config_path, args)
         .split_whitespace()
+        .chain(llvm_config(llvm_config_path, Some("--system-libs")).split_whitespace())
         .filter_map(|flag| {
             if flag == "" {
                 None
@@ -219,10 +220,10 @@ fn main() {
         "cargo:rustc-link-search=native={}",
         llvm_config(&llvm_config_path, Some("--libdir"))
     );
-    let llvm_libs = get_libs(&llvm_config_path, Some("--libs"));
-    for lib in llvm_libs {
-        println!("cargo:rustc-link-lib=static={}", lib);
-    }
+    let llvm_libs = get_libs(
+        &llvm_config_path,
+        &["--libs", "orcjit", "native", "analysis"],
+    );
     let header = r#"
 #include "llvm-c/Core.h"
 #include "llvm-c/OrcBindings.h"
@@ -290,9 +291,20 @@ void LLVM_InitializeNativeDisassembler(void)
         .unwrap()
         .write_to_file(out_dir.join("llvm_c.rs"))
         .unwrap();
-    cc::Build::new()
-        .cpp(true)
-        .file(llvm_bindings_path)
-        .include(&include_dir)
+    let build_llvm_bindings = || {
+        let mut retval = cc::Build::new();
+        retval
+            .cpp(true)
+            .file(&llvm_bindings_path)
+            .include(&include_dir);
+        retval
+    };
+    build_llvm_bindings()
+        .cpp_link_stdlib(None)
         .compile("llvm_bindings");
+    for lib in llvm_libs {
+        println!("cargo:rustc-link-lib={}", lib);
+    }
+    // build twice to get the c++ standard library linked after LLVM with llvm_bindings before LLVM
+    build_llvm_bindings().compile("llvm_bindings");
 }

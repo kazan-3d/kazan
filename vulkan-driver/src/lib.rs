@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 // Copyright 2018 Jacob Lifshay
+#![cfg_attr(feature = "cargo-clippy", allow(clippy::new_ret_no_self))]
 #[macro_use]
 extern crate enum_map;
 #[cfg(unix)]
