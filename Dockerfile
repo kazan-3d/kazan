@@ -19,20 +19,6 @@ ENV PATH="$VULKAN_SDK/bin:$PATH" LD_LIBRARY_PATH="$VULKAN_SDK/lib:" VK_LAYER_PAT
 WORKDIR /build/kazan
 COPY run-cts.sh run-cts.sh
 RUN ./run-cts.sh --update-only
-COPY external/ external/
-COPY Cargo.toml Cargo.toml
-COPY vulkan-driver/Cargo.toml vulkan-driver/build.rs vulkan-driver/vulkan-wrapper.h vulkan-driver/
-COPY shader-compiler/Cargo.toml shader-compiler/
-COPY shader-compiler-llvm-7/Cargo.toml shader-compiler-llvm-7/
-RUN set -e; \
-    mkdir -p vulkan-driver/src; \
-    mkdir -p shader-compiler/src; \
-    mkdir -p shader-compiler-llvm-7/src; \
-    echo "// empty" > vulkan-driver/src/lib.rs; \
-    echo "// empty" > shader-compiler/src/lib.rs; \
-    echo "// empty" > shader-compiler-llvm-7/src/lib.rs; \
-    cargo build -vv; \
-    rm */src/lib.rs
 COPY . .
-RUN touch -c */src/lib.rs && cargo build
+RUN cargo build -vv
 CMD ["./run-cts.sh", "--no-update"]
