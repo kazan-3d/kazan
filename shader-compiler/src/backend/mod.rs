@@ -75,6 +75,8 @@ pub trait Function<'a>: Debug + Sized {
         &mut self,
         name: Option<&str>,
     ) -> <Self::Context as Context<'a>>::BuildableBasicBlock;
+    /// get this function's parameters
+    fn parameters(&self) -> &[<Self::Context as Context<'a>>::Value];
 }
 
 /// module verification failure; returned from `Module::verify`

@@ -223,6 +223,7 @@ impl<'a> backend::BuildableBasicBlock<'a> for LLVM7BasicBlock {
 pub struct LLVM7Function {
     context: llvm::LLVMContextRef,
     function: llvm::LLVMValueRef,
+    parameters: Box<[LLVM7Value]>,
 }
 
 impl fmt::Debug for LLVM7Function {
@@ -249,6 +250,9 @@ impl<'a> backend::Function<'a> for LLVM7Function {
                 name.as_ptr(),
             ))
         }
+    }
+    fn parameters(&self) -> &[LLVM7Value] {
+        &self.parameters
     }
 }
 
@@ -424,9 +428,15 @@ impl<'a> backend::Module<'a> for LLVM7Module {
         assert!(self.name_set.insert(name.into()));
         let name = CString::new(name).unwrap();
         unsafe {
+            let function = llvm::LLVMAddFunction(self.module, name.as_ptr(), ty.0);
+            let mut parameters = Vec::new();
+            parameters.resize(llvm::LLVMCountParams(function) as usize, null_mut());
+            llvm::LLVMGetParams(function, parameters.as_mut_ptr());
+            let parameters: Vec<_> = parameters.into_iter().map(LLVM7Value).collect();
             LLVM7Function {
                 context: self.context,
                 function: llvm::LLVMAddFunction(self.module, name.as_ptr(), ty.0),
+                parameters: parameters.into_boxed_slice(),
             }
         }
     }
