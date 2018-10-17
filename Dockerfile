@@ -18,7 +18,20 @@ ENV VULKAN_SDK=/build/vulkansdk/x86_64
 ENV PATH="$VULKAN_SDK/bin:$PATH" LD_LIBRARY_PATH="$VULKAN_SDK/lib:" VK_LAYER_PATH="$VULKAN_SDK/etc/explicit_layer.d"
 WORKDIR /build/kazan
 COPY run-cts.sh run-cts.sh
-RUN ./run-cts.sh --update-only
+ARG kazan_test_mode=test
+ENV KAZAN_TEST_MODE="${kazan_test_mode}"
+RUN if [ "${KAZAN_TEST_MODE}" = "cts" ]; then exec ./run-cts.sh --update-only; fi
 COPY . .
-RUN cargo build -vv
-CMD ["./run-cts.sh", "--no-update"]
+RUN case "${KAZAN_TEST_MODE}" in \
+    cts) \
+        exec cargo build -vv; \
+        ;; \
+    test) \
+        exec cargo test --no-fail-fast -vv; \
+        ;; \
+    *) \
+        echo "unknown value of kazan_test_mode; valid values are \"cts\" and \"test\"" >&2; \
+        exit 1; \
+        ;; \
+    esac
+CMD if [ "${KAZAN_TEST_MODE}" = "cts" ]; then exec ./run-cts.sh --update-only; else exec bash; fi
