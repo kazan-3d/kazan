@@ -4,6 +4,7 @@ use llvm;
 use shader_compiler::backend;
 use std::cell::RefCell;
 use std::collections::HashMap;
+use std::collections::HashSet;
 use std::ffi::{CStr, CString};
 use std::fmt;
 use std::hash::Hash;
@@ -292,6 +293,7 @@ impl<'a> backend::Context<'a> for LLVM7Context {
             LLVM7Module {
                 context: self.context.as_ref().unwrap().0,
                 module: module_ref,
+                name_set: HashSet::new(),
             }
         }
     }
@@ -379,6 +381,7 @@ impl Drop for OwnedContext {
 pub struct LLVM7Module {
     context: llvm::LLVMContextRef,
     module: llvm::LLVMModuleRef,
+    name_set: HashSet<String>,
 }
 
 impl fmt::Debug for LLVM7Module {
@@ -403,6 +406,22 @@ impl<'a> backend::Module<'a> for LLVM7Module {
         }
     }
     fn add_function(&mut self, name: &str, ty: LLVM7Type) -> LLVM7Function {
+        fn is_start_char(c: char) -> bool {
+            if c.is_ascii_alphabetic() {
+                true
+            } else {
+                match c {
+                    '_' | '.' | '$' | '-' => true,
+                    _ => false,
+                }
+            }
+        }
+        fn is_continue_char(c: char) -> bool {
+            is_start_char(c) || c.is_ascii_digit()
+        }
+        assert!(is_start_char(name.chars().next().unwrap()));
+        assert!(name.chars().all(is_continue_char));
+        assert!(self.name_set.insert(name.into()));
         let name = CString::new(name).unwrap();
         unsafe {
             LLVM7Function {
