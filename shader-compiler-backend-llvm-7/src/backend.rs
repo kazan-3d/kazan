@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 // Copyright 2018 Jacob Lifshay
 use llvm;
-use shader_compiler::backend;
+use shader_compiler_backend as backend;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::collections::HashSet;

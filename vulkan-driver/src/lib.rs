@@ -7,7 +7,7 @@ extern crate enum_map;
 extern crate errno;
 #[cfg(unix)]
 extern crate libc;
-extern crate shader_compiler;
+extern crate shader_compiler_backend;
 extern crate sys_info;
 extern crate uuid;
 #[cfg(unix)]

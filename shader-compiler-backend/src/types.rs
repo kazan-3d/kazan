@@ -3,7 +3,7 @@
 
 //! types in backend IR
 
-use backend::Context;
+use super::Context;
 use std::cell::UnsafeCell;
 use std::fmt::Debug;
 use std::hash::Hash;
@@ -18,23 +18,23 @@ macro_rules! buildable_struct_helper {
             $($member_name:ident: $member_type:ty,)*
         }
     } => {
-        impl $crate::backend::types::BuildableType for $name {
-            fn build<'a, Ty: $crate::backend::types::Type<'a>, TB: $crate::backend::types::TypeBuilder<'a, Ty>>(type_builder: &TB) -> Ty {
-                type_builder.build_struct(&[$(<$member_type as $crate::backend::types::BuildableType>::build(type_builder),)*])
+        impl $crate::types::BuildableType for $name {
+            fn build<'a, Ty: $crate::types::Type<'a>, TB: $crate::types::TypeBuilder<'a, Ty>>(type_builder: &TB) -> Ty {
+                type_builder.build_struct(&[$(<$member_type as $crate::types::BuildableType>::build(type_builder),)*])
             }
         }
 
-        impl $crate::backend::types::BuildableStruct for $name {
+        impl $crate::types::BuildableStruct for $name {
             fn get_members(
-            ) -> &'static [$crate::backend::types::BuildableStructMemberDescriptor] {
+            ) -> &'static [$crate::types::BuildableStructMemberDescriptor] {
                 #[allow(dead_code, non_camel_case_types)]
                 #[repr(usize)]
                 enum MemberIndices {
                     $($member_name,)*
                     __Last,
                 }
-                const MEMBERS: &'static [$crate::backend::types::BuildableStructMemberDescriptor] = &[
-                    $($crate::backend::types::BuildableStructMemberDescriptor {
+                const MEMBERS: &'static [$crate::types::BuildableStructMemberDescriptor] = &[
+                    $($crate::types::BuildableStructMemberDescriptor {
                         name: stringify!($member_name),
                         index: MemberIndices::$member_name as usize,
                     },)*

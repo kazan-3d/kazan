@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
 # Copyright 2018 Jacob Lifshay
 [package]
-name = "shader-compiler-llvm-7"
+name = "shader-compiler-backend-llvm-7"
 version = "0.1.0"
 authors = ["Jacob Lifshay <programmerjake@gmail.com>"]
 license = "LGPL-2.1-or-later"
@@ -10,7 +10,7 @@ license = "LGPL-2.1-or-later"
 crate-type = ["rlib"]
 
 [dependencies]
-shader-compiler = {path = "../shader-compiler"}
+shader-compiler-backend = {path = "../shader-compiler-backend"}
 
 [build-dependencies]
 cmake = "0.1.35"

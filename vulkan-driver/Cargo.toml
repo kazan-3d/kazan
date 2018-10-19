@@ -14,8 +14,8 @@ crate-type = ["cdylib"]
 enum-map = "0.4"
 uuid = {version = "0.7", features = ["v5"]}
 sys-info = "0.5"
-shader-compiler = {path = "../shader-compiler"}
-shader-compiler-llvm-7 = {path = "../shader-compiler-llvm-7"}
+shader-compiler-backend = {path = "../shader-compiler-backend"}
+shader-compiler-backend-llvm-7 = {path = "../shader-compiler-backend-llvm-7"}
 
 [target.'cfg(unix)'.dependencies]
 xcb = {version = "0.8", features = ["shm"]}
