@@ -121,6 +121,7 @@ fn make_config(llvm_dir: &Path) -> cmake::Config {
         .generator("Ninja")
         .define("LLVM_TARGETS_TO_BUILD", "host")
         .define("LLVM_CCACHE_BUILD", if found_ccache { "ON" } else { "OFF" })
+        .define("LLVM_APPEND_VC_REV", "OFF") // stop llvm needing relink after git commit
         .define(
             "LLVM_TARGET_ARCH",
             env::var("TARGET").unwrap().split("-").next().unwrap(),
