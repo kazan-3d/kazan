@@ -4,6 +4,8 @@
 members = [
     "shader-compiler-backend",
     "shader-compiler-backend-llvm-7",
+    "spirv-parser",
+    "spirv-parser-generator",
     "vulkan-driver",
 ]
 
