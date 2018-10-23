@@ -28,19 +28,19 @@ use std::ops::*;
 use std::os::raw::{c_char, c_void};
 use std::ptr::null;
 use std::ptr::null_mut;
-#[cfg(unix)]
+#[cfg(target_os = "linux")]
 use std::ptr::NonNull;
 use std::slice;
 use std::str::FromStr;
 use swapchain::SurfacePlatform;
 use sys_info;
 use uuid;
-#[cfg(unix)]
+#[cfg(target_os = "linux")]
 use xcb;
 
 /// structure types the driver should know about
 fn is_supported_structure_type(v: api::VkStructureType) -> bool {
-    #[cfg(unix)]
+    #[cfg(target_os = "linux")]
     {
         #[cfg_attr(feature = "cargo-clippy", allow(clippy::single_match))]
         match v {
@@ -305,7 +305,7 @@ pub enum Extension {
     VK_KHR_shader_draw_parameters,
     VK_KHR_variable_pointers,
     VK_KHR_swapchain,
-    #[cfg(unix)]
+    #[cfg(target_os = "linux")]
     VK_KHR_xcb_surface,
 }
 
@@ -369,7 +369,7 @@ impl Extension {
                 extensions![Extension::VK_KHR_external_semaphore_capabilities]
             }
             Extension::VK_KHR_swapchain => extensions![Extension::VK_KHR_surface],
-            #[cfg(unix)]
+            #[cfg(target_os = "linux")]
             Extension::VK_KHR_xcb_surface => extensions![Extension::VK_KHR_surface],
         }
     }
@@ -425,7 +425,7 @@ impl Extension {
             VK_KHR_shader_draw_parameters,
             VK_KHR_variable_pointers,
             VK_KHR_swapchain,
-            #[cfg(unix)]
+            #[cfg(target_os = "linux")]
             VK_KHR_xcb_surface,
         )
     }
@@ -476,7 +476,7 @@ impl Extension {
             }
             Extension::VK_KHR_variable_pointers => api::VK_KHR_VARIABLE_POINTERS_SPEC_VERSION,
             Extension::VK_KHR_swapchain => api::VK_KHR_SWAPCHAIN_SPEC_VERSION,
-            #[cfg(unix)]
+            #[cfg(target_os = "linux")]
             Extension::VK_KHR_xcb_surface => api::VK_KHR_XCB_SURFACE_SPEC_VERSION,
         }
     }
@@ -515,7 +515,7 @@ impl Extension {
             | Extension::VK_KHR_shader_draw_parameters
             | Extension::VK_KHR_variable_pointers
             | Extension::VK_KHR_swapchain => ExtensionScope::Device,
-            #[cfg(unix)]
+            #[cfg(target_os = "linux")]
             Extension::VK_KHR_xcb_surface => ExtensionScope::Instance,
         }
     }
@@ -985,9 +985,9 @@ fn get_proc_address(
         proc_address!(vkGetPhysicalDevicePresentRectanglesKHR, PFN_vkGetPhysicalDevicePresentRectanglesKHR, device, extensions[Extension::VK_KHR_swapchain]);
         proc_address!(vkAcquireNextImage2KHR, PFN_vkAcquireNextImage2KHR, device, extensions[Extension::VK_KHR_swapchain]);
 
-        #[cfg(unix)]
+        #[cfg(target_os = "linux")]
         proc_address!(vkCreateXcbSurfaceKHR, PFN_vkCreateXcbSurfaceKHR, device, extensions[Extension::VK_KHR_xcb_surface]);
-        #[cfg(unix)]
+        #[cfg(target_os = "linux")]
         proc_address!(vkGetPhysicalDeviceXcbPresentationSupportKHR, PFN_vkGetPhysicalDeviceXcbPresentationSupportKHR, device, extensions[Extension::VK_KHR_xcb_surface]);
         /*
         proc_address!(vkCmdBeginConditionalRenderingEXT, PFN_vkCmdBeginConditionalRenderingEXT, device, unknown);
@@ -6624,7 +6624,7 @@ pub unsafe extern "system" fn vkGetQueueCheckpointDataNV(
     unimplemented!()
 }
 
-#[cfg(unix)]
+#[cfg(target_os = "linux")]
 #[allow(non_snake_case)]
 pub unsafe extern "system" fn vkCreateXcbSurfaceKHR(
     _instance: api::VkInstance,
@@ -6650,7 +6650,7 @@ pub unsafe extern "system" fn vkCreateXcbSurfaceKHR(
     api::VK_SUCCESS
 }
 
-#[cfg(unix)]
+#[cfg(target_os = "linux")]
 #[allow(non_snake_case)]
 pub unsafe extern "system" fn vkGetPhysicalDeviceXcbPresentationSupportKHR(
     _physicalDevice: api::VkPhysicalDevice,

@@ -6,7 +6,7 @@ use std::borrow::Cow;
 use std::error::Error;
 use std::fmt::{self, Debug};
 use std::ptr::NonNull;
-#[cfg(unix)]
+#[cfg(target_os = "linux")]
 use xcb_swapchain::XcbSurfaceImplementation;
 
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Enum)]
@@ -50,10 +50,10 @@ impl SurfacePlatform {
         }
     }
     pub fn get_surface_implementation(self) -> Cow<'static, dyn SurfaceImplementation> {
-        #[cfg(unix)]
+        #[cfg(target_os = "linux")]
         const XCB_SURFACE_IMPLEMENTATION: XcbSurfaceImplementation = XcbSurfaceImplementation;
         match self {
-            #[cfg(unix)]
+            #[cfg(target_os = "linux")]
             SurfacePlatform::VK_ICD_WSI_PLATFORM_XCB => Cow::Borrowed(&XCB_SURFACE_IMPLEMENTATION),
             _ => Cow::Owned(FallbackSurfaceImplementation(self).duplicate()),
         }

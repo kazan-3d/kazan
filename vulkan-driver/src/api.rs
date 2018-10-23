@@ -15,7 +15,7 @@ pub use handle::{
     VkSamplerYcbcrConversion, VkSemaphore, VkShaderModule, VkSurfaceKHR, VkSwapchainKHR,
     VkValidationCacheEXT,
 };
-#[cfg(unix)]
+#[cfg(target_os = "linux")]
 use xcb::ffi::{xcb_connection_t, xcb_visualid_t, xcb_window_t};
 include!(concat!(env!("OUT_DIR"), "/vulkan-types.rs"));
 

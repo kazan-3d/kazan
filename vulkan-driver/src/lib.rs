@@ -3,14 +3,14 @@
 #![cfg_attr(feature = "cargo-clippy", allow(clippy::new_ret_no_self))]
 #[macro_use]
 extern crate enum_map;
-#[cfg(unix)]
+#[cfg(target_os = "linux")]
 extern crate errno;
-#[cfg(unix)]
+#[cfg(target_os = "linux")]
 extern crate libc;
 extern crate shader_compiler_backend;
 extern crate sys_info;
 extern crate uuid;
-#[cfg(unix)]
+#[cfg(target_os = "linux")]
 extern crate xcb;
 mod api;
 mod api_impl;
@@ -20,10 +20,10 @@ mod handle;
 mod image;
 mod sampler;
 mod shader_module;
-#[cfg(unix)]
+#[cfg(target_os = "linux")]
 mod shm;
 mod swapchain;
-#[cfg(unix)]
+#[cfg(target_os = "linux")]
 mod xcb_swapchain;
 use std::ffi::CStr;
 use std::os::raw::c_char;
