@@ -10,3 +10,6 @@ license = "LGPL-2.1-or-later"
 crate-type = ["rlib"]
 
 [dependencies]
+
+[build-dependencies]
+spirv-parser-generator = {path = "../spirv-parser-generator"}

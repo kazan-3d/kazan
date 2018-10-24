@@ -23,20 +23,60 @@ impl From<char> for CharClass {
     }
 }
 
+#[derive(Clone)]
 pub struct WordIterator<'a> {
     word: Option<&'a str>,
     words: &'a str,
+    custom_word: &'static [&'static str],
 }
 
 impl<'a> WordIterator<'a> {
     pub fn new(words: &'a str) -> Self {
-        WordIterator { word: None, words }
+        WordIterator {
+            word: None,
+            words,
+            custom_word: &[],
+        }
     }
 }
+
+struct CustomWord {
+    input: &'static str,
+    output: &'static [&'static str],
+}
+
+const CUSTOM_WORDS: &[CustomWord] = &[CustomWord {
+    input: "NaN",
+    output: &["NaN"],
+}];
 
 impl<'a> Iterator for WordIterator<'a> {
     type Item = &'a str;
     fn next(&mut self) -> Option<&'a str> {
+        if let Some((first, rest)) = self.custom_word.split_first() {
+            self.custom_word = rest;
+            return Some(first);
+        }
+        self.words = self
+            .words
+            .trim_left_matches(|ch| CharClass::from(ch) == CharClass::WordSeparator);
+        for custom_word in CUSTOM_WORDS {
+            if !self.words.starts_with(custom_word.input) {
+                continue;
+            }
+            match self.words[custom_word.input.len()..]
+                .chars()
+                .next()
+                .map(CharClass::from)
+            {
+                Some(CharClass::WordSeparator) | Some(CharClass::Uppercase) | None => {}
+                Some(CharClass::Number) | Some(CharClass::OtherIdentifier) => continue,
+            }
+            let (first, rest) = custom_word.output.split_first().unwrap();
+            self.custom_word = rest;
+            self.words = &self.words[custom_word.input.len()..];
+            return Some(first);
+        }
         let mut word_start = None;
         let mut last_char_class = CharClass::WordSeparator;
         for (i, ch) in self.words.char_indices() {
@@ -93,6 +133,7 @@ pub const RUST_RESERVED_WORDS: &[&str] = &[
 pub enum CharacterCase {
     Upper,
     Lower,
+    Unchanged,
 }
 
 impl CharacterCase {
@@ -101,6 +142,7 @@ impl CharacterCase {
         match self {
             CharacterCase::Upper => retval.make_ascii_uppercase(),
             CharacterCase::Lower => retval.make_ascii_lowercase(),
+            CharacterCase::Unchanged => {}
         }
         retval
     }
@@ -110,6 +152,7 @@ impl CharacterCase {
             match self {
                 CharacterCase::Upper => first.make_ascii_uppercase(),
                 CharacterCase::Lower => first.make_ascii_lowercase(),
+                CharacterCase::Unchanged => {}
             }
         }
         retval
@@ -119,27 +162,28 @@ impl CharacterCase {
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
 pub enum NameFormat {
     SnakeCase,
-    ScreamingSnakeCase,
+    UppercaseSnakeCase,
     CamelCase,
 }
 
 impl NameFormat {
     pub fn word_separator(self) -> &'static str {
         match self {
-            NameFormat::SnakeCase | NameFormat::ScreamingSnakeCase => "_",
+            NameFormat::SnakeCase | NameFormat::UppercaseSnakeCase => "_",
             NameFormat::CamelCase => "",
         }
     }
     pub fn word_initial_char_case(self) -> CharacterCase {
         match self {
-            NameFormat::CamelCase | NameFormat::ScreamingSnakeCase => CharacterCase::Upper,
+            NameFormat::CamelCase | NameFormat::UppercaseSnakeCase => CharacterCase::Upper,
             NameFormat::SnakeCase => CharacterCase::Lower,
         }
     }
     pub fn word_char_case(self) -> CharacterCase {
         match self {
-            NameFormat::ScreamingSnakeCase => CharacterCase::Upper,
-            NameFormat::CamelCase | NameFormat::SnakeCase => CharacterCase::Lower,
+            NameFormat::UppercaseSnakeCase => CharacterCase::Upper,
+            NameFormat::CamelCase => CharacterCase::Unchanged,
+            NameFormat::SnakeCase => CharacterCase::Lower,
         }
     }
     pub fn name_from_words<T: Borrow<str>, I: Iterator<Item = T>>(
