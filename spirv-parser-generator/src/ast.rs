@@ -7,60 +7,28 @@ use serde::de::{self, Deserialize, Deserializer};
 use std::borrow::Cow;
 use std::fmt;
 use std::mem;
-use std::num::ParseIntError;
 use util::NameFormat::*;
 use util::WordIterator;
 
 #[derive(Copy, Clone)]
-pub struct QuotedInteger<T>(pub T);
+pub struct QuotedInteger(pub u32);
 
-pub trait QuotedIntegerProperties: Sized {
-    const DIGIT_COUNT: usize;
-    fn from_str_radix(src: &str, radix: u32) -> Result<Self, ParseIntError>;
-}
-
-impl QuotedIntegerProperties for QuotedInteger<u16> {
-    const DIGIT_COUNT: usize = 4;
-    fn from_str_radix(src: &str, radix: u32) -> Result<Self, ParseIntError> {
-        Ok(QuotedInteger(u16::from_str_radix(src, radix)?))
-    }
-}
-
-impl QuotedIntegerProperties for QuotedInteger<u32> {
-    const DIGIT_COUNT: usize = 8;
-    fn from_str_radix(src: &str, radix: u32) -> Result<Self, ParseIntError> {
-        Ok(QuotedInteger(u32::from_str_radix(src, radix)?))
-    }
-}
-
-impl<T: ToTokens> ToTokens for QuotedInteger<T> {
+impl ToTokens for QuotedInteger {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         self.0.to_tokens(tokens)
     }
 }
 
-impl fmt::Display for QuotedInteger<u16> {
+impl fmt::Display for QuotedInteger {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{:#06X}", self.0)
     }
 }
 
-impl fmt::Display for QuotedInteger<u32> {
+impl fmt::Debug for QuotedInteger {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{:#010X}", self.0)
-    }
-}
-
-impl<T> fmt::Debug for QuotedInteger<T>
-where
-    Self: fmt::Display + Copy,
-{
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        struct DisplayQuotedInteger<T>(QuotedInteger<T>);
-        impl<T> fmt::Debug for DisplayQuotedInteger<T>
-        where
-            QuotedInteger<T>: fmt::Display,
-        {
+        struct DisplayQuotedInteger(QuotedInteger);
+        impl fmt::Debug for DisplayQuotedInteger {
             fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
                 fmt::Display::fmt(&self.0, f)
             }
@@ -71,10 +39,7 @@ where
     }
 }
 
-impl<'de, T> Deserialize<'de> for QuotedInteger<T>
-where
-    Self: QuotedIntegerProperties,
-{
+impl<'de> Deserialize<'de> for QuotedInteger {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         let s = String::deserialize(deserializer)?;
         let prefix = "0x";
@@ -91,12 +56,12 @@ where
                 "invalid quoted integer -- not a hexadecimal digit",
             ));
         }
-        if digits.len() != Self::DIGIT_COUNT {
+        if digits.len() > 8 {
             return Err(de::Error::custom(
-                "invalid quoted integer -- wrong number of hex digits",
+                "invalid quoted integer -- too many hexadecimal digits",
             ));
         }
-        Ok(Self::from_str_radix(digits, radix).unwrap())
+        Ok(QuotedInteger(u32::from_str_radix(digits, radix).unwrap()))
     }
 }
 
@@ -166,7 +131,16 @@ pub struct InstructionOperand {
 
 impl InstructionOperand {
     pub fn fixup(&mut self) -> Result<(), ::Error> {
-        if self.name.is_none() {
+        if let Some(name) = self.name.take() {
+            let substitute_name = match &*name {
+                "'Member 0 type', +\n'member 1 type', +\n..." => Some("Member Types"),
+                "'Parameter 0 Type', +\n'Parameter 1 Type', +\n..." => Some("Parameter Types"),
+                "'Argument 0', +\n'Argument 1', +\n..." => Some("Arguments"),
+                "'Operand 1', +\n'Operand 2', +\n..." => Some("Operands"),
+                _ => None,
+            };
+            self.name = Some(substitute_name.map(String::from).unwrap_or(name));
+        } else {
             self.name = Some(
                 SnakeCase
                     .name_from_words(WordIterator::new(self.kind.as_ref()))
@@ -577,7 +551,7 @@ impl Enumerant<u32, ValueEnumerantParameter> {
     }
 }
 
-impl Enumerant<QuotedInteger<u16>, BitwiseEnumerantParameter> {
+impl Enumerant<QuotedInteger, BitwiseEnumerantParameter> {
     pub fn fixup(&mut self) -> Result<(), ::Error> {
         for parameter in self.parameters.iter_mut() {
             parameter.fixup()?;
@@ -742,7 +716,7 @@ impl AsRef<str> for LiteralKind {
 pub enum OperandKind {
     BitEnum {
         kind: Kind,
-        enumerants: Vec<Enumerant<QuotedInteger<u16>, BitwiseEnumerantParameter>>,
+        enumerants: Vec<Enumerant<QuotedInteger, BitwiseEnumerantParameter>>,
     },
     ValueEnum {
         kind: Kind,
@@ -766,7 +740,7 @@ pub enum OperandKind {
 #[serde(deny_unknown_fields)]
 pub struct CoreGrammar {
     pub copyright: Vec<String>,
-    pub magic_number: QuotedInteger<u32>,
+    pub magic_number: QuotedInteger,
     pub major_version: u32,
     pub minor_version: u32,
     pub revision: u32,
