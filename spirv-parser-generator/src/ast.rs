@@ -223,6 +223,8 @@ pub enum InstructionName {
     OpULessThanEqual,
     OpUMod,
     OpVectorShuffle,
+    OpTypeInt,
+    OpTypeFloat,
     Other(String),
 }
 
@@ -360,6 +362,8 @@ impl From<String> for InstructionName {
             "OpULessThanEqual" => return InstructionName::OpULessThanEqual,
             "OpUMod" => return InstructionName::OpUMod,
             "OpVectorShuffle" => return InstructionName::OpVectorShuffle,
+            "OpTypeInt" => return InstructionName::OpTypeInt,
+            "OpTypeFloat" => return InstructionName::OpTypeFloat,
             _ => {}
         }
         InstructionName::Other(v)
@@ -438,6 +442,8 @@ impl AsRef<str> for InstructionName {
             InstructionName::OpULessThanEqual => "OpULessThanEqual",
             InstructionName::OpUMod => "OpUMod",
             InstructionName::OpVectorShuffle => "OpVectorShuffle",
+            InstructionName::OpTypeInt => "OpTypeInt",
+            InstructionName::OpTypeFloat => "OpTypeFloat",
             InstructionName::Other(v) => v,
         }
     }
@@ -564,6 +570,8 @@ impl Enumerant<QuotedInteger, BitwiseEnumerantParameter> {
 pub enum Kind {
     Literal(LiteralKind),
     IdRef,
+    IdResult,
+    IdResultType,
     PairLiteralIntegerIdRef,
     PairLiteralInteger32IdRef,
     PairLiteralInteger64IdRef,
@@ -581,6 +589,8 @@ impl Kind {
                 *this = Kind::PairLiteralInteger64IdRef
             }
             (Kind::IdRef, _)
+            | (Kind::IdResult, _)
+            | (Kind::IdResultType, _)
             | (Kind::PairLiteralInteger32IdRef, _)
             | (Kind::PairLiteralInteger64IdRef, _)
             | (Kind::Other(_), _) => {}
@@ -600,6 +610,10 @@ impl<'a> From<Cow<'a, str>> for Kind {
             Kind::Literal(v)
         } else if v == "IdRef" {
             Kind::IdRef
+        } else if v == "IdResult" {
+            Kind::IdResult
+        } else if v == "IdResultType" {
+            Kind::IdResultType
         } else if v == "PairLiteralIntegerIdRef" {
             Kind::PairLiteralIntegerIdRef
         } else {
@@ -625,6 +639,8 @@ impl AsRef<str> for Kind {
         match self {
             Kind::Literal(v) => v.as_ref(),
             Kind::IdRef => "IdRef",
+            Kind::IdResult => "IdResult",
+            Kind::IdResultType => "IdResultType",
             Kind::PairLiteralIntegerIdRef => "PairLiteralIntegerIdRef",
             Kind::PairLiteralInteger32IdRef => "PairLiteralInteger32IdRef",
             Kind::PairLiteralInteger64IdRef => "PairLiteralInteger64IdRef",
@@ -815,6 +831,8 @@ impl CoreGrammar {
                     for enumerant in enumerants.iter_mut() {
                         enumerant.fixup()?;
                     }
+                    enumerants.sort_by_key(|enumerant| enumerant.value);
+                    enumerants.dedup_by_key(|enumerant| enumerant.value);
                     self.operand_kinds
                         .push(OperandKind::ValueEnum { kind, enumerants });
                 }

@@ -214,17 +214,19 @@ pub(crate) fn generate(
                 }
             }
 
+            const BYTES_PER_WORD: usize = 4;
+
             struct ByteIterator<'a> {
-                current_word: [u8; 4],
-                bytes_left_in_current_word: usize,
+                current_word: [u8; BYTES_PER_WORD],
+                current_word_index: usize,
                 words: &'a [u32],
             }
 
             impl<'a> ByteIterator<'a> {
                 fn new(words: &'a [u32]) -> Self {
                     Self {
-                        current_word: [0; 4],
-                        bytes_left_in_current_word: 0,
+                        current_word: [0; BYTES_PER_WORD],
+                        current_word_index: BYTES_PER_WORD,
                         words,
                     }
                 }
@@ -236,14 +238,14 @@ pub(crate) fn generate(
             impl<'a> Iterator for ByteIterator<'a> {
                 type Item = u8;
                 fn next(&mut self) -> Option<u8> {
-                    if self.bytes_left_in_current_word == 0 {
+                    if self.current_word_index >= BYTES_PER_WORD {
                         let (&current_word, words) = self.words.split_first()?;
                         self.words = words;
                         self.current_word = unsafe { mem::transmute(current_word.to_le()) };
-                        self.bytes_left_in_current_word = self.current_word.len();
+                        self.current_word_index = 0;
                     }
-                    let byte = self.current_word[self.bytes_left_in_current_word];
-                    self.bytes_left_in_current_word -= 1;
+                    let byte = self.current_word[self.current_word_index];
+                    self.current_word_index += 1;
                     Some(byte)
                 }
             }
@@ -313,7 +315,7 @@ pub(crate) fn generate(
                     parse_state: &mut ParseState,
                 ) -> Result<(Self, &'a [u32])> {
                     let (value, words) = u32::spirv_parse(words, parse_state)?;
-                    if value == 0 || value >= parse_state.bound {
+                    if value == 0 || value as usize >= parse_state.id_states.len() {
                         Err(Error::IdOutOfBounds(value))
                     } else {
                         Ok((IdRef(value), words))
@@ -348,33 +350,49 @@ pub(crate) fn generate(
                     enumerant_member_names.push(member_name.clone());
                     let type_name =
                         new_combined_id(&[kind.as_ref(), &enumerant.enumerant], CamelCase);
+                    let enumerant_parse_operation;
                     if enumerant.parameters.is_empty() {
                         enumerant_items.push(quote!{
                             #[derive(Clone, Debug, Default)]
                             pub struct #type_name;
                         });
+                        enumerant_parse_operation = quote!{(Some(#type_name), words)};
                     } else {
-                        let parameters = enumerant.parameters.iter().map(|parameter| {
+                        let mut enumerant_member_declarations = Vec::new();
+                        let mut enumerant_member_parse_initializers = Vec::new();
+                        let mut parse_enumerant_members = Vec::new();
+                        for (index, parameter) in enumerant.parameters.iter().enumerate() {
+                            let name = new_id(format!("parameter_{}", index), SnakeCase);
                             let kind = new_id(&parameter.kind, CamelCase);
-                            quote!{
+                            enumerant_member_declarations.push(quote!{
                                 pub #kind,
-                            }
-                        });
+                            });
+                            enumerant_member_parse_initializers.push(quote!{
+                                #name,
+                            });
+                            parse_enumerant_members.push(quote!{
+                                let (#name, words) = #kind::spirv_parse(words, parse_state)?;
+                            });
+                        }
                         enumerant_items.push(quote!{
                             #[derive(Clone, Debug, Default)]
-                            pub struct #type_name(#(#parameters)*);
+                            pub struct #type_name(#(#enumerant_member_declarations)*);
                         });
+                        enumerant_parse_operation = quote!{
+                            #(#parse_enumerant_members)*
+                            (Some(#type_name(#(#enumerant_member_parse_initializers)*)), words)
+                        };
                     }
                     enumerant_members.push(quote!{
                         pub #member_name: Option<#type_name>
                     });
                     let enumerant_value = enumerant.value;
                     enumerant_parse_operations.push(quote!{
-                        let #member_name = if (mask & #enumerant_value) == 0 {
+                        let (#member_name, words) = if (mask & #enumerant_value) != 0 {
                             mask &= !#enumerant_value;
-                            unimplemented!()
+                            #enumerant_parse_operation
                         } else {
-                            None
+                            (None, words)
                         };
                     })
                 }
@@ -390,8 +408,7 @@ pub(crate) fn generate(
                     }
                 )?;
                 let parse_body = quote!{
-                    let (mask, words) = words.split_first().ok_or(Error::InstructionPrematurelyEnded)?;
-                    let mut mask = *mask;
+                    let (mut mask, words) = u32::spirv_parse(words, parse_state)?;
                     #(#enumerant_parse_operations)*
                     if mask != 0 {
                         Err(Error::InvalidEnumValue)
@@ -419,24 +436,46 @@ pub(crate) fn generate(
             ast::OperandKind::ValueEnum { kind, enumerants } => {
                 let kind_id = new_id(&kind, CamelCase);
                 let mut generated_enumerants = Vec::new();
+                let mut enumerant_parse_cases = Vec::new();
                 for enumerant in enumerants {
                     let name = new_enumerant_id(&kind, &enumerant.enumerant);
+                    let enumerant_value = enumerant.value;
                     if enumerant.parameters.is_empty() {
                         generated_enumerants.push(quote!{#name});
-                        continue;
+                        enumerant_parse_cases.push(quote!{
+                            #enumerant_value => Ok((#kind_id::#name, words)),
+                        });
+                    } else {
+                        let mut enumerant_member_declarations = Vec::new();
+                        let mut enumerant_member_parse_initializers = Vec::new();
+                        let mut parse_enumerant_members = Vec::new();
+                        for parameter in enumerant.parameters.iter() {
+                            let name = new_id(parameter.name.as_ref().unwrap(), SnakeCase);
+                            let kind = new_id(&parameter.kind, CamelCase);
+                            enumerant_member_declarations.push(quote!{
+                                #name: #kind,
+                            });
+                            enumerant_member_parse_initializers.push(quote!{
+                                #name,
+                            });
+                            parse_enumerant_members.push(quote!{
+                                let (#name, words) = #kind::spirv_parse(words, parse_state)?;
+                            });
+                        }
+                        generated_enumerants.push(quote!{
+                            #name {
+                                #(#enumerant_member_declarations)*
+                            }
+                        });
+                        enumerant_parse_cases.push(quote!{
+                            #enumerant_value => {
+                                #(#parse_enumerant_members)*
+                                Ok((#kind_id::#name {
+                                    #(#enumerant_member_parse_initializers)*
+                                }, words))
+                            },
+                        });
                     }
-                    let parameters = enumerant.parameters.iter().map(|parameter| {
-                        let name = new_id(parameter.name.as_ref().unwrap(), SnakeCase);
-                        let kind = new_id(&parameter.kind, CamelCase);
-                        quote!{
-                            #name: #kind,
-                        }
-                    });
-                    generated_enumerants.push(quote!{
-                        #name {
-                            #(#parameters)*
-                        }
-                    });
                 }
                 writeln!(
                     &mut out,
@@ -457,7 +496,11 @@ pub(crate) fn generate(
                                 words: &'a [u32],
                                 parse_state: &mut ParseState,
                             ) -> Result<(Self, &'a [u32])> {
-                                unimplemented!()
+                                let (enumerant, words) = u32::spirv_parse(words, parse_state)?;
+                                match enumerant {
+                                    #(#enumerant_parse_cases)*
+                                    _ => Err(Error::InvalidEnumValue),
+                                }
                             }
                         }
                     }
@@ -490,6 +533,17 @@ pub(crate) fn generate(
                                     parse_state: &mut ParseState,
                                 ) -> Result<(Self, &'a [u32])> {
                                     IdRef::spirv_parse(words, parse_state).map(|(value, words)| (#kind_id(value), words))
+                                }
+                            }
+                        }
+                    )?;
+                    writeln!(
+                        &mut out,
+                        "{}",
+                        quote!{
+                            impl fmt::Display for #kind_id {
+                                fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+                                    fmt::Display::fmt(&self.0, f)
                                 }
                             }
                         }
@@ -535,6 +589,181 @@ pub(crate) fn generate(
             let opcode = instruction.opcode;
             let opname = new_id(remove_initial_op(instruction.opname.as_ref()), CamelCase);
             instruction_parse_cases.push(match &instruction.opname {
+                ast::InstructionName::OpTypeInt => {
+                    let body = quote!{
+                        let id_state = match width {
+                            8 | 16 | 32 => IdState::Type(IdStateType(BitWidth::Width32OrLess)),
+                            64 => IdState::Type(IdStateType(BitWidth::Width64)),
+                            _ => return Err(Error::UnsupportedIntSize),
+                        };
+                        parse_state.define_id(id_result, id_state)?;
+                        if words.is_empty() {
+                            Ok(Instruction::TypeInt {
+                                id_result,
+                                width,
+                                signedness,
+                            })
+                        } else {
+                            Err(Error::InstructionTooLong)
+                        }
+                    };
+                    quote!{
+                        #opcode => {
+                            let (id_result, words) = IdResult::spirv_parse(words, parse_state)?;
+                            let (width, words) = LiteralInteger32::spirv_parse(words, parse_state)?;
+                            let (signedness, words) = LiteralInteger32::spirv_parse(words, parse_state)?;
+                            #body
+                        }
+                    }
+                }
+                ast::InstructionName::OpTypeFloat => {
+                    quote!{
+                        #opcode => {
+                            let (id_result, words) = IdResult::spirv_parse(words, parse_state)?;
+                            let (width, words) = LiteralInteger32::spirv_parse(words, parse_state)?;
+                            let id_state = match width {
+                                16 | 32 => IdState::Type(IdStateType(BitWidth::Width32OrLess)),
+                                64 => IdState::Type(IdStateType(BitWidth::Width64)),
+                                _ => return Err(Error::UnsupportedFloatSize),
+                            };
+                            parse_state.define_id(id_result, id_state)?;
+                            if words.is_empty() {
+                                Ok(Instruction::TypeFloat {
+                                    id_result,
+                                    width,
+                                })
+                            } else {
+                                Err(Error::InstructionTooLong)
+                            }
+                        }
+                    }
+                }
+                ast::InstructionName::OpSwitch32 => {
+                    let body32 = quote!{
+                        IdState::Value(IdStateValue(BitWidth::Width32OrLess)) => {
+                            let (target, words) = Vec::<PairLiteralInteger32IdRef>::spirv_parse(words, parse_state)?;
+                            if words.is_empty() {
+                                Ok(Instruction::Switch32 {
+                                    selector,
+                                    default,
+                                    target,
+                                })
+                            } else {
+                                Err(Error::InstructionTooLong)
+                            }
+                        }
+                    };
+                    let body64 = quote!{
+                        IdState::Value(IdStateValue(BitWidth::Width64)) => {
+                            let (target, words) = Vec::<PairLiteralInteger64IdRef>::spirv_parse(words, parse_state)?;
+                            if words.is_empty() {
+                                Ok(Instruction::Switch64 {
+                                    selector,
+                                    default,
+                                    target,
+                                })
+                            } else {
+                                Err(Error::InstructionTooLong)
+                            }
+                        }
+                    };
+                    quote!{
+                        #opcode => {
+                            let (selector, words) = IdRef::spirv_parse(words, parse_state)?;
+                            let (default, words) = IdRef::spirv_parse(words, parse_state)?;
+                            match parse_state.id_states[selector.0 as usize] {
+                                #body32
+                                #body64
+                                _ => Err(Error::SwitchSelectorIsInvalid(selector)),
+                            }
+                        }
+                    }
+                }
+                ast::InstructionName::OpSwitch64 => quote!{},
+                ast::InstructionName::OpConstant32 => {
+                    let body32 = quote!{
+                        IdStateType(BitWidth::Width32OrLess) => {
+                            let (value, words) = LiteralContextDependentNumber32::spirv_parse(words, parse_state)?;
+                            if words.is_empty() {
+                                Ok(Instruction::Constant32 {
+                                    id_result_type,
+                                    id_result,
+                                    value,
+                                })
+                            } else {
+                                Err(Error::InstructionTooLong)
+                            }
+                        }
+                    };
+                    let body64 = quote!{
+                        IdStateType(BitWidth::Width64) => {
+                            let (value, words) = LiteralContextDependentNumber64::spirv_parse(words, parse_state)?;
+                            if words.is_empty() {
+                                Ok(Instruction::Constant64 {
+                                    id_result_type,
+                                    id_result,
+                                    value,
+                                })
+                            } else {
+                                Err(Error::InstructionTooLong)
+                            }
+                        }
+                    };
+                    quote!{
+                        #opcode => {
+                            let (id_result_type, words) = IdResultType::spirv_parse(words, parse_state)?;
+                            let (id_result, words) = IdResult::spirv_parse(words, parse_state)?;
+                            parse_state.define_value(id_result_type, id_result)?;
+                            match parse_state.get_type(id_result_type.0)? {
+                                #body32
+                                #body64
+                            }
+                        }
+                    }
+                }
+                ast::InstructionName::OpConstant64 => quote!{},
+                ast::InstructionName::OpSpecConstant32 => {
+                    let body32 = quote!{
+                        IdStateType(BitWidth::Width32OrLess) => {
+                            let (value, words) = LiteralContextDependentNumber32::spirv_parse(words, parse_state)?;
+                            if words.is_empty() {
+                                Ok(Instruction::SpecConstant32 {
+                                    id_result_type,
+                                    id_result,
+                                    value,
+                                })
+                            } else {
+                                Err(Error::InstructionTooLong)
+                            }
+                        }
+                    };
+                    let body64 = quote!{
+                        IdStateType(BitWidth::Width64) => {
+                            let (value, words) = LiteralContextDependentNumber64::spirv_parse(words, parse_state)?;
+                            if words.is_empty() {
+                                Ok(Instruction::SpecConstant64 {
+                                    id_result_type,
+                                    id_result,
+                                    value,
+                                })
+                            } else {
+                                Err(Error::InstructionTooLong)
+                            }
+                        }
+                    };
+                    quote!{
+                        #opcode => {
+                            let (id_result_type, words) = IdResultType::spirv_parse(words, parse_state)?;
+                            let (id_result, words) = IdResult::spirv_parse(words, parse_state)?;
+                            parse_state.define_value(id_result_type, id_result)?;
+                            match parse_state.get_type(id_result_type.0)? {
+                                #body32
+                                #body64
+                            }
+                        }
+                    }
+                }
+                ast::InstructionName::OpSpecConstant64 => quote!{},
                 ast::InstructionName::OpSpecConstantOp => {
                     quote!{#opcode => {
                         let (operation, words) = OpSpecConstantOp::spirv_parse(words, parse_state)?;
@@ -560,6 +789,15 @@ pub(crate) fn generate(
                             let (#name, words) = #kind::spirv_parse(words, parse_state)?;
                         });
                         operand_names.push(name);
+                    }
+                    if let Some([operand1, operand2]) = instruction.operands.get(..2) {
+                        if operand1.kind == ast::Kind::IdResultType && operand2.kind == ast::Kind::IdResult {
+                            let operand1_name = new_id(operand1.name.as_ref().unwrap(), SnakeCase);
+                            let operand2_name = new_id(operand2.name.as_ref().unwrap(), SnakeCase);
+                            parse_operations.push(quote!{
+                                parse_state.define_value(#operand1_name, #operand2_name)?;
+                            });
+                        }
                     }
                     quote!{#opcode => {
                         #(#parse_operations)*
@@ -637,6 +875,30 @@ pub(crate) fn generate(
                     pub instruction_schema: u32,
                 }
 
+                impl fmt::Display for Header {
+                    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+                        writeln!(f, "; SPIR-V")?;
+                        writeln!(f, "; Version: {}.{}", self.version.0, self.version.1)?;
+                        writeln!(f, "; Generator: {:#X}", self.generator)?;
+                        writeln!(f, "; Bound: {}", self.bound)?;
+                        writeln!(f, "; Schema: {}", self.instruction_schema)
+                    }
+                }
+
+                struct InstructionIndentAndResult(Option<IdResult>);
+
+                impl fmt::Display for InstructionIndentAndResult {
+                    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+                        write!(f, "{:>15}", self.0.map(|v| format!("{} = ", v.0)).unwrap_or_default())
+                    }
+                }
+
+                impl fmt::Display for IdRef {
+                    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+                        write!(f, "#{}", self.0)
+                    }
+                }
+
                 #[derive(Clone, Debug)]
                 pub enum Error {
                     MissingHeader,
@@ -651,6 +913,11 @@ pub(crate) fn generate(
                     InstructionTooLong,
                     InvalidEnumValue,
                     IdOutOfBounds(u32),
+                    IdAlreadyDefined(IdResult),
+                    UnsupportedFloatSize,
+                    UnsupportedIntSize,
+                    UndefinedType(IdRef),
+                    SwitchSelectorIsInvalid(IdRef),
                 }
 
                 impl From<Utf8Error> for Error {
@@ -687,6 +954,11 @@ pub(crate) fn generate(
                             Error::InstructionTooLong => write!(f, "SPIR-V instruction is too long"),
                             Error::InvalidEnumValue => write!(f, "enum has invalid value"),
                             Error::IdOutOfBounds(id) => write!(f, "id is out of bounds: {}", id),
+                            Error::IdAlreadyDefined(id) => write!(f, "id is already defined: {}", id),
+                            Error::UnsupportedFloatSize => write!(f, "unsupported float size"),
+                            Error::UnsupportedIntSize => write!(f, "unsupported int size"),
+                            Error::UndefinedType(id) => write!(f, "undefined type {}", id),
+                            Error::SwitchSelectorIsInvalid(id) => write!(f, "Switch selector is invalid: {}", id),
                         }
                     }
                 }
@@ -695,9 +967,52 @@ pub(crate) fn generate(
 
                 type Result<T> = result::Result<T, Error>;
 
+                #[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
+                enum BitWidth {
+                    Width32OrLess,
+                    Width64,
+                }
+
+                #[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
+                struct IdStateType(BitWidth);
+
+                #[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
+                struct IdStateValue(BitWidth);
+
+                #[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
+                enum IdState {
+                    Unknown,
+                    Type(IdStateType),
+                    Value(IdStateValue),
+                }
+
                 #[derive(Clone, Debug)]
                 struct ParseState {
-                    bound: u32,
+                    id_states: Vec<IdState>,
+                }
+
+                impl ParseState {
+                    fn define_id(&mut self, id_result: IdResult, new_id_state: IdState) -> Result<()> {
+                        let id_state = &mut self.id_states[(id_result.0).0 as usize];
+                        if *id_state != IdState::Unknown {
+                            return Err(Error::IdAlreadyDefined(id_result));
+                        }
+                        *id_state = new_id_state;
+                        Ok(())
+                    }
+                    fn get_type(&self, id: IdRef) -> Result<IdStateType> {
+                        if let IdState::Type(retval) = self.id_states[id.0 as usize] {
+                            Ok(retval)
+                        } else {
+                            Err(Error::UndefinedType(id))
+                        }
+                    }
+                    fn define_value(&mut self, id_result_type: IdResultType, id_result: IdResult) -> Result<()> {
+                        if let IdState::Type(IdStateType(bit_width)) = self.id_states[(id_result_type.0).0 as usize] {
+                            self.define_id(id_result, IdState::Value(IdStateValue(bit_width)))?;
+                        }
+                        Ok(())
+                    }
                 }
 
                 #[derive(Clone, Debug)]
@@ -742,7 +1057,7 @@ pub(crate) fn generate(
                             words,
                             header,
                             parse_state: ParseState {
-                                bound: header.bound,
+                                id_states: vec![IdState::Unknown; header.bound as usize],
                             },
                         })
                     }
