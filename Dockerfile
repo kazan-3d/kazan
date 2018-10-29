@@ -34,4 +34,4 @@ RUN case "${KAZAN_TEST_MODE}" in \
         exit 1; \
         ;; \
     esac
-CMD if [ "${KAZAN_TEST_MODE}" = "cts" ]; then exec ./run-cts.sh --update-only; else exec bash; fi
+CMD if [ "${KAZAN_TEST_MODE}" = "cts" ]; then exec ./run-cts.sh --no-update; else exec bash; fi
