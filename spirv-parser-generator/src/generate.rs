@@ -5,8 +5,10 @@ use ast;
 use proc_macro2;
 use std::borrow::Cow;
 use std::collections::HashMap;
+use std::collections::HashSet;
 use std::fmt;
 use std::io::{self, Read, Write};
+use std::iter;
 use std::process::{Child, Command, ExitStatus, Stdio};
 use std::thread;
 use util::{self, NameFormat::*};
@@ -128,6 +130,12 @@ where
     )
 }
 
+struct ParsedExtensionInstructionSet {
+    ast: ast::ExtensionInstructionSet,
+    enumerant_name: proc_macro2::Ident,
+    spirv_instruction_set_name: &'static str,
+}
+
 #[cfg_attr(feature = "cargo-clippy", allow(clippy::cyclomatic_complexity))]
 pub(crate) fn generate(
     core_grammar: ast::CoreGrammar,
@@ -147,25 +155,54 @@ pub(crate) fn generate(
         instructions: core_instructions,
         operand_kinds,
     } = core_grammar;
+    let parsed_extension_instruction_sets: Vec<_> = parsed_extension_instruction_sets
+        .into_iter()
+        .map(|(key, ast)| match key {
+            super::ExtensionInstructionSet::GLSLStd450 => ParsedExtensionInstructionSet {
+                ast,
+                enumerant_name: new_id("GLSLStd450", CamelCase),
+                spirv_instruction_set_name: "GLSL.std.450",
+            },
+            super::ExtensionInstructionSet::OpenCLStd => ParsedExtensionInstructionSet {
+                ast,
+                enumerant_name: new_id("OpenCLStd", CamelCase),
+                spirv_instruction_set_name: "OpenCL.std",
+            },
+        })
+        .collect();
     writeln!(&mut out, "// automatically generated file")?;
-    writeln!(&mut out, "//")?;
-    for i in &core_grammar_copyright {
-        assert_eq!(i.find('\r'), None);
-        assert_eq!(i.find('\n'), None);
-        if i == "" {
-            writeln!(&mut out, "//");
-        } else {
-            writeln!(&mut out, "// {}", i);
+    {
+        let mut copyright_set = HashSet::new();
+        for copyright in iter::once(&core_grammar_copyright).chain(
+            parsed_extension_instruction_sets
+                .iter()
+                .map(|v| &v.ast.copyright),
+        ) {
+            if !copyright_set.insert(copyright) {
+                continue;
+            }
+            writeln!(&mut out, "//")?;
+            for line in copyright.iter() {
+                assert_eq!(line.find('\r'), None);
+                assert_eq!(line.find('\n'), None);
+                if line == "" {
+                    writeln!(&mut out, "//");
+                } else {
+                    writeln!(&mut out, "// {}", line);
+                }
+            }
         }
     }
     writeln!(
         &mut out,
         "{}",
         stringify!(
-            use std::result;
+            use std::borrow::Cow;
             use std::error;
             use std::fmt;
             use std::mem;
+            use std::ops::Deref;
+            use std::result;
             use std::str::Utf8Error;
             use std::string::FromUtf8Error;
 
@@ -305,7 +342,7 @@ pub(crate) fn generate(
                     let (&high, words) = words
                         .split_first()
                         .ok_or(Error::InstructionPrematurelyEnded)?;
-                    Ok((((high as u64) << 32) | low as u64, words))
+                    Ok(((u64::from(high) << 32) | u64::from(low), words))
                 }
             }
 
@@ -350,13 +387,12 @@ pub(crate) fn generate(
                     enumerant_member_names.push(member_name.clone());
                     let type_name =
                         new_combined_id(&[kind.as_ref(), &enumerant.enumerant], CamelCase);
-                    let enumerant_parse_operation;
-                    if enumerant.parameters.is_empty() {
+                    let enumerant_parse_operation = if enumerant.parameters.is_empty() {
                         enumerant_items.push(quote!{
                             #[derive(Clone, Debug, Default)]
                             pub struct #type_name;
                         });
-                        enumerant_parse_operation = quote!{(Some(#type_name), words)};
+                        quote!{(Some(#type_name), words)}
                     } else {
                         let mut enumerant_member_declarations = Vec::new();
                         let mut enumerant_member_parse_initializers = Vec::new();
@@ -378,11 +414,11 @@ pub(crate) fn generate(
                             #[derive(Clone, Debug, Default)]
                             pub struct #type_name(#(#enumerant_member_declarations)*);
                         });
-                        enumerant_parse_operation = quote!{
+                        quote!{
                             #(#parse_enumerant_members)*
                             (Some(#type_name(#(#enumerant_member_parse_initializers)*)), words)
-                        };
-                    }
+                        }
+                    };
                     enumerant_members.push(quote!{
                         pub #member_name: Option<#type_name>
                     });
@@ -506,7 +542,7 @@ pub(crate) fn generate(
                     }
                 )?;
             }
-            ast::OperandKind::Id { kind, doc: _ } => {
+            ast::OperandKind::Id { kind, .. } => {
                 let base = if *kind == ast::Kind::IdRef {
                     quote!{u32}
                 } else {
@@ -550,7 +586,7 @@ pub(crate) fn generate(
                     )?;
                 }
             }
-            ast::OperandKind::Literal { kind, doc: _ } => {
+            ast::OperandKind::Literal { kind, .. } => {
                 let kind_id = new_id(kind, CamelCase);
                 writeln!(
                     &mut out,
@@ -585,12 +621,141 @@ pub(crate) fn generate(
         let mut instruction_enumerants = Vec::new();
         let mut spec_constant_op_instruction_enumerants = Vec::new();
         let mut instruction_parse_cases = Vec::new();
+        let mut instruction_spec_constant_parse_cases = Vec::new();
+        let mut instruction_extension_enumerants = Vec::new();
+        let mut instruction_extension_parse_cases = Vec::new();
+        for parsed_extension_instruction_set in &parsed_extension_instruction_sets {
+            let extension_instruction_set = &parsed_extension_instruction_set.enumerant_name;
+            for instruction in &parsed_extension_instruction_set.ast.instructions {
+                let instruction_enumerant_name = new_combined_id(
+                    &[
+                        parsed_extension_instruction_set.spirv_instruction_set_name,
+                        instruction.opname.as_ref(),
+                    ],
+                    CamelCase,
+                );
+                let opcode = instruction.opcode;
+                let mut fields = Vec::new();
+                for operand in instruction.operands.iter() {
+                    let kind = new_id(&operand.kind, CamelCase);
+                    let name = new_id(operand.name.as_ref().unwrap(), SnakeCase);
+                    let kind = match &operand.quantifier {
+                        None => quote!{#kind},
+                        Some(ast::Quantifier::Optional) => quote!{Option<#kind>},
+                        Some(ast::Quantifier::Variadic) => quote!{Vec<#kind>},
+                    };
+                    fields.push(quote!{#name: #kind});
+                }
+                let instruction_extension_enumerant = quote!{
+                    #instruction_enumerant_name {
+                        id_result_type: IdResultType,
+                        id_result: IdResult,
+                        set: IdRef,
+                        #(#fields,)*
+                    }
+                };
+                instruction_extension_enumerants.push(instruction_extension_enumerant);
+                let mut parse_operations = Vec::new();
+                let mut operand_names = Vec::new();
+                for operand in &instruction.operands {
+                    let kind = new_id(&operand.kind, CamelCase);
+                    let name = new_id(operand.name.as_ref().unwrap(), SnakeCase);
+                    let kind = match operand.quantifier {
+                        None => quote!{#kind},
+                        Some(ast::Quantifier::Optional) => quote!{Option::<#kind>},
+                        Some(ast::Quantifier::Variadic) => quote!{Vec::<#kind>},
+                    };
+                    parse_operations.push(quote!{
+                        let (#name, words) = #kind::spirv_parse(words, parse_state)?;
+                    });
+                    operand_names.push(name);
+                }
+                let body = quote!{
+                    #(#parse_operations)*
+                    if words.is_empty() {
+                        Ok(Instruction::#instruction_enumerant_name {
+                            id_result_type,
+                            id_result,
+                            set,
+                            #(#operand_names,)*
+                        })
+                    } else {
+                        Err(Error::InstructionTooLong)
+                    }
+                };
+                let instruction_extension_parse_case = quote!{
+                    (ExtensionInstructionSet::#extension_instruction_set, #opcode) => {
+                        #body
+                    },
+                };
+                instruction_extension_parse_cases.push(instruction_extension_parse_case);
+            }
+        }
+        let instruction_extension_parse_cases = &instruction_extension_parse_cases;
         for instruction in core_instructions.iter() {
             let opcode = instruction.opcode;
             let opname = new_id(remove_initial_op(instruction.opname.as_ref()), CamelCase);
-            instruction_parse_cases.push(match &instruction.opname {
+            let instruction_parse_case = match &instruction.opname {
+                ast::InstructionName::OpExtInstImport => {
+                    let body = quote!{
+                        parse_state.define_id(
+                            id_result,
+                            IdState::ExtensionInstructionSet(ExtensionInstructionSet::from(&*name)),
+                        )?;
+                        if words.is_empty() {
+                            Ok(Instruction::ExtInstImport { id_result, name })
+                        } else {
+                            Err(Error::InstructionTooLong)
+                        }
+                    };
+                    quote!{#opcode => {
+                        let (id_result, words) = IdResult::spirv_parse(words, parse_state)?;
+                        let (name, words) = LiteralString::spirv_parse(words, parse_state)?;
+                        #body
+                    }}
+                }
+                ast::InstructionName::OpExtInst => {
+                    let body = quote!{
+                        let extension_instruction_set;
+                        match parse_state.id_states[set.0 as usize].clone() {
+                            IdState::ExtensionInstructionSet(ExtensionInstructionSet::Other(_)) => {
+                                let (operands, words) = Vec::<LiteralInteger32>::spirv_parse(words, parse_state)?;
+                                if words.is_empty() {
+                                    return Ok(Instruction::ExtInst {
+                                        id_result_type,
+                                        id_result,
+                                        set,
+                                        instruction,
+                                        operands,
+                                    });
+                                } else {
+                                    return Err(Error::InstructionTooLong);
+                                }
+                            }
+                            IdState::ExtensionInstructionSet(v) => {
+                                extension_instruction_set = v;
+                            }
+                            _ => return Err(Error::IdIsNotExtInstImport(set)),
+                        };
+                        match (extension_instruction_set, instruction) {
+                            #(#instruction_extension_parse_cases)*
+                            (extension_instruction_set, instruction) => Err(Error::UnknownExtensionOpcode(extension_instruction_set, instruction)),
+                        }
+                    };
+                    quote!{
+                        #opcode => {
+                            let (id_result_type, words) = IdResultType::spirv_parse(words, parse_state)?;
+                            let (id_result, words) = IdResult::spirv_parse(words, parse_state)?;
+                            parse_state.define_value(id_result_type, id_result)?;
+                            let (set, words) = IdRef::spirv_parse(words, parse_state)?;
+                            let (instruction, words) = LiteralExtInstInteger::spirv_parse(words, parse_state)?;
+                            #body
+                        }
+                    }
+                }
                 ast::InstructionName::OpTypeInt => {
                     let body = quote!{
+                        let (signedness, words) = LiteralInteger32::spirv_parse(words, parse_state)?;
                         let id_state = match width {
                             8 | 16 | 32 => IdState::Type(IdStateType(BitWidth::Width32OrLess)),
                             64 => IdState::Type(IdStateType(BitWidth::Width64)),
@@ -611,7 +776,6 @@ pub(crate) fn generate(
                         #opcode => {
                             let (id_result, words) = IdResult::spirv_parse(words, parse_state)?;
                             let (width, words) = LiteralInteger32::spirv_parse(words, parse_state)?;
-                            let (signedness, words) = LiteralInteger32::spirv_parse(words, parse_state)?;
                             #body
                         }
                     }
@@ -671,7 +835,7 @@ pub(crate) fn generate(
                         #opcode => {
                             let (selector, words) = IdRef::spirv_parse(words, parse_state)?;
                             let (default, words) = IdRef::spirv_parse(words, parse_state)?;
-                            match parse_state.id_states[selector.0 as usize] {
+                            match &parse_state.id_states[selector.0 as usize] {
                                 #body32
                                 #body64
                                 _ => Err(Error::SwitchSelectorIsInvalid(selector)),
@@ -791,7 +955,9 @@ pub(crate) fn generate(
                         operand_names.push(name);
                     }
                     if let Some([operand1, operand2]) = instruction.operands.get(..2) {
-                        if operand1.kind == ast::Kind::IdResultType && operand2.kind == ast::Kind::IdResult {
+                        if operand1.kind == ast::Kind::IdResultType
+                            && operand2.kind == ast::Kind::IdResult
+                        {
                             let operand1_name = new_id(operand1.name.as_ref().unwrap(), SnakeCase);
                             let operand2_name = new_id(operand2.name.as_ref().unwrap(), SnakeCase);
                             parse_operations.push(quote!{
@@ -810,7 +976,8 @@ pub(crate) fn generate(
                         }
                     }}
                 }
-            });
+            };
+            instruction_parse_cases.push(instruction_parse_case);
             let instruction_enumerant =
                 if instruction.opname == ast::InstructionName::OpSpecConstantOp {
                     quote!{
@@ -839,7 +1006,49 @@ pub(crate) fn generate(
                     }
                 };
             if ast::OP_SPEC_CONSTANT_OP_SUPPORTED_INSTRUCTIONS.contains(&instruction.opname) {
+                let opcode = u32::from(opcode);
                 spec_constant_op_instruction_enumerants.push(instruction_enumerant.clone());
+                let mut parse_operations = Vec::new();
+                let mut operand_names = Vec::new();
+                operand_names.push(new_id("id_result_type", SnakeCase));
+                operand_names.push(new_id("id_result", SnakeCase));
+                for operand in instruction.operands.iter().skip(2) {
+                    let kind = new_id(&operand.kind, CamelCase);
+                    let name = new_id(operand.name.as_ref().unwrap(), SnakeCase);
+                    let kind = match operand.quantifier {
+                        None => quote!{#kind},
+                        Some(ast::Quantifier::Optional) => quote!{Option::<#kind>},
+                        Some(ast::Quantifier::Variadic) => quote!{Vec::<#kind>},
+                    };
+                    parse_operations.push(quote!{
+                        let (#name, words) = #kind::spirv_parse(words, parse_state)?;
+                    });
+                    operand_names.push(name);
+                }
+                if let Some([operand1, operand2]) = instruction.operands.get(..2) {
+                    assert_eq!(operand1.kind, ast::Kind::IdResultType);
+                    assert_eq!(operand2.kind, ast::Kind::IdResult);
+                    let operand1_name = new_id(operand1.name.as_ref().unwrap(), SnakeCase);
+                    let operand2_name = new_id(operand2.name.as_ref().unwrap(), SnakeCase);
+                    parse_operations.push(quote!{
+                        parse_state.define_value(#operand1_name, #operand2_name)?;
+                    });
+                } else {
+                    assert!(
+                        false,
+                        "spec constant op is missing id_result_type and id_result"
+                    );
+                }
+                instruction_spec_constant_parse_cases.push(quote!{#opcode => {
+                    #(#parse_operations)*
+                    if words.is_empty() {
+                        Ok((OpSpecConstantOp::#opname {
+                            #(#operand_names,)*
+                        }, words))
+                    } else {
+                        Err(Error::InstructionTooLong)
+                    }
+                }});
             }
             instruction_enumerants.push(instruction_enumerant);
         }
@@ -860,6 +1069,7 @@ pub(crate) fn generate(
                 #[derive(Clone, Debug)]
                 pub enum Instruction {
                     #(#instruction_enumerants,)*
+                    #(#instruction_extension_enumerants,)*
                 }
             }
         )?;
@@ -907,6 +1117,8 @@ pub(crate) fn generate(
                     ZeroInstructionLength,
                     SourcePrematurelyEnded,
                     UnknownOpcode(u16),
+                    UnknownSpecConstantOpcode(u32),
+                    UnknownExtensionOpcode(ExtensionInstructionSet, u32),
                     Utf8Error(Utf8Error),
                     InstructionPrematurelyEnded,
                     InvalidStringTermination,
@@ -918,6 +1130,7 @@ pub(crate) fn generate(
                     UnsupportedIntSize,
                     UndefinedType(IdRef),
                     SwitchSelectorIsInvalid(IdRef),
+                    IdIsNotExtInstImport(IdRef),
                 }
 
                 impl From<Utf8Error> for Error {
@@ -948,6 +1161,12 @@ pub(crate) fn generate(
                             Error::UnknownOpcode(opcode) => {
                                 write!(f, "SPIR-V instruction has an unknown opcode: {}", opcode)
                             }
+                            Error::UnknownSpecConstantOpcode(opcode) => {
+                                write!(f, "SPIR-V OpSpecConstantOp instruction has an unknown opcode: {}", opcode)
+                            }
+                            Error::UnknownExtensionOpcode(ref extension_instruction_set, opcode) => {
+                                write!(f, "SPIR-V OpExtInst instruction has an unknown opcode: {} in {}", opcode, extension_instruction_set)
+                            }
                             Error::Utf8Error(error) => fmt::Display::fmt(&error, f),
                             Error::InstructionPrematurelyEnded => write!(f, "SPIR-V instruction prematurely ended"),
                             Error::InvalidStringTermination => write!(f, "SPIR-V LiteralString has an invalid termination word"),
@@ -959,6 +1178,7 @@ pub(crate) fn generate(
                             Error::UnsupportedIntSize => write!(f, "unsupported int size"),
                             Error::UndefinedType(id) => write!(f, "undefined type {}", id),
                             Error::SwitchSelectorIsInvalid(id) => write!(f, "Switch selector is invalid: {}", id),
+                            Error::IdIsNotExtInstImport(id) => write!(f, "id is not the result of an OpExtInstImport instruction: {}", id),
                         }
                     }
                 }
@@ -979,11 +1199,12 @@ pub(crate) fn generate(
                 #[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
                 struct IdStateValue(BitWidth);
 
-                #[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
+                #[derive(Clone, Debug, Eq, PartialEq, Hash)]
                 enum IdState {
                     Unknown,
                     Type(IdStateType),
                     Value(IdStateValue),
+                    ExtensionInstructionSet(ExtensionInstructionSet),
                 }
 
                 #[derive(Clone, Debug)]
@@ -1094,6 +1315,15 @@ pub(crate) fn generate(
                 }
             }
         )?;
+        let body = quote!{
+            let (id_result_type, words) = IdResultType::spirv_parse(words, parse_state)?;
+            let (id_result, words) = IdResult::spirv_parse(words, parse_state)?;
+            let (opcode, words) = u32::spirv_parse(words, parse_state)?;
+            match opcode {
+                #(#instruction_spec_constant_parse_cases)*
+                opcode => Err(Error::UnknownSpecConstantOpcode(opcode)),
+            }
+        };
         writeln!(
             &mut out,
             "{}",
@@ -1103,14 +1333,103 @@ pub(crate) fn generate(
                         words: &'a [u32],
                         parse_state: &mut ParseState
                     ) -> Result<(Self, &'a [u32])> {
-                        let (id_result_type, words) = IdResultType::spirv_parse(words, parse_state)?;
-                        let (id_result, words) = IdResult::spirv_parse(words, parse_state)?;
-                        let (opcode, words) = u32::spirv_parse(words, parse_state)?;
-                        unimplemented!()
+                        #body
                     }
                 }
             }
         )?;
+    }
+    {
+        let extension_instruction_set_enumerants: Vec<_> = parsed_extension_instruction_sets
+            .iter()
+            .map(|v| &v.enumerant_name)
+            .collect();
+        let extension_instruction_set_enumerants = &extension_instruction_set_enumerants;
+        let spirv_instruction_set_names: Vec<_> = parsed_extension_instruction_sets
+            .iter()
+            .map(|v| v.spirv_instruction_set_name)
+            .collect();
+        let spirv_instruction_set_names = &spirv_instruction_set_names;
+        writeln!(
+            &mut out,
+            "{}",
+            quote!{
+                #[derive(Clone, Eq, PartialEq, Hash, Debug)]
+                pub enum ExtensionInstructionSet {
+                    #(#extension_instruction_set_enumerants,)*
+                    Other(String),
+                }
+            }
+        );
+        writeln!(
+            &mut out,
+            "{}",
+            quote!{
+                impl<'a> From<Cow<'a, str>> for ExtensionInstructionSet {
+                    fn from(s: Cow<'a, str>) -> ExtensionInstructionSet {
+                        match s.as_ref() {
+                            #(#spirv_instruction_set_names=>return ExtensionInstructionSet::#extension_instruction_set_enumerants,)*
+                            _ => {}
+                        }
+                        ExtensionInstructionSet::Other(s.into_owned())
+                    }
+                }
+            }
+        );
+        writeln!(
+            &mut out,
+            "{}",
+            quote!{
+                impl Deref for ExtensionInstructionSet {
+                    type Target = str;
+                    fn deref(&self) -> &str {
+                        match self {
+                            #(ExtensionInstructionSet::#extension_instruction_set_enumerants=>#spirv_instruction_set_names,)*
+                            ExtensionInstructionSet::Other(s)=>&**s,
+                        }
+                    }
+                }
+            }
+        );
+        writeln!(
+            &mut out,
+            "{}",
+            stringify!(
+                impl AsRef<str> for ExtensionInstructionSet {
+                    fn as_ref(&self) -> &str {
+                        &**self
+                    }
+                }
+
+                impl From<ExtensionInstructionSet> for String {
+                    fn from(v: ExtensionInstructionSet) -> String {
+                        match v {
+                            ExtensionInstructionSet::Other(v) => v,
+                            v => String::from(v.as_ref()),
+                        }
+                    }
+                }
+
+                impl<'a> From<&'a str> for ExtensionInstructionSet {
+                    fn from(s: &'a str) -> Self {
+                        Cow::Borrowed(s).into()
+                    }
+                }
+
+                impl From<String> for ExtensionInstructionSet {
+                    fn from(s: String) -> Self {
+                        Self::from(Cow::Owned(s))
+                    }
+                }
+
+                impl fmt::Display for ExtensionInstructionSet {
+                    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+                        let s: &str = &**self;
+                        fmt::Display::fmt(s, f)
+                    }
+                }
+            )
+        );
     }
     let source = String::from_utf8(out).unwrap();
     let source = match format_source(&options, &source) {

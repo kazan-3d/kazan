@@ -225,6 +225,8 @@ pub enum InstructionName {
     OpVectorShuffle,
     OpTypeInt,
     OpTypeFloat,
+    OpExtInstImport,
+    OpExtInst,
     Other(String),
 }
 
@@ -364,6 +366,8 @@ impl From<String> for InstructionName {
             "OpVectorShuffle" => return InstructionName::OpVectorShuffle,
             "OpTypeInt" => return InstructionName::OpTypeInt,
             "OpTypeFloat" => return InstructionName::OpTypeFloat,
+            "OpExtInstImport" => return InstructionName::OpExtInstImport,
+            "OpExtInst" => return InstructionName::OpExtInst,
             _ => {}
         }
         InstructionName::Other(v)
@@ -444,6 +448,8 @@ impl AsRef<str> for InstructionName {
             InstructionName::OpVectorShuffle => "OpVectorShuffle",
             InstructionName::OpTypeInt => "OpTypeInt",
             InstructionName::OpTypeFloat => "OpTypeFloat",
+            InstructionName::OpExtInstImport => "OpExtInstImport",
+            InstructionName::OpExtInst => "OpExtInst",
             InstructionName::Other(v) => v,
         }
     }
@@ -475,6 +481,12 @@ impl Instruction {
         for operand in self.operands.iter_mut() {
             operand.fixup()?;
         }
+        if self.opname == InstructionName::OpExtInst {
+            assert_eq!(self.operands.len(), 5);
+            assert_eq!(self.operands[4].kind, Kind::IdRef);
+            assert_eq!(self.operands[4].quantifier, Some(Quantifier::Variadic));
+            self.operands[4].kind = Kind::Literal(LiteralKind::LiteralInteger32);
+        }
         Ok(())
     }
 }
@@ -483,7 +495,7 @@ impl Instruction {
 #[serde(deny_unknown_fields)]
 pub struct ExtensionInstruction {
     pub opname: String,
-    pub opcode: u16,
+    pub opcode: u32,
     #[serde(default)]
     pub operands: Vec<InstructionOperand>,
     #[serde(default)]
