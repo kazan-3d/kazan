@@ -211,6 +211,10 @@ pub(crate) fn generate(
                     -> Result<(Self, &'a [u32])>;
             }
 
+            trait SPIRVDisplay {
+                fn spirv_display(&self, f: &mut fmt::Formatter) -> fmt::Result;
+            }
+
             impl<T: SPIRVParse> SPIRVParse for Option<T> {
                 fn spirv_parse<'a>(
                     words: &'a [u32],
@@ -221,6 +225,15 @@ pub(crate) fn generate(
                     } else {
                         let (value, words) = T::spirv_parse(words, parse_state)?;
                         Ok((Some(value), words))
+                    }
+                }
+            }
+
+            impl<T: SPIRVDisplay> SPIRVDisplay for Option<T> {
+                fn spirv_display(&self, f: &mut fmt::Formatter) -> fmt::Result {
+                    match self {
+                        Some(v) => v.spirv_display(f),
+                        None => Ok(()),
                     }
                 }
             }
@@ -240,6 +253,15 @@ pub(crate) fn generate(
                 }
             }
 
+            impl<T: SPIRVDisplay> SPIRVDisplay for Vec<T> {
+                fn spirv_display(&self, f: &mut fmt::Formatter) -> fmt::Result {
+                    for i in self {
+                        i.spirv_display(f)?;
+                    }
+                    Ok(())
+                }
+            }
+
             impl<A: SPIRVParse, B: SPIRVParse> SPIRVParse for (A, B) {
                 fn spirv_parse<'a>(
                     words: &'a [u32],
@@ -248,6 +270,13 @@ pub(crate) fn generate(
                     let (a, words) = A::spirv_parse(words, parse_state)?;
                     let (b, words) = B::spirv_parse(words, parse_state)?;
                     Ok(((a, b), words))
+                }
+            }
+
+            impl<A: SPIRVDisplay, B: SPIRVDisplay> SPIRVDisplay for (A, B) {
+                fn spirv_display(&self, f: &mut fmt::Formatter) -> fmt::Result {
+                    self.0.spirv_display(f)?;
+                    self.1.spirv_display(f)
                 }
             }
 
@@ -319,6 +348,12 @@ pub(crate) fn generate(
                 }
             }
 
+            impl SPIRVDisplay for String {
+                fn spirv_display(&self, f: &mut fmt::Formatter) -> fmt::Result {
+                    write!(f, " {:?}", self)
+                }
+            }
+
             impl SPIRVParse for u32 {
                 fn spirv_parse<'a>(
                     words: &'a [u32],
@@ -328,6 +363,12 @@ pub(crate) fn generate(
                         .split_first()
                         .ok_or(Error::InstructionPrematurelyEnded)?;
                     Ok((value, words))
+                }
+            }
+
+            impl SPIRVDisplay for u32 {
+                fn spirv_display(&self, f: &mut fmt::Formatter) -> fmt::Result {
+                    write!(f, " {}", self)
                 }
             }
 
@@ -346,6 +387,12 @@ pub(crate) fn generate(
                 }
             }
 
+            impl SPIRVDisplay for u64 {
+                fn spirv_display(&self, f: &mut fmt::Formatter) -> fmt::Result {
+                    write!(f, " {}", self)
+                }
+            }
+
             impl SPIRVParse for IdRef {
                 fn spirv_parse<'a>(
                     words: &'a [u32],
@@ -357,6 +404,12 @@ pub(crate) fn generate(
                     } else {
                         Ok((IdRef(value), words))
                     }
+                }
+            }
+
+            impl SPIRVDisplay for IdRef {
+                fn spirv_display(&self, f: &mut fmt::Formatter) -> fmt::Result {
+                    write!(f, " {}", self)
                 }
             }
         )
@@ -379,23 +432,33 @@ pub(crate) fn generate(
                 let mut enumerant_member_names = Vec::new();
                 let mut enumerant_items = Vec::new();
                 let mut enumerant_parse_operations = Vec::new();
+                let mut enumerant_display_operations = Vec::new();
+                let mut none_name = "None";
                 for enumerant in enumerants {
                     if enumerant.value.0 == 0 {
+                        none_name = enumerant.enumerant.as_ref();
                         continue;
                     }
                     let member_name = new_id(&enumerant.enumerant, SnakeCase);
+                    let member_name = &member_name;
                     enumerant_member_names.push(member_name.clone());
                     let type_name =
                         new_combined_id(&[kind.as_ref(), &enumerant.enumerant], CamelCase);
-                    let enumerant_parse_operation = if enumerant.parameters.is_empty() {
+                    let enumerant_parse_operation;
+                    if enumerant.parameters.is_empty() {
                         enumerant_items.push(quote!{
                             #[derive(Clone, Debug, Default)]
                             pub struct #type_name;
                         });
-                        quote!{(Some(#type_name), words)}
+                        enumerant_parse_operation = quote!{(Some(#type_name), words)};
+                        enumerant_display_operations.push(quote!{
+                            if let Some(#type_name) = &self.#member_name {
+                                unimplemented!();
+                            }
+                        });
                     } else {
                         let mut enumerant_member_declarations = Vec::new();
-                        let mut enumerant_member_parse_initializers = Vec::new();
+                        let mut enumerant_member_names = Vec::new();
                         let mut parse_enumerant_members = Vec::new();
                         for (index, parameter) in enumerant.parameters.iter().enumerate() {
                             let name = new_id(format!("parameter_{}", index), SnakeCase);
@@ -403,7 +466,7 @@ pub(crate) fn generate(
                             enumerant_member_declarations.push(quote!{
                                 pub #kind,
                             });
-                            enumerant_member_parse_initializers.push(quote!{
+                            enumerant_member_names.push(quote!{
                                 #name,
                             });
                             parse_enumerant_members.push(quote!{
@@ -414,10 +477,16 @@ pub(crate) fn generate(
                             #[derive(Clone, Debug, Default)]
                             pub struct #type_name(#(#enumerant_member_declarations)*);
                         });
-                        quote!{
+                        let enumerant_member_names = &enumerant_member_names;
+                        enumerant_parse_operation = quote!{
                             #(#parse_enumerant_members)*
-                            (Some(#type_name(#(#enumerant_member_parse_initializers)*)), words)
-                        }
+                            (Some(#type_name(#(#enumerant_member_names)*)), words)
+                        };
+                        enumerant_display_operations.push(quote!{
+                            if let Some(#type_name(#(#enumerant_member_names)*)) = &self.#member_name {
+                                unimplemented!();
+                            }
+                        });
                     };
                     enumerant_members.push(quote!{
                         pub #member_name: Option<#type_name>
@@ -468,34 +537,60 @@ pub(crate) fn generate(
                         }
                     }
                 )?;
+                writeln!(
+                    &mut out,
+                    "{}",
+                    quote!{
+                        impl SPIRVDisplay for #kind_id {
+                            fn spirv_display(&self, f: &mut fmt::Formatter) -> fmt::Result {
+                                let mut is_none = true;
+                                #(#enumerant_display_operations)*
+                                if is_none {
+                                    write!(f, " {}", #none_name)
+                                } else {
+                                    Ok(())
+                                }
+                            }
+                        }
+                    }
+                )?;
             }
             ast::OperandKind::ValueEnum { kind, enumerants } => {
                 let kind_id = new_id(&kind, CamelCase);
                 let mut generated_enumerants = Vec::new();
                 let mut enumerant_parse_cases = Vec::new();
+                let mut enumerant_display_cases = Vec::new();
                 for enumerant in enumerants {
                     let name = new_enumerant_id(&kind, &enumerant.enumerant);
                     let enumerant_value = enumerant.value;
+                    let display_name = &enumerant.enumerant;
                     if enumerant.parameters.is_empty() {
                         generated_enumerants.push(quote!{#name});
                         enumerant_parse_cases.push(quote!{
                             #enumerant_value => Ok((#kind_id::#name, words)),
                         });
+                        enumerant_display_cases.push(quote!{
+                            #kind_id::#name => write!(f, " {}", #display_name),
+                        });
                     } else {
                         let mut enumerant_member_declarations = Vec::new();
-                        let mut enumerant_member_parse_initializers = Vec::new();
+                        let mut enumerant_member_names = Vec::new();
                         let mut parse_enumerant_members = Vec::new();
+                        let mut display_enumerant_members = Vec::new();
                         for parameter in enumerant.parameters.iter() {
                             let name = new_id(parameter.name.as_ref().unwrap(), SnakeCase);
                             let kind = new_id(&parameter.kind, CamelCase);
                             enumerant_member_declarations.push(quote!{
                                 #name: #kind,
                             });
-                            enumerant_member_parse_initializers.push(quote!{
+                            enumerant_member_names.push(quote!{
                                 #name,
                             });
                             parse_enumerant_members.push(quote!{
                                 let (#name, words) = #kind::spirv_parse(words, parse_state)?;
+                            });
+                            display_enumerant_members.push(quote!{
+                                #name.spirv_display(f)?;
                             });
                         }
                         generated_enumerants.push(quote!{
@@ -503,13 +598,23 @@ pub(crate) fn generate(
                                 #(#enumerant_member_declarations)*
                             }
                         });
+                        let enumerant_member_names = &enumerant_member_names;
                         enumerant_parse_cases.push(quote!{
                             #enumerant_value => {
                                 #(#parse_enumerant_members)*
                                 Ok((#kind_id::#name {
-                                    #(#enumerant_member_parse_initializers)*
+                                    #(#enumerant_member_names)*
                                 }, words))
                             },
+                        });
+                        enumerant_display_cases.push(quote!{
+                            #kind_id::#name {
+                                #(#enumerant_member_names)*
+                            } => {
+                                write!(f, " {}", #display_name)?;
+                                #(#display_enumerant_members)*
+                                Ok(())
+                            }
                         });
                     }
                 }
@@ -536,6 +641,19 @@ pub(crate) fn generate(
                                 match enumerant {
                                     #(#enumerant_parse_cases)*
                                     _ => Err(Error::InvalidEnumValue),
+                                }
+                            }
+                        }
+                    }
+                )?;
+                writeln!(
+                    &mut out,
+                    "{}",
+                    quote!{
+                        impl SPIRVDisplay for #kind_id {
+                            fn spirv_display(&self, f: &mut fmt::Formatter) -> fmt::Result {
+                                match self {
+                                    #(#enumerant_display_cases)*
                                 }
                             }
                         }
@@ -584,6 +702,17 @@ pub(crate) fn generate(
                             }
                         }
                     )?;
+                    writeln!(
+                        &mut out,
+                        "{}",
+                        quote!{
+                            impl SPIRVDisplay for #kind_id {
+                                fn spirv_display(&self, f: &mut fmt::Formatter) -> fmt::Result {
+                                    self.0.spirv_display(f)
+                                }
+                            }
+                        }
+                    )?;
                 }
             }
             ast::OperandKind::Literal { kind, .. } => {
@@ -621,9 +750,12 @@ pub(crate) fn generate(
         let mut instruction_enumerants = Vec::new();
         let mut spec_constant_op_instruction_enumerants = Vec::new();
         let mut instruction_parse_cases = Vec::new();
+        let mut instruction_display_cases = Vec::new();
         let mut instruction_spec_constant_parse_cases = Vec::new();
+        let mut instruction_spec_constant_display_cases = Vec::new();
         let mut instruction_extension_enumerants = Vec::new();
         let mut instruction_extension_parse_cases = Vec::new();
+        let mut instruction_extension_display_cases = Vec::new();
         for parsed_extension_instruction_set in &parsed_extension_instruction_sets {
             let extension_instruction_set = &parsed_extension_instruction_set.enumerant_name;
             for instruction in &parsed_extension_instruction_set.ast.instructions {
@@ -670,6 +802,7 @@ pub(crate) fn generate(
                     });
                     operand_names.push(name);
                 }
+                let operand_names = &operand_names;
                 let body = quote!{
                     #(#parse_operations)*
                     if words.is_empty() {
@@ -686,16 +819,28 @@ pub(crate) fn generate(
                 let instruction_extension_parse_case = quote!{
                     (ExtensionInstructionSet::#extension_instruction_set, #opcode) => {
                         #body
-                    },
+                    }
                 };
                 instruction_extension_parse_cases.push(instruction_extension_parse_case);
+                let instruction_extension_display_case = quote!{
+                    Instruction::#instruction_enumerant_name {
+                        id_result_type,
+                        id_result,
+                        set,
+                        #(#operand_names,)*
+                    } => unimplemented!(),
+                };
+                instruction_extension_display_cases.push(instruction_extension_display_case);
             }
         }
         let instruction_extension_parse_cases = &instruction_extension_parse_cases;
         for instruction in core_instructions.iter() {
             let opcode = instruction.opcode;
             let opname = new_id(remove_initial_op(instruction.opname.as_ref()), CamelCase);
-            let instruction_parse_case = match &instruction.opname {
+            let display_opname = instruction.opname.as_ref();
+            let instruction_parse_case;
+            let instruction_display_case;
+            match &instruction.opname {
                 ast::InstructionName::OpExtInstImport => {
                     let body = quote!{
                         parse_state.define_id(
@@ -708,11 +853,16 @@ pub(crate) fn generate(
                             Err(Error::InstructionTooLong)
                         }
                     };
-                    quote!{#opcode => {
+                    instruction_parse_case = quote!{#opcode => {
                         let (id_result, words) = IdResult::spirv_parse(words, parse_state)?;
                         let (name, words) = LiteralString::spirv_parse(words, parse_state)?;
                         #body
-                    }}
+                    }};
+                    instruction_display_case = quote!{
+                        Instruction::ExtInstImport { id_result, name } => {
+                            writeln!(f, "{}{} {:?}", InstructionIndentAndResult(Some(*id_result)), #display_opname, name)
+                        }
+                    };
                 }
                 ast::InstructionName::OpExtInst => {
                     let body = quote!{
@@ -742,7 +892,7 @@ pub(crate) fn generate(
                             (extension_instruction_set, instruction) => Err(Error::UnknownExtensionOpcode(extension_instruction_set, instruction)),
                         }
                     };
-                    quote!{
+                    instruction_parse_case = quote!{
                         #opcode => {
                             let (id_result_type, words) = IdResultType::spirv_parse(words, parse_state)?;
                             let (id_result, words) = IdResult::spirv_parse(words, parse_state)?;
@@ -751,7 +901,23 @@ pub(crate) fn generate(
                             let (instruction, words) = LiteralExtInstInteger::spirv_parse(words, parse_state)?;
                             #body
                         }
-                    }
+                    };
+                    instruction_display_case = quote!{
+                        Instruction::ExtInst {
+                            id_result_type,
+                            id_result,
+                            set,
+                            instruction,
+                            operands,
+                        } => {
+                            write!(f, "{}{}", InstructionIndentAndResult(Some(*id_result)), #display_opname)?;
+                            id_result_type.spirv_display(f)?;
+                            set.spirv_display(f)?;
+                            instruction.spirv_display(f)?;
+                            operands.spirv_display(f)?;
+                            writeln!(f)
+                        }
+                    };
                 }
                 ast::InstructionName::OpTypeInt => {
                     let body = quote!{
@@ -772,16 +938,33 @@ pub(crate) fn generate(
                             Err(Error::InstructionTooLong)
                         }
                     };
-                    quote!{
+                    instruction_parse_case = quote!{
                         #opcode => {
                             let (id_result, words) = IdResult::spirv_parse(words, parse_state)?;
                             let (width, words) = LiteralInteger32::spirv_parse(words, parse_state)?;
                             #body
                         }
-                    }
+                    };
+                    instruction_display_case = quote!{
+                        Instruction::TypeInt {
+                            id_result,
+                            width,
+                            signedness,
+                        } => {
+                            write!(
+                                f,
+                                "{}{}",
+                                InstructionIndentAndResult(Some(*id_result)),
+                                "OpTypeInt"
+                            )?;
+                            width.spirv_display(f)?;
+                            signedness.spirv_display(f)?;
+                            writeln!(f)
+                        }
+                    };
                 }
                 ast::InstructionName::OpTypeFloat => {
-                    quote!{
+                    instruction_parse_case = quote!{
                         #opcode => {
                             let (id_result, words) = IdResult::spirv_parse(words, parse_state)?;
                             let (width, words) = LiteralInteger32::spirv_parse(words, parse_state)?;
@@ -800,7 +983,19 @@ pub(crate) fn generate(
                                 Err(Error::InstructionTooLong)
                             }
                         }
-                    }
+                    };
+                    instruction_display_case = quote!{
+                        Instruction::TypeFloat { id_result, width } => {
+                            write!(
+                                f,
+                                "{}{}",
+                                InstructionIndentAndResult(Some(*id_result)),
+                                "OpTypeFloat"
+                            )?;
+                            width.spirv_display(f)?;
+                            writeln!(f)
+                        }
+                    };
                 }
                 ast::InstructionName::OpSwitch32 => {
                     let body32 = quote!{
@@ -831,7 +1026,7 @@ pub(crate) fn generate(
                             }
                         }
                     };
-                    quote!{
+                    instruction_parse_case = quote!{
                         #opcode => {
                             let (selector, words) = IdRef::spirv_parse(words, parse_state)?;
                             let (default, words) = IdRef::spirv_parse(words, parse_state)?;
@@ -841,9 +1036,46 @@ pub(crate) fn generate(
                                 _ => Err(Error::SwitchSelectorIsInvalid(selector)),
                             }
                         }
-                    }
+                    };
+                    instruction_display_case = quote!{
+                        Instruction::Switch32 {
+                            selector,
+                            default,
+                            target,
+                        } => {
+                            write!(
+                                f,
+                                "{}{}",
+                                InstructionIndentAndResult(None),
+                                "OpSwitch"
+                            )?;
+                            selector.spirv_display(f)?;
+                            default.spirv_display(f)?;
+                            target.spirv_display(f)?;
+                            writeln!(f)
+                        }
+                        Instruction::Switch64 {
+                            selector,
+                            default,
+                            target,
+                        } => {
+                            write!(
+                                f,
+                                "{}{}",
+                                InstructionIndentAndResult(None),
+                                "OpSwitch"
+                            )?;
+                            selector.spirv_display(f)?;
+                            default.spirv_display(f)?;
+                            target.spirv_display(f)?;
+                            writeln!(f)
+                        }
+                    };
                 }
-                ast::InstructionName::OpSwitch64 => quote!{},
+                ast::InstructionName::OpSwitch64 => {
+                    instruction_parse_case = quote!{};
+                    instruction_display_case = quote!{};
+                }
                 ast::InstructionName::OpConstant32 => {
                     let body32 = quote!{
                         IdStateType(BitWidth::Width32OrLess) => {
@@ -873,7 +1105,7 @@ pub(crate) fn generate(
                             }
                         }
                     };
-                    quote!{
+                    instruction_parse_case = quote!{
                         #opcode => {
                             let (id_result_type, words) = IdResultType::spirv_parse(words, parse_state)?;
                             let (id_result, words) = IdResult::spirv_parse(words, parse_state)?;
@@ -883,9 +1115,42 @@ pub(crate) fn generate(
                                 #body64
                             }
                         }
-                    }
+                    };
+                    instruction_display_case = quote!{
+                        Instruction::Constant32 {
+                            id_result_type,
+                            id_result,
+                            value,
+                        } => {
+                            write!(
+                                f,
+                                "{}{}",
+                                InstructionIndentAndResult(Some(*id_result)),
+                                "OpConstant"
+                            )?;
+                            id_result_type.spirv_display(f)?;
+                            writeln!(f, " {:#010X}", value)
+                        }
+                        Instruction::Constant64 {
+                            id_result_type,
+                            id_result,
+                            value,
+                        } => {
+                            write!(
+                                f,
+                                "{}{}",
+                                InstructionIndentAndResult(Some(*id_result)),
+                                "OpConstant"
+                            )?;
+                            id_result_type.spirv_display(f)?;
+                            writeln!(f, " {:#018X}", value)
+                        }
+                    };
                 }
-                ast::InstructionName::OpConstant64 => quote!{},
+                ast::InstructionName::OpConstant64 => {
+                    instruction_parse_case = quote!{};
+                    instruction_display_case = quote!{};
+                }
                 ast::InstructionName::OpSpecConstant32 => {
                     let body32 = quote!{
                         IdStateType(BitWidth::Width32OrLess) => {
@@ -915,7 +1180,7 @@ pub(crate) fn generate(
                             }
                         }
                     };
-                    quote!{
+                    instruction_parse_case = quote!{
                         #opcode => {
                             let (id_result_type, words) = IdResultType::spirv_parse(words, parse_state)?;
                             let (id_result, words) = IdResult::spirv_parse(words, parse_state)?;
@@ -925,22 +1190,34 @@ pub(crate) fn generate(
                                 #body64
                             }
                         }
-                    }
+                    };
+                    instruction_display_case = quote!{
+                        Instruction::SpecConstant32 { .. } => unimplemented!(),
+                        Instruction::SpecConstant64 { .. } => unimplemented!(),
+                    };
                 }
-                ast::InstructionName::OpSpecConstant64 => quote!{},
+                ast::InstructionName::OpSpecConstant64 => {
+                    instruction_parse_case = quote!{};
+                    instruction_display_case = quote!{};
+                }
                 ast::InstructionName::OpSpecConstantOp => {
-                    quote!{#opcode => {
+                    instruction_parse_case = quote!{#opcode => {
                         let (operation, words) = OpSpecConstantOp::spirv_parse(words, parse_state)?;
                         if words.is_empty() {
                             Ok(Instruction::#opname { operation })
                         } else {
                             Err(Error::InstructionTooLong)
                         }
-                    }}
+                    }};
+                    instruction_display_case = quote!{
+                        Instruction::#opname { operation } => fmt::Display::fmt(operation, f),
+                    };
                 }
                 _ => {
                     let mut parse_operations = Vec::new();
+                    let mut display_operations = Vec::new();
                     let mut operand_names = Vec::new();
+                    let mut result_name = None;
                     for operand in &instruction.operands {
                         let kind = new_id(&operand.kind, CamelCase);
                         let name = new_id(operand.name.as_ref().unwrap(), SnakeCase);
@@ -952,7 +1229,15 @@ pub(crate) fn generate(
                         parse_operations.push(quote!{
                             let (#name, words) = #kind::spirv_parse(words, parse_state)?;
                         });
-                        operand_names.push(name);
+                        operand_names.push(name.clone());
+                        if operand.kind == ast::Kind::IdResult {
+                            assert_eq!(result_name, None);
+                            result_name = Some(name);
+                        } else {
+                            display_operations.push(quote!{
+                                #name.spirv_display(f)?;
+                            });
+                        }
                     }
                     if let Some([operand1, operand2]) = instruction.operands.get(..2) {
                         if operand1.kind == ast::Kind::IdResultType
@@ -965,7 +1250,8 @@ pub(crate) fn generate(
                             });
                         }
                     }
-                    quote!{#opcode => {
+                    let operand_names = &operand_names;
+                    instruction_parse_case = quote!{#opcode => {
                         #(#parse_operations)*
                         if words.is_empty() {
                             Ok(Instruction::#opname {
@@ -974,10 +1260,22 @@ pub(crate) fn generate(
                         } else {
                             Err(Error::InstructionTooLong)
                         }
-                    }}
+                    }};
+                    let result_value = match result_name {
+                        None => quote!{None},
+                        Some(result_name) => quote!{Some(*#result_name)},
+                    };
+                    instruction_display_case = quote!{
+                        Instruction::#opname { #(#operand_names,)* } => {
+                            write!(f, "{}{}", InstructionIndentAndResult(#result_value), #display_opname)?;
+                            #(#display_operations)*
+                            writeln!(f)
+                        }
+                    };
                 }
-            };
+            }
             instruction_parse_cases.push(instruction_parse_case);
+            instruction_display_cases.push(instruction_display_case);
             let instruction_enumerant =
                 if instruction.opname == ast::InstructionName::OpSpecConstantOp {
                     quote!{
@@ -1039,6 +1337,7 @@ pub(crate) fn generate(
                         "spec constant op is missing id_result_type and id_result"
                     );
                 }
+                let operand_names = &operand_names;
                 instruction_spec_constant_parse_cases.push(quote!{#opcode => {
                     #(#parse_operations)*
                     if words.is_empty() {
@@ -1049,6 +1348,11 @@ pub(crate) fn generate(
                         Err(Error::InstructionTooLong)
                     }
                 }});
+                instruction_spec_constant_display_cases.push(quote!{
+                    OpSpecConstantOp::#opname {
+                        #(#operand_names,)*
+                    } => unimplemented!(),
+                });
             }
             instruction_enumerants.push(instruction_enumerant);
         }
@@ -1059,6 +1363,19 @@ pub(crate) fn generate(
                 #[derive(Clone, Debug)]
                 pub enum OpSpecConstantOp {
                     #(#spec_constant_op_instruction_enumerants,)*
+                }
+            }
+        )?;
+        writeln!(
+            &mut out,
+            "{}",
+            quote!{
+                impl fmt::Display for OpSpecConstantOp {
+                    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+                        match self {
+                            #(#instruction_spec_constant_display_cases)*
+                        }
+                    }
                 }
             }
         )?;
@@ -1105,7 +1422,7 @@ pub(crate) fn generate(
 
                 impl fmt::Display for IdRef {
                     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-                        write!(f, "#{}", self.0)
+                        write!(f, "%{}", self.0)
                     }
                 }
 
@@ -1315,6 +1632,20 @@ pub(crate) fn generate(
                 }
             }
         )?;
+        writeln!(
+            &mut out,
+            "{}",
+            quote!{
+                impl fmt::Display for Instruction {
+                    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+                        match self {
+                            #(#instruction_display_cases)*
+                            #(#instruction_extension_display_cases)*
+                        }
+                    }
+                }
+            }
+        )?;
         let body = quote!{
             let (id_result_type, words) = IdResultType::spirv_parse(words, parse_state)?;
             let (id_result, words) = IdResult::spirv_parse(words, parse_state)?;
@@ -1350,6 +1681,32 @@ pub(crate) fn generate(
             .map(|v| v.spirv_instruction_set_name)
             .collect();
         let spirv_instruction_set_names = &spirv_instruction_set_names;
+        for parsed_extension_instruction_set in parsed_extension_instruction_sets.iter() {
+            let version_name = new_combined_id(
+                &[
+                    parsed_extension_instruction_set.spirv_instruction_set_name,
+                    "version",
+                ],
+                UppercaseSnakeCase,
+            );
+            let version = parsed_extension_instruction_set.ast.version;
+            let revision_name = new_combined_id(
+                &[
+                    parsed_extension_instruction_set.spirv_instruction_set_name,
+                    "revision",
+                ],
+                UppercaseSnakeCase,
+            );
+            let revision = parsed_extension_instruction_set.ast.revision;
+            writeln!(
+                &mut out,
+                "{}",
+                quote!{
+                    pub const #version_name: u32 = #version;
+                    pub const #revision_name: u32 = #revision;
+                }
+            )?;
+        }
         writeln!(
             &mut out,
             "{}",
@@ -1368,7 +1725,7 @@ pub(crate) fn generate(
                 impl<'a> From<Cow<'a, str>> for ExtensionInstructionSet {
                     fn from(s: Cow<'a, str>) -> ExtensionInstructionSet {
                         match s.as_ref() {
-                            #(#spirv_instruction_set_names=>return ExtensionInstructionSet::#extension_instruction_set_enumerants,)*
+                            #(#spirv_instruction_set_names => return ExtensionInstructionSet::#extension_instruction_set_enumerants,)*
                             _ => {}
                         }
                         ExtensionInstructionSet::Other(s.into_owned())
@@ -1384,8 +1741,8 @@ pub(crate) fn generate(
                     type Target = str;
                     fn deref(&self) -> &str {
                         match self {
-                            #(ExtensionInstructionSet::#extension_instruction_set_enumerants=>#spirv_instruction_set_names,)*
-                            ExtensionInstructionSet::Other(s)=>&**s,
+                            #(ExtensionInstructionSet::#extension_instruction_set_enumerants => #spirv_instruction_set_names,)*
+                            ExtensionInstructionSet::Other(s) => &**s,
                         }
                     }
                 }
