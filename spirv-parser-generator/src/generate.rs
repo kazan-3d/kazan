@@ -186,9 +186,9 @@ pub(crate) fn generate(
                 assert_eq!(line.find('\r'), None);
                 assert_eq!(line.find('\n'), None);
                 if line == "" {
-                    writeln!(&mut out, "//");
+                    writeln!(&mut out, "//")?;
                 } else {
-                    writeln!(&mut out, "// {}", line);
+                    writeln!(&mut out, "// {}", line)?;
                 }
             }
         }
@@ -1360,7 +1360,7 @@ pub(crate) fn generate(
                     Other(String),
                 }
             }
-        );
+        )?;
         writeln!(
             &mut out,
             "{}",
@@ -1375,7 +1375,7 @@ pub(crate) fn generate(
                     }
                 }
             }
-        );
+        )?;
         writeln!(
             &mut out,
             "{}",
@@ -1390,7 +1390,7 @@ pub(crate) fn generate(
                     }
                 }
             }
-        );
+        )?;
         writeln!(
             &mut out,
             "{}",
@@ -1429,7 +1429,7 @@ pub(crate) fn generate(
                     }
                 }
             )
-        );
+        )?;
     }
     let source = String::from_utf8(out).unwrap();
     let source = match format_source(&options, &source) {
