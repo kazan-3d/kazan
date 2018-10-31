@@ -1430,6 +1430,7 @@ pub(crate) fn generate(
                 pub enum Error {
                     MissingHeader,
                     InvalidHeader,
+                    BoundTooBig(u32),
                     UnsupportedVersion(u32, u32),
                     ZeroInstructionLength,
                     SourcePrematurelyEnded,
@@ -1467,6 +1468,11 @@ pub(crate) fn generate(
                         match *self {
                             Error::MissingHeader => write!(f, "SPIR-V source is missing the file header"),
                             Error::InvalidHeader => write!(f, "SPIR-V source has an invalid file header"),
+                            Error::BoundTooBig(bound) => write!(
+                                f,
+                                "SPIR-V source has an invalid file header; the id bound is way bigger than needed: {}",
+                                bound,
+                            ),
                             Error::UnsupportedVersion(major, minor) => write!(
                                 f,
                                 "SPIR-V source has an unsupported version: {}.{}",
@@ -1591,13 +1597,17 @@ pub(crate) fn generate(
                             }
                             _ => return Err(Error::InvalidHeader),
                         };
-                        Ok(Self {
-                            words,
-                            header,
-                            parse_state: ParseState {
-                                id_states: vec![IdState::Unknown; header.bound as usize],
-                            },
-                        })
+                        if header.bound as usize > words.len() && header.bound > 0x10000 {
+                            Err(Error::BoundTooBig(header.bound))
+                        } else {
+                            Ok(Self {
+                                words,
+                                header,
+                                parse_state: ParseState {
+                                    id_states: vec![IdState::Unknown; header.bound as usize],
+                                },
+                            })
+                        }
                     }
                     fn next_helper(&mut self, length_and_opcode: u32) -> Result<Instruction> {
                         let length = (length_and_opcode >> 16) as usize;
