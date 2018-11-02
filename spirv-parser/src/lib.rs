@@ -117,4 +117,102 @@ mod tests {
         }
         assert!(output == expected);
     }
+
+    #[test]
+    fn parse_test2() {
+        let output = parse_and_dump(include_bytes!("../test_inputs/test2.spv")).unwrap();
+        let expected = r#"; SPIR-V
+; Version: 1.3
+; Generator: 0x70000
+; Bound: 12
+; Schema: 0
+               OpCapability Shader
+               OpMemoryModel Logical GLSL450
+               OpEntryPoint Vertex %1 "main"
+          %2 = OpTypeVoid
+          %3 = OpTypeFloat 32
+          %4 = OpTypeVector %3 4
+          %5 = OpTypeFunction %2
+          %1 = OpFunction %2 None %5
+          %6 = OpLabel
+          %7 = OpImageSampleImplicitLod %4 %8 %9 Bias|MinLod %10 %11
+               OpReturn
+               OpFunctionEnd
+"#;
+        println!("Line-by-line:");
+        for (a, b) in output.lines().zip(expected.lines()) {
+            println!("{}\n{}", a, b);
+        }
+        assert!(output == expected);
+    }
+
+    #[test]
+    fn parse_test3() {
+        let output = parse_and_dump(include_bytes!("../test_inputs/test3.spv")).unwrap();
+        let expected = r#"; SPIR-V
+; Version: 1.0
+; Generator: 0x80007
+; Bound: 38
+; Schema: 0
+               OpCapability Shader
+          %1 = OpExtInstImport "GLSL.std.450"
+               OpMemoryModel Logical GLSL450
+               OpEntryPoint GLCompute %4 "main"
+               OpExecutionMode %4 LocalSize 1 1 1
+               OpSource GLSL 450
+               OpName %4 "main"
+               OpName %8 "f("
+               OpName %10 "g("
+               OpName %14 "h("
+               OpName %16 "A"
+               OpName %17 "B"
+               OpName %19 "C"
+               OpDecorate %16 SpecId 0
+               OpDecorate %17 SpecId 1
+               OpDecorate %19 SpecId 2
+          %2 = OpTypeVoid
+          %3 = OpTypeFunction %2
+          %6 = OpTypeInt 32 1
+          %7 = OpTypeFunction %6
+         %12 = OpTypeFloat 32
+         %13 = OpTypeFunction %12
+         %16 = OpSpecConstant %6 0x00000000
+         %17 = OpSpecConstant %6 0x00000001
+         %18 = OpSpecConstantOp %6 IMul %16 %17
+         %19 = OpSpecConstant %6 0x00000002
+         %20 = OpSpecConstantOp %6 SDiv %18 %19
+         %23 = OpSpecConstantOp %6 BitwiseAnd %16 %17
+         %24 = OpSpecConstantOp %6 BitwiseXor %23 %19
+         %29 = OpConstant %12 0x3F490FDB
+         %30 = OpTypeVector %12 2
+          %4 = OpFunction %2 None %3
+          %5 = OpLabel
+         %35 = OpFunctionCall %6 %8
+         %36 = OpFunctionCall %6 %10
+         %37 = OpFunctionCall %12 %14
+               OpReturn
+               OpFunctionEnd
+          %8 = OpFunction %6 None %7
+          %9 = OpLabel
+               OpReturnValue %20
+               OpFunctionEnd
+         %10 = OpFunction %6 None %7
+         %11 = OpLabel
+               OpReturnValue %24
+               OpFunctionEnd
+         %14 = OpFunction %12 None %13
+         %15 = OpLabel
+         %27 = OpConvertSToF %12 %16
+         %28 = OpExtInst %12 %1 Cos %27
+         %31 = OpCompositeConstruct %30 %28 %29
+         %32 = OpExtInst %12 %1 Length %31
+               OpReturnValue %32
+               OpFunctionEnd
+"#;
+        println!("Line-by-line:");
+        for (a, b) in output.lines().zip(expected.lines()) {
+            println!("{}\n{}", a, b);
+        }
+        assert!(output == expected);
+    }
 }
