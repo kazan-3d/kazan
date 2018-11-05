@@ -12,7 +12,6 @@ use xcb_swapchain::XcbSurfaceImplementation;
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Enum)]
 #[allow(non_camel_case_types)]
 pub enum SurfacePlatform {
-    VK_ICD_WSI_PLATFORM_MIR,
     VK_ICD_WSI_PLATFORM_WAYLAND,
     VK_ICD_WSI_PLATFORM_WIN32,
     VK_ICD_WSI_PLATFORM_XCB,
@@ -37,7 +36,6 @@ impl Error for UnknownSurfacePlatform {}
 impl SurfacePlatform {
     pub fn from(platform: api::VkIcdWsiPlatform) -> Result<Self, UnknownSurfacePlatform> {
         match platform {
-            api::VK_ICD_WSI_PLATFORM_MIR => Ok(SurfacePlatform::VK_ICD_WSI_PLATFORM_MIR),
             api::VK_ICD_WSI_PLATFORM_WAYLAND => Ok(SurfacePlatform::VK_ICD_WSI_PLATFORM_WAYLAND),
             api::VK_ICD_WSI_PLATFORM_WIN32 => Ok(SurfacePlatform::VK_ICD_WSI_PLATFORM_WIN32),
             api::VK_ICD_WSI_PLATFORM_XCB => Ok(SurfacePlatform::VK_ICD_WSI_PLATFORM_XCB),
@@ -63,7 +61,6 @@ impl SurfacePlatform {
 impl From<SurfacePlatform> for api::VkIcdWsiPlatform {
     fn from(platform: SurfacePlatform) -> api::VkIcdWsiPlatform {
         match platform {
-            SurfacePlatform::VK_ICD_WSI_PLATFORM_MIR => api::VK_ICD_WSI_PLATFORM_MIR,
             SurfacePlatform::VK_ICD_WSI_PLATFORM_WAYLAND => api::VK_ICD_WSI_PLATFORM_WAYLAND,
             SurfacePlatform::VK_ICD_WSI_PLATFORM_WIN32 => api::VK_ICD_WSI_PLATFORM_WIN32,
             SurfacePlatform::VK_ICD_WSI_PLATFORM_XCB => api::VK_ICD_WSI_PLATFORM_XCB,
