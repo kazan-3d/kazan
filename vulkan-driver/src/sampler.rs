@@ -3,10 +3,12 @@
 use api;
 use handle::SharedHandle;
 
+#[derive(Debug)]
 pub struct AnisotropySettings {
     pub max: f32,
 }
 
+#[derive(Debug)]
 pub struct Sampler {
     pub mag_filter: api::VkFilter,
     pub min_filter: api::VkFilter,
@@ -22,4 +24,5 @@ pub struct Sampler {
     pub sampler_ycbcr_conversion: Option<SharedHandle<api::VkSamplerYcbcrConversion>>,
 }
 
+#[derive(Debug)]
 pub struct SamplerYcbcrConversion {}

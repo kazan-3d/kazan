@@ -2,9 +2,11 @@
 // Copyright 2018 Jacob Lifshay
 use api;
 use api_impl::{Device, Instance, PhysicalDevice, Queue};
-use buffer::Buffer;
+use buffer::{Buffer, BufferView};
+use descriptor_set::{DescriptorPool, DescriptorSet, DescriptorSetLayout};
 use device_memory::DeviceMemory;
-use image::Image;
+use image::{Image, ImageView};
+use render_pass::RenderPass;
 use sampler::Sampler;
 use sampler::SamplerYcbcrConversion;
 use shader_module::ShaderModule;
@@ -205,9 +207,14 @@ where
     }
 }
 
-#[derive(Copy, Clone)]
 #[repr(transparent)]
 pub struct SharedHandle<T: Handle>(NonNull<T::Value>);
+
+impl<T: Handle> Clone for SharedHandle<T> {
+    fn clone(&self) -> Self {
+        SharedHandle(self.0)
+    }
+}
 
 impl<T: Handle> SharedHandle<T> {
     pub unsafe fn from(v: T) -> Option<Self> {
@@ -344,13 +351,9 @@ pub type VkQueryPool = NondispatchableHandle<QueryPool>;
 
 impl HandleAllocFree for VkQueryPool {}
 
-pub struct BufferView {}
-
 pub type VkBufferView = NondispatchableHandle<BufferView>;
 
 impl HandleAllocFree for VkBufferView {}
-
-pub struct ImageView {}
 
 pub type VkImageView = NondispatchableHandle<ImageView>;
 
@@ -372,8 +375,6 @@ pub type VkPipelineLayout = NondispatchableHandle<PipelineLayout>;
 
 impl HandleAllocFree for VkPipelineLayout {}
 
-pub struct RenderPass {}
-
 pub type VkRenderPass = NondispatchableHandle<RenderPass>;
 
 impl HandleAllocFree for VkRenderPass {}
@@ -384,8 +385,6 @@ pub type VkPipeline = NondispatchableHandle<Pipeline>;
 
 impl HandleAllocFree for VkPipeline {}
 
-pub struct DescriptorSetLayout {}
-
 pub type VkDescriptorSetLayout = NondispatchableHandle<DescriptorSetLayout>;
 
 impl HandleAllocFree for VkDescriptorSetLayout {}
@@ -394,13 +393,9 @@ pub type VkSampler = NondispatchableHandle<Sampler>;
 
 impl HandleAllocFree for VkSampler {}
 
-pub struct DescriptorPool {}
-
 pub type VkDescriptorPool = NondispatchableHandle<DescriptorPool>;
 
 impl HandleAllocFree for VkDescriptorPool {}
-
-pub struct DescriptorSet {}
 
 pub type VkDescriptorSet = NondispatchableHandle<DescriptorSet>;
 

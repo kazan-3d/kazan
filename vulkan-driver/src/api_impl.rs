@@ -2,21 +2,26 @@
 // Copyright 2018 Jacob Lifshay
 
 // allow unneeded_field_pattern to ensure fields aren't accidently missed
-#![cfg_attr(
-    feature = "cargo-clippy",
-    allow(clippy::unneeded_field_pattern)
-)]
+#![cfg_attr(feature = "cargo-clippy", allow(clippy::unneeded_field_pattern))]
 
 use api;
 use buffer::{Buffer, BufferMemory};
 use constants::*;
+use descriptor_set::{
+    Descriptor, DescriptorLayout, DescriptorPool, DescriptorSet, DescriptorSetLayout,
+    DescriptorWriteArg,
+};
 use device_memory::{
     DeviceMemory, DeviceMemoryAllocation, DeviceMemoryHeap, DeviceMemoryHeaps, DeviceMemoryLayout,
     DeviceMemoryType, DeviceMemoryTypes,
 };
 use enum_map::EnumMap;
 use handle::{Handle, MutHandle, OwnedHandle, SharedHandle};
-use image::{Image, ImageMemory, ImageMultisampleCount, ImageProperties, SupportedTilings};
+use image::{
+    ComponentMapping, Image, ImageMemory, ImageMultisampleCount, ImageProperties, ImageView,
+    ImageViewType, SupportedTilings,
+};
+use render_pass::RenderPass;
 use sampler;
 use sampler::Sampler;
 use shader_module::ShaderModule;
@@ -242,7 +247,7 @@ macro_rules! parse_next_chain_const {
     } => {
         $(let mut $name: *const $var_type = null();)*
         parse_next_chain_const(
-            $root as *const api::VkBaseInStructure,
+            $root as *const _ as *const api::VkBaseInStructure,
             $root_type,
             &[$(($struct_type, &mut $name as *mut *const $var_type as *mut *const api::VkBaseInStructure)),*]
         );
@@ -257,7 +262,7 @@ macro_rules! parse_next_chain_mut {
     } => {
         $(let mut $name: *mut $var_type = null_mut();)*
         parse_next_chain_mut(
-            $root as *mut api::VkBaseOutStructure,
+            $root as *mut _ as *mut api::VkBaseOutStructure,
             $root_type,
             &[$(($struct_type, &mut $name as *mut *mut $var_type as *mut *mut api::VkBaseOutStructure)),*]
         );
@@ -651,10 +656,7 @@ enum GetProcAddressScope {
     Device,
 }
 
-#[cfg_attr(
-    feature = "cargo-clippy",
-    allow(clippy::cyclomatic_complexity)
-)]
+#[cfg_attr(feature = "cargo-clippy", allow(clippy::cyclomatic_complexity))]
 fn get_proc_address(
     name: *const c_char,
     scope: GetProcAddressScope,
@@ -1651,7 +1653,7 @@ impl Device {
         let mut queue_counts: Vec<_> = Vec::new();
         for queue_create_info in queue_create_infos {
             parse_next_chain_const!{
-                queue_create_info as *const api::VkDeviceQueueCreateInfo,
+                queue_create_info,
                 root = api::VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
             }
             let api::VkDeviceQueueCreateInfo {
@@ -3476,7 +3478,7 @@ unsafe fn get_physical_device_queue_family_properties(
     queue_count: u32,
 ) {
     parse_next_chain_mut!{
-        queue_family_properties as *mut api::VkQueueFamilyProperties2,
+        queue_family_properties,
         root = api::VK_STRUCTURE_TYPE_QUEUE_FAMILY_PROPERTIES_2,
     }
     queue_family_properties.queueFamilyProperties = api::VkQueueFamilyProperties {
@@ -4142,20 +4144,33 @@ pub unsafe extern "system" fn vkGetImageSubresourceLayout(
 #[allow(non_snake_case)]
 pub unsafe extern "system" fn vkCreateImageView(
     _device: api::VkDevice,
-    _pCreateInfo: *const api::VkImageViewCreateInfo,
-    _pAllocator: *const api::VkAllocationCallbacks,
-    _pView: *mut api::VkImageView,
+    create_info: *const api::VkImageViewCreateInfo,
+    _allocator: *const api::VkAllocationCallbacks,
+    view: *mut api::VkImageView,
 ) -> api::VkResult {
-    unimplemented!()
+    parse_next_chain_const!{
+        create_info,
+        root = api::VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+    }
+    let create_info = &*create_info;
+    let new_view = OwnedHandle::<api::VkImageView>::new(ImageView {
+        image: SharedHandle::from(create_info.image).unwrap(),
+        view_type: ImageViewType::from(create_info.viewType),
+        format: create_info.format,
+        component_mapping: ComponentMapping::from(create_info.components).unwrap(),
+        subresource_range: create_info.subresourceRange,
+    });
+    *view = new_view.take();
+    api::VK_SUCCESS
 }
 
 #[allow(non_snake_case)]
 pub unsafe extern "system" fn vkDestroyImageView(
     _device: api::VkDevice,
-    _imageView: api::VkImageView,
-    _pAllocator: *const api::VkAllocationCallbacks,
+    image_view: api::VkImageView,
+    _allocator: *const api::VkAllocationCallbacks,
 ) {
-    unimplemented!()
+    OwnedHandle::from(image_view);
 }
 
 #[allow(non_snake_case)]
@@ -4338,78 +4353,171 @@ pub unsafe extern "system" fn vkDestroySampler(
 #[allow(non_snake_case)]
 pub unsafe extern "system" fn vkCreateDescriptorSetLayout(
     _device: api::VkDevice,
-    _pCreateInfo: *const api::VkDescriptorSetLayoutCreateInfo,
-    _pAllocator: *const api::VkAllocationCallbacks,
-    _pSetLayout: *mut api::VkDescriptorSetLayout,
+    create_info: *const api::VkDescriptorSetLayoutCreateInfo,
+    _allocator: *const api::VkAllocationCallbacks,
+    set_layout: *mut api::VkDescriptorSetLayout,
 ) -> api::VkResult {
-    unimplemented!()
+    parse_next_chain_const!{
+        create_info,
+        root = api::VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+    }
+    let create_info = &*create_info;
+    let bindings = match create_info.bindingCount {
+        0 => &[],
+        binding_count => slice::from_raw_parts(create_info.pBindings, binding_count as usize),
+    };
+    let max_binding = bindings.iter().map(|v| v.binding).max().unwrap_or(0) as usize;
+    let mut bindings_map: Vec<Option<DescriptorLayout>> = (0..=max_binding).map(|_| None).collect();
+    for binding in bindings {
+        let bindings_map_entry = &mut bindings_map[binding.binding as usize];
+        assert!(
+            bindings_map_entry.is_none(),
+            "duplicate binding: {}",
+            binding.binding
+        );
+        *bindings_map_entry = Some(DescriptorLayout::from(binding));
+    }
+    *set_layout = OwnedHandle::<api::VkDescriptorSetLayout>::new(DescriptorSetLayout {
+        bindings: bindings_map,
+    })
+    .take();
+    api::VK_SUCCESS
 }
 
 #[allow(non_snake_case)]
 pub unsafe extern "system" fn vkDestroyDescriptorSetLayout(
     _device: api::VkDevice,
-    _descriptorSetLayout: api::VkDescriptorSetLayout,
-    _pAllocator: *const api::VkAllocationCallbacks,
+    descriptor_set_layout: api::VkDescriptorSetLayout,
+    _allocator: *const api::VkAllocationCallbacks,
 ) {
-    unimplemented!()
+    OwnedHandle::from(descriptor_set_layout);
 }
 
 #[allow(non_snake_case)]
 pub unsafe extern "system" fn vkCreateDescriptorPool(
     _device: api::VkDevice,
-    _pCreateInfo: *const api::VkDescriptorPoolCreateInfo,
-    _pAllocator: *const api::VkAllocationCallbacks,
-    _pDescriptorPool: *mut api::VkDescriptorPool,
+    create_info: *const api::VkDescriptorPoolCreateInfo,
+    _allocator: *const api::VkAllocationCallbacks,
+    descriptor_pool: *mut api::VkDescriptorPool,
 ) -> api::VkResult {
-    unimplemented!()
+    parse_next_chain_const!{
+        create_info,
+        root = api::VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
+    }
+    *descriptor_pool = OwnedHandle::<api::VkDescriptorPool>::new(DescriptorPool::new()).take();
+    api::VK_SUCCESS
 }
 
 #[allow(non_snake_case)]
 pub unsafe extern "system" fn vkDestroyDescriptorPool(
     _device: api::VkDevice,
-    _descriptorPool: api::VkDescriptorPool,
-    _pAllocator: *const api::VkAllocationCallbacks,
+    descriptor_pool: api::VkDescriptorPool,
+    _allocator: *const api::VkAllocationCallbacks,
 ) {
-    unimplemented!()
+    OwnedHandle::from(descriptor_pool);
 }
 
 #[allow(non_snake_case)]
 pub unsafe extern "system" fn vkResetDescriptorPool(
     _device: api::VkDevice,
-    _descriptorPool: api::VkDescriptorPool,
+    descriptor_pool: api::VkDescriptorPool,
     _flags: api::VkDescriptorPoolResetFlags,
 ) -> api::VkResult {
-    unimplemented!()
+    MutHandle::from(descriptor_pool).unwrap().reset();
+    api::VK_SUCCESS
 }
 
 #[allow(non_snake_case)]
 pub unsafe extern "system" fn vkAllocateDescriptorSets(
     _device: api::VkDevice,
-    _pAllocateInfo: *const api::VkDescriptorSetAllocateInfo,
-    _pDescriptorSets: *mut api::VkDescriptorSet,
+    allocate_info: *const api::VkDescriptorSetAllocateInfo,
+    descriptor_sets: *mut api::VkDescriptorSet,
 ) -> api::VkResult {
-    unimplemented!()
+    parse_next_chain_const!{
+        allocate_info,
+        root = api::VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+    }
+    let allocate_info = &*allocate_info;
+    let mut descriptor_pool = MutHandle::from(allocate_info.descriptorPool).unwrap();
+    let descriptor_sets =
+        slice::from_raw_parts_mut(descriptor_sets, allocate_info.descriptorSetCount as usize);
+    let descriptor_set_layouts = slice::from_raw_parts(
+        allocate_info.pSetLayouts,
+        allocate_info.descriptorSetCount as usize,
+    );
+    descriptor_pool.allocate(
+        descriptor_set_layouts
+            .iter()
+            .map(|descriptor_set_layout| DescriptorSet {
+                bindings: SharedHandle::from(*descriptor_set_layout)
+                    .unwrap()
+                    .bindings
+                    .iter()
+                    .map(|layout| layout.as_ref().map(Descriptor::from))
+                    .collect(),
+            }),
+        descriptor_sets,
+    );
+    api::VK_SUCCESS
 }
 
 #[allow(non_snake_case)]
 pub unsafe extern "system" fn vkFreeDescriptorSets(
     _device: api::VkDevice,
-    _descriptorPool: api::VkDescriptorPool,
-    _descriptorSetCount: u32,
-    _pDescriptorSets: *const api::VkDescriptorSet,
+    descriptor_pool: api::VkDescriptorPool,
+    descriptor_set_count: u32,
+    descriptor_sets: *const api::VkDescriptorSet,
 ) -> api::VkResult {
-    unimplemented!()
+    let mut descriptor_pool = MutHandle::from(descriptor_pool).unwrap();
+    let descriptor_sets = slice::from_raw_parts(descriptor_sets, descriptor_set_count as usize);
+    descriptor_pool.free(descriptor_sets);
+    api::VK_SUCCESS
 }
 
 #[allow(non_snake_case)]
 pub unsafe extern "system" fn vkUpdateDescriptorSets(
     _device: api::VkDevice,
-    _descriptorWriteCount: u32,
-    _pDescriptorWrites: *const api::VkWriteDescriptorSet,
-    _descriptorCopyCount: u32,
-    _pDescriptorCopies: *const api::VkCopyDescriptorSet,
+    descriptor_write_count: u32,
+    descriptor_writes: *const api::VkWriteDescriptorSet,
+    descriptor_copy_count: u32,
+    descriptor_copies: *const api::VkCopyDescriptorSet,
 ) {
-    unimplemented!()
+    let descriptor_writes =
+        slice::from_raw_parts(descriptor_writes, descriptor_write_count as usize);
+    let descriptor_copies =
+        slice::from_raw_parts(descriptor_copies, descriptor_copy_count as usize);
+    for descriptor_write in descriptor_writes {
+        parse_next_chain_const!{
+            descriptor_write,
+            root = api::VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+        }
+        let mut descriptor_set = MutHandle::from(descriptor_write.dstSet).unwrap();
+        let mut binding_index = descriptor_write.dstBinding as usize;
+        let mut elements = DescriptorWriteArg::from(descriptor_write);
+        let mut start_element = Some(descriptor_write.dstArrayElement as usize);
+        while elements.len() != 0 {
+            let binding = descriptor_set.bindings[binding_index].as_mut().unwrap();
+            binding_index += 1;
+            assert_eq!(binding.descriptor_type(), descriptor_write.descriptorType);
+            if binding.element_count() == 0 {
+                assert_eq!(start_element, None);
+                continue;
+            }
+            let start_element = start_element.take().unwrap_or(0);
+            let used_elements = elements
+                .len()
+                .min(binding.element_count().checked_sub(start_element).unwrap());
+            binding.write(start_element, elements.slice_to(..used_elements));
+            elements = elements.slice_from(used_elements..);
+        }
+    }
+    for descriptor_copy in descriptor_copies {
+        parse_next_chain_const!{
+            descriptor_copy,
+            root = api::VK_STRUCTURE_TYPE_COPY_DESCRIPTOR_SET,
+        }
+        unimplemented!()
+    }
 }
 
 #[allow(non_snake_case)]
@@ -4434,20 +4542,26 @@ pub unsafe extern "system" fn vkDestroyFramebuffer(
 #[allow(non_snake_case)]
 pub unsafe extern "system" fn vkCreateRenderPass(
     _device: api::VkDevice,
-    _pCreateInfo: *const api::VkRenderPassCreateInfo,
-    _pAllocator: *const api::VkAllocationCallbacks,
-    _pRenderPass: *mut api::VkRenderPass,
+    create_info: *const api::VkRenderPassCreateInfo,
+    _allocator: *const api::VkAllocationCallbacks,
+    render_pass: *mut api::VkRenderPass,
 ) -> api::VkResult {
-    unimplemented!()
+    parse_next_chain_const!{
+        create_info,
+        root = api::VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
+    }
+    // FIXME: finish implementing
+    *render_pass = OwnedHandle::<api::VkRenderPass>::new(RenderPass {}).take();
+    api::VK_SUCCESS
 }
 
 #[allow(non_snake_case)]
 pub unsafe extern "system" fn vkDestroyRenderPass(
     _device: api::VkDevice,
-    _renderPass: api::VkRenderPass,
-    _pAllocator: *const api::VkAllocationCallbacks,
+    render_pass: api::VkRenderPass,
+    _allocator: *const api::VkAllocationCallbacks,
 ) {
-    unimplemented!()
+    OwnedHandle::from(render_pass);
 }
 
 #[allow(non_snake_case)]
@@ -5008,7 +5122,7 @@ pub unsafe extern "system" fn vkBindBufferMemory2(
     let bind_infos = slice::from_raw_parts(bind_infos, bind_info_count as usize);
     for bind_info in bind_infos {
         parse_next_chain_const!{
-            bind_info as *const api::VkBindBufferMemoryInfo,
+            bind_info,
             root = api::VK_STRUCTURE_TYPE_BIND_BUFFER_MEMORY_INFO,
             device_group_info: api::VkBindBufferMemoryDeviceGroupInfo = api::VK_STRUCTURE_TYPE_BIND_BUFFER_MEMORY_DEVICE_GROUP_INFO,
         }
@@ -5046,7 +5160,7 @@ pub unsafe extern "system" fn vkBindImageMemory2(
     let bind_infos = slice::from_raw_parts(bind_infos, bind_info_count as usize);
     for bind_info in bind_infos {
         parse_next_chain_const!{
-            bind_info as *const api::VkBindImageMemoryInfo,
+            bind_info,
             root = api::VK_STRUCTURE_TYPE_BIND_IMAGE_MEMORY_INFO,
             device_group_info: api::VkBindImageMemoryDeviceGroupInfo = api::VK_STRUCTURE_TYPE_BIND_IMAGE_MEMORY_DEVICE_GROUP_INFO,
             swapchain_info: api::VkBindImageMemorySwapchainInfoKHR = api::VK_STRUCTURE_TYPE_BIND_IMAGE_MEMORY_SWAPCHAIN_INFO_KHR,
@@ -5127,7 +5241,7 @@ pub unsafe extern "system" fn vkEnumeratePhysicalDeviceGroups(
         iter::once(()),
         |physical_device_group_properties, _| {
             parse_next_chain_mut!{
-                physical_device_group_properties as *mut api::VkPhysicalDeviceGroupProperties,
+                physical_device_group_properties,
                 root = api::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_GROUP_PROPERTIES,
             }
             let mut physical_devices = [Handle::null(); api::VK_MAX_DEVICE_GROUP_SIZE as usize];

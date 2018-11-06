@@ -15,9 +15,11 @@ extern crate xcb;
 mod api;
 mod api_impl;
 mod buffer;
+mod descriptor_set;
 mod device_memory;
 mod handle;
 mod image;
+mod render_pass;
 mod sampler;
 mod shader_module;
 #[cfg(target_os = "linux")]

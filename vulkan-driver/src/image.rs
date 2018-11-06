@@ -1,13 +1,12 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 // Copyright 2018 Jacob Lifshay
-#![cfg_attr(
-    feature = "cargo-clippy",
-    allow(clippy::unneeded_field_pattern)
-)]
+#![cfg_attr(feature = "cargo-clippy", allow(clippy::unneeded_field_pattern))]
 use api;
 use constants::IMAGE_ALIGNMENT;
 use device_memory::DeviceMemoryLayout;
 use handle::SharedHandle;
+use std::error;
+use std::fmt;
 
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
 pub enum SupportedTilings {
@@ -46,6 +45,16 @@ pub struct ImageComputedProperties {
 }
 
 impl ImageProperties {
+    pub fn get_tiling(&self, image_layout: api::VkImageLayout) -> Tiling {
+        if image_layout == api::VK_IMAGE_LAYOUT_PRESENT_SRC_KHR {
+            self.swapchain_present_tiling.unwrap()
+        } else {
+            match self.supported_tilings {
+                SupportedTilings::LinearOnly => Tiling::Linear,
+                SupportedTilings::Any => Tiling::Tiled,
+            }
+        }
+    }
     pub fn computed_properties(&self) -> ImageComputedProperties {
         match *self {
             Self {
@@ -89,4 +98,109 @@ pub struct ImageMemory {
 pub struct Image {
     pub properties: ImageProperties,
     pub memory: Option<ImageMemory>,
+}
+
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
+pub enum ImageViewType {
+    Type1D,
+    Type2D,
+    Type3D,
+    Cube,
+    Array1D,
+    Array2D,
+    CubeArray,
+}
+
+impl ImageViewType {
+    pub fn from(v: api::VkImageViewType) -> Self {
+        match v {
+            api::VK_IMAGE_VIEW_TYPE_1D => ImageViewType::Type1D,
+            api::VK_IMAGE_VIEW_TYPE_2D => ImageViewType::Type2D,
+            api::VK_IMAGE_VIEW_TYPE_3D => ImageViewType::Type3D,
+            api::VK_IMAGE_VIEW_TYPE_CUBE => ImageViewType::Cube,
+            api::VK_IMAGE_VIEW_TYPE_1D_ARRAY => ImageViewType::Array1D,
+            api::VK_IMAGE_VIEW_TYPE_2D_ARRAY => ImageViewType::Array2D,
+            api::VK_IMAGE_VIEW_TYPE_CUBE_ARRAY => ImageViewType::CubeArray,
+            _ => unreachable!(),
+        }
+    }
+}
+
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
+pub enum ComponentSwizzle {
+    Zero,
+    One,
+    X,
+    Y,
+    Z,
+    W,
+}
+
+#[derive(Debug)]
+pub struct InvalidVkComponentSwizzle;
+
+impl fmt::Display for InvalidVkComponentSwizzle {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "invalid VkComponentSwizzle")
+    }
+}
+
+impl error::Error for InvalidVkComponentSwizzle {}
+
+impl ComponentSwizzle {
+    pub fn from(
+        v: api::VkComponentSwizzle,
+        identity: Self,
+    ) -> Result<Self, InvalidVkComponentSwizzle> {
+        match v {
+            api::VK_COMPONENT_SWIZZLE_IDENTITY => Ok(identity),
+            api::VK_COMPONENT_SWIZZLE_ZERO => Ok(ComponentSwizzle::Zero),
+            api::VK_COMPONENT_SWIZZLE_ONE => Ok(ComponentSwizzle::One),
+            api::VK_COMPONENT_SWIZZLE_R => Ok(ComponentSwizzle::X),
+            api::VK_COMPONENT_SWIZZLE_G => Ok(ComponentSwizzle::Y),
+            api::VK_COMPONENT_SWIZZLE_B => Ok(ComponentSwizzle::Z),
+            api::VK_COMPONENT_SWIZZLE_A => Ok(ComponentSwizzle::W),
+            _ => Err(InvalidVkComponentSwizzle),
+        }
+    }
+}
+
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
+pub struct ComponentMapping {
+    pub x: ComponentSwizzle,
+    pub y: ComponentSwizzle,
+    pub z: ComponentSwizzle,
+    pub w: ComponentSwizzle,
+}
+
+impl ComponentMapping {
+    pub const IDENTITY: ComponentMapping = ComponentMapping {
+        x: ComponentSwizzle::X,
+        y: ComponentSwizzle::Y,
+        z: ComponentSwizzle::Z,
+        w: ComponentSwizzle::W,
+    };
+    pub fn from(v: api::VkComponentMapping) -> Result<Self, InvalidVkComponentSwizzle> {
+        Ok(Self {
+            x: ComponentSwizzle::from(v.r, ComponentSwizzle::X)?,
+            y: ComponentSwizzle::from(v.g, ComponentSwizzle::Y)?,
+            z: ComponentSwizzle::from(v.b, ComponentSwizzle::Z)?,
+            w: ComponentSwizzle::from(v.a, ComponentSwizzle::W)?,
+        })
+    }
+}
+
+impl Default for ComponentMapping {
+    fn default() -> Self {
+        Self::IDENTITY
+    }
+}
+
+#[derive(Debug)]
+pub struct ImageView {
+    pub image: SharedHandle<api::VkImage>,
+    pub view_type: ImageViewType,
+    pub format: api::VkFormat,
+    pub component_mapping: ComponentMapping,
+    pub subresource_range: api::VkImageSubresourceRange,
 }
