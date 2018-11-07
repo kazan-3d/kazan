@@ -6,6 +6,7 @@ use buffer::{Buffer, BufferView};
 use descriptor_set::{DescriptorPool, DescriptorSet, DescriptorSetLayout};
 use device_memory::DeviceMemory;
 use image::{Image, ImageView};
+use pipeline::{Pipeline, PipelineLayout};
 use render_pass::RenderPass;
 use sampler::Sampler;
 use sampler::SamplerYcbcrConversion;
@@ -210,6 +211,8 @@ where
 #[repr(transparent)]
 pub struct SharedHandle<T: Handle>(NonNull<T::Value>);
 
+impl<T: Handle> Copy for SharedHandle<T> {}
+
 impl<T: Handle> Clone for SharedHandle<T> {
     fn clone(&self) -> Self {
         SharedHandle(self.0)
@@ -224,7 +227,7 @@ impl<T: Handle> SharedHandle<T> {
     pub unsafe fn take(self) -> T {
         T::new(Some(self.0))
     }
-    pub unsafe fn get_handle(&self) -> T {
+    pub unsafe fn get_handle(self) -> T {
         T::new(Some(self.0))
     }
     pub fn into_nonnull(self) -> NonNull<T::Value> {
@@ -369,8 +372,6 @@ pub type VkPipelineCache = NondispatchableHandle<PipelineCache>;
 
 impl HandleAllocFree for VkPipelineCache {}
 
-pub struct PipelineLayout {}
-
 pub type VkPipelineLayout = NondispatchableHandle<PipelineLayout>;
 
 impl HandleAllocFree for VkPipelineLayout {}
@@ -378,8 +379,6 @@ impl HandleAllocFree for VkPipelineLayout {}
 pub type VkRenderPass = NondispatchableHandle<RenderPass>;
 
 impl HandleAllocFree for VkRenderPass {}
-
-pub struct Pipeline {}
 
 pub type VkPipeline = NondispatchableHandle<Pipeline>;
 

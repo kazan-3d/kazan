@@ -7,7 +7,7 @@ use std::ops::Deref;
 use std::ops::DerefMut;
 use std::os::raw::c_int;
 use std::ptr::null_mut;
-use std::slice;
+use util;
 
 #[derive(Debug)]
 #[allow(dead_code)]
@@ -73,7 +73,7 @@ pub struct MappedSharedMemorySegment {
 
 impl MappedSharedMemorySegment {
     unsafe fn get(&self) -> *mut [u8] {
-        slice::from_raw_parts_mut(self.memory, self.size)
+        util::to_slice_mut(self.memory, self.size)
     }
 }
 

@@ -21,6 +21,7 @@ use image::{
     ComponentMapping, Image, ImageMemory, ImageMultisampleCount, ImageProperties, ImageView,
     ImageViewType, SupportedTilings,
 };
+use pipeline::{self, PipelineLayout};
 use render_pass::RenderPass;
 use sampler;
 use sampler::Sampler;
@@ -35,251 +36,13 @@ use std::ptr::null;
 use std::ptr::null_mut;
 #[cfg(target_os = "linux")]
 use std::ptr::NonNull;
-use std::slice;
 use std::str::FromStr;
 use swapchain::SurfacePlatform;
 use sys_info;
+use util;
 use uuid;
 #[cfg(target_os = "linux")]
 use xcb;
-
-/// structure types the driver should know about
-fn is_supported_structure_type(v: api::VkStructureType) -> bool {
-    #[cfg(target_os = "linux")]
-    {
-        #[cfg_attr(feature = "cargo-clippy", allow(clippy::single_match))]
-        match v {
-            api::VK_STRUCTURE_TYPE_XCB_SURFACE_CREATE_INFO_KHR => return true,
-            _ => {}
-        }
-    }
-    match v {
-        api::VK_STRUCTURE_TYPE_ACQUIRE_NEXT_IMAGE_INFO_KHR
-        | api::VK_STRUCTURE_TYPE_APPLICATION_INFO
-        | api::VK_STRUCTURE_TYPE_BIND_BUFFER_MEMORY_DEVICE_GROUP_INFO
-        | api::VK_STRUCTURE_TYPE_BIND_BUFFER_MEMORY_INFO
-        | api::VK_STRUCTURE_TYPE_BIND_IMAGE_MEMORY_DEVICE_GROUP_INFO
-        | api::VK_STRUCTURE_TYPE_BIND_IMAGE_MEMORY_INFO
-        | api::VK_STRUCTURE_TYPE_BIND_IMAGE_MEMORY_SWAPCHAIN_INFO_KHR
-        | api::VK_STRUCTURE_TYPE_BIND_IMAGE_PLANE_MEMORY_INFO
-        | api::VK_STRUCTURE_TYPE_BIND_SPARSE_INFO
-        | api::VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO
-        | api::VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER
-        | api::VK_STRUCTURE_TYPE_BUFFER_MEMORY_REQUIREMENTS_INFO_2
-        | api::VK_STRUCTURE_TYPE_BUFFER_VIEW_CREATE_INFO
-        | api::VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO
-        | api::VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO
-        | api::VK_STRUCTURE_TYPE_COMMAND_BUFFER_INHERITANCE_INFO
-        | api::VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO
-        | api::VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO
-        | api::VK_STRUCTURE_TYPE_COPY_DESCRIPTOR_SET
-        | api::VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO
-        | api::VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO
-        | api::VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO
-        | api::VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_SUPPORT
-        | api::VK_STRUCTURE_TYPE_DESCRIPTOR_UPDATE_TEMPLATE_CREATE_INFO
-        | api::VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO
-        | api::VK_STRUCTURE_TYPE_DEVICE_GROUP_BIND_SPARSE_INFO
-        | api::VK_STRUCTURE_TYPE_DEVICE_GROUP_COMMAND_BUFFER_BEGIN_INFO
-        | api::VK_STRUCTURE_TYPE_DEVICE_GROUP_DEVICE_CREATE_INFO
-        | api::VK_STRUCTURE_TYPE_DEVICE_GROUP_PRESENT_CAPABILITIES_KHR
-        | api::VK_STRUCTURE_TYPE_DEVICE_GROUP_PRESENT_INFO_KHR
-        | api::VK_STRUCTURE_TYPE_DEVICE_GROUP_RENDER_PASS_BEGIN_INFO
-        | api::VK_STRUCTURE_TYPE_DEVICE_GROUP_SUBMIT_INFO
-        | api::VK_STRUCTURE_TYPE_DEVICE_GROUP_SWAPCHAIN_CREATE_INFO_KHR
-        | api::VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO
-        | api::VK_STRUCTURE_TYPE_DEVICE_QUEUE_INFO_2
-        | api::VK_STRUCTURE_TYPE_EVENT_CREATE_INFO
-        | api::VK_STRUCTURE_TYPE_EXPORT_FENCE_CREATE_INFO
-        | api::VK_STRUCTURE_TYPE_EXPORT_MEMORY_ALLOCATE_INFO
-        | api::VK_STRUCTURE_TYPE_EXPORT_SEMAPHORE_CREATE_INFO
-        | api::VK_STRUCTURE_TYPE_EXTERNAL_BUFFER_PROPERTIES
-        | api::VK_STRUCTURE_TYPE_EXTERNAL_FENCE_PROPERTIES
-        | api::VK_STRUCTURE_TYPE_EXTERNAL_IMAGE_FORMAT_PROPERTIES
-        | api::VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_BUFFER_CREATE_INFO
-        | api::VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_IMAGE_CREATE_INFO
-        | api::VK_STRUCTURE_TYPE_EXTERNAL_SEMAPHORE_PROPERTIES
-        | api::VK_STRUCTURE_TYPE_FENCE_CREATE_INFO
-        | api::VK_STRUCTURE_TYPE_FORMAT_PROPERTIES_2
-        | api::VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO
-        | api::VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO
-        | api::VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO
-        | api::VK_STRUCTURE_TYPE_IMAGE_FORMAT_PROPERTIES_2
-        | api::VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER
-        | api::VK_STRUCTURE_TYPE_IMAGE_MEMORY_REQUIREMENTS_INFO_2
-        | api::VK_STRUCTURE_TYPE_IMAGE_PLANE_MEMORY_REQUIREMENTS_INFO
-        | api::VK_STRUCTURE_TYPE_IMAGE_SPARSE_MEMORY_REQUIREMENTS_INFO_2
-        | api::VK_STRUCTURE_TYPE_IMAGE_SWAPCHAIN_CREATE_INFO_KHR
-        | api::VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO
-        | api::VK_STRUCTURE_TYPE_IMAGE_VIEW_USAGE_CREATE_INFO
-        | api::VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO
-        | api::VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE
-        | api::VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_FLAGS_INFO
-        | api::VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO
-        | api::VK_STRUCTURE_TYPE_MEMORY_BARRIER
-        | api::VK_STRUCTURE_TYPE_MEMORY_DEDICATED_ALLOCATE_INFO
-        | api::VK_STRUCTURE_TYPE_MEMORY_DEDICATED_REQUIREMENTS
-        | api::VK_STRUCTURE_TYPE_MEMORY_REQUIREMENTS_2
-        | api::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_16BIT_STORAGE_FEATURES
-        | api::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_EXTERNAL_BUFFER_INFO
-        | api::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_EXTERNAL_FENCE_INFO
-        | api::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_EXTERNAL_IMAGE_FORMAT_INFO
-        | api::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_EXTERNAL_SEMAPHORE_INFO
-        | api::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2
-        | api::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_GROUP_PROPERTIES
-        | api::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ID_PROPERTIES
-        | api::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_IMAGE_FORMAT_INFO_2
-        | api::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MAINTENANCE_3_PROPERTIES
-        | api::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MEMORY_PROPERTIES_2
-        | api::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MULTIVIEW_FEATURES
-        | api::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MULTIVIEW_PROPERTIES
-        | api::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_POINT_CLIPPING_PROPERTIES
-        | api::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2
-        | api::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROTECTED_MEMORY_FEATURES
-        | api::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROTECTED_MEMORY_PROPERTIES
-        | api::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SAMPLER_YCBCR_CONVERSION_FEATURES
-        | api::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_DRAW_PARAMETER_FEATURES
-        | api::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SPARSE_IMAGE_FORMAT_INFO_2
-        | api::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SUBGROUP_PROPERTIES
-        | api::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SURFACE_INFO_2_KHR
-        | api::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VARIABLE_POINTER_FEATURES
-        | api::VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO
-        | api::VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO
-        | api::VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO
-        | api::VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO
-        | api::VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO
-        | api::VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO
-        | api::VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO
-        | api::VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO
-        | api::VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO
-        | api::VK_STRUCTURE_TYPE_PIPELINE_TESSELLATION_DOMAIN_ORIGIN_STATE_CREATE_INFO
-        | api::VK_STRUCTURE_TYPE_PIPELINE_TESSELLATION_STATE_CREATE_INFO
-        | api::VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO
-        | api::VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO
-        | api::VK_STRUCTURE_TYPE_PRESENT_INFO_KHR
-        | api::VK_STRUCTURE_TYPE_PROTECTED_SUBMIT_INFO
-        | api::VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO
-        | api::VK_STRUCTURE_TYPE_QUEUE_FAMILY_PROPERTIES_2
-        | api::VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO
-        | api::VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO
-        | api::VK_STRUCTURE_TYPE_RENDER_PASS_INPUT_ATTACHMENT_ASPECT_CREATE_INFO
-        | api::VK_STRUCTURE_TYPE_RENDER_PASS_MULTIVIEW_CREATE_INFO
-        | api::VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO
-        | api::VK_STRUCTURE_TYPE_SAMPLER_YCBCR_CONVERSION_CREATE_INFO
-        | api::VK_STRUCTURE_TYPE_SAMPLER_YCBCR_CONVERSION_IMAGE_FORMAT_PROPERTIES
-        | api::VK_STRUCTURE_TYPE_SAMPLER_YCBCR_CONVERSION_INFO
-        | api::VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO
-        | api::VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO
-        | api::VK_STRUCTURE_TYPE_SPARSE_IMAGE_FORMAT_PROPERTIES_2
-        | api::VK_STRUCTURE_TYPE_SPARSE_IMAGE_MEMORY_REQUIREMENTS_2
-        | api::VK_STRUCTURE_TYPE_SUBMIT_INFO
-        | api::VK_STRUCTURE_TYPE_SURFACE_CAPABILITIES_2_KHR
-        | api::VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR
-        | api::VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET => true,
-        _ => false,
-    }
-}
-
-fn verify_structure_type_is_supported(v: api::VkStructureType) {
-    assert!(
-        is_supported_structure_type(v),
-        "missing structure type in is_supported_structure_type: {:?}",
-        v
-    );
-}
-
-unsafe fn parse_next_chain_const(
-    root: *const api::VkBaseInStructure,
-    expected_root_struct_type: api::VkStructureType,
-    expected_child_structs: &[(api::VkStructureType, *mut *const api::VkBaseInStructure)],
-) {
-    verify_structure_type_is_supported(expected_root_struct_type);
-    let root = &*root;
-    assert_eq!(root.sType, expected_root_struct_type);
-    for &(child_struct_type, child_struct) in expected_child_structs.iter() {
-        verify_structure_type_is_supported(child_struct_type);
-        *child_struct = null();
-    }
-    let mut child = root.pNext as *const api::VkBaseInStructure;
-    while !child.is_null() {
-        let child_ref = &*child;
-        let search_for_type = child_ref.sType;
-        let mut found = false;
-        for &(child_struct_type, child_struct) in expected_child_structs.iter() {
-            if child_struct_type == search_for_type {
-                assert!(
-                    (*child_struct).is_null(),
-                    "duplicate struct type in pNext chain: {:?}",
-                    search_for_type
-                );
-                *child_struct = child;
-                found = true;
-                break;
-            }
-        }
-        assert!(
-            found || !is_supported_structure_type(search_for_type),
-            "unexpected struct type in pNext chain: {:?}",
-            search_for_type
-        );
-        child = child_ref.pNext as *const _;
-    }
-}
-
-unsafe fn parse_next_chain_mut(
-    root: *mut api::VkBaseOutStructure,
-    expected_root_struct_type: api::VkStructureType,
-    expected_child_structs: &[(api::VkStructureType, *mut *mut api::VkBaseOutStructure)],
-) {
-    parse_next_chain_const(
-        root as *const api::VkBaseInStructure,
-        expected_root_struct_type,
-        &*(expected_child_structs as *const [(u32, *mut *mut api::VkBaseOutStructure)]
-            as *const [(u32, *mut *const api::VkBaseInStructure)]),
-    )
-}
-
-macro_rules! parse_next_chain_const {
-    {
-        $root:expr,
-        root = $root_type:expr,
-        $($name:ident: $var_type:ty = $struct_type:expr,)*
-    } => {
-        $(let mut $name: *const $var_type = null();)*
-        parse_next_chain_const(
-            $root as *const _ as *const api::VkBaseInStructure,
-            $root_type,
-            &[$(($struct_type, &mut $name as *mut *const $var_type as *mut *const api::VkBaseInStructure)),*]
-        );
-    };
-}
-
-macro_rules! parse_next_chain_mut {
-    {
-        $root:expr,
-        root = $root_type:expr,
-        $($name:ident: $var_type:ty = $struct_type:expr,)*
-    } => {
-        $(let mut $name: *mut $var_type = null_mut();)*
-        parse_next_chain_mut(
-            $root as *mut _ as *mut api::VkBaseOutStructure,
-            $root_type,
-            &[$(($struct_type, &mut $name as *mut *mut $var_type as *mut *mut api::VkBaseOutStructure)),*]
-        );
-    };
-}
-
-fn copy_str_to_char_array(dest: &mut [c_char], src: &str) {
-    #![cfg_attr(feature = "cargo-clippy", allow(clippy::int_plus_one))]
-    assert!(dest.len() >= src.len() + 1);
-    let src = src.as_bytes();
-    for i in 0..src.len() {
-        dest[i] = src[i] as c_char;
-    }
-    for v in dest.iter_mut().skip(src.len()) {
-        *v = 0;
-    }
-}
 
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Enum)]
 #[repr(u32)]
@@ -490,7 +253,7 @@ impl Extension {
             extensionName: [0; api::VK_MAX_EXTENSION_NAME_SIZE as usize],
             specVersion: self.get_spec_version(),
         };
-        copy_str_to_char_array(&mut retval.extensionName, self.get_name());
+        util::copy_str_to_char_array(&mut retval.extensionName, self.get_name());
         retval
     }
     pub fn get_scope(self) -> ExtensionScope {
@@ -1564,19 +1327,17 @@ impl Device {
             return Err(api::VK_ERROR_LAYER_NOT_PRESENT);
         }
         let mut enabled_extensions = physical_device.enabled_extensions;
-        if create_info.enabledExtensionCount != 0 {
-            for &extension_name in slice::from_raw_parts(
-                create_info.ppEnabledExtensionNames,
-                create_info.enabledExtensionCount as usize,
-            ) {
-                let extension: Extension = CStr::from_ptr(extension_name)
-                    .to_str()
-                    .map_err(|_| api::VK_ERROR_EXTENSION_NOT_PRESENT)?
-                    .parse()
-                    .map_err(|_| api::VK_ERROR_EXTENSION_NOT_PRESENT)?;
-                assert_eq!(extension.get_scope(), ExtensionScope::Device);
-                enabled_extensions[extension] = true;
-            }
+        for &extension_name in util::to_slice(
+            create_info.ppEnabledExtensionNames,
+            create_info.enabledExtensionCount as usize,
+        ) {
+            let extension: Extension = CStr::from_ptr(extension_name)
+                .to_str()
+                .map_err(|_| api::VK_ERROR_EXTENSION_NOT_PRESENT)?
+                .parse()
+                .map_err(|_| api::VK_ERROR_EXTENSION_NOT_PRESENT)?;
+            assert_eq!(extension.get_scope(), ExtensionScope::Device);
+            enabled_extensions[extension] = true;
         }
         for extension in enabled_extensions
             .iter()
@@ -1644,7 +1405,7 @@ impl Device {
             return Err(api::VK_ERROR_FEATURE_NOT_PRESENT);
         }
         assert_ne!(create_info.queueCreateInfoCount, 0);
-        let queue_create_infos = slice::from_raw_parts(
+        let queue_create_infos = util::to_slice(
             create_info.pQueueCreateInfos,
             create_info.queueCreateInfoCount as usize,
         );
@@ -1667,7 +1428,7 @@ impl Device {
             assert_eq!(flags & api::VK_DEVICE_QUEUE_CREATE_PROTECTED_BIT, 0);
             assert!(queue_family_index < QUEUE_FAMILY_COUNT);
             assert!(queue_count <= QUEUE_COUNTS[queue_family_index as usize]);
-            let queue_priorities = slice::from_raw_parts(queue_priorities, queue_count as usize);
+            let queue_priorities = util::to_slice(queue_priorities, queue_count as usize);
             for &queue_priority in queue_priorities {
                 assert!(queue_priority >= 0.0 && queue_priority <= 1.0);
             }
@@ -3176,19 +2937,17 @@ impl Instance {
             return Err(api::VK_ERROR_LAYER_NOT_PRESENT);
         }
         let mut enabled_extensions = Extensions::create_empty();
-        if create_info.enabledExtensionCount != 0 {
-            for &extension_name in slice::from_raw_parts(
-                create_info.ppEnabledExtensionNames,
-                create_info.enabledExtensionCount as usize,
-            ) {
-                let extension: Extension = CStr::from_ptr(extension_name)
-                    .to_str()
-                    .map_err(|_| api::VK_ERROR_EXTENSION_NOT_PRESENT)?
-                    .parse()
-                    .map_err(|_| api::VK_ERROR_EXTENSION_NOT_PRESENT)?;
-                assert_eq!(extension.get_scope(), ExtensionScope::Instance);
-                enabled_extensions[extension] = true;
-            }
+        for &extension_name in util::to_slice(
+            create_info.ppEnabledExtensionNames,
+            create_info.enabledExtensionCount as usize,
+        ) {
+            let extension: Extension = CStr::from_ptr(extension_name)
+                .to_str()
+                .map_err(|_| api::VK_ERROR_EXTENSION_NOT_PRESENT)?
+                .parse()
+                .map_err(|_| api::VK_ERROR_EXTENSION_NOT_PRESENT)?;
+            assert_eq!(extension.get_scope(), ExtensionScope::Instance);
+            enabled_extensions[extension] = true;
         }
         for extension in enabled_extensions
             .iter()
@@ -3215,7 +2974,7 @@ impl Instance {
             Ok(info) => system_memory_size = info.total * 1024,
         }
         let mut device_name = [0; api::VK_MAX_PHYSICAL_DEVICE_NAME_SIZE as usize];
-        copy_str_to_char_array(&mut device_name, KAZAN_DEVICE_NAME);
+        util::copy_str_to_char_array(&mut device_name, KAZAN_DEVICE_NAME);
         #[cfg_attr(feature = "cargo-clippy", allow(clippy::needless_update))]
         let retval = OwnedHandle::<api::VkInstance>::new(Instance {
             physical_device: OwnedHandle::new(PhysicalDevice {
@@ -3336,10 +3095,7 @@ pub unsafe fn enumerate_helper<T, Item, I: IntoIterator<Item = Item>, AF: FnMut(
     let mut api_values = if api_values.is_null() {
         None
     } else {
-        Some(slice::from_raw_parts_mut(
-            api_values,
-            *api_value_count as usize,
-        ))
+        Some(util::to_slice_mut(api_values, *api_value_count as usize))
     };
     let mut final_count = 0;
     for value in values {
@@ -3473,7 +3229,7 @@ pub unsafe extern "system" fn vkGetPhysicalDeviceProperties(
 }
 
 unsafe fn get_physical_device_queue_family_properties(
-    _physical_device: &SharedHandle<api::VkPhysicalDevice>,
+    _physical_device: SharedHandle<api::VkPhysicalDevice>,
     queue_family_properties: &mut api::VkQueueFamilyProperties2,
     queue_count: u32,
 ) {
@@ -3512,7 +3268,7 @@ pub unsafe extern "system" fn vkGetPhysicalDeviceQueueFamilyProperties(
                 queueFamilyProperties: mem::zeroed(),
             };
             get_physical_device_queue_family_properties(
-                &SharedHandle::from(physical_device).unwrap(),
+                SharedHandle::from(physical_device).unwrap(),
                 &mut queue_family_properties2,
                 count,
             );
@@ -4189,7 +3945,7 @@ pub unsafe extern "system" fn vkCreateShaderModule(
     assert_eq!(U32_BYTE_COUNT, mem::size_of::<u32>());
     assert_eq!(create_info.codeSize % U32_BYTE_COUNT, 0);
     assert_ne!(create_info.codeSize, 0);
-    let code = slice::from_raw_parts(create_info.pCode, create_info.codeSize / U32_BYTE_COUNT);
+    let code = util::to_slice(create_info.pCode, create_info.codeSize / U32_BYTE_COUNT);
     *shader_module = OwnedHandle::<api::VkShaderModule>::new(ShaderModule {
         code: code.to_owned(),
     })
@@ -4247,54 +4003,87 @@ pub unsafe extern "system" fn vkMergePipelineCaches(
 
 #[allow(non_snake_case)]
 pub unsafe extern "system" fn vkCreateGraphicsPipelines(
-    _device: api::VkDevice,
-    _pipelineCache: api::VkPipelineCache,
-    _createInfoCount: u32,
-    _pCreateInfos: *const api::VkGraphicsPipelineCreateInfo,
-    _pAllocator: *const api::VkAllocationCallbacks,
-    _pPipelines: *mut api::VkPipeline,
+    device: api::VkDevice,
+    pipeline_cache: api::VkPipelineCache,
+    create_info_count: u32,
+    create_infos: *const api::VkGraphicsPipelineCreateInfo,
+    _allocator: *const api::VkAllocationCallbacks,
+    pipelines: *mut api::VkPipeline,
 ) -> api::VkResult {
-    unimplemented!()
+    pipeline::create_pipelines::<pipeline::GraphicsPipeline>(
+        SharedHandle::from(device).unwrap(),
+        SharedHandle::from(pipeline_cache),
+        util::to_slice(create_infos, create_info_count as usize),
+        util::to_slice_mut(pipelines, create_info_count as usize),
+    )
 }
 
 #[allow(non_snake_case)]
 pub unsafe extern "system" fn vkCreateComputePipelines(
-    _device: api::VkDevice,
-    _pipelineCache: api::VkPipelineCache,
-    _createInfoCount: u32,
-    _pCreateInfos: *const api::VkComputePipelineCreateInfo,
-    _pAllocator: *const api::VkAllocationCallbacks,
-    _pPipelines: *mut api::VkPipeline,
+    device: api::VkDevice,
+    pipeline_cache: api::VkPipelineCache,
+    create_info_count: u32,
+    create_infos: *const api::VkComputePipelineCreateInfo,
+    _allocator: *const api::VkAllocationCallbacks,
+    pipelines: *mut api::VkPipeline,
 ) -> api::VkResult {
-    unimplemented!()
+    pipeline::create_pipelines::<pipeline::ComputePipeline>(
+        SharedHandle::from(device).unwrap(),
+        SharedHandle::from(pipeline_cache),
+        util::to_slice(create_infos, create_info_count as usize),
+        util::to_slice_mut(pipelines, create_info_count as usize),
+    )
 }
 
 #[allow(non_snake_case)]
 pub unsafe extern "system" fn vkDestroyPipeline(
     _device: api::VkDevice,
-    _pipeline: api::VkPipeline,
-    _pAllocator: *const api::VkAllocationCallbacks,
+    pipeline: api::VkPipeline,
+    _allocator: *const api::VkAllocationCallbacks,
 ) {
-    unimplemented!()
+    OwnedHandle::from(pipeline);
 }
 
 #[allow(non_snake_case)]
 pub unsafe extern "system" fn vkCreatePipelineLayout(
     _device: api::VkDevice,
-    _pCreateInfo: *const api::VkPipelineLayoutCreateInfo,
-    _pAllocator: *const api::VkAllocationCallbacks,
-    _pPipelineLayout: *mut api::VkPipelineLayout,
+    create_info: *const api::VkPipelineLayoutCreateInfo,
+    _allocator: *const api::VkAllocationCallbacks,
+    pipeline_layout: *mut api::VkPipelineLayout,
 ) -> api::VkResult {
-    unimplemented!()
+    parse_next_chain_const!{
+        create_info,
+        root = api::VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
+    }
+    let create_info = &*create_info;
+    let set_layouts = util::to_slice(create_info.pSetLayouts, create_info.setLayoutCount as usize);
+    let push_constant_ranges = util::to_slice(
+        create_info.pPushConstantRanges,
+        create_info.pushConstantRangeCount as usize,
+    );
+    *pipeline_layout = OwnedHandle::<api::VkPipelineLayout>::new(PipelineLayout {
+        push_constants_size: push_constant_ranges
+            .iter()
+            .map(|v| v.size as usize + v.offset as usize)
+            .max()
+            .unwrap_or(0),
+        push_constant_ranges: push_constant_ranges.into(),
+        descriptor_set_layouts: set_layouts
+            .iter()
+            .map(|v| SharedHandle::from(*v).unwrap())
+            .collect(),
+    })
+    .take();
+    api::VK_SUCCESS
 }
 
 #[allow(non_snake_case)]
 pub unsafe extern "system" fn vkDestroyPipelineLayout(
     _device: api::VkDevice,
-    _pipelineLayout: api::VkPipelineLayout,
-    _pAllocator: *const api::VkAllocationCallbacks,
+    pipeline_layout: api::VkPipelineLayout,
+    _allocator: *const api::VkAllocationCallbacks,
 ) {
-    unimplemented!()
+    OwnedHandle::from(pipeline_layout);
 }
 
 #[allow(non_snake_case)]
@@ -4362,10 +4151,7 @@ pub unsafe extern "system" fn vkCreateDescriptorSetLayout(
         root = api::VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
     }
     let create_info = &*create_info;
-    let bindings = match create_info.bindingCount {
-        0 => &[],
-        binding_count => slice::from_raw_parts(create_info.pBindings, binding_count as usize),
-    };
+    let bindings = util::to_slice(create_info.pBindings, create_info.bindingCount as usize);
     let max_binding = bindings.iter().map(|v| v.binding).max().unwrap_or(0) as usize;
     let mut bindings_map: Vec<Option<DescriptorLayout>> = (0..=max_binding).map(|_| None).collect();
     for binding in bindings {
@@ -4440,8 +4226,8 @@ pub unsafe extern "system" fn vkAllocateDescriptorSets(
     let allocate_info = &*allocate_info;
     let mut descriptor_pool = MutHandle::from(allocate_info.descriptorPool).unwrap();
     let descriptor_sets =
-        slice::from_raw_parts_mut(descriptor_sets, allocate_info.descriptorSetCount as usize);
-    let descriptor_set_layouts = slice::from_raw_parts(
+        util::to_slice_mut(descriptor_sets, allocate_info.descriptorSetCount as usize);
+    let descriptor_set_layouts = util::to_slice(
         allocate_info.pSetLayouts,
         allocate_info.descriptorSetCount as usize,
     );
@@ -4469,7 +4255,7 @@ pub unsafe extern "system" fn vkFreeDescriptorSets(
     descriptor_sets: *const api::VkDescriptorSet,
 ) -> api::VkResult {
     let mut descriptor_pool = MutHandle::from(descriptor_pool).unwrap();
-    let descriptor_sets = slice::from_raw_parts(descriptor_sets, descriptor_set_count as usize);
+    let descriptor_sets = util::to_slice(descriptor_sets, descriptor_set_count as usize);
     descriptor_pool.free(descriptor_sets);
     api::VK_SUCCESS
 }
@@ -4482,10 +4268,8 @@ pub unsafe extern "system" fn vkUpdateDescriptorSets(
     descriptor_copy_count: u32,
     descriptor_copies: *const api::VkCopyDescriptorSet,
 ) {
-    let descriptor_writes =
-        slice::from_raw_parts(descriptor_writes, descriptor_write_count as usize);
-    let descriptor_copies =
-        slice::from_raw_parts(descriptor_copies, descriptor_copy_count as usize);
+    let descriptor_writes = util::to_slice(descriptor_writes, descriptor_write_count as usize);
+    let descriptor_copies = util::to_slice(descriptor_copies, descriptor_copy_count as usize);
     for descriptor_write in descriptor_writes {
         parse_next_chain_const!{
             descriptor_write,
@@ -5119,7 +4903,7 @@ pub unsafe extern "system" fn vkBindBufferMemory2(
     bind_infos: *const api::VkBindBufferMemoryInfo,
 ) -> api::VkResult {
     assert_ne!(bind_info_count, 0);
-    let bind_infos = slice::from_raw_parts(bind_infos, bind_info_count as usize);
+    let bind_infos = util::to_slice(bind_infos, bind_info_count as usize);
     for bind_info in bind_infos {
         parse_next_chain_const!{
             bind_info,
@@ -5157,7 +4941,7 @@ pub unsafe extern "system" fn vkBindImageMemory2(
     bind_infos: *const api::VkBindImageMemoryInfo,
 ) -> api::VkResult {
     assert_ne!(bind_info_count, 0);
-    let bind_infos = slice::from_raw_parts(bind_infos, bind_info_count as usize);
+    let bind_infos = util::to_slice(bind_infos, bind_info_count as usize);
     for bind_info in bind_infos {
         parse_next_chain_const!{
             bind_info,
@@ -5492,7 +5276,7 @@ pub unsafe extern "system" fn vkGetPhysicalDeviceQueueFamilyProperties2(
         QUEUE_COUNTS.iter(),
         |queue_family_properties, &count| {
             get_physical_device_queue_family_properties(
-                &SharedHandle::from(physical_device).unwrap(),
+                SharedHandle::from(physical_device).unwrap(),
                 queue_family_properties,
                 count,
             );

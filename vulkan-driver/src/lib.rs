@@ -8,10 +8,14 @@ extern crate errno;
 #[cfg(target_os = "linux")]
 extern crate libc;
 extern crate shader_compiler_backend;
+extern crate shader_compiler_backend_llvm_7;
+extern crate spirv_parser;
 extern crate sys_info;
 extern crate uuid;
 #[cfg(target_os = "linux")]
 extern crate xcb;
+#[macro_use]
+mod util;
 mod api;
 mod api_impl;
 mod buffer;
@@ -19,6 +23,7 @@ mod descriptor_set;
 mod device_memory;
 mod handle;
 mod image;
+mod pipeline;
 mod render_pass;
 mod sampler;
 mod shader_module;

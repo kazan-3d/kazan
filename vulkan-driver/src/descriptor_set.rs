@@ -7,7 +7,7 @@ use handle::OwnedHandle;
 use handle::SharedHandle;
 use image;
 use std::ops;
-use std::slice;
+use util;
 
 #[derive(Debug)]
 pub enum DescriptorLayout {
@@ -110,7 +110,7 @@ impl DescriptorLayout {
                 None
             } else {
                 let immutable_samplers =
-                    slice::from_raw_parts(v.pImmutableSamplers, v.descriptorCount as usize);
+                    util::to_slice(v.pImmutableSamplers, v.descriptorCount as usize);
                 Some(
                     immutable_samplers
                         .iter()
@@ -282,15 +282,12 @@ impl<'a> DescriptorWriteArg<'a> {
             | api::VK_DESCRIPTOR_TYPE_STORAGE_IMAGE
             | api::VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT => {
                 assert!(!v.pImageInfo.is_null());
-                DescriptorWriteArg::Image(slice::from_raw_parts(
-                    v.pImageInfo,
-                    v.descriptorCount as usize,
-                ))
+                DescriptorWriteArg::Image(util::to_slice(v.pImageInfo, v.descriptorCount as usize))
             }
             api::VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER
             | api::VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER => {
                 assert!(!v.pTexelBufferView.is_null());
-                DescriptorWriteArg::TexelBuffer(slice::from_raw_parts(
+                DescriptorWriteArg::TexelBuffer(util::to_slice(
                     v.pTexelBufferView,
                     v.descriptorCount as usize,
                 ))
@@ -300,7 +297,7 @@ impl<'a> DescriptorWriteArg<'a> {
             | api::VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC
             | api::VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC => {
                 assert!(!v.pBufferInfo.is_null());
-                DescriptorWriteArg::Buffer(slice::from_raw_parts(
+                DescriptorWriteArg::Buffer(util::to_slice(
                     v.pBufferInfo,
                     v.descriptorCount as usize,
                 ))
@@ -396,7 +393,7 @@ impl Descriptor {
                 let immutable_samplers = if let Some(immutable_samplers) = immutable_samplers {
                     assert_eq!(immutable_samplers.len(), *count);
                     for (element, sampler) in elements.iter_mut().zip(immutable_samplers.iter()) {
-                        *element = Some(sampler.clone());
+                        *element = Some(*sampler);
                     }
                     true
                 } else {
@@ -420,7 +417,7 @@ impl Descriptor {
                 let immutable_samplers = if let Some(immutable_samplers) = immutable_samplers {
                     assert_eq!(immutable_samplers.len(), *count);
                     for (element, sampler) in elements.iter_mut().zip(immutable_samplers.iter()) {
-                        element.sampler = Some(sampler.clone());
+                        element.sampler = Some(*sampler);
                     }
                     true
                 } else {

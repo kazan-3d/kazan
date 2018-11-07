@@ -2,6 +2,7 @@
 # Copyright 2018 Jacob Lifshay
 [workspace]
 members = [
+    "shader-compiler",
     "shader-compiler-backend",
     "shader-compiler-backend-llvm-7",
     "spirv-parser",

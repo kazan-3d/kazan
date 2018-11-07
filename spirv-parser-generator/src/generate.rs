@@ -763,7 +763,7 @@ pub(crate) fn generate(
             }
             ast::OperandKind::Composite { kind, bases } => {
                 let kind = new_id(kind, CamelCase);
-                let bases = bases.into_iter().map(|base| new_id(base, CamelCase));
+                let bases = bases.iter().map(|base| new_id(base, CamelCase));
                 writeln!(&mut out, "{}", quote!{pub type #kind = (#(#bases),*);})?;
             }
         }
