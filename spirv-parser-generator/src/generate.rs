@@ -578,6 +578,12 @@ pub(crate) fn generate(
                 )?;
             }
             ast::OperandKind::ValueEnum { kind, enumerants } => {
+                let mut has_any_parameters = false;
+                for enumerant in enumerants {
+                    if !enumerant.parameters.is_empty() {
+                        has_any_parameters = true;
+                    }
+                }
                 let kind_id = new_id(&kind, CamelCase);
                 let mut generated_enumerants = Vec::new();
                 let mut enumerant_parse_cases = Vec::new();
@@ -640,11 +646,18 @@ pub(crate) fn generate(
                         });
                     }
                 }
+                let mut derives = vec![quote!{Clone}, quote!{Debug}];
+                if !has_any_parameters {
+                    derives.push(quote!{Eq});
+                    derives.push(quote!{PartialEq});
+                    derives.push(quote!{Copy});
+                    derives.push(quote!{Hash});
+                }
                 writeln!(
                     &mut out,
                     "{}",
                     quote!{
-                        #[derive(Clone, Debug)]
+                        #[derive(#(#derives),*)]
                         pub enum #kind_id {
                             #(#generated_enumerants,)*
                         }

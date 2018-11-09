@@ -7,9 +7,9 @@ extern crate enum_map;
 extern crate errno;
 #[cfg(target_os = "linux")]
 extern crate libc;
+extern crate shader_compiler;
 extern crate shader_compiler_backend;
 extern crate shader_compiler_backend_llvm_7;
-extern crate spirv_parser;
 extern crate sys_info;
 extern crate uuid;
 #[cfg(target_os = "linux")]
