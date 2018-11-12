@@ -449,7 +449,7 @@ pub(crate) fn generate(
                     let enumerant_parse_operation;
                     if enumerant.parameters.is_empty() {
                         enumerant_items.push(quote!{
-                            #[derive(Clone, Debug, Default)]
+                            #[derive(Copy, Clone, Debug, Default, Eq, PartialEq, Hash)]
                             pub struct #type_name;
                         });
                         enumerant_parse_operation = quote!{(Some(#type_name), words)};
@@ -486,7 +486,7 @@ pub(crate) fn generate(
                             });
                         }
                         enumerant_items.push(quote!{
-                            #[derive(Clone, Debug, Default)]
+                            #[derive(Clone, Debug, Default, Eq, PartialEq, Hash)]
                             pub struct #type_name(#(#enumerant_parameter_declarations)*);
                         });
                         let enumerant_parameter_names = &enumerant_parameter_names;
@@ -527,7 +527,7 @@ pub(crate) fn generate(
                     &mut out,
                     "{}",
                     quote!{
-                        #[derive(Clone, Debug, Default)]
+                        #[derive(Clone, Debug, Default, Eq, PartialEq, Hash)]
                         pub struct #kind_id {
                             #(#enumerant_members),*
                         }
@@ -646,12 +646,15 @@ pub(crate) fn generate(
                         });
                     }
                 }
-                let mut derives = vec![quote!{Clone}, quote!{Debug}];
+                let mut derives = vec![
+                    quote!{Clone},
+                    quote!{Debug},
+                    quote!{Eq},
+                    quote!{PartialEq},
+                    quote!{Hash},
+                ];
                 if !has_any_parameters {
-                    derives.push(quote!{Eq});
-                    derives.push(quote!{PartialEq});
                     derives.push(quote!{Copy});
-                    derives.push(quote!{Hash});
                 }
                 writeln!(
                     &mut out,
