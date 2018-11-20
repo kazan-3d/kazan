@@ -12,11 +12,16 @@ use std::iter;
 use std::ops::Deref;
 use util;
 
+pub fn get_shader_compiler_backend() -> impl shader_compiler_backend::Compiler {
+    shader_compiler_backend_llvm_7::LLVM_7_SHADER_COMPILER
+}
+
 #[derive(Debug)]
 pub struct PipelineLayout {
     pub push_constants_size: usize,
     pub push_constant_ranges: Vec<api::VkPushConstantRange>,
     pub descriptor_set_layouts: Vec<SharedHandle<api::VkDescriptorSetLayout>>,
+    pub shader_compiler_pipeline_layout: shader_compiler::PipelineLayout,
 }
 
 pub trait GenericPipeline: fmt::Debug + Sync + 'static {}
@@ -132,12 +137,18 @@ impl GenericPipelineSized for ComputePipeline {
             iter::once(&create_info.stage),
             compute_stage = VK_SHADER_STAGE_COMPUTE_BIT,
         }
+        let pipeline_layout = SharedHandle::from(create_info.layout)
+            .unwrap()
+            .shader_compiler_pipeline_layout
+            .clone();
         Self {
             pipeline: shader_compiler::ComputePipeline::new(
                 &shader_compiler::ComputePipelineOptions {
                     generic_options: get_generic_pipeline_options(create_info.flags),
                 },
                 compute_stage,
+                pipeline_layout,
+                get_shader_compiler_backend(),
             ),
         }
     }

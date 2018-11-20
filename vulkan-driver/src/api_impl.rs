@@ -4061,17 +4061,79 @@ pub unsafe extern "system" fn vkCreatePipelineLayout(
         create_info.pPushConstantRanges,
         create_info.pushConstantRangeCount as usize,
     );
-    *pipeline_layout = OwnedHandle::<api::VkPipelineLayout>::new(PipelineLayout {
-        push_constants_size: push_constant_ranges
+    let push_constants_size = push_constant_ranges
+        .iter()
+        .map(|v| v.size as usize + v.offset as usize)
+        .max()
+        .unwrap_or(0);
+    let descriptor_set_layouts: Vec<_> = set_layouts
+        .iter()
+        .map(|v| SharedHandle::from(*v).unwrap())
+        .collect();
+    let shader_compiler_pipeline_layout = shader_compiler::PipelineLayout {
+        push_constants_size,
+        descriptor_sets: descriptor_set_layouts
             .iter()
-            .map(|v| v.size as usize + v.offset as usize)
-            .max()
-            .unwrap_or(0),
-        push_constant_ranges: push_constant_ranges.into(),
-        descriptor_set_layouts: set_layouts
-            .iter()
-            .map(|v| SharedHandle::from(*v).unwrap())
+            .map(
+                |descriptor_set_layout| shader_compiler::DescriptorSetLayout {
+                    bindings: descriptor_set_layout
+                        .bindings
+                        .iter()
+                        .map(|binding| {
+                            Some(match *binding.as_ref()? {
+                                DescriptorLayout::Sampler {
+                                    count,
+                                    immutable_samplers: _,
+                                } => shader_compiler::DescriptorLayout::Sampler { count },
+                                DescriptorLayout::CombinedImageSampler {
+                                    count,
+                                    immutable_samplers: _,
+                                } => shader_compiler::DescriptorLayout::CombinedImageSampler {
+                                    count,
+                                },
+                                DescriptorLayout::SampledImage { count } => {
+                                    shader_compiler::DescriptorLayout::SampledImage { count }
+                                }
+                                DescriptorLayout::StorageImage { count } => {
+                                    shader_compiler::DescriptorLayout::StorageImage { count }
+                                }
+                                DescriptorLayout::UniformTexelBuffer { count } => {
+                                    shader_compiler::DescriptorLayout::UniformTexelBuffer { count }
+                                }
+                                DescriptorLayout::StorageTexelBuffer { count } => {
+                                    shader_compiler::DescriptorLayout::StorageTexelBuffer { count }
+                                }
+                                DescriptorLayout::UniformBuffer { count } => {
+                                    shader_compiler::DescriptorLayout::UniformBuffer { count }
+                                }
+                                DescriptorLayout::StorageBuffer { count } => {
+                                    shader_compiler::DescriptorLayout::StorageBuffer { count }
+                                }
+                                DescriptorLayout::UniformBufferDynamic { count } => {
+                                    shader_compiler::DescriptorLayout::UniformBufferDynamic {
+                                        count,
+                                    }
+                                }
+                                DescriptorLayout::StorageBufferDynamic { count } => {
+                                    shader_compiler::DescriptorLayout::StorageBufferDynamic {
+                                        count,
+                                    }
+                                }
+                                DescriptorLayout::InputAttachment { count } => {
+                                    shader_compiler::DescriptorLayout::InputAttachment { count }
+                                }
+                            })
+                        })
+                        .collect(),
+                },
+            )
             .collect(),
+    };
+    *pipeline_layout = OwnedHandle::<api::VkPipelineLayout>::new(PipelineLayout {
+        push_constants_size,
+        push_constant_ranges: push_constant_ranges.into(),
+        descriptor_set_layouts,
+        shader_compiler_pipeline_layout,
     })
     .take();
     api::VK_SUCCESS
