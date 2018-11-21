@@ -109,14 +109,22 @@ pub trait Type<'a>: Clone + Eq + Hash + Debug {
 pub trait TypeBuilder<'a, Ty: Type<'a>> {
     /// build a `bool` type
     fn build_bool(&self) -> Ty;
-    /// build an 8-bit sign-agnostic integer type
+    /// build an 8-bit 2's complement integer type
     fn build_i8(&self) -> Ty;
-    /// build an 16-bit sign-agnostic integer type
+    /// build an 16-bit 2's complement integer type
     fn build_i16(&self) -> Ty;
-    /// build an 32-bit sign-agnostic integer type
+    /// build an 32-bit 2's complement integer type
     fn build_i32(&self) -> Ty;
-    /// build an 64-bit sign-agnostic integer type
+    /// build an 64-bit 2's complement integer type
     fn build_i64(&self) -> Ty;
+    /// build an 8-bit unsigned integer type
+    fn build_u8(&self) -> Ty;
+    /// build an 16-bit unsigned integer type
+    fn build_u16(&self) -> Ty;
+    /// build an 32-bit unsigned integer type
+    fn build_u32(&self) -> Ty;
+    /// build an 64-bit unsigned integer type
+    fn build_u64(&self) -> Ty;
     /// build an 32-bit IEEE 754 floating-point type
     fn build_f32(&self) -> Ty;
     /// build an 64-bit IEEE 754 floating-point type
@@ -155,6 +163,18 @@ impl<'a, 'b, Ty: Type<'a>> TypeBuilder<'a, Ty> for &'b TypeBuilder<'a, Ty> {
     }
     fn build_i64(&self) -> Ty {
         (*self).build_i64()
+    }
+    fn build_u8(&self) -> Ty {
+        (*self).build_u8()
+    }
+    fn build_u16(&self) -> Ty {
+        (*self).build_u16()
+    }
+    fn build_u32(&self) -> Ty {
+        (*self).build_u32()
+    }
+    fn build_u64(&self) -> Ty {
+        (*self).build_u64()
     }
     fn build_f32(&self) -> Ty {
         (*self).build_f32()
@@ -241,13 +261,13 @@ macro_rules! build_basic_scalar {
 }
 
 build_basic_scalar!(bool, build_bool);
-build_basic_scalar!(u8, build_i8);
+build_basic_scalar!(u8, build_u8);
 build_basic_scalar!(i8, build_i8);
-build_basic_scalar!(u16, build_i16);
+build_basic_scalar!(u16, build_u16);
 build_basic_scalar!(i16, build_i16);
-build_basic_scalar!(u32, build_i32);
+build_basic_scalar!(u32, build_u32);
 build_basic_scalar!(i32, build_i32);
-build_basic_scalar!(u64, build_i64);
+build_basic_scalar!(u64, build_u64);
 build_basic_scalar!(i64, build_i64);
 build_basic_scalar!(f32, build_f32);
 build_basic_scalar!(f64, build_f64);

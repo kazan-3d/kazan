@@ -21,6 +21,11 @@ pub trait AttachedBuilder<'a>: Sized {
     type Context: Context<'a>;
     /// get the current `BasicBlock`
     fn current_basic_block(&self) -> <Self::Context as Context<'a>>::BasicBlock;
+    /// build an alloca instruction
+    fn build_alloca(
+        &mut self,
+        variable_type: <Self::Context as Context<'a>>::Type,
+    ) -> <Self::Context as Context<'a>>::Value;
     /// build a return instruction
     fn build_return(
         self,

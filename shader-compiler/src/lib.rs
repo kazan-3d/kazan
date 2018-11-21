@@ -38,19 +38,19 @@ impl Default for Context {
 }
 
 mod pointer_type {
-    use super::{Context, Type};
+    use super::{Context, FrontendType};
     use std::cell::RefCell;
     use std::fmt;
     use std::hash::{Hash, Hasher};
     use std::rc::{Rc, Weak};
 
     #[derive(Default)]
-    pub struct ContextTypes(Vec<Rc<Type>>);
+    pub struct ContextTypes(Vec<Rc<FrontendType>>);
 
     #[derive(Clone, Debug)]
     enum PointerTypeState {
         Void,
-        Normal(Weak<Type>),
+        Normal(Weak<FrontendType>),
         Unresolved,
     }
 
@@ -72,7 +72,7 @@ mod pointer_type {
     }
 
     impl PointerType {
-        pub fn new(context: &mut Context, pointee: Option<Rc<Type>>) -> Self {
+        pub fn new(context: &mut Context, pointee: Option<Rc<FrontendType>>) -> Self {
             Self {
                 pointee: RefCell::new(match pointee {
                     Some(pointee) => {
@@ -94,7 +94,7 @@ mod pointer_type {
                 pointee: RefCell::new(PointerTypeState::Unresolved),
             }
         }
-        pub fn resolve(&self, context: &mut Context, new_pointee: Option<Rc<Type>>) {
+        pub fn resolve(&self, context: &mut Context, new_pointee: Option<Rc<FrontendType>>) {
             let mut pointee = self.pointee.borrow_mut();
             match &*pointee {
                 PointerTypeState::Unresolved => {}
@@ -102,7 +102,7 @@ mod pointer_type {
             }
             *pointee = Self::new(context, new_pointee).pointee.into_inner();
         }
-        pub fn pointee(&self) -> Option<Rc<Type>> {
+        pub fn pointee(&self) -> Option<Rc<FrontendType>> {
             match *self.pointee.borrow() {
                 PointerTypeState::Normal(ref pointee) => Some(
                     pointee
@@ -160,7 +160,7 @@ pub struct VectorType {
 #[derive(Clone, Eq, PartialEq, Hash, Debug)]
 pub struct StructMember {
     pub decorations: Vec<Decoration>,
-    pub member_type: Rc<Type>,
+    pub member_type: Rc<FrontendType>,
 }
 
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
@@ -234,59 +234,59 @@ impl fmt::Debug for StructType {
 #[derive(Clone, Eq, PartialEq, Hash, Debug)]
 pub struct ArrayType {
     pub decorations: Vec<Decoration>,
-    pub element: Rc<Type>,
+    pub element: Rc<FrontendType>,
     pub element_count: Option<usize>,
 }
 
 #[derive(Clone, Eq, PartialEq, Hash, Debug)]
-pub enum Type {
+pub enum FrontendType {
     Scalar(ScalarType),
     Vector(VectorType),
     Struct(StructType),
     Array(ArrayType),
 }
 
-impl Type {
+impl FrontendType {
     pub fn is_pointer(&self) -> bool {
-        if let Type::Scalar(ScalarType::Pointer(_)) = self {
+        if let FrontendType::Scalar(ScalarType::Pointer(_)) = self {
             true
         } else {
             false
         }
     }
     pub fn is_scalar(&self) -> bool {
-        if let Type::Scalar(_) = self {
+        if let FrontendType::Scalar(_) = self {
             true
         } else {
             false
         }
     }
     pub fn is_vector(&self) -> bool {
-        if let Type::Vector(_) = self {
+        if let FrontendType::Vector(_) = self {
             true
         } else {
             false
         }
     }
-    pub fn get_pointee(&self) -> Option<Rc<Type>> {
-        if let Type::Scalar(ScalarType::Pointer(pointer)) = self {
+    pub fn get_pointee(&self) -> Option<Rc<FrontendType>> {
+        if let FrontendType::Scalar(ScalarType::Pointer(pointer)) = self {
             pointer.pointee()
         } else {
             unreachable!("not a pointer")
         }
     }
-    pub fn get_nonvoid_pointee(&self) -> Rc<Type> {
+    pub fn get_nonvoid_pointee(&self) -> Rc<FrontendType> {
         self.get_pointee().expect("void is not allowed here")
     }
     pub fn get_scalar(&self) -> &ScalarType {
-        if let Type::Scalar(scalar) = self {
+        if let FrontendType::Scalar(scalar) = self {
             scalar
         } else {
             unreachable!("not a scalar type")
         }
     }
     pub fn get_vector(&self) -> &VectorType {
-        if let Type::Vector(vector) = self {
+        if let FrontendType::Vector(vector) = self {
             vector
         } else {
             unreachable!("not a vector type")
@@ -387,8 +387,8 @@ define_scalar_vector_constant_impl!(f64, F64, get_f64);
 define_scalar_vector_constant_impl!(bool, Bool, get_bool);
 
 impl ScalarConstant {
-    pub fn get_type(self) -> Type {
-        Type::Scalar(self.get_scalar_type())
+    pub fn get_type(self) -> FrontendType {
+        FrontendType::Scalar(self.get_scalar_type())
     }
     pub fn get_scalar_type(self) -> ScalarType {
         match self {
@@ -457,8 +457,8 @@ impl VectorConstant {
             VectorConstant::Bool(v) => v.len(),
         }
     }
-    pub fn get_type(&self) -> Type {
-        Type::Vector(VectorType {
+    pub fn get_type(&self) -> FrontendType {
+        FrontendType::Vector(VectorType {
             element: self.get_element_type(),
             element_count: self.get_element_count(),
         })
@@ -472,7 +472,7 @@ pub enum Constant {
 }
 
 impl Constant {
-    pub fn get_type(&self) -> Type {
+    pub fn get_type(&self) -> FrontendType {
         match self {
             Constant::Scalar(v) => v.get_type(),
             Constant::Vector(v) => v.get_type(),
@@ -498,9 +498,9 @@ struct BuiltInVariable {
 }
 
 impl BuiltInVariable {
-    fn get_type(&self, _context: &mut Context) -> Rc<Type> {
+    fn get_type(&self, _context: &mut Context) -> Rc<FrontendType> {
         match self.built_in {
-            BuiltIn::GlobalInvocationId => Rc::new(Type::Vector(VectorType {
+            BuiltIn::GlobalInvocationId => Rc::new(FrontendType::Vector(VectorType {
                 element: ScalarType::U32,
                 element_count: 3,
             })),
@@ -513,20 +513,33 @@ impl BuiltInVariable {
 struct UniformVariable {
     binding: u32,
     descriptor_set: u32,
-    variable_type: Rc<Type>,
+    variable_type: Rc<FrontendType>,
+}
+
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
+enum CrossLaneBehavior {
+    Uniform,
+    Nonuniform,
+}
+
+#[derive(Debug)]
+struct FrontendValue<'a, C: shader_compiler_backend::Context<'a>> {
+    frontend_type: Rc<FrontendType>,
+    backend_value: Option<C::Value>,
+    cross_lane_behavior: CrossLaneBehavior,
 }
 
 #[derive(Debug)]
 enum IdKind<'a, C: shader_compiler_backend::Context<'a>> {
     Undefined,
     DecorationGroup,
-    Type(Rc<Type>),
+    Type(Rc<FrontendType>),
     VoidType,
     FunctionType {
-        return_type: Option<Rc<Type>>,
-        arguments: Vec<Rc<Type>>,
+        return_type: Option<Rc<FrontendType>>,
+        arguments: Vec<Rc<FrontendType>>,
     },
-    ForwardPointer(Rc<Type>),
+    ForwardPointer(Rc<FrontendType>),
     BuiltInVariable(BuiltInVariable),
     Constant(Rc<Constant>),
     UniformVariable(UniformVariable),
@@ -535,6 +548,7 @@ enum IdKind<'a, C: shader_compiler_backend::Context<'a>> {
         basic_block: C::BasicBlock,
         buildable_basic_block: Option<C::BuildableBasicBlock>,
     },
+    Value(FrontendValue<'a, C>),
 }
 
 #[derive(Debug)]
@@ -559,20 +573,32 @@ impl<'a, C: shader_compiler_backend::Context<'a>> IdProperties<'a, C> {
         }
         self.kind = kind;
     }
-    fn get_type(&self) -> Option<&Rc<Type>> {
+    fn get_type(&self) -> Option<&Rc<FrontendType>> {
         match &self.kind {
             IdKind::Type(t) => Some(t),
             IdKind::VoidType => None,
             _ => unreachable!("id is not type"),
         }
     }
-    fn get_nonvoid_type(&self) -> &Rc<Type> {
+    fn get_nonvoid_type(&self) -> &Rc<FrontendType> {
         self.get_type().expect("void is not allowed here")
     }
     fn get_constant(&self) -> &Rc<Constant> {
         match &self.kind {
             IdKind::Constant(c) => c,
             _ => unreachable!("id is not a constant"),
+        }
+    }
+    fn get_value(&self) -> &FrontendValue<'a, C> {
+        match &self.kind {
+            IdKind::Value(retval) => retval,
+            _ => unreachable!("id is not a value"),
+        }
+    }
+    fn get_value_mut(&mut self) -> &mut FrontendValue<'a, C> {
+        match &mut self.kind {
+            IdKind::Value(retval) => retval,
+            _ => unreachable!("id is not a value"),
         }
     }
     fn assert_no_member_decorations(&self, id: IdRef) {

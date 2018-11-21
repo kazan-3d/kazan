@@ -16,6 +16,8 @@ use std::ptr::null_mut;
 use std::ptr::NonNull;
 use std::sync::{Once, ONCE_INIT};
 
+const EMPTY_C_STR: &[c_char] = &[b'0' as c_char];
+
 fn to_bool(v: llvm::LLVMBool) -> bool {
     v != 0
 }
@@ -114,13 +116,25 @@ impl<'a> backend::types::TypeBuilder<'a, LLVM7Type> for LLVM7TypeBuilder {
     fn build_i8(&self) -> LLVM7Type {
         unsafe { LLVM7Type(llvm::LLVMInt8TypeInContext(self.context)) }
     }
+    fn build_u8(&self) -> LLVM7Type {
+        unsafe { LLVM7Type(llvm::LLVMInt8TypeInContext(self.context)) }
+    }
     fn build_i16(&self) -> LLVM7Type {
+        unsafe { LLVM7Type(llvm::LLVMInt16TypeInContext(self.context)) }
+    }
+    fn build_u16(&self) -> LLVM7Type {
         unsafe { LLVM7Type(llvm::LLVMInt16TypeInContext(self.context)) }
     }
     fn build_i32(&self) -> LLVM7Type {
         unsafe { LLVM7Type(llvm::LLVMInt32TypeInContext(self.context)) }
     }
+    fn build_u32(&self) -> LLVM7Type {
+        unsafe { LLVM7Type(llvm::LLVMInt32TypeInContext(self.context)) }
+    }
     fn build_i64(&self) -> LLVM7Type {
+        unsafe { LLVM7Type(llvm::LLVMInt64TypeInContext(self.context)) }
+    }
+    fn build_u64(&self) -> LLVM7Type {
         unsafe { LLVM7Type(llvm::LLVMInt64TypeInContext(self.context)) }
     }
     fn build_f32(&self) -> LLVM7Type {
@@ -339,6 +353,15 @@ impl<'a> backend::AttachedBuilder<'a> for LLVM7Builder {
     type Context = LLVM7Context;
     fn current_basic_block(&self) -> LLVM7BasicBlock {
         unsafe { LLVM7BasicBlock(llvm::LLVMGetInsertBlock(self.0)) }
+    }
+    fn build_alloca(&mut self, variable_type: LLVM7Type) -> LLVM7Value {
+        unsafe {
+            LLVM7Value(llvm::LLVMBuildAlloca(
+                self.0,
+                variable_type.0,
+                EMPTY_C_STR.as_ptr(),
+            ))
+        }
     }
     fn build_return(self, value: Option<LLVM7Value>) -> LLVM7Builder {
         unsafe {

@@ -2,10 +2,10 @@
 // Copyright 2018 Jacob Lifshay
 
 use super::{
-    ArrayType, BuiltInVariable, Constant, Context, IdKind, IdProperties, Ids, MemberDecoration,
-    ParsedShader, ParsedShaderFunction, PointerType, ScalarConstant, ScalarType, ShaderEntryPoint,
-    ShaderStageCreateInfo, StructId, StructMember, StructType, Type, Undefable, UniformVariable,
-    VectorConstant, VectorType,
+    ArrayType, BuiltInVariable, Constant, Context, FrontendType, IdKind, IdProperties, Ids,
+    MemberDecoration, ParsedShader, ParsedShaderFunction, PointerType, ScalarConstant, ScalarType,
+    ShaderEntryPoint, ShaderStageCreateInfo, StructId, StructMember, StructType, Undefable,
+    UniformVariable, VectorConstant, VectorType,
 };
 use spirv_parser::{BuiltIn, Decoration, ExecutionModel, IdRef, Instruction, StorageClass};
 use std::mem;
@@ -168,7 +168,9 @@ pub(super) fn create<'a, C: shader_compiler_backend::Context<'a>>(
             }
             Instruction::TypeBool { id_result } => {
                 ids[id_result.0].assert_no_decorations(id_result.0);
-                ids[id_result.0].set_kind(IdKind::Type(Rc::new(Type::Scalar(ScalarType::Bool))));
+                ids[id_result.0].set_kind(IdKind::Type(Rc::new(FrontendType::Scalar(
+                    ScalarType::Bool,
+                ))));
             }
             Instruction::TypeInt {
                 id_result,
@@ -176,7 +178,7 @@ pub(super) fn create<'a, C: shader_compiler_backend::Context<'a>>(
                 signedness,
             } => {
                 ids[id_result.0].assert_no_decorations(id_result.0);
-                ids[id_result.0].set_kind(IdKind::Type(Rc::new(Type::Scalar(
+                ids[id_result.0].set_kind(IdKind::Type(Rc::new(FrontendType::Scalar(
                     match (width, signedness != 0) {
                         (8, false) => ScalarType::U8,
                         (8, true) => ScalarType::I8,
@@ -196,12 +198,14 @@ pub(super) fn create<'a, C: shader_compiler_backend::Context<'a>>(
             }
             Instruction::TypeFloat { id_result, width } => {
                 ids[id_result.0].assert_no_decorations(id_result.0);
-                ids[id_result.0].set_kind(IdKind::Type(Rc::new(Type::Scalar(match width {
-                    16 => ScalarType::F16,
-                    32 => ScalarType::F32,
-                    64 => ScalarType::F64,
-                    _ => unreachable!("unsupported float type: f{}", width),
-                }))));
+                ids[id_result.0].set_kind(IdKind::Type(Rc::new(FrontendType::Scalar(
+                    match width {
+                        16 => ScalarType::F16,
+                        32 => ScalarType::F32,
+                        64 => ScalarType::F64,
+                        _ => unreachable!("unsupported float type: f{}", width),
+                    },
+                ))));
             }
             Instruction::TypeVector {
                 id_result,
@@ -210,13 +214,15 @@ pub(super) fn create<'a, C: shader_compiler_backend::Context<'a>>(
             } => {
                 ids[id_result.0].assert_no_decorations(id_result.0);
                 let element = ids[component_type].get_nonvoid_type().get_scalar().clone();
-                ids[id_result.0].set_kind(IdKind::Type(Rc::new(Type::Vector(VectorType {
-                    element,
-                    element_count: component_count as usize,
-                }))));
+                ids[id_result.0].set_kind(IdKind::Type(Rc::new(FrontendType::Vector(
+                    VectorType {
+                        element,
+                        element_count: component_count as usize,
+                    },
+                ))));
             }
             Instruction::TypeForwardPointer { pointer_type, .. } => {
-                ids[pointer_type].set_kind(IdKind::ForwardPointer(Rc::new(Type::Scalar(
+                ids[pointer_type].set_kind(IdKind::ForwardPointer(Rc::new(FrontendType::Scalar(
                     ScalarType::Pointer(PointerType::unresolved()),
                 ))));
             }
@@ -228,11 +234,11 @@ pub(super) fn create<'a, C: shader_compiler_backend::Context<'a>>(
                 ids[id_result.0].assert_no_decorations(id_result.0);
                 let pointee = ids[pointee].get_type().map(Clone::clone);
                 let pointer = match mem::replace(&mut ids[id_result.0].kind, IdKind::Undefined) {
-                    IdKind::Undefined => Rc::new(Type::Scalar(ScalarType::Pointer(
+                    IdKind::Undefined => Rc::new(FrontendType::Scalar(ScalarType::Pointer(
                         PointerType::new(context, pointee),
                     ))),
                     IdKind::ForwardPointer(pointer) => {
-                        if let Type::Scalar(ScalarType::Pointer(pointer)) = &*pointer {
+                        if let FrontendType::Scalar(ScalarType::Pointer(pointer)) = &*pointer {
                             pointer.resolve(context, pointee);
                         } else {
                             unreachable!();
@@ -271,7 +277,7 @@ pub(super) fn create<'a, C: shader_compiler_backend::Context<'a>>(
                         members,
                     }
                 };
-                ids[id_result.0].set_kind(IdKind::Type(Rc::new(Type::Struct(struct_type))));
+                ids[id_result.0].set_kind(IdKind::Type(Rc::new(FrontendType::Struct(struct_type))));
             }
             Instruction::TypeRuntimeArray {
                 id_result,
@@ -280,7 +286,7 @@ pub(super) fn create<'a, C: shader_compiler_backend::Context<'a>>(
                 ids[id_result.0].assert_no_member_decorations(id_result.0);
                 let decorations = ids[id_result.0].decorations.clone();
                 let element = ids[element_type].get_nonvoid_type().clone();
-                ids[id_result.0].set_kind(IdKind::Type(Rc::new(Type::Array(ArrayType {
+                ids[id_result.0].set_kind(IdKind::Type(Rc::new(FrontendType::Array(ArrayType {
                     decorations,
                     element,
                     element_count: None,
@@ -377,38 +383,38 @@ pub(super) fn create<'a, C: shader_compiler_backend::Context<'a>>(
                 ids[id_result.0].assert_no_decorations(id_result.0);
                 #[cfg_attr(feature = "cargo-clippy", allow(clippy::cast_lossless))]
                 let constant = match **ids[id_result_type.0].get_nonvoid_type() {
-                    Type::Scalar(ScalarType::U8) => {
+                    FrontendType::Scalar(ScalarType::U8) => {
                         let converted_value = value as u8;
                         assert_eq!(converted_value as u32, value);
                         Constant::Scalar(ScalarConstant::U8(Undefable::Defined(converted_value)))
                     }
-                    Type::Scalar(ScalarType::U16) => {
+                    FrontendType::Scalar(ScalarType::U16) => {
                         let converted_value = value as u16;
                         assert_eq!(converted_value as u32, value);
                         Constant::Scalar(ScalarConstant::U16(Undefable::Defined(converted_value)))
                     }
-                    Type::Scalar(ScalarType::U32) => {
+                    FrontendType::Scalar(ScalarType::U32) => {
                         Constant::Scalar(ScalarConstant::U32(Undefable::Defined(value)))
                     }
-                    Type::Scalar(ScalarType::I8) => {
+                    FrontendType::Scalar(ScalarType::I8) => {
                         let converted_value = value as i8;
                         assert_eq!(converted_value as u32, value);
                         Constant::Scalar(ScalarConstant::I8(Undefable::Defined(converted_value)))
                     }
-                    Type::Scalar(ScalarType::I16) => {
+                    FrontendType::Scalar(ScalarType::I16) => {
                         let converted_value = value as i16;
                         assert_eq!(converted_value as u32, value);
                         Constant::Scalar(ScalarConstant::I16(Undefable::Defined(converted_value)))
                     }
-                    Type::Scalar(ScalarType::I32) => {
+                    FrontendType::Scalar(ScalarType::I32) => {
                         Constant::Scalar(ScalarConstant::I32(Undefable::Defined(value as i32)))
                     }
-                    Type::Scalar(ScalarType::F16) => {
+                    FrontendType::Scalar(ScalarType::F16) => {
                         let converted_value = value as u16;
                         assert_eq!(converted_value as u32, value);
                         Constant::Scalar(ScalarConstant::F16(Undefable::Defined(converted_value)))
                     }
-                    Type::Scalar(ScalarType::F32) => Constant::Scalar(ScalarConstant::F32(
+                    FrontendType::Scalar(ScalarType::F32) => Constant::Scalar(ScalarConstant::F32(
                         Undefable::Defined(f32::from_bits(value)),
                     )),
                     _ => unreachable!("invalid type"),
@@ -422,13 +428,13 @@ pub(super) fn create<'a, C: shader_compiler_backend::Context<'a>>(
             } => {
                 ids[id_result.0].assert_no_decorations(id_result.0);
                 let constant = match **ids[id_result_type.0].get_nonvoid_type() {
-                    Type::Scalar(ScalarType::U64) => {
+                    FrontendType::Scalar(ScalarType::U64) => {
                         Constant::Scalar(ScalarConstant::U64(Undefable::Defined(value)))
                     }
-                    Type::Scalar(ScalarType::I64) => {
+                    FrontendType::Scalar(ScalarType::I64) => {
                         Constant::Scalar(ScalarConstant::I64(Undefable::Defined(value as i64)))
                     }
-                    Type::Scalar(ScalarType::F64) => Constant::Scalar(ScalarConstant::F64(
+                    FrontendType::Scalar(ScalarType::F64) => Constant::Scalar(ScalarConstant::F64(
                         Undefable::Defined(f64::from_bits(value)),
                     )),
                     _ => unreachable!("invalid type"),
@@ -441,7 +447,7 @@ pub(super) fn create<'a, C: shader_compiler_backend::Context<'a>>(
             } => {
                 ids[id_result.0].assert_no_decorations(id_result.0);
                 let constant = match **ids[id_result_type.0].get_nonvoid_type() {
-                    Type::Scalar(ScalarType::Bool) => {
+                    FrontendType::Scalar(ScalarType::Bool) => {
                         Constant::Scalar(ScalarConstant::Bool(Undefable::Defined(false)))
                     }
                     _ => unreachable!("invalid type"),
@@ -454,7 +460,7 @@ pub(super) fn create<'a, C: shader_compiler_backend::Context<'a>>(
             } => {
                 ids[id_result.0].assert_no_decorations(id_result.0);
                 let constant = match **ids[id_result_type.0].get_nonvoid_type() {
-                    Type::Scalar(ScalarType::Bool) => {
+                    FrontendType::Scalar(ScalarType::Bool) => {
                         Constant::Scalar(ScalarConstant::Bool(Undefable::Defined(true)))
                     }
                     _ => unreachable!("invalid type"),
@@ -467,7 +473,7 @@ pub(super) fn create<'a, C: shader_compiler_backend::Context<'a>>(
                 constituents,
             } => {
                 let constant = match **ids[id_result_type.0].get_nonvoid_type() {
-                    Type::Vector(VectorType {
+                    FrontendType::Vector(VectorType {
                         ref element,
                         element_count,
                     }) => {

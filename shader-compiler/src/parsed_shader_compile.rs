@@ -1,9 +1,12 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 // Copyright 2018 Jacob Lifshay
 
-use super::{Context, IdKind, Ids, ParsedShader, ParsedShaderFunction};
+use super::{
+    Context, CrossLaneBehavior, FrontendType, IdKind, Ids, ParsedShader, ParsedShaderFunction,
+    ScalarType,
+};
 use shader_compiler_backend::{
-    types::TypeBuilder, BuildableBasicBlock, DetachedBuilder, Function, Module,
+    types::TypeBuilder, AttachedBuilder, BuildableBasicBlock, DetachedBuilder, Function, Module,
 };
 use spirv_parser::Decoration;
 use spirv_parser::{FunctionControl, IdRef, IdResult, IdResultType, Instruction};
@@ -154,6 +157,56 @@ impl<'ctx, 'tb, 'fnp, C: shader_compiler_backend::Context<'ctx>>
     }
 }
 
+struct TypeCache<'ctx, 'tb, C: shader_compiler_backend::Context<'ctx>>
+where
+    C::TypeBuilder: 'tb,
+{
+    table: HashMap<(Rc<FrontendType>, CrossLaneBehavior), Option<C::Type>>,
+    type_builder: &'tb C::TypeBuilder,
+}
+
+impl<'ctx, 'tb, C: shader_compiler_backend::Context<'ctx>> TypeCache<'ctx, 'tb, C> {
+    fn get(
+        &mut self,
+        frontend_type: Rc<FrontendType>,
+        cross_lane_behavior: CrossLaneBehavior,
+    ) -> C::Type {
+        match self
+            .table
+            .entry((frontend_type.clone(), cross_lane_behavior))
+        {
+            hash_map::Entry::Occupied(retval) => {
+                return retval
+                    .get()
+                    .clone()
+                    .expect("recursive types not implemented");
+            }
+            hash_map::Entry::Vacant(v) => {
+                v.insert(None);
+            }
+        }
+        let retval = match *frontend_type {
+            FrontendType::Scalar(ScalarType::Bool) => self.type_builder.build_bool(),
+            FrontendType::Scalar(ScalarType::I8) => self.type_builder.build_i8(),
+            FrontendType::Scalar(ScalarType::I16) => self.type_builder.build_i16(),
+            FrontendType::Scalar(ScalarType::I32) => self.type_builder.build_i32(),
+            FrontendType::Scalar(ScalarType::I64) => self.type_builder.build_i64(),
+            FrontendType::Scalar(ScalarType::U8) => self.type_builder.build_u8(),
+            FrontendType::Scalar(ScalarType::U16) => self.type_builder.build_u16(),
+            FrontendType::Scalar(ScalarType::U32) => self.type_builder.build_u32(),
+            FrontendType::Scalar(ScalarType::U64) => self.type_builder.build_u64(),
+            FrontendType::Scalar(ScalarType::F32) => self.type_builder.build_f32(),
+            FrontendType::Scalar(ScalarType::F64) => self.type_builder.build_f64(),
+            _ => unimplemented!("unimplemented type translation: {:?}", frontend_type),
+        };
+        *self
+            .table
+            .get_mut(&(frontend_type, cross_lane_behavior))
+            .unwrap() = Some(retval.clone());
+        retval
+    }
+}
+
 impl<'ctx, C: shader_compiler_backend::Context<'ctx>> ParsedShaderCompile<'ctx, C>
     for ParsedShader<'ctx, C>
 {
@@ -172,6 +225,10 @@ impl<'ctx, C: shader_compiler_backend::Context<'ctx>> ParsedShaderCompile<'ctx, 
             workgroup_size,
         } = self;
         let type_builder = backend_context.create_type_builder();
+        let mut type_cache = TypeCache::<'ctx, '_, C> {
+            table: HashMap::new(),
+            type_builder: &type_builder,
+        };
         let mut reachable_functions_worklist = Vec::new();
         let mut get_or_add_function_state = GetOrAddFunctionState {
             reachable_functions: HashMap::new(),
@@ -227,9 +284,32 @@ impl<'ctx, C: shader_compiler_backend::Context<'ctx>> ParsedShaderCompile<'ctx, 
             for instruction in &function_state.instructions {
                 match current_basic_block {
                     BasicBlockState::Attached {
-                        builder,
+                        mut builder,
                         current_label,
                     } => match instruction {
+                        Instruction::Variable {
+                            id_result_type: _,
+                            id_result,
+                            storage_class,
+                            initializer,
+                        } => {
+                            assert_eq!(*storage_class, spirv_parser::StorageClass::Function);
+                            ids[id_result.0].assert_no_decorations(id_result.0);
+                            if let Some(_initializer) = initializer {
+                                unimplemented!();
+                            }
+                            unimplemented!();
+                            // FIXME: add CFG and cross-lane behavior detection pass
+                            let mut result = ids[id_result.0].get_value_mut();
+                            result.backend_value = Some(builder.build_alloca(type_cache.get(
+                                result.frontend_type.get_nonvoid_pointee(),
+                                result.cross_lane_behavior,
+                            )));
+                            current_basic_block = BasicBlockState::Attached {
+                                builder,
+                                current_label,
+                            };
+                        }
                         _ => unimplemented!("unimplemented instruction:\n{}", instruction),
                     },
                     BasicBlockState::Detached { builder } => match instruction {
