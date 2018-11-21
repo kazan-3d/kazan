@@ -517,7 +517,7 @@ struct UniformVariable {
 }
 
 #[derive(Debug)]
-enum IdKind {
+enum IdKind<'a, C: shader_compiler_backend::Context<'a>> {
     Undefined,
     DecorationGroup,
     Type(Rc<Type>),
@@ -531,16 +531,20 @@ enum IdKind {
     Constant(Rc<Constant>),
     UniformVariable(UniformVariable),
     Function(Option<ParsedShaderFunction>),
+    BasicBlock {
+        basic_block: C::BasicBlock,
+        buildable_basic_block: Option<C::BuildableBasicBlock>,
+    },
 }
 
 #[derive(Debug)]
-struct IdProperties {
-    kind: IdKind,
+struct IdProperties<'a, C: shader_compiler_backend::Context<'a>> {
+    kind: IdKind<'a, C>,
     decorations: Vec<Decoration>,
     member_decorations: Vec<MemberDecoration>,
 }
 
-impl IdProperties {
+impl<'a, C: shader_compiler_backend::Context<'a>> IdProperties<'a, C> {
     fn is_empty(&self) -> bool {
         match self.kind {
             IdKind::Undefined => {}
@@ -548,7 +552,7 @@ impl IdProperties {
         }
         self.decorations.is_empty() && self.member_decorations.is_empty()
     }
-    fn set_kind(&mut self, kind: IdKind) {
+    fn set_kind(&mut self, kind: IdKind<'a, C>) {
         match &self.kind {
             IdKind::Undefined => {}
             _ => unreachable!("duplicate id"),
@@ -587,15 +591,15 @@ impl IdProperties {
     }
 }
 
-struct Ids(Vec<IdProperties>);
+struct Ids<'a, C: shader_compiler_backend::Context<'a>>(Vec<IdProperties<'a, C>>);
 
-impl Ids {
-    pub fn iter(&self) -> impl Iterator<Item = (IdRef, &IdProperties)> {
+impl<'a, C: shader_compiler_backend::Context<'a>> Ids<'a, C> {
+    pub fn iter(&self) -> impl Iterator<Item = (IdRef, &IdProperties<'a, C>)> {
         (1..self.0.len()).map(move |index| (IdRef(index as u32), &self.0[index]))
     }
 }
 
-impl fmt::Debug for Ids {
+impl<'a, C: shader_compiler_backend::Context<'a>> fmt::Debug for Ids<'a, C> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_map()
             .entries(
@@ -613,15 +617,15 @@ impl fmt::Debug for Ids {
     }
 }
 
-impl Index<IdRef> for Ids {
-    type Output = IdProperties;
-    fn index(&self, index: IdRef) -> &IdProperties {
+impl<'a, C: shader_compiler_backend::Context<'a>> Index<IdRef> for Ids<'a, C> {
+    type Output = IdProperties<'a, C>;
+    fn index<'b>(&'b self, index: IdRef) -> &'b IdProperties<'a, C> {
         &self.0[index.0 as usize]
     }
 }
 
-impl IndexMut<IdRef> for Ids {
-    fn index_mut(&mut self, index: IdRef) -> &mut IdProperties {
+impl<'a, C: shader_compiler_backend::Context<'a>> IndexMut<IdRef> for Ids<'a, C> {
+    fn index_mut(&mut self, index: IdRef) -> &mut IdProperties<'a, C> {
         &mut self.0[index.0 as usize]
     }
 }
@@ -642,8 +646,8 @@ impl fmt::Debug for ParsedShaderFunction {
 }
 
 #[derive(Debug)]
-struct ParsedShader {
-    ids: Ids,
+struct ParsedShader<'a, C: shader_compiler_backend::Context<'a>> {
+    ids: Ids<'a, C>,
     main_function_id: IdRef,
     interface_variables: Vec<IdRef>,
     execution_modes: Vec<ExecutionMode>,
@@ -655,7 +659,7 @@ struct ShaderEntryPoint {
     interface_variables: Vec<IdRef>,
 }
 
-impl ParsedShader {
+impl<'a, C: shader_compiler_backend::Context<'a>> ParsedShader<'a, C> {
     fn create(
         context: &mut Context,
         stage_info: ShaderStageCreateInfo,
@@ -725,19 +729,13 @@ impl ComputePipeline {
         backend_compiler: C,
     ) -> ComputePipeline {
         let mut frontend_context = Context::default();
-        let parsed_shader = ParsedShader::create(
-            &mut frontend_context,
-            compute_shader_stage,
-            ExecutionModel::GLCompute,
-        );
-        println!("parsed_shader:\n{:#?}", parsed_shader);
-        struct CompilerUser {
+        struct CompilerUser<'a> {
             frontend_context: Context,
-            parsed_shader: ParsedShader,
+            compute_shader_stage: ShaderStageCreateInfo<'a>,
         }
         #[derive(Debug)]
         enum CompileError {}
-        impl shader_compiler_backend::CompilerUser for CompilerUser {
+        impl<'cu> shader_compiler_backend::CompilerUser for CompilerUser<'cu> {
             type FunctionKey = CompiledFunctionKey;
             type Error = CompileError;
             fn create_error(message: String) -> CompileError {
@@ -753,11 +751,20 @@ impl ComputePipeline {
                 let backend_context = context;
                 let CompilerUser {
                     mut frontend_context,
-                    parsed_shader,
+                    compute_shader_stage,
                 } = self;
+                let parsed_shader = ParsedShader::create(
+                    &mut frontend_context,
+                    compute_shader_stage,
+                    ExecutionModel::GLCompute,
+                );
                 let mut module = backend_context.create_module("");
-                let function =
-                    parsed_shader.compile(&mut frontend_context, backend_context, &mut module);
+                let function = parsed_shader.compile(
+                    &mut frontend_context,
+                    backend_context,
+                    &mut module,
+                    "fn_",
+                );
                 Ok(shader_compiler_backend::CompileInputs {
                     module: module.verify().unwrap(),
                     callable_functions: iter::once((
@@ -772,7 +779,7 @@ impl ComputePipeline {
             .run(
                 CompilerUser {
                     frontend_context,
-                    parsed_shader,
+                    compute_shader_stage,
                 },
                 shader_compiler_backend::CompilerIndependentConfig {
                     optimization_mode: options.generic_options.optimization_mode,

@@ -20,7 +20,7 @@ fn to_bool(v: llvm::LLVMBool) -> bool {
     v != 0
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct LLVM7CompilerConfig {
     pub variable_vector_length_multiplier: u32,
     pub optimization_mode: backend::OptimizationMode,
@@ -260,6 +260,14 @@ pub struct LLVM7Context {
     context: Option<ManuallyDrop<OwnedContext>>,
     modules: ManuallyDrop<RefCell<Vec<OwnedModule>>>,
     config: LLVM7CompilerConfig,
+}
+
+impl fmt::Debug for LLVM7Context {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_struct("LLVM7Context")
+            .field("config", &self.config)
+            .finish()
+    }
 }
 
 impl Drop for LLVM7Context {
@@ -597,24 +605,26 @@ impl backend::Compiler for LLVM7Compiler {
             let orc_jit_stack =
                 LLVM7OrcJITStack(llvm::LLVMOrcCreateInstance(target_machine.take()));
             let mut module_handle = 0;
-            if llvm::LLVMOrcErrSuccess != llvm::LLVMOrcAddEagerlyCompiledIR(
-                orc_jit_stack.0,
-                &mut module_handle,
-                module.take(),
-                Some(symbol_resolver_fn),
-                null_mut(),
-            ) {
+            if llvm::LLVMOrcErrSuccess
+                != llvm::LLVMOrcAddEagerlyCompiledIR(
+                    orc_jit_stack.0,
+                    &mut module_handle,
+                    module.take(),
+                    Some(symbol_resolver_fn),
+                    null_mut(),
+                ) {
                 return Err(U::create_error("compilation failed".into()));
             }
             let mut functions: HashMap<_, _> = HashMap::new();
             for (key, name) in callable_functions {
                 let mut address: llvm::LLVMOrcTargetAddress = mem::zeroed();
-                if llvm::LLVMOrcErrSuccess != llvm::LLVMOrcGetSymbolAddressIn(
-                    orc_jit_stack.0,
-                    &mut address,
-                    module_handle,
-                    name.as_ptr(),
-                ) {
+                if llvm::LLVMOrcErrSuccess
+                    != llvm::LLVMOrcGetSymbolAddressIn(
+                        orc_jit_stack.0,
+                        &mut address,
+                        module_handle,
+                        name.as_ptr(),
+                    ) {
                     return Err(U::create_error(format!(
                         "function not found in compiled module: {:?}",
                         name

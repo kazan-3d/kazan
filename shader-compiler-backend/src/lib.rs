@@ -154,7 +154,7 @@ pub trait VerifiedModule<'a>: Debug + Sized {
 }
 
 /// instance of a compiler backend; equivalent to LLVM's `LLVMContext`
-pub trait Context<'a>: Sized {
+pub trait Context<'a>: Sized + fmt::Debug {
     /// the `Value` type
     type Value: Value<'a, Context = Self>;
     /// the `BasicBlock` type

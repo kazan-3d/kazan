@@ -12,11 +12,11 @@ use std::mem;
 use std::rc::Rc;
 
 #[cfg_attr(feature = "cargo-clippy", allow(clippy::cyclomatic_complexity))]
-pub(super) fn create(
+pub(super) fn create<'a, C: shader_compiler_backend::Context<'a>>(
     context: &mut Context,
     stage_info: ShaderStageCreateInfo,
     execution_model: ExecutionModel,
-) -> ParsedShader {
+) -> ParsedShader<'a, C> {
     let parser = spirv_parser::Parser::start(stage_info.code).unwrap();
     let header = *parser.header();
     assert_eq!(header.instruction_schema, 0);
