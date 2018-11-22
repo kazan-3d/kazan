@@ -5,6 +5,7 @@ use super::{
     Context, CrossLaneBehavior, FrontendType, IdKind, Ids, ParsedShader, ParsedShaderFunction,
     ScalarType,
 };
+use cfg::create_cfg;
 use shader_compiler_backend::{
     types::TypeBuilder, AttachedBuilder, BuildableBasicBlock, DetachedBuilder, Function, Module,
 };
@@ -128,12 +129,12 @@ impl<'ctx, 'tb, 'fnp, C: shader_compiler_backend::Context<'ctx>>
                     } => {
                         let return_type = match return_type {
                             None => None,
-                            Some(v) => unimplemented!(),
+                            Some(_v) => unimplemented!(),
                         };
                         let arguments: Vec<_> = arguments
                             .iter()
                             .enumerate()
-                            .map(|(argument_index, argument)| unimplemented!())
+                            .map(|(_argument_index, _argument)| unimplemented!())
                             .collect();
                         self.type_builder.build_function(&arguments, return_type)
                     }
@@ -278,6 +279,31 @@ impl<'ctx, C: shader_compiler_backend::Context<'ctx>> ParsedShaderCompile<'ctx, 
                     current_label: IdRef,
                 },
             }
+            let (function_instruction, instructions) = function_state
+                .instructions
+                .split_first()
+                .expect("missing OpFunction");
+            match function_instruction {
+                Instruction::Function { .. } => {}
+                _ => unreachable!("missing OpFunction"),
+            }
+            let (function_parameter_instructions, instructions) = instructions.split_at(
+                instructions
+                    .iter()
+                    .position(|v| match v {
+                        Instruction::FunctionParameter { .. } => false,
+                        _ => true,
+                    })
+                    .expect("missing OpFunctionEnd"),
+            );
+            let (function_end_instruction, instructions) =
+                instructions.split_last().expect("missing OpFunctionEnd");
+            match function_end_instruction {
+                Instruction::FunctionEnd {} => {}
+                _ => unreachable!("missing OpFunctionEnd"),
+            }
+            let cfg = create_cfg(instructions);
+            unimplemented!("finish\ncfg:\n{:#?}", cfg);
             let mut current_basic_block: BasicBlockState<C> = BasicBlockState::Detached {
                 builder: backend_context.create_builder(),
             };

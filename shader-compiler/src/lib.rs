@@ -4,6 +4,7 @@
 extern crate shader_compiler_backend;
 extern crate spirv_parser;
 
+mod cfg;
 mod parsed_shader_compile;
 mod parsed_shader_create;
 
