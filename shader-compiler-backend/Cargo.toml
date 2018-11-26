@@ -5,6 +5,7 @@ name = "shader-compiler-backend"
 version = "0.1.0"
 authors = ["Jacob Lifshay <programmerjake@gmail.com>"]
 license = "LGPL-2.1-or-later"
+edition = "2015"
 
 [lib]
 crate-type = ["rlib"]
