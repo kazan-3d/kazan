@@ -306,7 +306,8 @@ pub(super) fn create<'a, C: shader_compiler_backend::Context<'a>>(
                         .find_map(|decoration| match *decoration {
                             Decoration::BuiltIn { built_in } => Some(built_in),
                             _ => None,
-                        }) {
+                        })
+                {
                     let built_in_variable = match built_in {
                         BuiltIn::GlobalInvocationId => {
                             for decoration in &ids[id_result.0].decorations {

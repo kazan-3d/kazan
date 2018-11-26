@@ -635,7 +635,8 @@ impl backend::Compiler for LLVM7Compiler {
                     module.take(),
                     Some(symbol_resolver_fn),
                     null_mut(),
-                ) {
+                )
+            {
                 return Err(U::create_error("compilation failed".into()));
             }
             let mut functions: HashMap<_, _> = HashMap::new();
@@ -647,7 +648,8 @@ impl backend::Compiler for LLVM7Compiler {
                         &mut address,
                         module_handle,
                         name.as_ptr(),
-                    ) {
+                    )
+                {
                     return Err(U::create_error(format!(
                         "function not found in compiled module: {:?}",
                         name

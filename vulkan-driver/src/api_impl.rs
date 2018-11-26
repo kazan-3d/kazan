@@ -143,7 +143,7 @@ impl Extension {
     }
     pub fn get_recursively_required_extensions(self) -> Extensions {
         let mut retval = self.get_required_extensions();
-        let mut worklist: EnumMap<Extension, Extension> = enum_map!{_ => self};
+        let mut worklist: EnumMap<Extension, Extension> = enum_map! {_ => self};
         let worklist = worklist.as_mut_slice();
         let mut worklist_size = 1;
         while worklist_size > 0 {
@@ -306,7 +306,7 @@ pub struct Extensions(EnumMap<Extension, bool>);
 
 impl Extensions {
     pub fn create_empty() -> Self {
-        Extensions(enum_map!{_ => false})
+        Extensions(enum_map! {_ => false})
     }
     pub fn is_empty(&self) -> bool {
         self.iter().all(|(_, &v)| !v)
@@ -1310,7 +1310,7 @@ impl Device {
         physical_device: SharedHandle<api::VkPhysicalDevice>,
         create_info: *const api::VkDeviceCreateInfo,
     ) -> Result<OwnedHandle<api::VkDevice>, api::VkResult> {
-        parse_next_chain_const!{
+        parse_next_chain_const! {
             create_info,
             root = api::VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
             device_group_device_create_info: api::VkDeviceGroupDeviceCreateInfo = api::VK_STRUCTURE_TYPE_DEVICE_GROUP_DEVICE_CREATE_INFO,
@@ -1413,7 +1413,7 @@ impl Device {
         let mut total_queue_count = 0;
         let mut queue_counts: Vec<_> = Vec::new();
         for queue_create_info in queue_create_infos {
-            parse_next_chain_const!{
+            parse_next_chain_const! {
                 queue_create_info,
                 root = api::VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
             }
@@ -2928,7 +2928,7 @@ impl Instance {
     pub unsafe fn new(
         create_info: *const api::VkInstanceCreateInfo,
     ) -> Result<api::VkInstance, api::VkResult> {
-        parse_next_chain_const!{
+        parse_next_chain_const! {
             create_info,
             root = api::VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
         }
@@ -3233,7 +3233,7 @@ unsafe fn get_physical_device_queue_family_properties(
     queue_family_properties: &mut api::VkQueueFamilyProperties2,
     queue_count: u32,
 ) {
-    parse_next_chain_mut!{
+    parse_next_chain_mut! {
         queue_family_properties,
         root = api::VK_STRUCTURE_TYPE_QUEUE_FAMILY_PROPERTIES_2,
     }
@@ -3424,7 +3424,7 @@ pub unsafe extern "system" fn vkAllocateMemory(
     _allocator: *const api::VkAllocationCallbacks,
     memory: *mut api::VkDeviceMemory,
 ) -> api::VkResult {
-    parse_next_chain_const!{
+    parse_next_chain_const! {
         allocate_info,
         root = api::VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
         export_memory_allocate_info: api::VkExportMemoryAllocateInfo = api::VK_STRUCTURE_TYPE_EXPORT_MEMORY_ALLOCATE_INFO,
@@ -3785,7 +3785,7 @@ pub unsafe extern "system" fn vkCreateBuffer(
     _allocator: *const api::VkAllocationCallbacks,
     buffer: *mut api::VkBuffer,
 ) -> api::VkResult {
-    parse_next_chain_const!{
+    parse_next_chain_const! {
         create_info,
         root = api::VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
         external_memory_buffer: api::VkExternalMemoryBufferCreateInfo = api::VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_BUFFER_CREATE_INFO,
@@ -3841,7 +3841,7 @@ pub unsafe extern "system" fn vkCreateImage(
     _allocator: *const api::VkAllocationCallbacks,
     image: *mut api::VkImage,
 ) -> api::VkResult {
-    parse_next_chain_const!{
+    parse_next_chain_const! {
         create_info,
         root = api::VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
         external_memory_image_create_info: api::VkExternalMemoryImageCreateInfo = api::VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_IMAGE_CREATE_INFO,
@@ -3904,7 +3904,7 @@ pub unsafe extern "system" fn vkCreateImageView(
     _allocator: *const api::VkAllocationCallbacks,
     view: *mut api::VkImageView,
 ) -> api::VkResult {
-    parse_next_chain_const!{
+    parse_next_chain_const! {
         create_info,
         root = api::VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
     }
@@ -3936,7 +3936,7 @@ pub unsafe extern "system" fn vkCreateShaderModule(
     _allocator: *const api::VkAllocationCallbacks,
     shader_module: *mut api::VkShaderModule,
 ) -> api::VkResult {
-    parse_next_chain_const!{
+    parse_next_chain_const! {
         create_info,
         root = api::VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
     }
@@ -4051,7 +4051,7 @@ pub unsafe extern "system" fn vkCreatePipelineLayout(
     _allocator: *const api::VkAllocationCallbacks,
     pipeline_layout: *mut api::VkPipelineLayout,
 ) -> api::VkResult {
-    parse_next_chain_const!{
+    parse_next_chain_const! {
         create_info,
         root = api::VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
     }
@@ -4155,7 +4155,7 @@ pub unsafe extern "system" fn vkCreateSampler(
     _allocator: *const api::VkAllocationCallbacks,
     sampler: *mut api::VkSampler,
 ) -> api::VkResult {
-    parse_next_chain_const!{
+    parse_next_chain_const! {
         create_info,
         root = api::VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
     }
@@ -4208,7 +4208,7 @@ pub unsafe extern "system" fn vkCreateDescriptorSetLayout(
     _allocator: *const api::VkAllocationCallbacks,
     set_layout: *mut api::VkDescriptorSetLayout,
 ) -> api::VkResult {
-    parse_next_chain_const!{
+    parse_next_chain_const! {
         create_info,
         root = api::VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
     }
@@ -4248,7 +4248,7 @@ pub unsafe extern "system" fn vkCreateDescriptorPool(
     _allocator: *const api::VkAllocationCallbacks,
     descriptor_pool: *mut api::VkDescriptorPool,
 ) -> api::VkResult {
-    parse_next_chain_const!{
+    parse_next_chain_const! {
         create_info,
         root = api::VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
     }
@@ -4281,7 +4281,7 @@ pub unsafe extern "system" fn vkAllocateDescriptorSets(
     allocate_info: *const api::VkDescriptorSetAllocateInfo,
     descriptor_sets: *mut api::VkDescriptorSet,
 ) -> api::VkResult {
-    parse_next_chain_const!{
+    parse_next_chain_const! {
         allocate_info,
         root = api::VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
     }
@@ -4333,7 +4333,7 @@ pub unsafe extern "system" fn vkUpdateDescriptorSets(
     let descriptor_writes = util::to_slice(descriptor_writes, descriptor_write_count as usize);
     let descriptor_copies = util::to_slice(descriptor_copies, descriptor_copy_count as usize);
     for descriptor_write in descriptor_writes {
-        parse_next_chain_const!{
+        parse_next_chain_const! {
             descriptor_write,
             root = api::VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
         }
@@ -4358,7 +4358,7 @@ pub unsafe extern "system" fn vkUpdateDescriptorSets(
         }
     }
     for descriptor_copy in descriptor_copies {
-        parse_next_chain_const!{
+        parse_next_chain_const! {
             descriptor_copy,
             root = api::VK_STRUCTURE_TYPE_COPY_DESCRIPTOR_SET,
         }
@@ -4392,7 +4392,7 @@ pub unsafe extern "system" fn vkCreateRenderPass(
     _allocator: *const api::VkAllocationCallbacks,
     render_pass: *mut api::VkRenderPass,
 ) -> api::VkResult {
-    parse_next_chain_const!{
+    parse_next_chain_const! {
         create_info,
         root = api::VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
     }
@@ -4967,7 +4967,7 @@ pub unsafe extern "system" fn vkBindBufferMemory2(
     assert_ne!(bind_info_count, 0);
     let bind_infos = util::to_slice(bind_infos, bind_info_count as usize);
     for bind_info in bind_infos {
-        parse_next_chain_const!{
+        parse_next_chain_const! {
             bind_info,
             root = api::VK_STRUCTURE_TYPE_BIND_BUFFER_MEMORY_INFO,
             device_group_info: api::VkBindBufferMemoryDeviceGroupInfo = api::VK_STRUCTURE_TYPE_BIND_BUFFER_MEMORY_DEVICE_GROUP_INFO,
@@ -5005,7 +5005,7 @@ pub unsafe extern "system" fn vkBindImageMemory2(
     assert_ne!(bind_info_count, 0);
     let bind_infos = util::to_slice(bind_infos, bind_info_count as usize);
     for bind_info in bind_infos {
-        parse_next_chain_const!{
+        parse_next_chain_const! {
             bind_info,
             root = api::VK_STRUCTURE_TYPE_BIND_IMAGE_MEMORY_INFO,
             device_group_info: api::VkBindImageMemoryDeviceGroupInfo = api::VK_STRUCTURE_TYPE_BIND_IMAGE_MEMORY_DEVICE_GROUP_INFO,
@@ -5086,7 +5086,7 @@ pub unsafe extern "system" fn vkEnumeratePhysicalDeviceGroups(
         physical_device_group_properties,
         iter::once(()),
         |physical_device_group_properties, _| {
-            parse_next_chain_mut!{
+            parse_next_chain_mut! {
                 physical_device_group_properties,
                 root = api::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_GROUP_PROPERTIES,
             }
@@ -5113,12 +5113,12 @@ pub unsafe extern "system" fn vkGetImageMemoryRequirements2(
     memory_requirements: *mut api::VkMemoryRequirements2,
 ) {
     #![cfg_attr(feature = "cargo-clippy", allow(clippy::needless_update))]
-    parse_next_chain_const!{
+    parse_next_chain_const! {
         info,
         root = api::VK_STRUCTURE_TYPE_IMAGE_MEMORY_REQUIREMENTS_INFO_2,
         image_plane_memory_requirements_info: api::VkImagePlaneMemoryRequirementsInfo = api::VK_STRUCTURE_TYPE_IMAGE_PLANE_MEMORY_REQUIREMENTS_INFO,
     }
-    parse_next_chain_mut!{
+    parse_next_chain_mut! {
         memory_requirements,
         root = api::VK_STRUCTURE_TYPE_MEMORY_REQUIREMENTS_2,
         dedicated_requirements: api::VkMemoryDedicatedRequirements = api::VK_STRUCTURE_TYPE_MEMORY_DEDICATED_REQUIREMENTS,
@@ -5150,11 +5150,11 @@ pub unsafe extern "system" fn vkGetBufferMemoryRequirements2(
     memory_requirements: *mut api::VkMemoryRequirements2,
 ) {
     #![cfg_attr(feature = "cargo-clippy", allow(clippy::needless_update))]
-    parse_next_chain_const!{
+    parse_next_chain_const! {
         info,
         root = api::VK_STRUCTURE_TYPE_BUFFER_MEMORY_REQUIREMENTS_INFO_2,
     }
-    parse_next_chain_mut!{
+    parse_next_chain_mut! {
         memory_requirements,
         root = api::VK_STRUCTURE_TYPE_MEMORY_REQUIREMENTS_2,
         dedicated_requirements: api::VkMemoryDedicatedRequirements = api::VK_STRUCTURE_TYPE_MEMORY_DEDICATED_REQUIREMENTS,
@@ -5191,7 +5191,7 @@ pub unsafe extern "system" fn vkGetPhysicalDeviceFeatures2(
     physical_device: api::VkPhysicalDevice,
     features: *mut api::VkPhysicalDeviceFeatures2,
 ) {
-    parse_next_chain_mut!{
+    parse_next_chain_mut! {
         features,
         root = api::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2,
         sampler_ycbcr_conversion_features: api::VkPhysicalDeviceSamplerYcbcrConversionFeatures = api::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SAMPLER_YCBCR_CONVERSION_FEATURES,
@@ -5240,7 +5240,7 @@ pub unsafe extern "system" fn vkGetPhysicalDeviceProperties2(
     physical_device: api::VkPhysicalDevice,
     properties: *mut api::VkPhysicalDeviceProperties2,
 ) {
-    parse_next_chain_mut!{
+    parse_next_chain_mut! {
         properties,
         root = api::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2,
         point_clipping_properties: api::VkPhysicalDevicePointClippingProperties = api::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_POINT_CLIPPING_PROPERTIES,
@@ -5309,7 +5309,7 @@ pub unsafe extern "system" fn vkGetPhysicalDeviceFormatProperties2(
     format: api::VkFormat,
     format_properties: *mut api::VkFormatProperties2,
 ) {
-    parse_next_chain_mut!{
+    parse_next_chain_mut! {
         format_properties,
         root = api::VK_STRUCTURE_TYPE_FORMAT_PROPERTIES_2,
     }
@@ -5353,7 +5353,7 @@ pub unsafe extern "system" fn vkGetPhysicalDeviceMemoryProperties2(
 ) {
     #![cfg_attr(feature = "cargo-clippy", allow(clippy::needless_update))]
     let physical_device = SharedHandle::from(physical_device).unwrap();
-    parse_next_chain_mut!{
+    parse_next_chain_mut! {
         memory_properties,
         root = api::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MEMORY_PROPERTIES_2,
     }
@@ -5404,7 +5404,7 @@ pub unsafe extern "system" fn vkGetDeviceQueue2(
     queue_info: *const api::VkDeviceQueueInfo2,
     queue: *mut api::VkQueue,
 ) {
-    parse_next_chain_const!{
+    parse_next_chain_const! {
         queue_info,
         root = api::VK_STRUCTURE_TYPE_DEVICE_QUEUE_INFO_2,
     }
@@ -5604,7 +5604,7 @@ pub unsafe extern "system" fn vkCreateSwapchainKHR(
     _allocator: *const api::VkAllocationCallbacks,
     swapchain: *mut api::VkSwapchainKHR,
 ) -> api::VkResult {
-    parse_next_chain_const!{
+    parse_next_chain_const! {
         create_info,
         root = api::VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
         device_group_swapchain_create_info: api::VkDeviceGroupSwapchainCreateInfoKHR = api::VK_STRUCTURE_TYPE_DEVICE_GROUP_SWAPCHAIN_CREATE_INFO_KHR,
@@ -5932,12 +5932,12 @@ pub unsafe extern "system" fn vkGetPhysicalDeviceSurfaceCapabilities2KHR(
     surface_info: *const api::VkPhysicalDeviceSurfaceInfo2KHR,
     surface_capabilities: *mut api::VkSurfaceCapabilities2KHR,
 ) -> api::VkResult {
-    parse_next_chain_const!{
+    parse_next_chain_const! {
         surface_info,
         root = api::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SURFACE_INFO_2_KHR,
     }
     let surface_info = &*surface_info;
-    parse_next_chain_mut!{
+    parse_next_chain_mut! {
         surface_capabilities,
         root = api::VK_STRUCTURE_TYPE_SURFACE_CAPABILITIES_2_KHR,
     }
@@ -6592,7 +6592,7 @@ pub unsafe extern "system" fn vkCreateXcbSurfaceKHR(
     _allocator: *const api::VkAllocationCallbacks,
     surface: *mut api::VkSurfaceKHR,
 ) -> api::VkResult {
-    parse_next_chain_const!{
+    parse_next_chain_const! {
         create_info,
         root = api::VK_STRUCTURE_TYPE_XCB_SURFACE_CREATE_INFO_KHR,
     }

@@ -248,7 +248,8 @@ void LLVM_InitializeNativeDisassembler(void);
 "#;
     let header_path = out_dir.join("llvm_bindings.h");
     fs::write(&header_path, header).unwrap();
-    let llvm_bindings_source = format!("#include {:?}\n", header_path) + r#"
+    let llvm_bindings_source = format!("#include {:?}\n", header_path)
+        + r#"
 void LLVM_InitializeNativeTarget(void)
 {
     LLVM_NATIVE_TARGETINFO();

@@ -417,7 +417,7 @@ pub(crate) fn generate(
     writeln!(
         &mut out,
         "{}",
-        quote!{
+        quote! {
             pub const MAGIC_NUMBER: u32 = #magic_number;
             pub const MAJOR_VERSION: u32 = #major_version;
             pub const MINOR_VERSION: u32 = #minor_version;
@@ -448,12 +448,12 @@ pub(crate) fn generate(
                         new_combined_id(&[kind.as_ref(), &enumerant.enumerant], CamelCase);
                     let enumerant_parse_operation;
                     if enumerant.parameters.is_empty() {
-                        enumerant_items.push(quote!{
+                        enumerant_items.push(quote! {
                             #[derive(Copy, Clone, Debug, Default, Eq, PartialEq, Hash)]
                             pub struct #type_name;
                         });
-                        enumerant_parse_operation = quote!{(Some(#type_name), words)};
-                        enumerant_display_mask_operations.push(quote!{
+                        enumerant_parse_operation = quote! {(Some(#type_name), words)};
+                        enumerant_display_mask_operations.push(quote! {
                             if self.#member_name.is_some() {
                                 if any_members {
                                     write!(f, "|{}", #enumerant_name)?;
@@ -463,7 +463,7 @@ pub(crate) fn generate(
                                 }
                             }
                         });
-                        enumerant_display_operations.push(quote!{});
+                        enumerant_display_operations.push(quote! {});
                     } else {
                         let mut enumerant_parameter_declarations = Vec::new();
                         let mut enumerant_parameter_names = Vec::new();
@@ -472,29 +472,29 @@ pub(crate) fn generate(
                         for (index, parameter) in enumerant.parameters.iter().enumerate() {
                             let name = new_id(format!("parameter_{}", index), SnakeCase);
                             let kind = new_id(&parameter.kind, CamelCase);
-                            enumerant_parameter_declarations.push(quote!{
+                            enumerant_parameter_declarations.push(quote! {
                                 pub #kind,
                             });
-                            enumerant_parameter_names.push(quote!{
+                            enumerant_parameter_names.push(quote! {
                                 #name,
                             });
-                            parse_enumerant_members.push(quote!{
+                            parse_enumerant_members.push(quote! {
                                 let (#name, words) = #kind::spirv_parse(words, parse_state)?;
                             });
-                            display_enumerant_members.push(quote!{
+                            display_enumerant_members.push(quote! {
                                 #name.spirv_display(f)?;
                             });
                         }
-                        enumerant_items.push(quote!{
+                        enumerant_items.push(quote! {
                             #[derive(Clone, Debug, Default, Eq, PartialEq, Hash)]
                             pub struct #type_name(#(#enumerant_parameter_declarations)*);
                         });
                         let enumerant_parameter_names = &enumerant_parameter_names;
-                        enumerant_parse_operation = quote!{
+                        enumerant_parse_operation = quote! {
                             #(#parse_enumerant_members)*
                             (Some(#type_name(#(#enumerant_parameter_names)*)), words)
                         };
-                        enumerant_display_mask_operations.push(quote!{
+                        enumerant_display_mask_operations.push(quote! {
                             if self.#member_name.is_some() {
                                 if any_members {
                                     write!(f, "|{}", #enumerant_name)?;
@@ -510,11 +510,11 @@ pub(crate) fn generate(
                             }
                         });
                     };
-                    enumerant_members.push(quote!{
+                    enumerant_members.push(quote! {
                         pub #member_name: Option<#type_name>
                     });
                     let enumerant_value = enumerant.value;
-                    enumerant_parse_operations.push(quote!{
+                    enumerant_parse_operations.push(quote! {
                         let (#member_name, words) = if (mask & #enumerant_value) != 0 {
                             mask &= !#enumerant_value;
                             #enumerant_parse_operation
@@ -526,7 +526,7 @@ pub(crate) fn generate(
                 writeln!(
                     &mut out,
                     "{}",
-                    quote!{
+                    quote! {
                         #[derive(Clone, Debug, Default, Eq, PartialEq, Hash)]
                         pub struct #kind_id {
                             #(#enumerant_members),*
@@ -534,7 +534,7 @@ pub(crate) fn generate(
                         #(#enumerant_items)*
                     }
                 )?;
-                let parse_body = quote!{
+                let parse_body = quote! {
                     let (mut mask, words) = u32::spirv_parse(words, parse_state)?;
                     #(#enumerant_parse_operations)*
                     if mask != 0 {
@@ -548,7 +548,7 @@ pub(crate) fn generate(
                 writeln!(
                     &mut out,
                     "{}",
-                    quote!{
+                    quote! {
                         impl SPIRVParse for #kind_id {
                             fn spirv_parse<'a>(
                                 words: &'a [u32],
@@ -562,7 +562,7 @@ pub(crate) fn generate(
                 writeln!(
                     &mut out,
                     "{}",
-                    quote!{
+                    quote! {
                         impl SPIRVDisplay for #kind_id {
                             fn spirv_display(&self, f: &mut fmt::Formatter) -> fmt::Result {
                                 let mut any_members = false;
@@ -593,11 +593,11 @@ pub(crate) fn generate(
                     let enumerant_value = enumerant.value;
                     let display_name = &enumerant.enumerant;
                     if enumerant.parameters.is_empty() {
-                        generated_enumerants.push(quote!{#name});
-                        enumerant_parse_cases.push(quote!{
+                        generated_enumerants.push(quote! {#name});
+                        enumerant_parse_cases.push(quote! {
                             #enumerant_value => Ok((#kind_id::#name, words)),
                         });
-                        enumerant_display_cases.push(quote!{
+                        enumerant_display_cases.push(quote! {
                             #kind_id::#name => write!(f, " {}", #display_name),
                         });
                     } else {
@@ -608,26 +608,26 @@ pub(crate) fn generate(
                         for parameter in enumerant.parameters.iter() {
                             let name = new_id(parameter.name.as_ref().unwrap(), SnakeCase);
                             let kind = new_id(&parameter.kind, CamelCase);
-                            enumerant_member_declarations.push(quote!{
+                            enumerant_member_declarations.push(quote! {
                                 #name: #kind,
                             });
-                            enumerant_member_names.push(quote!{
+                            enumerant_member_names.push(quote! {
                                 #name,
                             });
-                            parse_enumerant_members.push(quote!{
+                            parse_enumerant_members.push(quote! {
                                 let (#name, words) = #kind::spirv_parse(words, parse_state)?;
                             });
-                            display_enumerant_members.push(quote!{
+                            display_enumerant_members.push(quote! {
                                 #name.spirv_display(f)?;
                             });
                         }
-                        generated_enumerants.push(quote!{
+                        generated_enumerants.push(quote! {
                             #name {
                                 #(#enumerant_member_declarations)*
                             }
                         });
                         let enumerant_member_names = &enumerant_member_names;
-                        enumerant_parse_cases.push(quote!{
+                        enumerant_parse_cases.push(quote! {
                             #enumerant_value => {
                                 #(#parse_enumerant_members)*
                                 Ok((#kind_id::#name {
@@ -635,7 +635,7 @@ pub(crate) fn generate(
                                 }, words))
                             },
                         });
-                        enumerant_display_cases.push(quote!{
+                        enumerant_display_cases.push(quote! {
                             #kind_id::#name {
                                 #(#enumerant_member_names)*
                             } => {
@@ -647,19 +647,19 @@ pub(crate) fn generate(
                     }
                 }
                 let mut derives = vec![
-                    quote!{Clone},
-                    quote!{Debug},
-                    quote!{Eq},
-                    quote!{PartialEq},
-                    quote!{Hash},
+                    quote! {Clone},
+                    quote! {Debug},
+                    quote! {Eq},
+                    quote! {PartialEq},
+                    quote! {Hash},
                 ];
                 if !has_any_parameters {
-                    derives.push(quote!{Copy});
+                    derives.push(quote! {Copy});
                 }
                 writeln!(
                     &mut out,
                     "{}",
-                    quote!{
+                    quote! {
                         #[derive(#(#derives),*)]
                         pub enum #kind_id {
                             #(#generated_enumerants,)*
@@ -669,7 +669,7 @@ pub(crate) fn generate(
                 writeln!(
                     &mut out,
                     "{}",
-                    quote!{
+                    quote! {
                         impl SPIRVParse for #kind_id {
                             fn spirv_parse<'a>(
                                 words: &'a [u32],
@@ -687,7 +687,7 @@ pub(crate) fn generate(
                 writeln!(
                     &mut out,
                     "{}",
-                    quote!{
+                    quote! {
                         impl SPIRVDisplay for #kind_id {
                             fn spirv_display(&self, f: &mut fmt::Formatter) -> fmt::Result {
                                 match self {
@@ -700,15 +700,15 @@ pub(crate) fn generate(
             }
             ast::OperandKind::Id { kind, .. } => {
                 let base = if *kind == ast::Kind::IdRef {
-                    quote!{u32}
+                    quote! {u32}
                 } else {
-                    quote!{IdRef}
+                    quote! {IdRef}
                 };
                 let kind_id = new_id(kind, CamelCase);
                 writeln!(
                     &mut out,
                     "{}",
-                    quote!{
+                    quote! {
                         #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
                         #[repr(transparent)]
                         pub struct #kind_id(pub #base);
@@ -718,7 +718,7 @@ pub(crate) fn generate(
                     writeln!(
                         &mut out,
                         "{}",
-                        quote!{
+                        quote! {
                             impl SPIRVParse for #kind_id {
                                 fn spirv_parse<'a>(
                                     words: &'a [u32],
@@ -732,7 +732,7 @@ pub(crate) fn generate(
                     writeln!(
                         &mut out,
                         "{}",
-                        quote!{
+                        quote! {
                             impl fmt::Display for #kind_id {
                                 fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
                                     fmt::Display::fmt(&self.0, f)
@@ -743,7 +743,7 @@ pub(crate) fn generate(
                     writeln!(
                         &mut out,
                         "{}",
-                        quote!{
+                        quote! {
                             impl SPIRVDisplay for #kind_id {
                                 fn spirv_display(&self, f: &mut fmt::Formatter) -> fmt::Result {
                                     self.0.spirv_display(f)
@@ -763,15 +763,15 @@ pub(crate) fn generate(
                         | ast::LiteralKind::LiteralContextDependentNumber => unreachable!(),
                         ast::LiteralKind::LiteralInteger32
                         | ast::LiteralKind::LiteralContextDependentNumber32 => {
-                            quote!{pub type #kind_id = u32;}
+                            quote! {pub type #kind_id = u32;}
                         }
                         ast::LiteralKind::LiteralInteger64
                         | ast::LiteralKind::LiteralContextDependentNumber64 => {
-                            quote!{pub type #kind_id = u64;}
+                            quote! {pub type #kind_id = u64;}
                         }
-                        ast::LiteralKind::LiteralString => quote!{pub type #kind_id = String;},
+                        ast::LiteralKind::LiteralString => quote! {pub type #kind_id = String;},
                         ast::LiteralKind::LiteralExtInstInteger => {
-                            quote!{pub type #kind_id = u32;}
+                            quote! {pub type #kind_id = u32;}
                         }
                         ast::LiteralKind::LiteralSpecConstantOpInteger => continue,
                     }
@@ -780,7 +780,7 @@ pub(crate) fn generate(
             ast::OperandKind::Composite { kind, bases } => {
                 let kind = new_id(kind, CamelCase);
                 let bases = bases.iter().map(|base| new_id(base, CamelCase));
-                writeln!(&mut out, "{}", quote!{pub type #kind = (#(#bases),*);})?;
+                writeln!(&mut out, "{}", quote! {pub type #kind = (#(#bases),*);})?;
             }
         }
     }
@@ -810,13 +810,13 @@ pub(crate) fn generate(
                     let kind = new_id(&operand.kind, CamelCase);
                     let name = new_id(operand.name.as_ref().unwrap(), SnakeCase);
                     let kind = match &operand.quantifier {
-                        None => quote!{#kind},
-                        Some(ast::Quantifier::Optional) => quote!{Option<#kind>},
-                        Some(ast::Quantifier::Variadic) => quote!{Vec<#kind>},
+                        None => quote! {#kind},
+                        Some(ast::Quantifier::Optional) => quote! {Option<#kind>},
+                        Some(ast::Quantifier::Variadic) => quote! {Vec<#kind>},
                     };
-                    fields.push(quote!{#name: #kind});
+                    fields.push(quote! {#name: #kind});
                 }
-                let instruction_extension_enumerant = quote!{
+                let instruction_extension_enumerant = quote! {
                     #instruction_enumerant_name {
                         id_result_type: IdResultType,
                         id_result: IdResult,
@@ -832,20 +832,20 @@ pub(crate) fn generate(
                     let kind = new_id(&operand.kind, CamelCase);
                     let name = new_id(operand.name.as_ref().unwrap(), SnakeCase);
                     let kind = match operand.quantifier {
-                        None => quote!{#kind},
-                        Some(ast::Quantifier::Optional) => quote!{Option::<#kind>},
-                        Some(ast::Quantifier::Variadic) => quote!{Vec::<#kind>},
+                        None => quote! {#kind},
+                        Some(ast::Quantifier::Optional) => quote! {Option::<#kind>},
+                        Some(ast::Quantifier::Variadic) => quote! {Vec::<#kind>},
                     };
-                    parse_operations.push(quote!{
+                    parse_operations.push(quote! {
                         let (#name, words) = #kind::spirv_parse(words, parse_state)?;
                     });
-                    display_operations.push(quote!{
+                    display_operations.push(quote! {
                         #name.spirv_display(f)?;
                     });
                     operand_names.push(name);
                 }
                 let operand_names = &operand_names;
-                let body = quote!{
+                let body = quote! {
                     #(#parse_operations)*
                     if words.is_empty() {
                         Ok(Instruction::#instruction_enumerant_name {
@@ -858,14 +858,14 @@ pub(crate) fn generate(
                         Err(Error::InstructionTooLong)
                     }
                 };
-                let instruction_extension_parse_case = quote!{
+                let instruction_extension_parse_case = quote! {
                     (ExtensionInstructionSet::#extension_instruction_set, #opcode) => {
                         #body
                     }
                 };
                 instruction_extension_parse_cases.push(instruction_extension_parse_case);
                 let display_opname = &instruction.opname;
-                let instruction_extension_display_case = quote!{
+                let instruction_extension_display_case = quote! {
                     Instruction::#instruction_enumerant_name {
                         id_result_type,
                         id_result,
@@ -897,7 +897,7 @@ pub(crate) fn generate(
             let instruction_display_case;
             match &instruction.opname {
                 ast::InstructionName::OpExtInstImport => {
-                    let body = quote!{
+                    let body = quote! {
                         parse_state.define_id(
                             id_result,
                             IdState::ExtensionInstructionSet(ExtensionInstructionSet::from(&*name)),
@@ -908,19 +908,19 @@ pub(crate) fn generate(
                             Err(Error::InstructionTooLong)
                         }
                     };
-                    instruction_parse_case = quote!{#opcode => {
+                    instruction_parse_case = quote! {#opcode => {
                         let (id_result, words) = IdResult::spirv_parse(words, parse_state)?;
                         let (name, words) = LiteralString::spirv_parse(words, parse_state)?;
                         #body
                     }};
-                    instruction_display_case = quote!{
+                    instruction_display_case = quote! {
                         Instruction::ExtInstImport { id_result, name } => {
                             writeln!(f, "{}{} {:?}", InstructionIndentAndResult(Some(*id_result)), #display_opname, name)
                         }
                     };
                 }
                 ast::InstructionName::OpExtInst => {
-                    let body = quote!{
+                    let body = quote! {
                         let extension_instruction_set;
                         match parse_state.id_states[set.0 as usize].clone() {
                             IdState::ExtensionInstructionSet(ExtensionInstructionSet::Other(_)) => {
@@ -947,7 +947,7 @@ pub(crate) fn generate(
                             (extension_instruction_set, instruction) => Err(Error::UnknownExtensionOpcode(extension_instruction_set, instruction)),
                         }
                     };
-                    instruction_parse_case = quote!{
+                    instruction_parse_case = quote! {
                         #opcode => {
                             let (id_result_type, words) = IdResultType::spirv_parse(words, parse_state)?;
                             let (id_result, words) = IdResult::spirv_parse(words, parse_state)?;
@@ -957,7 +957,7 @@ pub(crate) fn generate(
                             #body
                         }
                     };
-                    instruction_display_case = quote!{
+                    instruction_display_case = quote! {
                         Instruction::ExtInst {
                             id_result_type,
                             id_result,
@@ -975,7 +975,7 @@ pub(crate) fn generate(
                     };
                 }
                 ast::InstructionName::OpTypeInt => {
-                    let body = quote!{
+                    let body = quote! {
                         let (signedness, words) = LiteralInteger32::spirv_parse(words, parse_state)?;
                         let id_state = match width {
                             8 | 16 | 32 => IdState::Type(IdStateType(BitWidth::Width32OrLess)),
@@ -993,14 +993,14 @@ pub(crate) fn generate(
                             Err(Error::InstructionTooLong)
                         }
                     };
-                    instruction_parse_case = quote!{
+                    instruction_parse_case = quote! {
                         #opcode => {
                             let (id_result, words) = IdResult::spirv_parse(words, parse_state)?;
                             let (width, words) = LiteralInteger32::spirv_parse(words, parse_state)?;
                             #body
                         }
                     };
-                    instruction_display_case = quote!{
+                    instruction_display_case = quote! {
                         Instruction::TypeInt {
                             id_result,
                             width,
@@ -1019,7 +1019,7 @@ pub(crate) fn generate(
                     };
                 }
                 ast::InstructionName::OpTypeFloat => {
-                    instruction_parse_case = quote!{
+                    instruction_parse_case = quote! {
                         #opcode => {
                             let (id_result, words) = IdResult::spirv_parse(words, parse_state)?;
                             let (width, words) = LiteralInteger32::spirv_parse(words, parse_state)?;
@@ -1039,7 +1039,7 @@ pub(crate) fn generate(
                             }
                         }
                     };
-                    instruction_display_case = quote!{
+                    instruction_display_case = quote! {
                         Instruction::TypeFloat { id_result, width } => {
                             write!(
                                 f,
@@ -1053,7 +1053,7 @@ pub(crate) fn generate(
                     };
                 }
                 ast::InstructionName::OpSwitch32 => {
-                    let body32 = quote!{
+                    let body32 = quote! {
                         IdState::Value(IdStateValue(BitWidth::Width32OrLess)) => {
                             let (target, words) = Vec::<PairLiteralInteger32IdRef>::spirv_parse(words, parse_state)?;
                             if words.is_empty() {
@@ -1067,7 +1067,7 @@ pub(crate) fn generate(
                             }
                         }
                     };
-                    let body64 = quote!{
+                    let body64 = quote! {
                         IdState::Value(IdStateValue(BitWidth::Width64)) => {
                             let (target, words) = Vec::<PairLiteralInteger64IdRef>::spirv_parse(words, parse_state)?;
                             if words.is_empty() {
@@ -1081,7 +1081,7 @@ pub(crate) fn generate(
                             }
                         }
                     };
-                    instruction_parse_case = quote!{
+                    instruction_parse_case = quote! {
                         #opcode => {
                             let (selector, words) = IdRef::spirv_parse(words, parse_state)?;
                             let (default, words) = IdRef::spirv_parse(words, parse_state)?;
@@ -1092,7 +1092,7 @@ pub(crate) fn generate(
                             }
                         }
                     };
-                    instruction_display_case = quote!{
+                    instruction_display_case = quote! {
                         Instruction::Switch32 {
                             selector,
                             default,
@@ -1128,11 +1128,11 @@ pub(crate) fn generate(
                     };
                 }
                 ast::InstructionName::OpSwitch64 => {
-                    instruction_parse_case = quote!{};
-                    instruction_display_case = quote!{};
+                    instruction_parse_case = quote! {};
+                    instruction_display_case = quote! {};
                 }
                 ast::InstructionName::OpConstant32 => {
-                    let body32 = quote!{
+                    let body32 = quote! {
                         IdStateType(BitWidth::Width32OrLess) => {
                             let (value, words) = LiteralContextDependentNumber32::spirv_parse(words, parse_state)?;
                             if words.is_empty() {
@@ -1146,7 +1146,7 @@ pub(crate) fn generate(
                             }
                         }
                     };
-                    let body64 = quote!{
+                    let body64 = quote! {
                         IdStateType(BitWidth::Width64) => {
                             let (value, words) = LiteralContextDependentNumber64::spirv_parse(words, parse_state)?;
                             if words.is_empty() {
@@ -1160,7 +1160,7 @@ pub(crate) fn generate(
                             }
                         }
                     };
-                    instruction_parse_case = quote!{
+                    instruction_parse_case = quote! {
                         #opcode => {
                             let (id_result_type, words) = IdResultType::spirv_parse(words, parse_state)?;
                             let (id_result, words) = IdResult::spirv_parse(words, parse_state)?;
@@ -1171,7 +1171,7 @@ pub(crate) fn generate(
                             }
                         }
                     };
-                    instruction_display_case = quote!{
+                    instruction_display_case = quote! {
                         Instruction::Constant32 {
                             id_result_type,
                             id_result,
@@ -1203,11 +1203,11 @@ pub(crate) fn generate(
                     };
                 }
                 ast::InstructionName::OpConstant64 => {
-                    instruction_parse_case = quote!{};
-                    instruction_display_case = quote!{};
+                    instruction_parse_case = quote! {};
+                    instruction_display_case = quote! {};
                 }
                 ast::InstructionName::OpSpecConstant32 => {
-                    let body32 = quote!{
+                    let body32 = quote! {
                         IdStateType(BitWidth::Width32OrLess) => {
                             let (value, words) = LiteralContextDependentNumber32::spirv_parse(words, parse_state)?;
                             if words.is_empty() {
@@ -1221,7 +1221,7 @@ pub(crate) fn generate(
                             }
                         }
                     };
-                    let body64 = quote!{
+                    let body64 = quote! {
                         IdStateType(BitWidth::Width64) => {
                             let (value, words) = LiteralContextDependentNumber64::spirv_parse(words, parse_state)?;
                             if words.is_empty() {
@@ -1235,7 +1235,7 @@ pub(crate) fn generate(
                             }
                         }
                     };
-                    instruction_parse_case = quote!{
+                    instruction_parse_case = quote! {
                         #opcode => {
                             let (id_result_type, words) = IdResultType::spirv_parse(words, parse_state)?;
                             let (id_result, words) = IdResult::spirv_parse(words, parse_state)?;
@@ -1246,7 +1246,7 @@ pub(crate) fn generate(
                             }
                         }
                     };
-                    instruction_display_case = quote!{
+                    instruction_display_case = quote! {
                         Instruction::SpecConstant32 {
                             id_result_type,
                             id_result,
@@ -1278,11 +1278,11 @@ pub(crate) fn generate(
                     };
                 }
                 ast::InstructionName::OpSpecConstant64 => {
-                    instruction_parse_case = quote!{};
-                    instruction_display_case = quote!{};
+                    instruction_parse_case = quote! {};
+                    instruction_display_case = quote! {};
                 }
                 ast::InstructionName::OpSpecConstantOp => {
-                    instruction_parse_case = quote!{#opcode => {
+                    instruction_parse_case = quote! {#opcode => {
                         let (operation, words) = OpSpecConstantOp::spirv_parse(words, parse_state)?;
                         if words.is_empty() {
                             Ok(Instruction::#opname { operation })
@@ -1290,7 +1290,7 @@ pub(crate) fn generate(
                             Err(Error::InstructionTooLong)
                         }
                     }};
-                    instruction_display_case = quote!{
+                    instruction_display_case = quote! {
                         Instruction::#opname { operation } => fmt::Display::fmt(operation, f),
                     };
                 }
@@ -1303,11 +1303,11 @@ pub(crate) fn generate(
                         let kind = new_id(&operand.kind, CamelCase);
                         let name = new_id(operand.name.as_ref().unwrap(), SnakeCase);
                         let kind = match operand.quantifier {
-                            None => quote!{#kind},
-                            Some(ast::Quantifier::Optional) => quote!{Option::<#kind>},
-                            Some(ast::Quantifier::Variadic) => quote!{Vec::<#kind>},
+                            None => quote! {#kind},
+                            Some(ast::Quantifier::Optional) => quote! {Option::<#kind>},
+                            Some(ast::Quantifier::Variadic) => quote! {Vec::<#kind>},
                         };
-                        parse_operations.push(quote!{
+                        parse_operations.push(quote! {
                             let (#name, words) = #kind::spirv_parse(words, parse_state)?;
                         });
                         operand_names.push(name.clone());
@@ -1315,7 +1315,7 @@ pub(crate) fn generate(
                             assert_eq!(result_name, None);
                             result_name = Some(name);
                         } else {
-                            display_operations.push(quote!{
+                            display_operations.push(quote! {
                                 #name.spirv_display(f)?;
                             });
                         }
@@ -1326,13 +1326,13 @@ pub(crate) fn generate(
                         {
                             let operand1_name = new_id(operand1.name.as_ref().unwrap(), SnakeCase);
                             let operand2_name = new_id(operand2.name.as_ref().unwrap(), SnakeCase);
-                            parse_operations.push(quote!{
+                            parse_operations.push(quote! {
                                 parse_state.define_value(#operand1_name, #operand2_name)?;
                             });
                         }
                     }
                     let operand_names = &operand_names;
-                    instruction_parse_case = quote!{#opcode => {
+                    instruction_parse_case = quote! {#opcode => {
                         #(#parse_operations)*
                         if words.is_empty() {
                             Ok(Instruction::#opname {
@@ -1343,10 +1343,10 @@ pub(crate) fn generate(
                         }
                     }};
                     let result_value = match result_name {
-                        None => quote!{None},
-                        Some(result_name) => quote!{Some(*#result_name)},
+                        None => quote! {None},
+                        Some(result_name) => quote! {Some(*#result_name)},
                     };
-                    instruction_display_case = quote!{
+                    instruction_display_case = quote! {
                         Instruction::#opname { #(#operand_names,)* } => {
                             write!(f, "{}{}", InstructionIndentAndResult(#result_value), #display_opname)?;
                             #(#display_operations)*
@@ -1359,26 +1359,26 @@ pub(crate) fn generate(
             instruction_display_cases.push(instruction_display_case);
             let instruction_enumerant =
                 if instruction.opname == ast::InstructionName::OpSpecConstantOp {
-                    quote!{
+                    quote! {
                         #opname {
                             operation: OpSpecConstantOp,
                         }
                     }
                 } else if instruction.operands.is_empty() {
-                    quote!{#opname}
+                    quote! {#opname}
                 } else {
                     let mut fields = Vec::new();
                     for operand in instruction.operands.iter() {
                         let kind = new_id(&operand.kind, CamelCase);
                         let name = new_id(operand.name.as_ref().unwrap(), SnakeCase);
                         let kind = match &operand.quantifier {
-                            None => quote!{#kind},
-                            Some(ast::Quantifier::Optional) => quote!{Option<#kind>},
-                            Some(ast::Quantifier::Variadic) => quote!{Vec<#kind>},
+                            None => quote! {#kind},
+                            Some(ast::Quantifier::Optional) => quote! {Option<#kind>},
+                            Some(ast::Quantifier::Variadic) => quote! {Vec<#kind>},
                         };
-                        fields.push(quote!{#name: #kind});
+                        fields.push(quote! {#name: #kind});
                     }
-                    quote!{
+                    quote! {
                         #opname {
                             #(#fields,)*
                         }
@@ -1396,14 +1396,14 @@ pub(crate) fn generate(
                     let kind = new_id(&operand.kind, CamelCase);
                     let name = new_id(operand.name.as_ref().unwrap(), SnakeCase);
                     let kind = match operand.quantifier {
-                        None => quote!{#kind},
-                        Some(ast::Quantifier::Optional) => quote!{Option::<#kind>},
-                        Some(ast::Quantifier::Variadic) => quote!{Vec::<#kind>},
+                        None => quote! {#kind},
+                        Some(ast::Quantifier::Optional) => quote! {Option::<#kind>},
+                        Some(ast::Quantifier::Variadic) => quote! {Vec::<#kind>},
                     };
-                    parse_operations.push(quote!{
+                    parse_operations.push(quote! {
                         let (#name, words) = #kind::spirv_parse(words, parse_state)?;
                     });
-                    display_operations.push(quote!{
+                    display_operations.push(quote! {
                         #name.spirv_display(f)?;
                     });
                     operand_names.push(name);
@@ -1413,7 +1413,7 @@ pub(crate) fn generate(
                     assert_eq!(operand2.kind, ast::Kind::IdResult);
                     let operand1_name = new_id(operand1.name.as_ref().unwrap(), SnakeCase);
                     let operand2_name = new_id(operand2.name.as_ref().unwrap(), SnakeCase);
-                    parse_operations.push(quote!{
+                    parse_operations.push(quote! {
                         parse_state.define_value(#operand1_name, #operand2_name)?;
                     });
                 } else {
@@ -1423,7 +1423,7 @@ pub(crate) fn generate(
                     );
                 }
                 let operand_names = &operand_names;
-                instruction_spec_constant_parse_cases.push(quote!{#opcode => {
+                instruction_spec_constant_parse_cases.push(quote! {#opcode => {
                     #(#parse_operations)*
                     if words.is_empty() {
                         Ok((OpSpecConstantOp::#opname {
@@ -1450,7 +1450,7 @@ pub(crate) fn generate(
         writeln!(
             &mut out,
             "{}",
-            quote!{
+            quote! {
                 #[derive(Clone, Debug)]
                 pub enum OpSpecConstantOp {
                     #(#spec_constant_op_instruction_enumerants,)*
@@ -1460,7 +1460,7 @@ pub(crate) fn generate(
         writeln!(
             &mut out,
             "{}",
-            quote!{
+            quote! {
                 impl fmt::Display for OpSpecConstantOp {
                     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
                         match self {
@@ -1473,7 +1473,7 @@ pub(crate) fn generate(
         writeln!(
             &mut out,
             "{}",
-            quote!{
+            quote! {
                 #[derive(Clone, Debug)]
                 pub enum Instruction {
                     #(#instruction_enumerants,)*
@@ -1724,7 +1724,7 @@ pub(crate) fn generate(
         writeln!(
             &mut out,
             "{}",
-            quote!{
+            quote! {
                 fn parse_instruction(opcode: u16, words: &[u32], parse_state: &mut ParseState) -> Result<Instruction> {
                     match opcode {
                         #(#instruction_parse_cases)*
@@ -1736,7 +1736,7 @@ pub(crate) fn generate(
         writeln!(
             &mut out,
             "{}",
-            quote!{
+            quote! {
                 impl fmt::Display for Instruction {
                     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
                         match self {
@@ -1747,7 +1747,7 @@ pub(crate) fn generate(
                 }
             }
         )?;
-        let body = quote!{
+        let body = quote! {
             let (id_result_type, words) = IdResultType::spirv_parse(words, parse_state)?;
             let (id_result, words) = IdResult::spirv_parse(words, parse_state)?;
             let (opcode, words) = u32::spirv_parse(words, parse_state)?;
@@ -1759,7 +1759,7 @@ pub(crate) fn generate(
         writeln!(
             &mut out,
             "{}",
-            quote!{
+            quote! {
                 impl SPIRVParse for OpSpecConstantOp {
                     fn spirv_parse<'a>(
                         words: &'a [u32],
@@ -1802,7 +1802,7 @@ pub(crate) fn generate(
             writeln!(
                 &mut out,
                 "{}",
-                quote!{
+                quote! {
                     pub const #version_name: u32 = #version;
                     pub const #revision_name: u32 = #revision;
                 }
@@ -1811,7 +1811,7 @@ pub(crate) fn generate(
         writeln!(
             &mut out,
             "{}",
-            quote!{
+            quote! {
                 #[derive(Clone, Eq, PartialEq, Hash, Debug)]
                 pub enum ExtensionInstructionSet {
                     #(#extension_instruction_set_enumerants,)*
@@ -1822,7 +1822,7 @@ pub(crate) fn generate(
         writeln!(
             &mut out,
             "{}",
-            quote!{
+            quote! {
                 impl<'a> From<Cow<'a, str>> for ExtensionInstructionSet {
                     fn from(s: Cow<'a, str>) -> ExtensionInstructionSet {
                         match s.as_ref() {
@@ -1837,7 +1837,7 @@ pub(crate) fn generate(
         writeln!(
             &mut out,
             "{}",
-            quote!{
+            quote! {
                 impl Deref for ExtensionInstructionSet {
                     type Target = str;
                     fn deref(&self) -> &str {

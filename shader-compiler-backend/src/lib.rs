@@ -260,18 +260,18 @@ pub trait Compiler: Copy + Send + Sync + 'static {
 mod test {
     #![allow(dead_code)]
 
-    buildable_struct!{
+    buildable_struct! {
         struct S1 {
         }
     }
 
-    buildable_struct!{
+    buildable_struct! {
         pub struct S2 {
             v: u32,
         }
     }
 
-    buildable_struct!{
+    buildable_struct! {
         struct S3 {
             p: *mut S2,
             v: ::types::VecNx4<f32>,

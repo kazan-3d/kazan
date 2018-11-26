@@ -47,7 +47,7 @@ pub struct DeviceMemoryTypes(EnumMap<DeviceMemoryType, bool>);
 
 impl Default for DeviceMemoryTypes {
     fn default() -> Self {
-        DeviceMemoryTypes(enum_map!{_ => false})
+        DeviceMemoryTypes(enum_map! {_ => false})
     }
 }
 
@@ -121,7 +121,7 @@ pub struct DeviceMemoryHeaps(EnumMap<DeviceMemoryHeap, bool>);
 
 impl Default for DeviceMemoryHeaps {
     fn default() -> Self {
-        DeviceMemoryHeaps(enum_map!{_ => false})
+        DeviceMemoryHeaps(enum_map! {_ => false})
     }
 }
 

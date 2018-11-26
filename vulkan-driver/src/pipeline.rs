@@ -126,14 +126,14 @@ impl GenericPipelineSized for ComputePipeline {
         _pipeline_cache: Option<SharedHandle<api::VkPipelineCache>>,
         create_info: &api::VkComputePipelineCreateInfo,
     ) -> Self {
-        parse_next_chain_const!{
+        parse_next_chain_const! {
             create_info,
             root = api::VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO,
         }
         if (create_info.flags & api::VK_PIPELINE_CREATE_VIEW_INDEX_FROM_DEVICE_INDEX_BIT) != 0 {
             unimplemented!();
         }
-        get_shader_stages!{
+        get_shader_stages! {
             iter::once(&create_info.stage),
             compute_stage = VK_SHADER_STAGE_COMPUTE_BIT,
         }
@@ -169,11 +169,11 @@ impl GenericPipelineSized for GraphicsPipeline {
         _pipeline_cache: Option<SharedHandle<api::VkPipelineCache>>,
         create_info: &api::VkGraphicsPipelineCreateInfo,
     ) -> Self {
-        parse_next_chain_const!{
+        parse_next_chain_const! {
             create_info,
             root = api::VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
         }
-        get_shader_stages!{
+        get_shader_stages! {
             util::to_slice(create_info.pStages, create_info.stageCount as usize),
             vertex_stage = VK_SHADER_STAGE_VERTEX_BIT,
             #[optional]

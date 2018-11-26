@@ -50,8 +50,10 @@ impl<T> Drop for ReplyObject<T> {
 struct ServerObject<Id: 'static + Copy> {
     id: Id,
     connection: *mut xcb::ffi::xcb_connection_t,
-    free_fn: unsafe extern "C" fn(connection: *mut xcb::ffi::xcb_connection_t, id: Id)
-        -> xcb::ffi::xcb_void_cookie_t,
+    free_fn: unsafe extern "C" fn(
+        connection: *mut xcb::ffi::xcb_connection_t,
+        id: Id,
+    ) -> xcb::ffi::xcb_void_cookie_t,
 }
 
 impl<Id: 'static + Copy> ServerObject<Id> {
