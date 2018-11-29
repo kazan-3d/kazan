@@ -5,7 +5,7 @@ use super::{
     Context, CrossLaneBehavior, FrontendType, IdKind, Ids, ParsedShader, ParsedShaderFunction,
     ScalarType,
 };
-use cfg::create_cfg;
+use cfg::CFG;
 use shader_compiler_backend::{
     types::TypeBuilder, AttachedBuilder, BuildableBasicBlock, DetachedBuilder, Function, Module,
 };
@@ -302,7 +302,7 @@ impl<'ctx, C: shader_compiler_backend::Context<'ctx>> ParsedShaderCompile<'ctx, 
                 Instruction::FunctionEnd {} => {}
                 _ => unreachable!("missing OpFunctionEnd"),
             }
-            let cfg = create_cfg(instructions);
+            let cfg = CFG::new(instructions);
             unimplemented!("finish\ncfg:\n{:#?}", cfg);
             let mut current_basic_block: BasicBlockState<C> = BasicBlockState::Detached {
                 builder: backend_context.create_builder(),
