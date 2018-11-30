@@ -327,6 +327,7 @@ mod tests {
     struct CFGTemplateBlock<'a> {
         label: IdRef,
         successors: &'a [IdRef],
+        immediate_dominator: Option<IdRef>,
     }
 
     #[derive(Debug)]
@@ -349,12 +350,14 @@ mod tests {
         for &CFGTemplateBlock {
             label,
             successors: expected_successors,
+            immediate_dominator,
         } in cfg_template.blocks
         {
             let basic_block = cfg.get_basic_block(label).expect("missing basic block");
             let expected_successors: HashSet<_> = expected_successors.iter().cloned().collect();
             let actual_successors: HashSet<_> = basic_block.successors().collect();
             assert_eq!(expected_successors, actual_successors);
+            assert_eq!(basic_block.immediate_dominator(), immediate_dominator);
         }
     }
 
@@ -376,6 +379,7 @@ mod tests {
                 blocks: &[CFGTemplateBlock {
                     label: label1,
                     successors: &[],
+                    immediate_dominator: None,
                 }],
                 entry_block: label1,
             },
@@ -402,6 +406,7 @@ mod tests {
                 blocks: &[CFGTemplateBlock {
                     label: label1,
                     successors: &[],
+                    immediate_dominator: None,
                 }],
                 entry_block: label1,
             },
@@ -436,10 +441,12 @@ mod tests {
                     CFGTemplateBlock {
                         label: label1,
                         successors: &[label2],
+                        immediate_dominator: None,
                     },
                     CFGTemplateBlock {
                         label: label2,
                         successors: &[],
+                        immediate_dominator: Some(label1),
                     },
                 ],
                 entry_block: label1,
@@ -482,10 +489,12 @@ mod tests {
                     CFGTemplateBlock {
                         label: label_start,
                         successors: &[label_endif],
+                        immediate_dominator: None,
                     },
                     CFGTemplateBlock {
                         label: label_endif,
                         successors: &[],
+                        immediate_dominator: Some(label_start),
                     },
                 ],
                 entry_block: label_start,
@@ -536,14 +545,17 @@ mod tests {
                     CFGTemplateBlock {
                         label: label_start,
                         successors: &[label_then, label_endif],
+                        immediate_dominator: None,
                     },
                     CFGTemplateBlock {
                         label: label_then,
                         successors: &[label_endif],
+                        immediate_dominator: Some(label_start),
                     },
                     CFGTemplateBlock {
                         label: label_endif,
                         successors: &[],
+                        immediate_dominator: Some(label_start),
                     },
                 ],
                 entry_block: label_start,
@@ -600,18 +612,22 @@ mod tests {
                     CFGTemplateBlock {
                         label: label_start,
                         successors: &[label_then, label_else],
+                        immediate_dominator: None,
                     },
                     CFGTemplateBlock {
                         label: label_then,
                         successors: &[],
+                        immediate_dominator: Some(label_start),
                     },
                     CFGTemplateBlock {
                         label: label_else,
                         successors: &[label_endif],
+                        immediate_dominator: Some(label_start),
                     },
                     CFGTemplateBlock {
                         label: label_endif,
                         successors: &[],
+                        immediate_dominator: Some(label_else),
                     },
                 ],
                 entry_block: label_start,
@@ -661,14 +677,17 @@ mod tests {
                     CFGTemplateBlock {
                         label: label_start,
                         successors: &[label_default],
+                        immediate_dominator: None,
                     },
                     CFGTemplateBlock {
                         label: label_default,
                         successors: &[label_merge],
+                        immediate_dominator: Some(label_start),
                     },
                     CFGTemplateBlock {
                         label: label_merge,
                         successors: &[],
+                        immediate_dominator: Some(label_default),
                     },
                 ],
                 entry_block: label_start,
@@ -724,18 +743,22 @@ mod tests {
                     CFGTemplateBlock {
                         label: label_start,
                         successors: &[label_case1, label_default],
+                        immediate_dominator: None,
                     },
                     CFGTemplateBlock {
                         label: label_case1,
                         successors: &[],
+                        immediate_dominator: Some(label_start),
                     },
                     CFGTemplateBlock {
                         label: label_default,
                         successors: &[label_merge],
+                        immediate_dominator: Some(label_start),
                     },
                     CFGTemplateBlock {
                         label: label_merge,
                         successors: &[],
+                        immediate_dominator: Some(label_default),
                     },
                 ],
                 entry_block: label_start,
@@ -793,18 +816,22 @@ mod tests {
                     CFGTemplateBlock {
                         label: label_start,
                         successors: &[label_case1, label_default],
+                        immediate_dominator: None,
                     },
                     CFGTemplateBlock {
                         label: label_case1,
                         successors: &[label_default],
+                        immediate_dominator: Some(label_start),
                     },
                     CFGTemplateBlock {
                         label: label_default,
                         successors: &[label_merge],
+                        immediate_dominator: Some(label_start),
                     },
                     CFGTemplateBlock {
                         label: label_merge,
                         successors: &[],
+                        immediate_dominator: Some(label_default),
                     },
                 ],
                 entry_block: label_start,
@@ -870,22 +897,27 @@ mod tests {
                     CFGTemplateBlock {
                         label: label_start,
                         successors: &[label_case1, label_case2, label_default],
+                        immediate_dominator: None,
                     },
                     CFGTemplateBlock {
                         label: label_case1,
                         successors: &[label_default],
+                        immediate_dominator: Some(label_start),
                     },
                     CFGTemplateBlock {
                         label: label_default,
                         successors: &[label_case2],
+                        immediate_dominator: Some(label_start),
                     },
                     CFGTemplateBlock {
                         label: label_case2,
                         successors: &[label_merge],
+                        immediate_dominator: Some(label_start),
                     },
                     CFGTemplateBlock {
                         label: label_merge,
                         successors: &[],
+                        immediate_dominator: Some(label_case2),
                     },
                 ],
                 entry_block: label_start,
@@ -951,22 +983,27 @@ mod tests {
                     CFGTemplateBlock {
                         label: label_start,
                         successors: &[label_case1, label_case2, label_default],
+                        immediate_dominator: None,
                     },
                     CFGTemplateBlock {
                         label: label_case1,
                         successors: &[label_merge],
+                        immediate_dominator: Some(label_start),
                     },
                     CFGTemplateBlock {
                         label: label_default,
                         successors: &[label_case2],
+                        immediate_dominator: Some(label_start),
                     },
                     CFGTemplateBlock {
                         label: label_case2,
                         successors: &[label_merge],
+                        immediate_dominator: Some(label_start),
                     },
                     CFGTemplateBlock {
                         label: label_merge,
                         successors: &[],
+                        immediate_dominator: Some(label_start),
                     },
                 ],
                 entry_block: label_start,
