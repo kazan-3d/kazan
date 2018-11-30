@@ -291,6 +291,12 @@ impl CFG {
     pub(crate) fn get_basic_block(&self, label_id: IdRef) -> Option<&BasicBlock> {
         self.basic_blocks.get(&label_id)
     }
+    pub(crate) fn entry_block(&self) -> IdRef {
+        self.entry_block
+    }
+    pub(crate) fn basic_blocks(&self) -> &HashMap<IdRef, BasicBlock> {
+        &self.basic_blocks
+    }
 }
 
 impl ops::Index<IdRef> for CFG {
@@ -317,25 +323,19 @@ mod tests {
         }
     }
 
-    #[derive(Debug, Eq, PartialEq, Clone)]
-    enum SerializedCFGElement {
-        Simple,
-        Return,
-        Discard,
-        Switch,
-        SwitchCase,
-        SwitchDefaultCase,
-        SwitchEnd,
-        SwitchFallthrough,
-        SwitchMerge,
-        Condition,
-        ConditionTrue,
-        ConditionFalse,
-        ConditionEnd,
-        ConditionMerge,
+    #[derive(Debug)]
+    struct CFGTemplateBlock<'a> {
+        label: IdRef,
+        successors: &'a [IdRef],
     }
 
-    fn test_cfg(instructions: &[Instruction], expected: &[SerializedCFGElement]) {
+    #[derive(Debug)]
+    struct CFGTemplate<'a> {
+        blocks: &'a [CFGTemplateBlock<'a>],
+        entry_block: IdRef,
+    }
+
+    fn test_cfg(instructions: &[Instruction], cfg_template: &CFGTemplate) {
         println!("instructions:");
         for instruction in instructions {
             print!("{}", instruction);
@@ -343,7 +343,19 @@ mod tests {
         println!();
         let cfg = CFG::new(&instructions);
         println!("{:#?}", cfg);
-        unimplemented!();
+
+        assert_eq!(cfg_template.entry_block, cfg.entry_block());
+        assert_eq!(cfg_template.blocks.len(), cfg.basic_blocks().len());
+        for &CFGTemplateBlock {
+            label,
+            successors: expected_successors,
+        } in cfg_template.blocks
+        {
+            let basic_block = cfg.get_basic_block(label).expect("missing basic block");
+            let expected_successors: HashSet<_> = expected_successors.iter().cloned().collect();
+            let actual_successors: HashSet<_> = basic_block.successors().collect();
+            assert_eq!(expected_successors, actual_successors);
+        }
     }
 
     #[test]
@@ -358,7 +370,16 @@ mod tests {
         });
         instructions.push(Instruction::Return);
 
-        test_cfg(&instructions, &[SerializedCFGElement::Return]);
+        test_cfg(
+            &instructions,
+            &CFGTemplate {
+                blocks: &[CFGTemplateBlock {
+                    label: label1,
+                    successors: &[],
+                }],
+                entry_block: label1,
+            },
+        );
     }
 
     #[test]
@@ -375,7 +396,16 @@ mod tests {
             value: id_factory.next(),
         });
 
-        test_cfg(&instructions, &[SerializedCFGElement::Return]);
+        test_cfg(
+            &instructions,
+            &CFGTemplate {
+                blocks: &[CFGTemplateBlock {
+                    label: label1,
+                    successors: &[],
+                }],
+                entry_block: label1,
+            },
+        );
     }
 
     #[test]
@@ -401,7 +431,19 @@ mod tests {
 
         test_cfg(
             &instructions,
-            &[SerializedCFGElement::Simple, SerializedCFGElement::Discard],
+            &CFGTemplate {
+                blocks: &[
+                    CFGTemplateBlock {
+                        label: label1,
+                        successors: &[label2],
+                    },
+                    CFGTemplateBlock {
+                        label: label2,
+                        successors: &[],
+                    },
+                ],
+                entry_block: label1,
+            },
         );
     }
 
@@ -435,11 +477,19 @@ mod tests {
 
         test_cfg(
             &instructions,
-            &[
-                SerializedCFGElement::Condition,
-                SerializedCFGElement::ConditionEnd,
-                SerializedCFGElement::Return,
-            ],
+            &CFGTemplate {
+                blocks: &[
+                    CFGTemplateBlock {
+                        label: label_start,
+                        successors: &[label_endif],
+                    },
+                    CFGTemplateBlock {
+                        label: label_endif,
+                        successors: &[],
+                    },
+                ],
+                entry_block: label_start,
+            },
         );
     }
 
@@ -481,13 +531,23 @@ mod tests {
 
         test_cfg(
             &instructions,
-            &[
-                SerializedCFGElement::Condition,
-                SerializedCFGElement::ConditionTrue,
-                SerializedCFGElement::ConditionMerge,
-                SerializedCFGElement::ConditionEnd,
-                SerializedCFGElement::Return,
-            ],
+            &CFGTemplate {
+                blocks: &[
+                    CFGTemplateBlock {
+                        label: label_start,
+                        successors: &[label_then, label_endif],
+                    },
+                    CFGTemplateBlock {
+                        label: label_then,
+                        successors: &[label_endif],
+                    },
+                    CFGTemplateBlock {
+                        label: label_endif,
+                        successors: &[],
+                    },
+                ],
+                entry_block: label_start,
+            },
         );
     }
 
@@ -535,15 +595,27 @@ mod tests {
 
         test_cfg(
             &instructions,
-            &[
-                SerializedCFGElement::Condition,
-                SerializedCFGElement::ConditionTrue,
-                SerializedCFGElement::Return,
-                SerializedCFGElement::ConditionFalse,
-                SerializedCFGElement::ConditionMerge,
-                SerializedCFGElement::ConditionEnd,
-                SerializedCFGElement::Return,
-            ],
+            &CFGTemplate {
+                blocks: &[
+                    CFGTemplateBlock {
+                        label: label_start,
+                        successors: &[label_then, label_else],
+                    },
+                    CFGTemplateBlock {
+                        label: label_then,
+                        successors: &[],
+                    },
+                    CFGTemplateBlock {
+                        label: label_else,
+                        successors: &[label_endif],
+                    },
+                    CFGTemplateBlock {
+                        label: label_endif,
+                        successors: &[],
+                    },
+                ],
+                entry_block: label_start,
+            },
         );
     }
 
@@ -584,13 +656,23 @@ mod tests {
 
         test_cfg(
             &instructions,
-            &[
-                SerializedCFGElement::Switch,
-                SerializedCFGElement::SwitchDefaultCase,
-                SerializedCFGElement::SwitchMerge,
-                SerializedCFGElement::SwitchEnd,
-                SerializedCFGElement::Return,
-            ],
+            &CFGTemplate {
+                blocks: &[
+                    CFGTemplateBlock {
+                        label: label_start,
+                        successors: &[label_default],
+                    },
+                    CFGTemplateBlock {
+                        label: label_default,
+                        successors: &[label_merge],
+                    },
+                    CFGTemplateBlock {
+                        label: label_merge,
+                        successors: &[],
+                    },
+                ],
+                entry_block: label_start,
+            },
         );
     }
 
@@ -637,15 +719,27 @@ mod tests {
 
         test_cfg(
             &instructions,
-            &[
-                SerializedCFGElement::Switch,
-                SerializedCFGElement::SwitchCase,
-                SerializedCFGElement::Return,
-                SerializedCFGElement::SwitchDefaultCase,
-                SerializedCFGElement::SwitchMerge,
-                SerializedCFGElement::SwitchEnd,
-                SerializedCFGElement::Return,
-            ],
+            &CFGTemplate {
+                blocks: &[
+                    CFGTemplateBlock {
+                        label: label_start,
+                        successors: &[label_case1, label_default],
+                    },
+                    CFGTemplateBlock {
+                        label: label_case1,
+                        successors: &[],
+                    },
+                    CFGTemplateBlock {
+                        label: label_default,
+                        successors: &[label_merge],
+                    },
+                    CFGTemplateBlock {
+                        label: label_merge,
+                        successors: &[],
+                    },
+                ],
+                entry_block: label_start,
+            },
         );
     }
 
@@ -694,15 +788,27 @@ mod tests {
 
         test_cfg(
             &instructions,
-            &[
-                SerializedCFGElement::Switch,
-                SerializedCFGElement::SwitchCase,
-                SerializedCFGElement::SwitchFallthrough,
-                SerializedCFGElement::SwitchDefaultCase,
-                SerializedCFGElement::SwitchMerge,
-                SerializedCFGElement::SwitchEnd,
-                SerializedCFGElement::Return,
-            ],
+            &CFGTemplate {
+                blocks: &[
+                    CFGTemplateBlock {
+                        label: label_start,
+                        successors: &[label_case1, label_default],
+                    },
+                    CFGTemplateBlock {
+                        label: label_case1,
+                        successors: &[label_default],
+                    },
+                    CFGTemplateBlock {
+                        label: label_default,
+                        successors: &[label_merge],
+                    },
+                    CFGTemplateBlock {
+                        label: label_merge,
+                        successors: &[],
+                    },
+                ],
+                entry_block: label_start,
+            },
         );
     }
 
@@ -759,17 +865,31 @@ mod tests {
 
         test_cfg(
             &instructions,
-            &[
-                SerializedCFGElement::Switch,
-                SerializedCFGElement::SwitchCase,
-                SerializedCFGElement::SwitchFallthrough,
-                SerializedCFGElement::SwitchDefaultCase,
-                SerializedCFGElement::SwitchFallthrough,
-                SerializedCFGElement::SwitchCase,
-                SerializedCFGElement::SwitchMerge,
-                SerializedCFGElement::SwitchEnd,
-                SerializedCFGElement::Return,
-            ],
+            &CFGTemplate {
+                blocks: &[
+                    CFGTemplateBlock {
+                        label: label_start,
+                        successors: &[label_case1, label_case2, label_default],
+                    },
+                    CFGTemplateBlock {
+                        label: label_case1,
+                        successors: &[label_default],
+                    },
+                    CFGTemplateBlock {
+                        label: label_default,
+                        successors: &[label_case2],
+                    },
+                    CFGTemplateBlock {
+                        label: label_case2,
+                        successors: &[label_merge],
+                    },
+                    CFGTemplateBlock {
+                        label: label_merge,
+                        successors: &[],
+                    },
+                ],
+                entry_block: label_start,
+            },
         );
     }
 
@@ -826,17 +946,31 @@ mod tests {
 
         test_cfg(
             &instructions,
-            &[
-                SerializedCFGElement::Switch,
-                SerializedCFGElement::SwitchCase,
-                SerializedCFGElement::SwitchMerge,
-                SerializedCFGElement::SwitchDefaultCase,
-                SerializedCFGElement::SwitchFallthrough,
-                SerializedCFGElement::SwitchCase,
-                SerializedCFGElement::SwitchMerge,
-                SerializedCFGElement::SwitchEnd,
-                SerializedCFGElement::Return,
-            ],
+            &CFGTemplate {
+                blocks: &[
+                    CFGTemplateBlock {
+                        label: label_start,
+                        successors: &[label_case1, label_case2, label_default],
+                    },
+                    CFGTemplateBlock {
+                        label: label_case1,
+                        successors: &[label_merge],
+                    },
+                    CFGTemplateBlock {
+                        label: label_default,
+                        successors: &[label_case2],
+                    },
+                    CFGTemplateBlock {
+                        label: label_case2,
+                        successors: &[label_merge],
+                    },
+                    CFGTemplateBlock {
+                        label: label_merge,
+                        successors: &[],
+                    },
+                ],
+                entry_block: label_start,
+            },
         );
     }
 }
