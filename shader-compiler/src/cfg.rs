@@ -9,13 +9,16 @@ use std::mem;
 use std::ops;
 use std::rc::{Rc, Weak};
 
-#[derive(Clone, Debug)]
-pub(crate) struct BasicBlock {
-    instructions: Vec<Instruction>,
-    immediate_dominator: Option<IdRef>,
-    predecessors: Vec<IdRef>,
-    dominator_tree_children: Vec<IdRef>,
+#[derive(Debug)]
+pub(crate) struct UnknownLabel(pub(crate) IdRef);
+
+impl fmt::Display for UnknownLabel {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "unknown basic block label {}", self.0)
+    }
 }
+
+impl Error for UnknownLabel {}
 
 #[derive(Copy, Clone, Debug)]
 enum BasicBlockSuccessorsState<'a> {
@@ -116,6 +119,32 @@ fn get_terminating_instruction_targets(instruction: &Instruction) -> Option<Basi
         Instruction::Unreachable => Some(BasicBlockSuccessors(BasicBlockSuccessorsState::None)),
         _ => None,
     }
+}
+
+#[derive(Clone, Debug)]
+pub(crate) struct Dominators<'a> {
+    cfg: &'a CFG,
+    node: Option<IdRef>,
+}
+
+impl<'a> Iterator for Dominators<'a> {
+    type Item = IdRef;
+    fn next(&mut self) -> Option<IdRef> {
+        if let Some(node) = self.node {
+            self.node = self.cfg.get_basic_block(node).unwrap().immediate_dominator;
+            Some(node)
+        } else {
+            None
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub(crate) struct BasicBlock {
+    instructions: Vec<Instruction>,
+    immediate_dominator: Option<IdRef>,
+    predecessors: Vec<IdRef>,
+    dominator_tree_children: Vec<IdRef>,
 }
 
 impl BasicBlock {
@@ -266,7 +295,7 @@ impl CFG {
             }
             *basic_blocks_immediate_dominators.get_mut(&n).unwrap() = Some(immediate_dominators);
         }
-        // fill in BasicBlock fields
+        // fill in BasicBlock dominator fields
         for &i in &basic_block_labels {
             let mut immediate_dominator_iter = basic_blocks_immediate_dominators[&i]
                 .as_ref()
@@ -288,14 +317,35 @@ impl CFG {
             entry_block,
         }
     }
-    pub(crate) fn get_basic_block(&self, label_id: IdRef) -> Option<&BasicBlock> {
-        self.basic_blocks.get(&label_id)
+    pub(crate) fn get_basic_block(&self, label_id: IdRef) -> Result<&BasicBlock, UnknownLabel> {
+        self.basic_blocks
+            .get(&label_id)
+            .ok_or(UnknownLabel(label_id))
     }
     pub(crate) fn entry_block(&self) -> IdRef {
         self.entry_block
     }
     pub(crate) fn basic_blocks(&self) -> &HashMap<IdRef, BasicBlock> {
         &self.basic_blocks
+    }
+    pub(crate) fn get_dominators(&self, label_id: IdRef) -> Dominators {
+        let basic_block = self.get_basic_block(label_id).unwrap();
+        Dominators {
+            cfg: self,
+            node: Some(label_id),
+        }
+    }
+    pub(crate) fn get_strict_dominators(&self, label_id: IdRef) -> Dominators {
+        let basic_block = self.get_basic_block(label_id).unwrap();
+        Dominators {
+            cfg: self,
+            node: basic_block.immediate_dominator,
+        }
+    }
+    pub(crate) fn is_dominator(&self, dominee: IdRef, dominator: IdRef) -> bool {
+        self.get_dominators(dominee)
+            .find(|&v| v == dominator)
+            .is_some()
     }
 }
 
