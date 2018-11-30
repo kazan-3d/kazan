@@ -8,6 +8,7 @@ use std::iter;
 use std::mem;
 use std::ops;
 use std::rc::{Rc, Weak};
+use std::error::Error;
 
 #[derive(Debug)]
 pub(crate) struct UnknownLabel(pub(crate) IdRef);
