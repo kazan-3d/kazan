@@ -1,25 +1,11 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 // Copyright 2018 Jacob Lifshay
 
-use spirv_parser::{IdRef, IdResult, Instruction};
+use petgraph::{algo::dominators, graph::IndexType, prelude::*};
+use spirv_parser::{IdRef, Instruction};
 use std::collections::{HashMap, HashSet};
-use std::error::Error;
 use std::fmt;
-use std::iter;
-use std::mem;
 use std::ops;
-use std::rc::{Rc, Weak};
-
-#[derive(Debug)]
-pub(crate) struct UnknownLabel(pub(crate) IdRef);
-
-impl fmt::Display for UnknownLabel {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "unknown basic block label {}", self.0)
-    }
-}
-
-impl Error for UnknownLabel {}
 
 #[derive(Copy, Clone, Debug)]
 enum BasicBlockSuccessorsState<'a> {
@@ -34,16 +20,7 @@ enum BasicBlockSuccessorsState<'a> {
 }
 
 #[derive(Clone, Debug)]
-pub(crate) struct BasicBlockSuccessors<'a>(BasicBlockSuccessorsState<'a>);
-
-impl<'a> BasicBlockSuccessors<'a> {
-    pub(crate) fn is_return_or_kill(&self) -> bool {
-        match self.0 {
-            BasicBlockSuccessorsState::ReturnOrKill => true,
-            _ => false,
-        }
-    }
-}
+struct BasicBlockSuccessors<'a>(BasicBlockSuccessorsState<'a>);
 
 impl<'a> Iterator for BasicBlockSuccessors<'a> {
     type Item = IdRef;
@@ -122,74 +99,95 @@ fn get_terminating_instruction_targets(instruction: &Instruction) -> Option<Basi
     }
 }
 
-#[derive(Clone, Debug)]
-pub(crate) struct Dominators<'a> {
-    cfg: &'a CFG,
-    node: Option<IdRef>,
+#[derive(Clone)]
+struct Instructions(Vec<Instruction>);
+
+impl ops::Deref for Instructions {
+    type Target = [Instruction];
+    fn deref(&self) -> &[Instruction] {
+        &self.0
+    }
 }
 
-impl<'a> Iterator for Dominators<'a> {
-    type Item = IdRef;
-    fn next(&mut self) -> Option<IdRef> {
-        if let Some(node) = self.node {
-            self.node = self.cfg.get_basic_block(node).unwrap().immediate_dominator;
-            Some(node)
-        } else {
-            None
+impl fmt::Debug for Instructions {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        for i in &self.0 {
+            write!(f, "{}", i)?;
         }
+        Ok(())
     }
 }
 
 #[derive(Clone, Debug)]
-pub(crate) struct BasicBlock {
-    instructions: Vec<Instruction>,
-    immediate_dominator: Option<IdRef>,
-    predecessors: Vec<IdRef>,
-    dominator_tree_children: Vec<IdRef>,
+pub struct BasicBlock {
+    label: IdRef,
+    instructions: Instructions,
 }
 
 impl BasicBlock {
-    pub(crate) fn instructions(&self) -> &[Instruction] {
-        &self.instructions
+    pub fn label(&self) -> IdRef {
+        self.label
     }
-    pub(crate) fn terminating_instruction(&self) -> &Instruction {
-        self.instructions.last().unwrap()
-    }
-    pub(crate) fn successors(&self) -> BasicBlockSuccessors {
-        get_terminating_instruction_targets(self.terminating_instruction()).unwrap()
-    }
-    pub(crate) fn predecessors(&self) -> &[IdRef] {
-        &self.predecessors
-    }
-    pub(crate) fn immediate_dominator(&self) -> Option<IdRef> {
-        self.immediate_dominator
-    }
-    pub(crate) fn dominator_tree_children(&self) -> &[IdRef] {
-        &self.dominator_tree_children
+    pub fn instructions(&self) -> &[Instruction] {
+        &*self.instructions
     }
 }
 
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default)]
+#[repr(transparent)]
+pub struct CFGIndexType(u32);
+
+unsafe impl IndexType for CFGIndexType {
+    fn new(v: usize) -> Self {
+        CFGIndexType(v as _)
+    }
+    fn index(&self) -> usize {
+        self.0 as _
+    }
+    fn max() -> Self {
+        CFGIndexType(u32::max_value())
+    }
+}
+
+pub type CFGNodeIndex = NodeIndex<CFGIndexType>;
+pub type CFGEdgeIndex = EdgeIndex<CFGIndexType>;
+
+pub type CFGGraph = DiGraph<BasicBlock, (), CFGIndexType>;
+
+pub type CFGDominators = dominators::Dominators<CFGNodeIndex>;
+
 #[derive(Clone, Debug)]
-pub(crate) struct CFG {
-    basic_blocks: HashMap<IdRef, BasicBlock>,
-    entry_block: IdRef,
+pub struct CFG(CFGGraph);
+
+impl ops::Deref for CFG {
+    type Target = CFGGraph;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
 }
 
 impl CFG {
-    pub(crate) fn new(function_instructions: &[Instruction]) -> CFG {
-        // find blocks
+    pub fn entry_node_index(&self) -> CFGNodeIndex {
+        self.0.node_indices().next().unwrap()
+    }
+    pub fn entry_block(&self) -> &BasicBlock {
+        &self[self.entry_node_index()]
+    }
+    pub fn dominators(&self) -> CFGDominators {
+        dominators::simple_fast(&**self, self.entry_node_index())
+    }
+    pub fn new(function_instructions: &[Instruction]) -> CFG {
+        assert!(!function_instructions.is_empty());
+        let mut retval = CFG(CFGGraph::default());
         let mut current_label = None;
         let mut current_instructions = Vec::new();
-        let mut basic_blocks = HashMap::new();
-        let mut entry_block = None;
-        let mut basic_block_labels = Vec::new();
+        let mut id_to_index_map = HashMap::new();
         for instruction in function_instructions {
             if current_label.is_none() {
                 match instruction {
                     Instruction::NoLine | Instruction::Line { .. } => {}
                     Instruction::Label { id_result } => {
                         current_label = Some(id_result.0);
-                        entry_block = entry_block.or(current_label);
                     }
                     _ => unreachable!("invalid instruction before OpLabel"),
                 }
@@ -197,169 +195,69 @@ impl CFG {
             } else {
                 current_instructions.push(instruction.clone());
                 if get_terminating_instruction_targets(instruction).is_some() {
-                    let current_label = current_label.take().unwrap();
-                    basic_block_labels.push(current_label);
-                    basic_blocks.insert(
-                        current_label,
-                        BasicBlock {
-                            instructions: current_instructions,
-                            immediate_dominator: None,
-                            predecessors: Vec::new(),
-                            dominator_tree_children: Vec::new(),
-                        },
+                    let label = current_label.take().unwrap();
+                    id_to_index_map.insert(
+                        label,
+                        retval.0.add_node(BasicBlock {
+                            label,
+                            instructions: Instructions(current_instructions),
+                        }),
                     );
                     current_instructions = Vec::new();
                 }
             }
         }
-        // compute predecessors
         assert!(current_instructions.is_empty());
-        let entry_block = entry_block.expect("function has no basic blocks");
-        let mut successors = Vec::new();
-        for label in &basic_block_labels {
-            successors.extend(basic_blocks[label].successors());
-            for successor in &successors {
-                basic_blocks
-                    .get_mut(successor)
-                    .expect("missing basic block")
-                    .predecessors
-                    .push(*label);
-            }
-            successors.clear();
-        }
-        // compute dominators
-        let mut basic_blocks_strict_dominators: HashMap<_, _> = basic_block_labels
-            .iter()
-            .scan(
-                basic_block_labels
-                    .iter()
-                    .map(|v| *v)
-                    .collect::<HashSet<_>>(),
-                |full_set, label| {
-                    Some((
-                        *label,
-                        Some(if *label == entry_block {
-                            HashSet::new()
-                        } else {
-                            let mut retval = full_set.clone();
-                            retval.remove(label);
-                            retval
-                        }),
-                    ))
-                },
-            )
-            .collect();
-        loop {
-            let mut any_changes = false;
-            for &label in &basic_block_labels {
-                let mut new_set = basic_blocks_strict_dominators[&label].clone().unwrap();
-                for &predecessor in basic_blocks[&label].predecessors() {
-                    let predecessor_strict_dominators = basic_blocks_strict_dominators
-                        [&predecessor]
-                        .as_ref()
-                        .unwrap();
-                    new_set.retain(|&item| {
-                        item == predecessor || predecessor_strict_dominators.contains(&item)
-                    });
-                }
-                let mut target_set = basic_blocks_strict_dominators.get_mut(&label).unwrap();
-                if !any_changes {
-                    any_changes = *target_set.as_ref().unwrap() != new_set;
-                }
-                *target_set = Some(new_set);
-            }
-            if !any_changes {
-                break;
-            }
-        }
-        let mut basic_blocks_immediate_dominators = basic_blocks_strict_dominators;
-        // compute immediate dominators
-        let mut temp_vec = Vec::new();
-        for &n in &basic_block_labels {
-            let mut immediate_dominators = basic_blocks_immediate_dominators
-                .get_mut(&n)
-                .unwrap()
-                .take()
-                .unwrap();
-            temp_vec.clear();
-            temp_vec.extend(immediate_dominators.iter().map(|v| *v));
-            for &s in &temp_vec {
-                immediate_dominators.retain(|&t| {
-                    if t == s {
-                        return true;
-                    }
-                    !basic_blocks_immediate_dominators[&s]
-                        .as_ref()
-                        .unwrap()
-                        .contains(&t)
-                });
-            }
-            *basic_blocks_immediate_dominators.get_mut(&n).unwrap() = Some(immediate_dominators);
-        }
-        // fill in BasicBlock dominator fields
-        for &i in &basic_block_labels {
-            let mut immediate_dominator_iter = basic_blocks_immediate_dominators[&i]
-                .as_ref()
-                .unwrap()
-                .iter();
-            let immediate_dominator = immediate_dominator_iter.next().map(|v| *v);
-            assert!(immediate_dominator.is_none() || immediate_dominator_iter.next().is_none());
-            basic_blocks.get_mut(&i).unwrap().immediate_dominator = immediate_dominator;
-            if let Some(immediate_dominator) = immediate_dominator {
-                basic_blocks
-                    .get_mut(&immediate_dominator)
+        for &node_index in id_to_index_map.values() {
+            let mut successors: Vec<_> = get_terminating_instruction_targets(
+                retval
+                    .0
+                    .node_weight(node_index)
                     .unwrap()
-                    .dominator_tree_children
-                    .push(i);
+                    .instructions()
+                    .last()
+                    .unwrap(),
+            )
+            .unwrap()
+            .collect();
+            successors.sort_unstable_by_key(|v| v.0);
+            successors.dedup();
+            for target in successors {
+                retval.0.add_edge(node_index, id_to_index_map[&target], ());
             }
         }
-        CFG {
-            basic_blocks,
-            entry_block,
-        }
-    }
-    pub(crate) fn get_basic_block(&self, label_id: IdRef) -> Result<&BasicBlock, UnknownLabel> {
-        self.basic_blocks
-            .get(&label_id)
-            .ok_or(UnknownLabel(label_id))
-    }
-    pub(crate) fn entry_block(&self) -> IdRef {
-        self.entry_block
-    }
-    pub(crate) fn basic_blocks(&self) -> &HashMap<IdRef, BasicBlock> {
-        &self.basic_blocks
-    }
-    pub(crate) fn get_dominators(&self, label_id: IdRef) -> Dominators {
-        let basic_block = self.get_basic_block(label_id).unwrap();
-        Dominators {
-            cfg: self,
-            node: Some(label_id),
-        }
-    }
-    pub(crate) fn get_strict_dominators(&self, label_id: IdRef) -> Dominators {
-        let basic_block = self.get_basic_block(label_id).unwrap();
-        Dominators {
-            cfg: self,
-            node: basic_block.immediate_dominator,
-        }
-    }
-    pub(crate) fn is_dominator(&self, dominee: IdRef, dominator: IdRef) -> bool {
-        self.get_dominators(dominee)
-            .find(|&v| v == dominator)
-            .is_some()
+        retval
     }
 }
 
-impl ops::Index<IdRef> for CFG {
-    type Output = BasicBlock;
-    fn index(&self, label_id: IdRef) -> &BasicBlock {
-        &self.basic_blocks[&label_id]
+#[derive(Clone, Debug)]
+pub struct Loop {
+    header: CFGNodeIndex,
+    backedge_source_nodes: Vec<CFGNodeIndex>,
+    nodes: HashSet<CFGNodeIndex>,
+}
+
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default)]
+#[repr(transparent)]
+pub struct LoopGraphIndexType(u32);
+
+unsafe impl IndexType for LoopGraphIndexType {
+    fn new(v: usize) -> Self {
+        LoopGraphIndexType(v as _)
+    }
+    fn index(&self) -> usize {
+        self.0 as _
+    }
+    fn max() -> Self {
+        LoopGraphIndexType(u32::max_value())
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use petgraph::visit::IntoNodeReferences;
+    use spirv_parser::{IdResult, LoopControl};
 
     struct IdFactory(u32);
 
@@ -395,20 +293,33 @@ mod tests {
         println!();
         let cfg = CFG::new(&instructions);
         println!("{:#?}", cfg);
-
-        assert_eq!(cfg_template.entry_block, cfg.entry_block());
-        assert_eq!(cfg_template.blocks.len(), cfg.basic_blocks().len());
+        let dominators = cfg.dominators();
+        println!("{:#?}", dominators);
+        assert_eq!(cfg_template.entry_block, cfg.entry_block().label());
+        assert_eq!(cfg_template.blocks.len(), cfg.node_count());
+        let label_map: HashMap<_, _> = cfg
+            .node_references()
+            .map(|(node_index, basic_block)| (basic_block.label(), node_index))
+            .collect();
         for &CFGTemplateBlock {
             label,
             successors: expected_successors,
             immediate_dominator,
         } in cfg_template.blocks
         {
-            let basic_block = cfg.get_basic_block(label).expect("missing basic block");
             let expected_successors: HashSet<_> = expected_successors.iter().cloned().collect();
-            let actual_successors: HashSet<_> = basic_block.successors().collect();
+            let node_index = label_map[&label];
+            let actual_successors: HashSet<_> = cfg
+                .neighbors(node_index)
+                .map(|node_index| cfg[node_index].label())
+                .collect();
             assert_eq!(expected_successors, actual_successors);
-            assert_eq!(basic_block.immediate_dominator(), immediate_dominator);
+            assert_eq!(
+                dominators
+                    .immediate_dominator(node_index)
+                    .map(|v| cfg[v].label()),
+                immediate_dominator
+            );
         }
     }
 
@@ -1055,6 +966,152 @@ mod tests {
                         label: label_merge,
                         successors: &[],
                         immediate_dominator: Some(label_start),
+                    },
+                ],
+                entry_block: label_start,
+            },
+        );
+    }
+
+    #[test]
+    fn test_cfg_while() {
+        let mut id_factory = IdFactory::new();
+        let mut instructions = Vec::new();
+
+        let label_start = id_factory.next();
+        let label_header = id_factory.next();
+        let label_merge = id_factory.next();
+
+        instructions.push(Instruction::NoLine);
+        instructions.push(Instruction::Label {
+            id_result: IdResult(label_start),
+        });
+        instructions.push(Instruction::Branch {
+            target_label: label_header,
+        });
+
+        instructions.push(Instruction::Label {
+            id_result: IdResult(label_header),
+        });
+        instructions.push(Instruction::LoopMerge {
+            merge_block: label_merge,
+            continue_target: label_header,
+            loop_control: LoopControl {
+                unroll: None,
+                dont_unroll: None,
+                dependency_infinite: None,
+                dependency_length: None,
+            },
+        });
+        instructions.push(Instruction::BranchConditional {
+            condition: id_factory.next(),
+            true_label: label_header,
+            false_label: label_merge,
+            branch_weights: Vec::new(),
+        });
+
+        instructions.push(Instruction::Label {
+            id_result: IdResult(label_merge),
+        });
+        instructions.push(Instruction::Return);
+
+        test_cfg(
+            &instructions,
+            &CFGTemplate {
+                blocks: &[
+                    CFGTemplateBlock {
+                        label: label_start,
+                        successors: &[label_header],
+                        immediate_dominator: None,
+                    },
+                    CFGTemplateBlock {
+                        label: label_header,
+                        successors: &[label_merge, label_header],
+                        immediate_dominator: Some(label_start),
+                    },
+                    CFGTemplateBlock {
+                        label: label_merge,
+                        successors: &[],
+                        immediate_dominator: Some(label_header),
+                    },
+                ],
+                entry_block: label_start,
+            },
+        );
+    }
+
+    #[test]
+    fn test_cfg_while_body() {
+        let mut id_factory = IdFactory::new();
+        let mut instructions = Vec::new();
+
+        let label_start = id_factory.next();
+        let label_header = id_factory.next();
+        let label_body = id_factory.next();
+        let label_merge = id_factory.next();
+
+        instructions.push(Instruction::NoLine);
+        instructions.push(Instruction::Label {
+            id_result: IdResult(label_start),
+        });
+        instructions.push(Instruction::Branch {
+            target_label: label_header,
+        });
+
+        instructions.push(Instruction::Label {
+            id_result: IdResult(label_header),
+        });
+        instructions.push(Instruction::LoopMerge {
+            merge_block: label_merge,
+            continue_target: label_header,
+            loop_control: LoopControl {
+                unroll: None,
+                dont_unroll: None,
+                dependency_infinite: None,
+                dependency_length: None,
+            },
+        });
+        instructions.push(Instruction::BranchConditional {
+            condition: id_factory.next(),
+            true_label: label_body,
+            false_label: label_merge,
+            branch_weights: Vec::new(),
+        });
+
+        instructions.push(Instruction::Label {
+            id_result: IdResult(label_body),
+        });
+        instructions.push(Instruction::Branch {
+            target_label: label_header,
+        });
+        instructions.push(Instruction::Label {
+            id_result: IdResult(label_merge),
+        });
+        instructions.push(Instruction::Return);
+
+        test_cfg(
+            &instructions,
+            &CFGTemplate {
+                blocks: &[
+                    CFGTemplateBlock {
+                        label: label_start,
+                        successors: &[label_header],
+                        immediate_dominator: None,
+                    },
+                    CFGTemplateBlock {
+                        label: label_header,
+                        successors: &[label_merge, label_body],
+                        immediate_dominator: Some(label_start),
+                    },
+                    CFGTemplateBlock {
+                        label: label_body,
+                        successors: &[label_header],
+                        immediate_dominator: Some(label_header),
+                    },
+                    CFGTemplateBlock {
+                        label: label_merge,
+                        successors: &[],
+                        immediate_dominator: Some(label_header),
                     },
                 ],
                 entry_block: label_start,

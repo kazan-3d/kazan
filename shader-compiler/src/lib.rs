@@ -1,12 +1,15 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 // Copyright 2018 Jacob Lifshay
 
+extern crate petgraph;
 extern crate shader_compiler_backend;
 extern crate spirv_parser;
 
 mod cfg;
+mod lattice;
 mod parsed_shader_compile;
 mod parsed_shader_create;
+mod uniformity;
 
 use parsed_shader_compile::ParsedShaderCompile;
 use shader_compiler_backend::Module;

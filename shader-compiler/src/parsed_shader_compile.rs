@@ -5,7 +5,8 @@ use super::{
     Context, CrossLaneBehavior, FrontendType, IdKind, Ids, ParsedShader, ParsedShaderFunction,
     ScalarType,
 };
-use cfg::CFG;
+use cfg::{CFGGraph, CFGNodeIndex, CFG};
+use petgraph::visit::{depth_first_search, DfsEvent};
 use shader_compiler_backend::{
     types::TypeBuilder, AttachedBuilder, BuildableBasicBlock, DetachedBuilder, Function, Module,
 };
@@ -15,6 +16,7 @@ use std::cell::Cell;
 use std::collections::hash_map;
 use std::collections::{HashMap, HashSet};
 use std::hash::Hash;
+use std::iter;
 use std::rc::Rc;
 
 pub(crate) trait ParsedShaderCompile<'ctx, C: shader_compiler_backend::Context<'ctx>> {
@@ -303,63 +305,60 @@ impl<'ctx, C: shader_compiler_backend::Context<'ctx>> ParsedShaderCompile<'ctx, 
                 _ => unreachable!("missing OpFunctionEnd"),
             }
             let cfg = CFG::new(instructions);
-            unimplemented!("finish\ncfg:\n{:#?}", cfg);
-            let mut current_basic_block: BasicBlockState<C> = BasicBlockState::Detached {
-                builder: backend_context.create_builder(),
-            };
-            for instruction in &function_state.instructions {
-                match current_basic_block {
-                    BasicBlockState::Attached {
-                        mut builder,
-                        current_label,
-                    } => match instruction {
-                        Instruction::Variable {
-                            id_result_type: _,
-                            id_result,
-                            storage_class,
-                            initializer,
-                        } => {
-                            assert_eq!(*storage_class, spirv_parser::StorageClass::Function);
-                            ids[id_result.0].assert_no_decorations(id_result.0);
-                            if let Some(_initializer) = initializer {
-                                unimplemented!();
-                            }
-                            unimplemented!();
-                            // FIXME: add CFG and cross-lane behavior detection pass
-                            let mut result = ids[id_result.0].get_value_mut();
-                            result.backend_value = Some(builder.build_alloca(type_cache.get(
-                                result.frontend_type.get_nonvoid_pointee(),
-                                result.cross_lane_behavior,
-                            )));
-                            current_basic_block = BasicBlockState::Attached {
-                                builder,
-                                current_label,
-                            };
-                        }
-                        _ => unimplemented!("unimplemented instruction:\n{}", instruction),
-                    },
-                    BasicBlockState::Detached { builder } => match instruction {
-                        Instruction::Function { .. } => {
-                            current_basic_block = BasicBlockState::Detached { builder };
-                        }
+            let dominators = cfg.dominators();
+            let mut visit_events_queue: Vec<Vec<_>> = Vec::new();
+            let mut visit_events_stack: Vec<usize> = Vec::new();
+            depth_first_search(
+                &*cfg,
+                iter::once(cfg.entry_node_index()),
+                |event| match event {
+                    DfsEvent::TreeEdge(..)
+                    | DfsEvent::BackEdge(..)
+                    | DfsEvent::CrossForwardEdge(..) => {
+                        visit_events_queue[*visit_events_stack.last().unwrap()].push(event);
+                    }
+                    DfsEvent::Discover(..) => {
+                        visit_events_stack.push(visit_events_queue.len());
+                        visit_events_queue.push(vec![event]);
+                    }
+                    DfsEvent::Finish(..) => {
+                        visit_events_queue[visit_events_stack.pop().unwrap()].push(event);
+                    }
+                },
+            );
+            for visit_events in visit_events_queue {
+                let (node_index, start_time, visit_events) = match visit_events.split_first() {
+                    Some((&DfsEvent::Discover(node_index, start_time), visit_events)) => {
+                        (node_index, start_time, visit_events)
+                    }
+                    _ => unreachable!(),
+                };
+                let (end_time, visit_events) = match visit_events.split_last() {
+                    Some((&DfsEvent::Finish(_, end_time), visit_events)) => {
+                        (end_time, visit_events)
+                    }
+                    _ => unreachable!(),
+                };
+                get_or_add_basic_block(&mut ids, cfg[node_index].label(), &mut backend_function);
+                let buildable_basic_block = match ids[cfg[node_index].label()].kind {
+                    IdKind::BasicBlock {
+                        ref mut buildable_basic_block,
+                        ..
+                    } => buildable_basic_block.take().expect("duplicate OpLabel"),
+                    _ => unreachable!(),
+                };
+                let mut builder = backend_context
+                    .create_builder()
+                    .attach(buildable_basic_block);
+                for instruction in cfg[node_index].instructions() {
+                    match *instruction {
                         Instruction::Label { id_result } => {
                             ids[id_result.0].assert_no_decorations(id_result.0);
-                            get_or_add_basic_block(&mut ids, id_result.0, &mut backend_function);
-                            let buildable_basic_block = match ids[id_result.0].kind {
-                                IdKind::BasicBlock {
-                                    ref mut buildable_basic_block,
-                                    ..
-                                } => buildable_basic_block.take().expect("duplicate OpLabel"),
-                                _ => unreachable!(),
-                            };
-                            current_basic_block = BasicBlockState::Attached {
-                                builder: builder.attach(buildable_basic_block),
-                                current_label: id_result.0,
-                            };
                         }
-                        _ => unimplemented!("unimplemented instruction:\n{}", instruction),
-                    },
+                        _ => unreachable!("unimplemented instruction:\n{}", instruction),
+                    }
                 }
+                unimplemented!();
             }
         }
         unimplemented!()

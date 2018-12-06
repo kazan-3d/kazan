@@ -13,3 +13,4 @@ crate-type = ["rlib"]
 [dependencies]
 shader-compiler-backend = {path = "../shader-compiler-backend"}
 spirv-parser = {path = "../spirv-parser"}
+petgraph = "0.4.13"
