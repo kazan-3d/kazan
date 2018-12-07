@@ -1,103 +1,12 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 // Copyright 2018 Jacob Lifshay
 
+use instruction_properties::{InstructionClass, InstructionProperties};
 use petgraph::{algo::dominators, graph::IndexType, prelude::*};
 use spirv_parser::{IdRef, Instruction};
 use std::collections::{HashMap, HashSet};
 use std::fmt;
 use std::ops;
-
-#[derive(Copy, Clone, Debug)]
-enum BasicBlockSuccessorsState<'a> {
-    None,
-    ReturnOrKill,
-    Single(IdRef),
-    Two(IdRef, IdRef),
-    Switch32WithoutDefault(&'a [(u32, IdRef)]),
-    Switch32(IdRef, &'a [(u32, IdRef)]),
-    Switch64WithoutDefault(&'a [(u64, IdRef)]),
-    Switch64(IdRef, &'a [(u64, IdRef)]),
-}
-
-#[derive(Clone, Debug)]
-struct BasicBlockSuccessors<'a>(BasicBlockSuccessorsState<'a>);
-
-impl<'a> Iterator for BasicBlockSuccessors<'a> {
-    type Item = IdRef;
-    fn next(&mut self) -> Option<IdRef> {
-        match self.0 {
-            BasicBlockSuccessorsState::None => None,
-            BasicBlockSuccessorsState::ReturnOrKill => None,
-            BasicBlockSuccessorsState::Single(v) => {
-                self.0 = BasicBlockSuccessorsState::None;
-                Some(v)
-            }
-            BasicBlockSuccessorsState::Two(v1, v2) => {
-                self.0 = BasicBlockSuccessorsState::Single(v2);
-                Some(v1)
-            }
-            BasicBlockSuccessorsState::Switch32WithoutDefault(v) => {
-                let (first, rest) = v.split_first()?;
-                self.0 = BasicBlockSuccessorsState::Switch32WithoutDefault(rest);
-                Some(first.1)
-            }
-            BasicBlockSuccessorsState::Switch32(v1, v2) => {
-                self.0 = BasicBlockSuccessorsState::Switch32WithoutDefault(v2);
-                Some(v1)
-            }
-            BasicBlockSuccessorsState::Switch64WithoutDefault(v) => {
-                let (first, rest) = v.split_first()?;
-                self.0 = BasicBlockSuccessorsState::Switch64WithoutDefault(rest);
-                Some(first.1)
-            }
-            BasicBlockSuccessorsState::Switch64(v1, v2) => {
-                self.0 = BasicBlockSuccessorsState::Switch64WithoutDefault(v2);
-                Some(v1)
-            }
-        }
-    }
-}
-
-fn get_terminating_instruction_targets(instruction: &Instruction) -> Option<BasicBlockSuccessors> {
-    match *instruction {
-        Instruction::Branch { target_label, .. } => Some(BasicBlockSuccessors(
-            BasicBlockSuccessorsState::Single(target_label),
-        )),
-        Instruction::BranchConditional {
-            true_label,
-            false_label,
-            ..
-        } => Some(BasicBlockSuccessors(BasicBlockSuccessorsState::Two(
-            true_label,
-            false_label,
-        ))),
-        Instruction::Switch32 {
-            default,
-            ref target,
-            ..
-        } => Some(BasicBlockSuccessors(BasicBlockSuccessorsState::Switch32(
-            default, target,
-        ))),
-        Instruction::Switch64 {
-            default,
-            ref target,
-            ..
-        } => Some(BasicBlockSuccessors(BasicBlockSuccessorsState::Switch64(
-            default, target,
-        ))),
-        Instruction::Kill => Some(BasicBlockSuccessors(
-            BasicBlockSuccessorsState::ReturnOrKill,
-        )),
-        Instruction::Return => Some(BasicBlockSuccessors(
-            BasicBlockSuccessorsState::ReturnOrKill,
-        )),
-        Instruction::ReturnValue { .. } => Some(BasicBlockSuccessors(
-            BasicBlockSuccessorsState::ReturnOrKill,
-        )),
-        Instruction::Unreachable => Some(BasicBlockSuccessors(BasicBlockSuccessorsState::None)),
-        _ => None,
-    }
-}
 
 #[derive(Clone)]
 struct Instructions(Vec<Instruction>);
@@ -184,17 +93,21 @@ impl CFG {
         let mut id_to_index_map = HashMap::new();
         for instruction in function_instructions {
             if current_label.is_none() {
-                match instruction {
-                    Instruction::NoLine | Instruction::Line { .. } => {}
-                    Instruction::Label { id_result } => {
-                        current_label = Some(id_result.0);
-                    }
-                    _ => unreachable!("invalid instruction before OpLabel"),
+                if let Instruction::Label { id_result } = instruction {
+                    current_label = Some(id_result.0);
+                } else {
+                    assert_eq!(
+                        InstructionProperties::new(instruction).class(),
+                        InstructionClass::DebugLine,
+                        "invalid instruction before OpLabel"
+                    );
                 }
                 current_instructions.push(instruction.clone());
             } else {
                 current_instructions.push(instruction.clone());
-                if get_terminating_instruction_targets(instruction).is_some() {
+                if InstructionProperties::new(instruction).class()
+                    == InstructionClass::BlockTerminator
+                {
                     let label = current_label.take().unwrap();
                     id_to_index_map.insert(
                         label,
@@ -209,7 +122,7 @@ impl CFG {
         }
         assert!(current_instructions.is_empty());
         for &node_index in id_to_index_map.values() {
-            let mut successors: Vec<_> = get_terminating_instruction_targets(
+            let mut successors: Vec<_> = InstructionProperties::new(
                 retval
                     .0
                     .node_weight(node_index)
@@ -218,6 +131,7 @@ impl CFG {
                     .last()
                     .unwrap(),
             )
+            .targets()
             .unwrap()
             .collect();
             successors.sort_unstable_by_key(|v| v.0);

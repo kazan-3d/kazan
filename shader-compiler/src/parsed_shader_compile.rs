@@ -18,6 +18,7 @@ use std::collections::{HashMap, HashSet};
 use std::hash::Hash;
 use std::iter;
 use std::rc::Rc;
+use uniformity::{ValueUniformities, ValueUniformity};
 
 pub(crate) trait ParsedShaderCompile<'ctx, C: shader_compiler_backend::Context<'ctx>> {
     fn compile(
@@ -306,6 +307,7 @@ impl<'ctx, C: shader_compiler_backend::Context<'ctx>> ParsedShaderCompile<'ctx, 
             }
             let cfg = CFG::new(instructions);
             let dominators = cfg.dominators();
+            let value_uniformities = ValueUniformities::new(&cfg, &ids);
             let mut visit_events_queue: Vec<Vec<_>> = Vec::new();
             let mut visit_events_stack: Vec<usize> = Vec::new();
             depth_first_search(

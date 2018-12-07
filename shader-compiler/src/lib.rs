@@ -6,6 +6,7 @@ extern crate shader_compiler_backend;
 extern crate spirv_parser;
 
 mod cfg;
+mod instruction_properties;
 mod lattice;
 mod parsed_shader_compile;
 mod parsed_shader_create;
