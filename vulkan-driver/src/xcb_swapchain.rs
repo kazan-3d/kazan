@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 // Copyright 2018 Jacob Lifshay
-use api;
-use handle::Handle;
-use image::{ImageMultisampleCount, ImageProperties, SupportedTilings, Tiling};
+use crate::api;
+use crate::handle::Handle;
+use crate::image::{ImageMultisampleCount, ImageProperties, SupportedTilings, Tiling};
+use crate::swapchain::{SurfaceImplementation, SurfacePlatform, Swapchain};
 use libc;
 use std::borrow::Cow;
 use std::mem;
@@ -10,7 +11,6 @@ use std::ops::{Deref, DerefMut};
 use std::os::raw::c_char;
 use std::ptr::null_mut;
 use std::ptr::NonNull;
-use swapchain::{SurfaceImplementation, SurfacePlatform, Swapchain};
 use xcb;
 
 #[derive(Debug)]
@@ -156,7 +156,7 @@ impl SwapchainSetupFirstStage {
         window: xcb::ffi::xcb_window_t,
         is_full_setup: bool,
     ) -> Result<Self, SwapchainSetupError> {
-        #![cfg_attr(feature = "cargo-clippy", allow(clippy::cast_lossless))]
+        #![allow(clippy::cast_lossless)]
         let has_mit_shm = query_extension(connection, "MIT-SHM");
         let geometry = xcb::ffi::xcb_get_geometry(connection, window);
         let window_attributes = xcb::ffi::xcb_get_window_attributes(connection, window);
@@ -357,7 +357,7 @@ impl XcbSurfaceImplementation {
     unsafe fn get_surface(&self, surface: api::VkSurfaceKHR) -> &api::VkIcdSurfaceXcb {
         let surface = surface.get().unwrap().as_ptr();
         assert_eq!((*surface).platform, api::VK_ICD_WSI_PLATFORM_XCB);
-        #[cfg_attr(feature = "cargo-clippy", allow(clippy::cast_ptr_alignment))]
+        #[allow(clippy::cast_ptr_alignment)]
         &*(surface as *const api::VkIcdSurfaceXcb)
     }
 }
@@ -443,7 +443,7 @@ impl SurfaceImplementation for XcbSurfaceImplementation {
         )?))
     }
     unsafe fn destroy_surface(&self, surface: NonNull<api::VkIcdSurfaceBase>) {
-        #[cfg_attr(feature = "cargo-clippy", allow(clippy::cast_ptr_alignment))]
+        #[allow(clippy::cast_ptr_alignment)]
         Box::from_raw(surface.as_ptr() as *mut api::VkIcdSurfaceXcb);
     }
     fn duplicate(&self) -> Box<dyn SurfaceImplementation> {

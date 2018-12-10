@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 // Copyright 2018 Jacob Lifshay
-#![cfg_attr(feature = "cargo-clippy", allow(clippy::unneeded_field_pattern))]
-use api;
-use constants::IMAGE_ALIGNMENT;
-use device_memory::DeviceMemoryLayout;
-use handle::SharedHandle;
+#![allow(clippy::unneeded_field_pattern)]
+use crate::api;
+use crate::constants::IMAGE_ALIGNMENT;
+use crate::device_memory::DeviceMemoryLayout;
+use crate::handle::SharedHandle;
 use std::error;
 use std::fmt;
 

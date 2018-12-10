@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 // Copyright 2018 Jacob Lifshay
-extern crate spirv_parser_generator;
 use spirv_parser_generator::*;
 use std::env;
 use std::io;

@@ -1,10 +1,6 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 // Copyright 2018 Jacob Lifshay
 
-extern crate petgraph;
-extern crate shader_compiler_backend;
-extern crate spirv_parser;
-
 mod cfg;
 mod instruction_properties;
 mod lattice;
@@ -12,7 +8,7 @@ mod parsed_shader_compile;
 mod parsed_shader_create;
 mod uniformity;
 
-use parsed_shader_compile::ParsedShaderCompile;
+use crate::parsed_shader_compile::ParsedShaderCompile;
 use shader_compiler_backend::Module;
 use spirv_parser::{BuiltIn, Decoration, ExecutionMode, ExecutionModel, IdRef, Instruction};
 use std::cell::RefCell;
@@ -43,7 +39,7 @@ impl Default for Context {
 }
 
 mod pointer_type {
-    use super::{Context, FrontendType};
+    use crate::{Context, FrontendType};
     use std::cell::RefCell;
     use std::fmt;
     use std::hash::{Hash, Hasher};
@@ -137,7 +133,7 @@ mod pointer_type {
     }
 }
 
-pub use pointer_type::PointerType;
+pub use crate::pointer_type::PointerType;
 
 #[derive(Clone, Eq, PartialEq, Hash, Debug)]
 pub enum ScalarType {

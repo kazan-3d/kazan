@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 // Copyright 2018 Jacob Lifshay
-use api;
-use api_impl::{Device, Instance, PhysicalDevice, Queue};
-use buffer::{Buffer, BufferView};
-use descriptor_set::{DescriptorPool, DescriptorSet, DescriptorSetLayout};
-use device_memory::DeviceMemory;
-use image::{Image, ImageView};
-use pipeline::{Pipeline, PipelineLayout};
-use render_pass::RenderPass;
-use sampler::Sampler;
-use sampler::SamplerYcbcrConversion;
-use shader_module::ShaderModule;
+use crate::api;
+use crate::api_impl::{Device, Instance, PhysicalDevice, Queue};
+use crate::buffer::{Buffer, BufferView};
+use crate::descriptor_set::{DescriptorPool, DescriptorSet, DescriptorSetLayout};
+use crate::device_memory::DeviceMemory;
+use crate::image::{Image, ImageView};
+use crate::pipeline::{Pipeline, PipelineLayout};
+use crate::render_pass::RenderPass;
+use crate::sampler::Sampler;
+use crate::sampler::SamplerYcbcrConversion;
+use crate::shader_module::ShaderModule;
 use std::fmt;
 use std::marker::PhantomData;
 use std::mem;
@@ -18,7 +18,7 @@ use std::ops::Deref;
 use std::ops::DerefMut;
 use std::ptr::null_mut;
 use std::ptr::NonNull;
-use swapchain::Swapchain;
+use crate::swapchain::Swapchain;
 
 #[repr(C)]
 pub struct DispatchableType<T> {

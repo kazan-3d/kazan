@@ -2,14 +2,14 @@
 // Copyright 2018 Jacob Lifshay
 #[cfg(test)]
 // we have a tests module inside a tests module to have rls parse this tests.rs file
-#[cfg_attr(feature = "cargo-clippy", allow(clippy::module_inception))]
+#[allow(clippy::module_inception)]
 mod tests {
     use shader_compiler_backend::types::TypeBuilder;
     use shader_compiler_backend::*;
     use std::mem;
 
     fn make_compiler() -> impl Compiler {
-        ::LLVM_7_SHADER_COMPILER
+        crate::LLVM_7_SHADER_COMPILER
     }
 
     #[test]

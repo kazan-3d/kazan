@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 // Copyright 2018 Jacob Lifshay
 
-use instruction_properties::{InstructionClass, InstructionProperties};
+use crate::instruction_properties::{InstructionClass, InstructionProperties};
 use petgraph::{algo::dominators, graph::IndexType, prelude::*};
 use spirv_parser::{IdRef, Instruction};
 use std::collections::{HashMap, HashSet};

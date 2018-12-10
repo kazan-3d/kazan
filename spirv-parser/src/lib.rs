@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 // Copyright 2018 Jacob Lifshay
 
-#![cfg_attr(feature = "cargo-clippy", allow(clippy::unreadable_literal))]
-#![cfg_attr(feature = "cargo-clippy", allow(clippy::cyclomatic_complexity))]
+#![allow(clippy::unreadable_literal)]
+#![allow(clippy::cyclomatic_complexity)]
 
 include!(concat!(env!("OUT_DIR"), "/generated_parser.rs"));
 

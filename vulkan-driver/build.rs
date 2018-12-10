@@ -1,8 +1,5 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 // Copyright 2018 Jacob Lifshay
-extern crate bindgen;
-extern crate regex;
-extern crate xmltree;
 use std::env;
 use std::fs;
 use std::io;

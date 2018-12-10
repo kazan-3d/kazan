@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 // Copyright 2018 Jacob Lifshay
 
-use super::{
+use crate::cfg::{CFGGraph, CFGNodeIndex, CFG};
+use crate::uniformity::{ValueUniformities, ValueUniformity};
+use crate::{
     Context, CrossLaneBehavior, FrontendType, IdKind, Ids, ParsedShader, ParsedShaderFunction,
     ScalarType,
 };
-use cfg::{CFGGraph, CFGNodeIndex, CFG};
 use petgraph::visit::{depth_first_search, DfsEvent};
 use shader_compiler_backend::{
     types::TypeBuilder, AttachedBuilder, BuildableBasicBlock, DetachedBuilder, Function, Module,
@@ -18,7 +19,6 @@ use std::collections::{HashMap, HashSet};
 use std::hash::Hash;
 use std::iter;
 use std::rc::Rc;
-use uniformity::{ValueUniformities, ValueUniformity};
 
 pub(crate) trait ParsedShaderCompile<'ctx, C: shader_compiler_backend::Context<'ctx>> {
     fn compile(

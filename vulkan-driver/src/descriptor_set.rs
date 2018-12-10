@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 // Copyright 2018 Jacob Lifshay
 
-use api;
-use buffer::BufferSlice;
-use handle::OwnedHandle;
-use handle::SharedHandle;
-use image;
+use crate::api;
+use crate::buffer::BufferSlice;
+use crate::handle::OwnedHandle;
+use crate::handle::SharedHandle;
+use crate::image;
+use crate::util;
 use std::ops;
-use util;
 
 #[derive(Debug)]
 pub enum DescriptorLayout {

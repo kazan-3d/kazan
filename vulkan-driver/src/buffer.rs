@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 // Copyright 2018 Jacob Lifshay
-use api;
-use handle::SharedHandle;
+use crate::api;
+use crate::handle::SharedHandle;
 
 #[derive(Debug)]
 pub struct BufferMemory {

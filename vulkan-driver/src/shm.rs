@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 // Copyright 2018 Jacob Lifshay
+use crate::util;
 use errno;
 use libc;
 use std::marker::PhantomData;
@@ -7,7 +8,6 @@ use std::ops::Deref;
 use std::ops::DerefMut;
 use std::os::raw::c_int;
 use std::ptr::null_mut;
-use util;
 
 #[derive(Debug)]
 #[allow(dead_code)]

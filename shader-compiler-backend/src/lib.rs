@@ -274,7 +274,7 @@ mod test {
     buildable_struct! {
         struct S3 {
             p: *mut S2,
-            v: ::types::VecNx4<f32>,
+            v: crate::types::VecNx4<f32>,
         }
     }
 }

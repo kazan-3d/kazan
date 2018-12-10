@@ -2,30 +2,32 @@
 // Copyright 2018 Jacob Lifshay
 
 // allow unneeded_field_pattern to ensure fields aren't accidently missed
-#![cfg_attr(feature = "cargo-clippy", allow(clippy::unneeded_field_pattern))]
+#![allow(clippy::unneeded_field_pattern)]
 
-use api;
-use buffer::{Buffer, BufferMemory};
-use constants::*;
-use descriptor_set::{
+use crate::api;
+use crate::buffer::{Buffer, BufferMemory};
+use crate::constants::*;
+use crate::descriptor_set::{
     Descriptor, DescriptorLayout, DescriptorPool, DescriptorSet, DescriptorSetLayout,
     DescriptorWriteArg,
 };
-use device_memory::{
+use crate::device_memory::{
     DeviceMemory, DeviceMemoryAllocation, DeviceMemoryHeap, DeviceMemoryHeaps, DeviceMemoryLayout,
     DeviceMemoryType, DeviceMemoryTypes,
 };
-use enum_map::EnumMap;
-use handle::{Handle, MutHandle, OwnedHandle, SharedHandle};
-use image::{
+use crate::handle::{Handle, MutHandle, OwnedHandle, SharedHandle};
+use crate::image::{
     ComponentMapping, Image, ImageMemory, ImageMultisampleCount, ImageProperties, ImageView,
     ImageViewType, SupportedTilings,
 };
-use pipeline::{self, PipelineLayout};
-use render_pass::RenderPass;
-use sampler;
-use sampler::Sampler;
-use shader_module::ShaderModule;
+use crate::pipeline::{self, PipelineLayout};
+use crate::render_pass::RenderPass;
+use crate::sampler;
+use crate::sampler::Sampler;
+use crate::shader_module::ShaderModule;
+use crate::swapchain::SurfacePlatform;
+use crate::util;
+use enum_map::{enum_map, Enum, EnumMap};
 use std::ffi::CStr;
 use std::iter;
 use std::iter::FromIterator;
@@ -37,9 +39,7 @@ use std::ptr::null_mut;
 #[cfg(target_os = "linux")]
 use std::ptr::NonNull;
 use std::str::FromStr;
-use swapchain::SurfacePlatform;
 use sys_info;
-use util;
 use uuid;
 #[cfg(target_os = "linux")]
 use xcb;
@@ -419,14 +419,14 @@ enum GetProcAddressScope {
     Device,
 }
 
-#[cfg_attr(feature = "cargo-clippy", allow(clippy::cyclomatic_complexity))]
+#[allow(clippy::cyclomatic_complexity)]
 fn get_proc_address(
     name: *const c_char,
     scope: GetProcAddressScope,
     extensions: &Extensions,
 ) -> api::PFN_vkVoidFunction {
     let mut name = unsafe { CStr::from_ptr(name) }.to_str().ok()?;
-    use api::*;
+    use crate::api::*;
     use std::mem::transmute;
     struct Scope {
         global: bool,
@@ -1486,7 +1486,7 @@ impl PhysicalDevice {
         uuid::Uuid::nil()
     }
     pub fn get_limits() -> api::VkPhysicalDeviceLimits {
-        #![cfg_attr(feature = "cargo-clippy", allow(clippy::needless_update))]
+        #![allow(clippy::needless_update)]
         api::VkPhysicalDeviceLimits {
             maxImageDimension1D: !0,
             maxImageDimension2D: !0,
@@ -2975,7 +2975,7 @@ impl Instance {
         }
         let mut device_name = [0; api::VK_MAX_PHYSICAL_DEVICE_NAME_SIZE as usize];
         util::copy_str_to_char_array(&mut device_name, KAZAN_DEVICE_NAME);
-        #[cfg_attr(feature = "cargo-clippy", allow(clippy::needless_update))]
+        #[allow(clippy::needless_update)]
         let retval = OwnedHandle::<api::VkInstance>::new(Instance {
             physical_device: OwnedHandle::new(PhysicalDevice {
                 enabled_extensions,
@@ -5112,7 +5112,7 @@ pub unsafe extern "system" fn vkGetImageMemoryRequirements2(
     info: *const api::VkImageMemoryRequirementsInfo2,
     memory_requirements: *mut api::VkMemoryRequirements2,
 ) {
-    #![cfg_attr(feature = "cargo-clippy", allow(clippy::needless_update))]
+    #![allow(clippy::needless_update)]
     parse_next_chain_const! {
         info,
         root = api::VK_STRUCTURE_TYPE_IMAGE_MEMORY_REQUIREMENTS_INFO_2,
@@ -5149,7 +5149,7 @@ pub unsafe extern "system" fn vkGetBufferMemoryRequirements2(
     info: *const api::VkBufferMemoryRequirementsInfo2,
     memory_requirements: *mut api::VkMemoryRequirements2,
 ) {
-    #![cfg_attr(feature = "cargo-clippy", allow(clippy::needless_update))]
+    #![allow(clippy::needless_update)]
     parse_next_chain_const! {
         info,
         root = api::VK_STRUCTURE_TYPE_BUFFER_MEMORY_REQUIREMENTS_INFO_2,
@@ -5351,7 +5351,7 @@ pub unsafe extern "system" fn vkGetPhysicalDeviceMemoryProperties2(
     physical_device: api::VkPhysicalDevice,
     memory_properties: *mut api::VkPhysicalDeviceMemoryProperties2,
 ) {
-    #![cfg_attr(feature = "cargo-clippy", allow(clippy::needless_update))]
+    #![allow(clippy::needless_update)]
     let physical_device = SharedHandle::from(physical_device).unwrap();
     parse_next_chain_mut! {
         memory_properties,

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 // Copyright 2018 Jacob Lifshay
 
-use super::{
+use crate::{
     ArrayType, BuiltInVariable, Constant, Context, FrontendType, IdKind, IdProperties, Ids,
     MemberDecoration, ParsedShader, ParsedShaderFunction, PointerType, ScalarConstant, ScalarType,
     ShaderEntryPoint, ShaderStageCreateInfo, StructId, StructMember, StructType, Undefable,
@@ -11,7 +11,7 @@ use spirv_parser::{BuiltIn, Decoration, ExecutionModel, IdRef, Instruction, Stor
 use std::mem;
 use std::rc::Rc;
 
-#[cfg_attr(feature = "cargo-clippy", allow(clippy::cyclomatic_complexity))]
+#[allow(clippy::cyclomatic_complexity)]
 pub(super) fn create<'a, C: shader_compiler_backend::Context<'a>>(
     context: &mut Context,
     stage_info: ShaderStageCreateInfo,
@@ -382,7 +382,7 @@ pub(super) fn create<'a, C: shader_compiler_backend::Context<'a>>(
                 value,
             } => {
                 ids[id_result.0].assert_no_decorations(id_result.0);
-                #[cfg_attr(feature = "cargo-clippy", allow(clippy::cast_lossless))]
+                #[allow(clippy::cast_lossless)]
                 let constant = match **ids[id_result_type.0].get_nonvoid_type() {
                     FrontendType::Scalar(ScalarType::U8) => {
                         let converted_value = value as u8;

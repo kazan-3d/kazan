@@ -23,15 +23,6 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-extern crate bindgen;
-extern crate cc;
-extern crate cmake;
-extern crate fs2;
-extern crate reqwest;
-extern crate ring;
-extern crate tar;
-extern crate which;
-extern crate xz2;
 use fs2::FileExt;
 use std::env;
 use std::ffi::OsStr;

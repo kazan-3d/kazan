@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 // Copyright 2018 Jacob Lifshay
 
-use cfg::{CFGNodeIndex, CFG};
-use instruction_properties::InstructionProperties;
-use lattice::BoundedOrderedLattice;
+use crate::cfg::{CFGNodeIndex, CFG};
+use crate::instruction_properties::InstructionProperties;
+use crate::lattice::BoundedOrderedLattice;
+use crate::Ids;
 use petgraph::visit::IntoNodeReferences;
 use spirv_parser::IdRef;
 use std::cmp;
 use std::collections::HashMap;
-use Ids;
 
 /// a lattice for how little values vary
 /// Varying < UniformOverWorkgroup < Constant

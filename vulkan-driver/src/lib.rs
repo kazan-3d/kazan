@@ -1,19 +1,6 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 // Copyright 2018 Jacob Lifshay
-#![cfg_attr(feature = "cargo-clippy", allow(clippy::new_ret_no_self))]
-#[macro_use]
-extern crate enum_map;
-#[cfg(target_os = "linux")]
-extern crate errno;
-#[cfg(target_os = "linux")]
-extern crate libc;
-extern crate shader_compiler;
-extern crate shader_compiler_backend;
-extern crate shader_compiler_backend_llvm_7;
-extern crate sys_info;
-extern crate uuid;
-#[cfg(target_os = "linux")]
-extern crate xcb;
+#![allow(clippy::new_ret_no_self)]
 #[macro_use]
 mod util;
 mod api;

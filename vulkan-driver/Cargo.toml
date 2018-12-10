@@ -5,7 +5,7 @@ name = "vulkan-driver"
 version = "0.1.0"
 authors = ["Jacob Lifshay <programmerjake@gmail.com>"]
 license = "LGPL-2.1-or-later"
-edition = "2015"
+edition = "2018"
 
 [lib]
 name = "kazan_driver"

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 // Copyright 2018 Jacob Lifshay
 
-use api;
+use crate::api;
 use std::os::raw::c_char;
 use std::ptr::null;
 use std::slice;
@@ -30,7 +30,7 @@ pub unsafe fn to_slice_mut<'a, T>(p: *mut T, len: usize) -> &'a mut [T] {
 pub fn is_supported_structure_type(v: api::VkStructureType) -> bool {
     #[cfg(target_os = "linux")]
     {
-        #[cfg_attr(feature = "cargo-clippy", allow(clippy::single_match))]
+        #[allow(clippy::single_match)]
         match v {
             api::VK_STRUCTURE_TYPE_XCB_SURFACE_CREATE_INFO_KHR => return true,
             _ => {}
@@ -229,10 +229,10 @@ macro_rules! parse_next_chain_const {
         $($name:ident: $var_type:ty = $struct_type:expr,)*
     } => {
         $(let mut $name: *const $var_type = ::std::ptr::null();)*
-        ::util::parse_next_chain_const(
-            $root as *const _ as *const ::api::VkBaseInStructure,
+        $crate::util::parse_next_chain_const(
+            $root as *const _ as *const $crate::api::VkBaseInStructure,
             $root_type,
-            &[$(($struct_type, &mut $name as *mut *const $var_type as *mut *const ::api::VkBaseInStructure)),*]
+            &[$(($struct_type, &mut $name as *mut *const $var_type as *mut *const $crate::api::VkBaseInStructure)),*]
         );
     };
 }
@@ -244,16 +244,16 @@ macro_rules! parse_next_chain_mut {
         $($name:ident: $var_type:ty = $struct_type:expr,)*
     } => {
         $(let mut $name: *mut $var_type = ::std::ptr::null_mut();)*
-        ::util::parse_next_chain_mut(
-            $root as *mut _ as *mut ::api::VkBaseOutStructure,
+        $crate::util::parse_next_chain_mut(
+            $root as *mut _ as *mut $crate::api::VkBaseOutStructure,
             $root_type,
-            &[$(($struct_type, &mut $name as *mut *mut $var_type as *mut *mut ::api::VkBaseOutStructure)),*]
+            &[$(($struct_type, &mut $name as *mut *mut $var_type as *mut *mut $crate::api::VkBaseOutStructure)),*]
         );
     };
 }
 
 pub fn copy_str_to_char_array(dest: &mut [c_char], src: &str) {
-    #![cfg_attr(feature = "cargo-clippy", allow(clippy::int_plus_one))]
+    #![allow(clippy::int_plus_one)]
     assert!(dest.len() >= src.len() + 1);
     let src = src.as_bytes();
     for i in 0..src.len() {

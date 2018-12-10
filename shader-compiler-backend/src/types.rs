@@ -3,7 +3,7 @@
 
 //! types in backend IR
 
-use super::Context;
+use crate::Context;
 use std::cell::UnsafeCell;
 use std::fmt::Debug;
 use std::hash::Hash;

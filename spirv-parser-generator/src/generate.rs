@@ -1,7 +1,10 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 // Copyright 2018 Jacob Lifshay
 
-use ast;
+use crate::ast;
+use crate::util::{self, NameFormat::*};
+use crate::Error;
+use crate::Options;
 use proc_macro2;
 use std::borrow::Cow;
 use std::collections::HashMap;
@@ -11,10 +14,8 @@ use std::io::{self, Read, Write};
 use std::iter;
 use std::process::{Child, Command, ExitStatus, Stdio};
 use std::thread;
-use util::{self, NameFormat::*};
 use which;
-use Error;
-use Options;
+use quote::quote;
 
 #[derive(Debug)]
 enum FormatError {
@@ -136,7 +137,7 @@ struct ParsedExtensionInstructionSet {
     spirv_instruction_set_name: &'static str,
 }
 
-#[cfg_attr(feature = "cargo-clippy", allow(clippy::cyclomatic_complexity))]
+#[allow(clippy::cyclomatic_complexity)]
 pub(crate) fn generate(
     core_grammar: ast::CoreGrammar,
     parsed_extension_instruction_sets: HashMap<

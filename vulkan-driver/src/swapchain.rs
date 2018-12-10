@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 // Copyright 2018 Jacob Lifshay
-use api;
+use crate::api;
+#[cfg(target_os = "linux")]
+use crate::xcb_swapchain::XcbSurfaceImplementation;
+use enum_map::Enum;
 use std::any::Any;
 use std::borrow::Cow;
 use std::error::Error;
 use std::fmt::{self, Debug};
 use std::ptr::NonNull;
-#[cfg(target_os = "linux")]
-use xcb_swapchain::XcbSurfaceImplementation;
 
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Enum)]
 #[allow(non_camel_case_types)]

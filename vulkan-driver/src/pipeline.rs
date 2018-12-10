@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 // Copyright 2018 Jacob Lifshay
 
-use api;
-use handle::{OwnedHandle, SharedHandle};
+use crate::api;
+use crate::handle::{OwnedHandle, SharedHandle};
+use crate::util;
 use shader_compiler;
 use shader_compiler_backend;
 use std::collections::HashMap;
@@ -10,7 +11,6 @@ use std::ffi::CStr;
 use std::fmt;
 use std::iter;
 use std::ops::Deref;
-use util;
 
 pub fn get_shader_compiler_backend() -> impl shader_compiler_backend::Compiler {
     shader_compiler_backend_llvm_7::LLVM_7_SHADER_COMPILER

@@ -2,16 +2,7 @@
 // Copyright 2018 Jacob Lifshay
 
 // allow unneeded_field_pattern to ensure fields aren't accidently missed
-#![cfg_attr(feature = "cargo-clippy", allow(clippy::unneeded_field_pattern))]
-
-#[macro_use]
-extern crate quote;
-extern crate proc_macro2;
-#[macro_use]
-extern crate serde_derive;
-extern crate serde;
-extern crate serde_json;
-extern crate which;
+#![allow(clippy::unneeded_field_pattern)]
 
 use std::collections::HashMap;
 use std::error;

@@ -1,14 +1,15 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 // Copyright 2018 Jacob Lifshay
 
+use crate::util::NameFormat::*;
+use crate::util::WordIterator;
 use proc_macro2::TokenStream;
 use quote::ToTokens;
 use serde::de::{self, Deserialize, Deserializer};
 use std::borrow::Cow;
 use std::fmt;
 use std::mem;
-use util::NameFormat::*;
-use util::WordIterator;
+use serde_derive::Deserialize;
 
 #[derive(Copy, Clone)]
 pub struct QuotedInteger(pub u32);
@@ -130,7 +131,7 @@ pub struct InstructionOperand {
 }
 
 impl InstructionOperand {
-    pub fn fixup(&mut self) -> Result<(), ::Error> {
+    pub fn fixup(&mut self) -> Result<(), crate::Error> {
         if let Some(name) = self.name.take() {
             let substitute_name = match &*name {
                 "'Member 0 type', +\n'member 1 type', +\n..." => Some("Member Types"),
@@ -144,7 +145,7 @@ impl InstructionOperand {
             self.name = Some(
                 SnakeCase
                     .name_from_words(WordIterator::new(self.kind.as_ref()))
-                    .ok_or(::Error::DeducingNameForInstructionOperandFailed)?,
+                    .ok_or(crate::Error::DeducingNameForInstructionOperandFailed)?,
             );
         }
         self.kind.set_bit_width(BitWidth::Bits32);
@@ -477,7 +478,7 @@ pub struct Instruction {
 }
 
 impl Instruction {
-    pub fn fixup(&mut self) -> Result<(), ::Error> {
+    pub fn fixup(&mut self) -> Result<(), crate::Error> {
         for operand in self.operands.iter_mut() {
             operand.fixup()?;
         }
@@ -503,7 +504,7 @@ pub struct ExtensionInstruction {
 }
 
 impl ExtensionInstruction {
-    pub fn fixup(&mut self) -> Result<(), ::Error> {
+    pub fn fixup(&mut self) -> Result<(), crate::Error> {
         for operand in self.operands.iter_mut() {
             operand.fixup()?;
         }
@@ -518,7 +519,7 @@ pub struct BitwiseEnumerantParameter {
 }
 
 impl BitwiseEnumerantParameter {
-    pub fn fixup(&mut self) -> Result<(), ::Error> {
+    pub fn fixup(&mut self) -> Result<(), crate::Error> {
         self.kind.set_bit_width(BitWidth::Bits32);
         Ok(())
     }
@@ -532,12 +533,12 @@ pub struct ValueEnumerantParameter {
 }
 
 impl ValueEnumerantParameter {
-    pub fn fixup(&mut self) -> Result<(), ::Error> {
+    pub fn fixup(&mut self) -> Result<(), crate::Error> {
         if self.name.is_none() {
             self.name = Some(
                 SnakeCase
                     .name_from_words(WordIterator::new(self.kind.as_ref()))
-                    .ok_or(::Error::DeducingNameForEnumerantParameterFailed)?,
+                    .ok_or(crate::Error::DeducingNameForEnumerantParameterFailed)?,
             );
         }
         self.kind.set_bit_width(BitWidth::Bits32);
@@ -561,7 +562,7 @@ pub struct Enumerant<Value, EnumerantParameter> {
 }
 
 impl Enumerant<u32, ValueEnumerantParameter> {
-    pub fn fixup(&mut self) -> Result<(), ::Error> {
+    pub fn fixup(&mut self) -> Result<(), crate::Error> {
         for parameter in self.parameters.iter_mut() {
             parameter.fixup()?;
         }
@@ -570,7 +571,7 @@ impl Enumerant<u32, ValueEnumerantParameter> {
 }
 
 impl Enumerant<QuotedInteger, BitwiseEnumerantParameter> {
-    pub fn fixup(&mut self) -> Result<(), ::Error> {
+    pub fn fixup(&mut self) -> Result<(), crate::Error> {
         for parameter in self.parameters.iter_mut() {
             parameter.fixup()?;
         }
@@ -777,7 +778,7 @@ pub struct CoreGrammar {
 }
 
 impl CoreGrammar {
-    pub fn fixup(&mut self) -> Result<(), ::Error> {
+    pub fn fixup(&mut self) -> Result<(), crate::Error> {
         let instructions = mem::replace(&mut self.instructions, Vec::new());
         for mut instruction in instructions {
             if instruction.version == SPIRVVersion::None {
@@ -917,7 +918,7 @@ pub struct ExtensionInstructionSet {
 }
 
 impl ExtensionInstructionSet {
-    pub fn fixup(&mut self) -> Result<(), ::Error> {
+    pub fn fixup(&mut self) -> Result<(), crate::Error> {
         for instruction in self.instructions.iter_mut() {
             instruction.fixup()?;
         }
