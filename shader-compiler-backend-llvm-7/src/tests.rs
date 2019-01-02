@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
-// Copyright 2019 Jacob Lifshay
+// Copyright 2018 Jacob Lifshay
 #[cfg(test)]
 // we have a tests module inside a tests module to have rls parse this tests.rs file
 #[allow(clippy::module_inception)]
