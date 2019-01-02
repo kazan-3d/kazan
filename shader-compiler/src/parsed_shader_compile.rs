@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
-// Copyright 2019 Jacob Lifshay
+// Copyright 2018,2019 Jacob Lifshay
 
 use crate::cfg::{CFGGraph, CFGNodeIndex, CFG};
 use crate::uniformity::{ValueUniformities, ValueUniformity};
