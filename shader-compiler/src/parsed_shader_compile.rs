@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
-// Copyright 2018 Jacob Lifshay
+// Copyright 2019 Jacob Lifshay
 
 use crate::cfg::{CFGGraph, CFGNodeIndex, CFG};
 use crate::uniformity::{ValueUniformities, ValueUniformity};
@@ -352,7 +352,7 @@ impl<'ctx, C: shader_compiler_backend::Context<'ctx>> ParsedShaderCompile<'ctx, 
                 let mut builder = backend_context
                     .create_builder()
                     .attach(buildable_basic_block);
-                for instruction in cfg[node_index].instructions() {
+                for instruction in cfg[node_index].instructions().iter() {
                     match *instruction {
                         Instruction::Label { id_result } => {
                             ids[id_result.0].assert_no_decorations(id_result.0);

@@ -1,15 +1,20 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
-// Copyright 2018 Jacob Lifshay
+// Copyright 2019 Jacob Lifshay
 
 use crate::instruction_properties::{InstructionClass, InstructionProperties};
-use petgraph::{algo::dominators, graph::IndexType, prelude::*};
+use petgraph::{
+    algo::dominators,
+    graph::IndexType,
+    prelude::*,
+    visit::{VisitMap, Visitable},
+};
 use spirv_parser::{IdRef, Instruction};
 use std::collections::{HashMap, HashSet};
-use std::fmt;
+use std::fmt::{self, Write};
 use std::ops;
 
 #[derive(Clone)]
-struct Instructions(Vec<Instruction>);
+pub struct Instructions(Vec<Instruction>);
 
 impl ops::Deref for Instructions {
     type Target = [Instruction];
@@ -27,6 +32,33 @@ impl fmt::Debug for Instructions {
     }
 }
 
+impl Instructions {
+    pub fn new(instructions: Vec<Instruction>) -> Self {
+        Instructions(instructions)
+    }
+    pub fn terminating_instruction(&self) -> Option<&Instruction> {
+        self.last()
+    }
+    pub fn merge_instruction(&self) -> Option<&Instruction> {
+        if self.len() < 2 {
+            None
+        } else {
+            match &self[self.len() - 2] {
+                instruction @ Instruction::LoopMerge { .. }
+                | instruction @ Instruction::SelectionMerge { .. } => Some(instruction),
+                _ => None,
+            }
+        }
+    }
+}
+
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
+pub enum EdgeKind {
+    Unreachable,
+    Normal,
+    LoopBackEdge,
+}
+
 #[derive(Clone, Debug)]
 pub struct BasicBlock {
     label: IdRef,
@@ -37,8 +69,8 @@ impl BasicBlock {
     pub fn label(&self) -> IdRef {
         self.label
     }
-    pub fn instructions(&self) -> &[Instruction] {
-        &*self.instructions
+    pub fn instructions(&self) -> &Instructions {
+        &self.instructions
     }
 }
 
@@ -61,36 +93,44 @@ unsafe impl IndexType for CFGIndexType {
 pub type CFGNodeIndex = NodeIndex<CFGIndexType>;
 pub type CFGEdgeIndex = EdgeIndex<CFGIndexType>;
 
-pub type CFGGraph = DiGraph<BasicBlock, (), CFGIndexType>;
+pub type CFGGraph = DiGraph<BasicBlock, EdgeKind, CFGIndexType>;
 
 pub type CFGDominators = dominators::Dominators<CFGNodeIndex>;
 
 #[derive(Clone, Debug)]
-pub struct CFG(CFGGraph);
+pub struct CFG {
+    graph: CFGGraph,
+    label_to_node_index_map: HashMap<IdRef, CFGNodeIndex>,
+    dominators: CFGDominators,
+    structure_tree: CFGStructureTree,
+}
 
 impl ops::Deref for CFG {
     type Target = CFGGraph;
     fn deref(&self) -> &Self::Target {
-        &self.0
+        &self.graph
     }
 }
 
 impl CFG {
     pub fn entry_node_index(&self) -> CFGNodeIndex {
-        self.0.node_indices().next().unwrap()
+        self.dominators().root()
     }
     pub fn entry_block(&self) -> &BasicBlock {
         &self[self.entry_node_index()]
     }
-    pub fn dominators(&self) -> CFGDominators {
-        dominators::simple_fast(&**self, self.entry_node_index())
+    pub fn dominators(&self) -> &CFGDominators {
+        &self.dominators
+    }
+    pub fn structure_tree(&self) -> &CFGStructureTree {
+        &self.structure_tree
     }
     pub fn new(function_instructions: &[Instruction]) -> CFG {
         assert!(!function_instructions.is_empty());
-        let mut retval = CFG(CFGGraph::default());
+        let mut graph = CFGGraph::default();
         let mut current_label = None;
         let mut current_instructions = Vec::new();
-        let mut id_to_index_map = HashMap::new();
+        let mut label_to_node_index_map = HashMap::new();
         for instruction in function_instructions {
             if current_label.is_none() {
                 if let Instruction::Label { id_result } = instruction {
@@ -109,11 +149,11 @@ impl CFG {
                     == InstructionClass::BlockTerminator
                 {
                     let label = current_label.take().unwrap();
-                    id_to_index_map.insert(
+                    label_to_node_index_map.insert(
                         label,
-                        retval.0.add_node(BasicBlock {
+                        graph.add_node(BasicBlock {
                             label,
-                            instructions: Instructions(current_instructions),
+                            instructions: Instructions::new(current_instructions),
                         }),
                     );
                     current_instructions = Vec::new();
@@ -121,49 +161,254 @@ impl CFG {
             }
         }
         assert!(current_instructions.is_empty());
-        for &node_index in id_to_index_map.values() {
-            let mut successors: Vec<_> = InstructionProperties::new(
-                retval
-                    .0
-                    .node_weight(node_index)
-                    .unwrap()
+        let mut successors_set = HashSet::new();
+        for node_index in graph.node_indices() {
+            successors_set.clear();
+            let successors: Vec<_> = InstructionProperties::new(
+                graph[node_index]
                     .instructions()
-                    .last()
+                    .terminating_instruction()
                     .unwrap(),
             )
             .targets()
             .unwrap()
-            .collect();
-            successors.sort_unstable_by_key(|v| v.0);
-            successors.dedup();
+            .filter(|&successor| successors_set.insert(successor)) // remove duplicates
+            .collect(); // collect into Vec to retain order
             for target in successors {
-                retval.0.add_edge(node_index, id_to_index_map[&target], ());
+                graph.add_edge(
+                    node_index,
+                    label_to_node_index_map[&target],
+                    EdgeKind::Normal,
+                );
+            }
+        }
+        let dominators = dominators::simple_fast(&graph, graph.node_indices().next().unwrap());
+        for edge_index in graph.edge_indices() {
+            let (source, target) = graph.edge_endpoints(edge_index).unwrap();
+            if let Some(mut source_dominators) = dominators.dominators(source) {
+                if source_dominators.any(|dominator| dominator == target) {
+                    graph[edge_index] = EdgeKind::LoopBackEdge;
+                    let target_block_instructions = graph[target].instructions();
+                    match target_block_instructions[target_block_instructions.len() - 2] {
+                        Instruction::LoopMerge { .. } => {}
+                        _ => unreachable!("back edge must go to loop header block"),
+                    }
+                }
+            } else {
+                graph[edge_index] = EdgeKind::Unreachable;
+            }
+        }
+        let structure_tree =
+            CFGStructureTree::parse(&graph, &label_to_node_index_map, dominators.root());
+        CFG {
+            graph,
+            label_to_node_index_map,
+            dominators,
+            structure_tree,
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub enum CFGStructureTreeNode {
+    Loop { children: CFGStructureTree },
+    Node { node_index: CFGNodeIndex },
+}
+
+/// nodes are in a topological order
+#[derive(Clone, Debug)]
+pub struct CFGStructureTree(Vec<CFGStructureTreeNode>);
+
+impl CFGStructureTree {
+    pub fn dump(&self, graph: &CFGGraph) -> String {
+        let mut stack = vec![self.iter()];
+        let mut retval = String::new();
+        while let Some(mut iter) = stack.pop() {
+            if let Some(node) = iter.next() {
+                for _ in 0..stack.len() {
+                    write!(&mut retval, "    ").unwrap();
+                }
+                stack.push(iter);
+                match *node {
+                    CFGStructureTreeNode::Loop { ref children } => {
+                        writeln!(&mut retval, "Loop:").unwrap();
+                        stack.push(children.iter());
+                    }
+                    CFGStructureTreeNode::Node { node_index } => {
+                        writeln!(
+                            &mut retval,
+                            "{}: (index {})",
+                            graph[node_index].label,
+                            node_index.index()
+                        )
+                        .unwrap();
+                    }
+                }
             }
         }
         retval
     }
 }
 
-#[derive(Clone, Debug)]
-pub struct Loop {
-    header: CFGNodeIndex,
-    backedge_source_nodes: Vec<CFGNodeIndex>,
-    nodes: HashSet<CFGNodeIndex>,
+impl ops::Deref for CFGStructureTree {
+    type Target = Vec<CFGStructureTreeNode>;
+    fn deref(&self) -> &Vec<CFGStructureTreeNode> {
+        &self.0
+    }
 }
 
-#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default)]
-#[repr(transparent)]
-pub struct LoopGraphIndexType(u32);
+impl CFGStructureTree {
+    fn parse(
+        graph: &CFGGraph,
+        label_to_node_index_map: &HashMap<IdRef, CFGNodeIndex>,
+        root: CFGNodeIndex,
+    ) -> Self {
+        CFGStructureTreeParser {
+            graph,
+            label_to_node_index_map,
+        }
+        .parse_tree(root, None, IgnoreInitialLoop::NotIgnored)
+        .structure_tree
+    }
+}
 
-unsafe impl IndexType for LoopGraphIndexType {
-    fn new(v: usize) -> Self {
-        LoopGraphIndexType(v as _)
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
+enum MergeReached {
+    Reached,
+    NotReached,
+}
+
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
+enum IgnoreInitialLoop {
+    Ignored,
+    NotIgnored,
+}
+
+struct CFGStructureTreeNodeParseResults {
+    successors: Vec<CFGNodeIndex>,
+    structure_tree_node: CFGStructureTreeNode,
+    merge_reached: MergeReached,
+}
+
+struct CFGStructureTreeParseResults {
+    structure_tree: CFGStructureTree,
+    merge_reached: MergeReached,
+}
+
+struct CFGStructureTreeParser<'a> {
+    graph: &'a CFGGraph,
+    label_to_node_index_map: &'a HashMap<IdRef, CFGNodeIndex>,
+}
+
+impl CFGStructureTreeParser<'_> {
+    fn parse_node(
+        &self,
+        start: CFGNodeIndex,
+        merge_target: Option<CFGNodeIndex>,
+        ignore_initial_loop: IgnoreInitialLoop,
+    ) -> CFGStructureTreeNodeParseResults {
+        match self.graph[start].instructions().merge_instruction() {
+            Some(Instruction::LoopMerge { merge_block, .. })
+                if ignore_initial_loop != IgnoreInitialLoop::Ignored =>
+            {
+                let merge_block = self.label_to_node_index_map[merge_block];
+                let CFGStructureTreeParseResults {
+                    structure_tree,
+                    merge_reached,
+                } = self.parse_tree(start, Some(merge_block), IgnoreInitialLoop::Ignored);
+                let successors = if merge_reached == MergeReached::Reached {
+                    vec![merge_block]
+                } else {
+                    Vec::new()
+                };
+                CFGStructureTreeNodeParseResults {
+                    successors,
+                    structure_tree_node: CFGStructureTreeNode::Loop {
+                        children: structure_tree,
+                    },
+                    merge_reached: MergeReached::NotReached,
+                }
+            }
+            _ => {
+                let mut merge_reached = MergeReached::NotReached;
+                let mut successors = Vec::new();
+                for edge in self.graph.edges_directed(start, Outgoing) {
+                    // exclude the merge target and loop back edge to
+                    // only visit nodes in the same loop nesting level
+                    if Some(edge.target()) == merge_target {
+                        merge_reached = MergeReached::Reached;
+                    } else if *edge.weight() != EdgeKind::LoopBackEdge {
+                        successors.push(edge.target());
+                    }
+                }
+                CFGStructureTreeNodeParseResults {
+                    successors,
+                    structure_tree_node: CFGStructureTreeNode::Node { node_index: start },
+                    merge_reached,
+                }
+            }
+        }
     }
-    fn index(&self) -> usize {
-        self.0 as _
-    }
-    fn max() -> Self {
-        LoopGraphIndexType(u32::max_value())
+    fn parse_tree(
+        &self,
+        start: CFGNodeIndex,
+        merge_target: Option<CFGNodeIndex>,
+        ignore_initial_loop: IgnoreInitialLoop,
+    ) -> CFGStructureTreeParseResults {
+        let mut structures = Vec::new();
+        let mut merge_reached = MergeReached::NotReached;
+        // visit nodes using a depth-first search recording them to `structures` in post-order
+        let mut reachable = self.graph.visit_map();
+        enum DFSNodeState {
+            Pre(CFGNodeIndex),
+            Post(CFGStructureTreeNode),
+        }
+        impl fmt::Debug for DFSNodeState {
+            fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+                match self {
+                    DFSNodeState::Pre(node) => write!(f, "Pre(#{})", node.index()),
+                    DFSNodeState::Post(node) => write!(f, "Post({:?})", node),
+                }
+            }
+        }
+        let mut stack = vec![DFSNodeState::Pre(start)];
+        loop {
+            match stack.pop() {
+                Some(DFSNodeState::Pre(node)) => {
+                    if reachable.visit(node) {
+                        let CFGStructureTreeNodeParseResults {
+                            successors,
+                            structure_tree_node,
+                            merge_reached: current_merge_reached,
+                        } = self.parse_node(
+                            node,
+                            merge_target,
+                            if node == start {
+                                ignore_initial_loop
+                            } else {
+                                IgnoreInitialLoop::NotIgnored
+                            },
+                        );
+                        if current_merge_reached == MergeReached::Reached {
+                            merge_reached = MergeReached::Reached;
+                        }
+                        stack.push(DFSNodeState::Post(structure_tree_node));
+                        for &successor in successors.iter().rev() {
+                            stack.push(DFSNodeState::Pre(successor));
+                        }
+                    }
+                }
+                Some(DFSNodeState::Post(structure)) => {
+                    structures.push(structure); // build structures in post-order
+                }
+                None => break,
+            }
+        }
+        structures.reverse(); // change to reverse post-order since we need them in a topological order
+        CFGStructureTreeParseResults {
+            merge_reached,
+            structure_tree: CFGStructureTree(structures),
+        }
     }
 }
 
@@ -194,9 +439,61 @@ mod tests {
     }
 
     #[derive(Debug)]
+    enum CFGTemplateStructureTreeNode<'a> {
+        Loop {
+            children: CFGTemplateStructureTree<'a>,
+        },
+        Node {
+            label: IdRef,
+        },
+    }
+
+    impl CFGTemplateStructureTreeNode<'_> {
+        fn is_equivalent(&self, rhs: &CFGStructureTreeNode, graph: &CFGGraph) -> bool {
+            match self {
+                CFGTemplateStructureTreeNode::Loop { children } => {
+                    if let CFGStructureTreeNode::Loop {
+                        children: rhs_children,
+                    } = rhs
+                    {
+                        children.is_equivalent(rhs_children, graph)
+                    } else {
+                        false
+                    }
+                }
+                CFGTemplateStructureTreeNode::Node { label } => {
+                    if let CFGStructureTreeNode::Node { node_index } = *rhs {
+                        graph[node_index].label == *label
+                    } else {
+                        false
+                    }
+                }
+            }
+        }
+    }
+
+    #[derive(Debug)]
+    struct CFGTemplateStructureTree<'a>(&'a [CFGTemplateStructureTreeNode<'a>]);
+
+    impl CFGTemplateStructureTree<'_> {
+        fn is_equivalent(&self, rhs: &CFGStructureTree, graph: &CFGGraph) -> bool {
+            if self.0.len() != rhs.len() {
+                return false;
+            }
+            for (a, b) in self.0.iter().zip(rhs.iter()) {
+                if !a.is_equivalent(b, graph) {
+                    return false;
+                }
+            }
+            true
+        }
+    }
+
+    #[derive(Debug)]
     struct CFGTemplate<'a> {
         blocks: &'a [CFGTemplateBlock<'a>],
         entry_block: IdRef,
+        structure_tree: CFGTemplateStructureTree<'a>,
     }
 
     fn test_cfg(instructions: &[Instruction], cfg_template: &CFGTemplate) {
@@ -209,6 +506,8 @@ mod tests {
         println!("{:#?}", cfg);
         let dominators = cfg.dominators();
         println!("{:#?}", dominators);
+        let structure_tree = cfg.structure_tree();
+        println!("{}", structure_tree.dump(&cfg));
         assert_eq!(cfg_template.entry_block, cfg.entry_block().label());
         assert_eq!(cfg_template.blocks.len(), cfg.node_count());
         let label_map: HashMap<_, _> = cfg
@@ -235,6 +534,9 @@ mod tests {
                 immediate_dominator
             );
         }
+        assert!(cfg_template
+            .structure_tree
+            .is_equivalent(structure_tree, &cfg));
     }
 
     #[test]
@@ -258,6 +560,9 @@ mod tests {
                     immediate_dominator: None,
                 }],
                 entry_block: label1,
+                structure_tree: CFGTemplateStructureTree(&[CFGTemplateStructureTreeNode::Node {
+                    label: label1,
+                }]),
             },
         );
     }
@@ -285,6 +590,9 @@ mod tests {
                     immediate_dominator: None,
                 }],
                 entry_block: label1,
+                structure_tree: CFGTemplateStructureTree(&[CFGTemplateStructureTreeNode::Node {
+                    label: label1,
+                }]),
             },
         );
     }
@@ -326,6 +634,10 @@ mod tests {
                     },
                 ],
                 entry_block: label1,
+                structure_tree: CFGTemplateStructureTree(&[
+                    CFGTemplateStructureTreeNode::Node { label: label1 },
+                    CFGTemplateStructureTreeNode::Node { label: label2 },
+                ]),
             },
         );
     }
@@ -374,6 +686,10 @@ mod tests {
                     },
                 ],
                 entry_block: label_start,
+                structure_tree: CFGTemplateStructureTree(&[
+                    CFGTemplateStructureTreeNode::Node { label: label_start },
+                    CFGTemplateStructureTreeNode::Node { label: label_endif },
+                ]),
             },
         );
     }
@@ -435,6 +751,11 @@ mod tests {
                     },
                 ],
                 entry_block: label_start,
+                structure_tree: CFGTemplateStructureTree(&[
+                    CFGTemplateStructureTreeNode::Node { label: label_start },
+                    CFGTemplateStructureTreeNode::Node { label: label_then },
+                    CFGTemplateStructureTreeNode::Node { label: label_endif },
+                ]),
             },
         );
     }
@@ -507,6 +828,12 @@ mod tests {
                     },
                 ],
                 entry_block: label_start,
+                structure_tree: CFGTemplateStructureTree(&[
+                    CFGTemplateStructureTreeNode::Node { label: label_start },
+                    CFGTemplateStructureTreeNode::Node { label: label_then },
+                    CFGTemplateStructureTreeNode::Node { label: label_else },
+                    CFGTemplateStructureTreeNode::Node { label: label_endif },
+                ]),
             },
         );
     }
@@ -567,6 +894,13 @@ mod tests {
                     },
                 ],
                 entry_block: label_start,
+                structure_tree: CFGTemplateStructureTree(&[
+                    CFGTemplateStructureTreeNode::Node { label: label_start },
+                    CFGTemplateStructureTreeNode::Node {
+                        label: label_default,
+                    },
+                    CFGTemplateStructureTreeNode::Node { label: label_merge },
+                ]),
             },
         );
     }
@@ -638,6 +972,14 @@ mod tests {
                     },
                 ],
                 entry_block: label_start,
+                structure_tree: CFGTemplateStructureTree(&[
+                    CFGTemplateStructureTreeNode::Node { label: label_start },
+                    CFGTemplateStructureTreeNode::Node {
+                        label: label_default,
+                    },
+                    CFGTemplateStructureTreeNode::Node { label: label_merge },
+                    CFGTemplateStructureTreeNode::Node { label: label_case1 },
+                ]),
             },
         );
     }
@@ -711,6 +1053,14 @@ mod tests {
                     },
                 ],
                 entry_block: label_start,
+                structure_tree: CFGTemplateStructureTree(&[
+                    CFGTemplateStructureTreeNode::Node { label: label_start },
+                    CFGTemplateStructureTreeNode::Node { label: label_case1 },
+                    CFGTemplateStructureTreeNode::Node {
+                        label: label_default,
+                    },
+                    CFGTemplateStructureTreeNode::Node { label: label_merge },
+                ]),
             },
         );
     }
@@ -797,6 +1147,15 @@ mod tests {
                     },
                 ],
                 entry_block: label_start,
+                structure_tree: CFGTemplateStructureTree(&[
+                    CFGTemplateStructureTreeNode::Node { label: label_start },
+                    CFGTemplateStructureTreeNode::Node { label: label_case1 },
+                    CFGTemplateStructureTreeNode::Node {
+                        label: label_default,
+                    },
+                    CFGTemplateStructureTreeNode::Node { label: label_case2 },
+                    CFGTemplateStructureTreeNode::Node { label: label_merge },
+                ]),
             },
         );
     }
@@ -883,6 +1242,110 @@ mod tests {
                     },
                 ],
                 entry_block: label_start,
+                structure_tree: CFGTemplateStructureTree(&[
+                    CFGTemplateStructureTreeNode::Node { label: label_start },
+                    CFGTemplateStructureTreeNode::Node {
+                        label: label_default,
+                    },
+                    CFGTemplateStructureTreeNode::Node { label: label_case1 },
+                    CFGTemplateStructureTreeNode::Node { label: label_case2 },
+                    CFGTemplateStructureTreeNode::Node { label: label_merge },
+                ]),
+            },
+        );
+    }
+
+    #[test]
+    fn test_cfg_switch_break_default_fallthrough_break2() {
+        let mut id_factory = IdFactory::new();
+        let mut instructions = Vec::new();
+
+        let label_start = id_factory.next();
+        let label_case1 = id_factory.next();
+        let label_case2 = id_factory.next();
+        let label_default = id_factory.next();
+        let label_merge = id_factory.next();
+
+        instructions.push(Instruction::NoLine);
+        instructions.push(Instruction::Label {
+            id_result: IdResult(label_start),
+        });
+        instructions.push(Instruction::SelectionMerge {
+            merge_block: label_merge,
+            selection_control: spirv_parser::SelectionControl::default(),
+        });
+        instructions.push(Instruction::Switch32 {
+            selector: id_factory.next(),
+            default: label_default,
+            target: vec![(0, label_case1), (1, label_case1), (2, label_case2)],
+        });
+
+        instructions.push(Instruction::Label {
+            id_result: IdResult(label_case1),
+        });
+        instructions.push(Instruction::Branch {
+            target_label: label_merge,
+        });
+
+        instructions.push(Instruction::Label {
+            id_result: IdResult(label_case2),
+        });
+        instructions.push(Instruction::Branch {
+            target_label: label_merge,
+        });
+
+        instructions.push(Instruction::Label {
+            id_result: IdResult(label_default),
+        });
+        instructions.push(Instruction::Branch {
+            target_label: label_case2,
+        });
+
+        instructions.push(Instruction::Label {
+            id_result: IdResult(label_merge),
+        });
+        instructions.push(Instruction::Return);
+
+        test_cfg(
+            &instructions,
+            &CFGTemplate {
+                blocks: &[
+                    CFGTemplateBlock {
+                        label: label_start,
+                        successors: &[label_case1, label_case2, label_default],
+                        immediate_dominator: None,
+                    },
+                    CFGTemplateBlock {
+                        label: label_case1,
+                        successors: &[label_merge],
+                        immediate_dominator: Some(label_start),
+                    },
+                    CFGTemplateBlock {
+                        label: label_default,
+                        successors: &[label_case2],
+                        immediate_dominator: Some(label_start),
+                    },
+                    CFGTemplateBlock {
+                        label: label_case2,
+                        successors: &[label_merge],
+                        immediate_dominator: Some(label_start),
+                    },
+                    CFGTemplateBlock {
+                        label: label_merge,
+                        successors: &[],
+                        immediate_dominator: Some(label_start),
+                    },
+                ],
+                entry_block: label_start,
+                structure_tree: CFGTemplateStructureTree(&[
+                    CFGTemplateStructureTreeNode::Node { label: label_start },
+                    CFGTemplateStructureTreeNode::Node {
+                        label: label_default,
+                    },
+                    CFGTemplateStructureTreeNode::Node { label: label_case1 },
+                    CFGTemplateStructureTreeNode::Node { label: label_case2 },
+                    CFGTemplateStructureTreeNode::Node { label: label_merge },
+                ]),
             },
         );
     }
@@ -950,6 +1413,15 @@ mod tests {
                     },
                 ],
                 entry_block: label_start,
+                structure_tree: CFGTemplateStructureTree(&[
+                    CFGTemplateStructureTreeNode::Node { label: label_start },
+                    CFGTemplateStructureTreeNode::Loop {
+                        children: CFGTemplateStructureTree(&[CFGTemplateStructureTreeNode::Node {
+                            label: label_header,
+                        }]),
+                    },
+                    CFGTemplateStructureTreeNode::Node { label: label_merge },
+                ]),
             },
         );
     }
@@ -1029,6 +1501,105 @@ mod tests {
                     },
                 ],
                 entry_block: label_start,
+                structure_tree: CFGTemplateStructureTree(&[
+                    CFGTemplateStructureTreeNode::Node { label: label_start },
+                    CFGTemplateStructureTreeNode::Loop {
+                        children: CFGTemplateStructureTree(&[
+                            CFGTemplateStructureTreeNode::Node {
+                                label: label_header,
+                            },
+                            CFGTemplateStructureTreeNode::Node { label: label_body },
+                        ]),
+                    },
+                    CFGTemplateStructureTreeNode::Node { label: label_merge },
+                ]),
+            },
+        );
+    }
+
+    #[test]
+    fn test_cfg_while_body_infinite() {
+        let mut id_factory = IdFactory::new();
+        let mut instructions = Vec::new();
+
+        let label_start = id_factory.next();
+        let label_header = id_factory.next();
+        let label_body = id_factory.next();
+        let label_merge = id_factory.next();
+
+        instructions.push(Instruction::NoLine);
+        instructions.push(Instruction::Label {
+            id_result: IdResult(label_start),
+        });
+        instructions.push(Instruction::Branch {
+            target_label: label_header,
+        });
+
+        instructions.push(Instruction::Label {
+            id_result: IdResult(label_header),
+        });
+        instructions.push(Instruction::LoopMerge {
+            merge_block: label_merge,
+            continue_target: label_header,
+            loop_control: LoopControl {
+                unroll: None,
+                dont_unroll: None,
+                dependency_infinite: None,
+                dependency_length: None,
+            },
+        });
+        instructions.push(Instruction::Branch {
+            target_label: label_body,
+        });
+
+        instructions.push(Instruction::Label {
+            id_result: IdResult(label_body),
+        });
+        instructions.push(Instruction::Branch {
+            target_label: label_header,
+        });
+        instructions.push(Instruction::Label {
+            id_result: IdResult(label_merge),
+        });
+        instructions.push(Instruction::Return);
+
+        test_cfg(
+            &instructions,
+            &CFGTemplate {
+                blocks: &[
+                    CFGTemplateBlock {
+                        label: label_start,
+                        successors: &[label_header],
+                        immediate_dominator: None,
+                    },
+                    CFGTemplateBlock {
+                        label: label_header,
+                        successors: &[label_body],
+                        immediate_dominator: Some(label_start),
+                    },
+                    CFGTemplateBlock {
+                        label: label_body,
+                        successors: &[label_header],
+                        immediate_dominator: Some(label_header),
+                    },
+                    CFGTemplateBlock {
+                        label: label_merge,
+                        successors: &[],
+                        immediate_dominator: None,
+                    },
+                ],
+                entry_block: label_start,
+                structure_tree: CFGTemplateStructureTree(&[
+                    CFGTemplateStructureTreeNode::Node { label: label_start },
+                    CFGTemplateStructureTreeNode::Loop {
+                        children: CFGTemplateStructureTree(&[
+                            CFGTemplateStructureTreeNode::Node {
+                                label: label_header,
+                            },
+                            CFGTemplateStructureTreeNode::Node { label: label_body },
+                        ]),
+                    },
+                ]),
             },
         );
     }
