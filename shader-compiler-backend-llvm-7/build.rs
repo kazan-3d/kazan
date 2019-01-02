@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
-// Copyright 2018 Jacob Lifshay
+// Copyright 2019 Jacob Lifshay
 
 // Partially based on llvm-sys; llvm-sys's license is reproduced below:
 

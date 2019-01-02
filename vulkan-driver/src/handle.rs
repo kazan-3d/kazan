@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
-// Copyright 2018 Jacob Lifshay
+// Copyright 2019 Jacob Lifshay
 use crate::api;
 use crate::api_impl::{Device, Instance, PhysicalDevice, Queue};
 use crate::buffer::{Buffer, BufferView};

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
-// Copyright 2018 Jacob Lifshay
+// Copyright 2019 Jacob Lifshay
 
 #![allow(clippy::unreadable_literal)]
 #![allow(clippy::cyclomatic_complexity)]
