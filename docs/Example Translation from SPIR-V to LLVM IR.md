@@ -192,7 +192,10 @@ Note that I am using 4 as the vectorization length since LLVM doesn't currently 
 %struct.InvocationInput = type { float }
 %struct.InvocationOutput = type { i32 }
 
-define zeroext i1 @shader_main(%struct.GlobalState* %global_state, %struct.InvocationState* %invocation_state, %struct.InvocationInput* %invocation_input, %struct.InvocationOutput* %invocation_output) #0 {
+define zeroext i1 @shader_main(%struct.GlobalState* %global_state,
+    %struct.InvocationState* %invocation_state,
+    %struct.InvocationInput* %invocation_input,
+    %struct.InvocationOutput* %invocation_output) #0 {
   ; %15 = OpLabel
 L15:
   ; should be a getelementptr
