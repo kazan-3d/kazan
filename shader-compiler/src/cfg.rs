@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 // Copyright 2018,2019 Jacob Lifshay
 
-use crate::instruction_properties::{InstructionClass, InstructionProperties};
+use crate::instruction_properties::InstructionProperties;
 use petgraph::{
     algo::dominators,
     graph::IndexType,
@@ -136,18 +136,15 @@ impl CFG {
                 if let Instruction::Label { id_result } = instruction {
                     current_label = Some(id_result.0);
                 } else {
-                    assert_eq!(
-                        InstructionProperties::new(instruction).class(),
-                        InstructionClass::DebugLine,
+                    assert!(
+                        InstructionProperties::new(instruction).is_debug_line(),
                         "invalid instruction before OpLabel"
                     );
                 }
                 current_instructions.push(instruction.clone());
             } else {
                 current_instructions.push(instruction.clone());
-                if InstructionProperties::new(instruction).class()
-                    == InstructionClass::BlockTerminator
-                {
+                if InstructionProperties::new(instruction).is_block_terminator() {
                     let label = current_label.take().unwrap();
                     label_to_node_index_map.insert(
                         label,
