@@ -217,6 +217,24 @@ pub enum CFGStructureTreeNode {
 pub struct CFGStructureTree(Vec<CFGStructureTreeNode>);
 
 impl CFGStructureTree {
+    pub fn get_basic_blocks_in_order(&self) -> Vec<CFGNodeIndex> {
+        let mut retval = Vec::new();
+        let mut stack = vec![self.iter()];
+        while let Some(mut iter) = stack.pop() {
+            match iter.next() {
+                Some(CFGStructureTreeNode::Loop { children }) => {
+                    stack.push(iter);
+                    stack.push(children.iter());
+                }
+                Some(&CFGStructureTreeNode::Node { node_index }) => {
+                    stack.push(iter);
+                    retval.push(node_index);
+                }
+                None => {}
+            }
+        }
+        retval
+    }
     pub fn dump(&self, graph: &CFGGraph) -> String {
         let mut stack = vec![self.iter()];
         let mut retval = String::new();
