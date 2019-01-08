@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 // Copyright 2018 Jacob Lifshay
 
+mod variable_set;
+
 use crate::cfg::{CFGNodeIndex, CFG};
 use crate::instruction_properties::InstructionProperties;
 use crate::lattice::BoundedOrderedLattice;
