@@ -3,16 +3,14 @@
 
 mod variable_set;
 
+use self::variable_set::VariableSet;
 use crate::cfg::{CFGNodeIndex, CFG};
 use crate::instruction_properties::InstructionProperties;
-use crate::lattice::BoundedOrderedLattice;
+use crate::lattice::{BoundedOrderedLattice, MeetSemilattice};
 use crate::BuiltInVariable;
 use crate::IdKind;
 use crate::Ids;
-use petgraph::visit::IntoNodeReferences;
-use spirv_parser::BuiltIn;
-use spirv_parser::IdRef;
-use spirv_parser::Instruction;
+use spirv_parser::{BuiltIn, IdRef, Instruction, StorageClass};
 use std::cmp;
 use std::collections::{HashMap, HashSet};
 
@@ -55,15 +53,17 @@ impl BoundedOrderedLattice for ValueUniformity {
     }
 }
 
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 struct ValueUniformityEntry {
     value_uniformity: ValueUniformity,
+    pointee_variables: VariableSet,
 }
 
 impl Default for ValueUniformityEntry {
     fn default() -> Self {
         Self {
             value_uniformity: ValueUniformity::Constant,
+            pointee_variables: VariableSet::new(),
         }
     }
 }
@@ -100,6 +100,7 @@ fn get_built_in_initial_value_uniformity_entry(
         BuiltIn::LocalInvocationId => unimplemented!(),
         BuiltIn::GlobalInvocationId => ValueUniformityEntry {
             value_uniformity: ValueUniformity::Varying,
+            pointee_variables: VariableSet::new(),
         },
         BuiltIn::LocalInvocationIndex => unimplemented!(),
         BuiltIn::WorkDim => unimplemented!(),
@@ -163,28 +164,35 @@ impl<'a, 'ctx, C: shader_compiler_backend::Context<'ctx>> ValueUniformityCalcula
         }
     }
     fn set_entry(&mut self, id: IdRef, v: ValueUniformityEntry) {
+        self.with_entry(id, |value| *value = v);
+    }
+    fn get_entry(&mut self, id: IdRef) -> ValueUniformityEntry {
+        if let Some(v) = self.entries.get(&id) {
+            v.clone()
+        } else {
+            Default::default()
+        }
+    }
+    fn with_entry<F: FnOnce(&mut ValueUniformityEntry)>(&mut self, id: IdRef, f: F) {
         use std::collections::hash_map::Entry;
         match self.entries.entry(id) {
             Entry::Vacant(entry) => {
-                if v != Default::default() {
-                    entry.insert(v);
+                let mut value = ValueUniformityEntry::default();
+                f(&mut value);
+                if value != Default::default() {
+                    entry.insert(value);
                     self.any_changes = true;
                 }
             }
             Entry::Occupied(entry) => {
                 let entry = entry.into_mut();
-                if v != *entry {
-                    *entry = v;
+                let mut value = entry.clone();
+                f(&mut value);
+                if value != *entry {
+                    *entry = value;
                     self.any_changes = true;
                 }
             }
-        }
-    }
-    fn get_entry(&mut self, id: IdRef) -> ValueUniformityEntry {
-        if let Some(v) = self.entries.get(&id) {
-            *v
-        } else {
-            Default::default()
         }
     }
     fn visit_instruction(&mut self, basic_block: CFGNodeIndex, instruction: &Instruction) {
@@ -371,7 +379,14 @@ impl<'a, 'ctx, C: shader_compiler_backend::Context<'ctx>> ValueUniformityCalcula
                 id_result,
                 storage_class,
                 initializer,
-            } => unimplemented!(),
+            } => {
+                assert_eq!(storage_class, StorageClass::Function);
+                self.with_entry(id_result.0, |entry| {
+                    entry
+                        .value_uniformity
+                        .meet_assign(ValueUniformity::UniformOverWorkgroup)
+                });
+            }
             Instruction::ImageTexelPointer {
                 id_result_type,
                 id_result,
@@ -406,7 +421,11 @@ impl<'a, 'ctx, C: shader_compiler_backend::Context<'ctx>> ValueUniformityCalcula
                 id_result,
                 base,
                 ref indexes,
-            } => unimplemented!(),
+            } => {
+                let mut result_entry = self.get_entry(id_result.0);
+                let mut base_entry = self.get_entry(base);
+                unimplemented!();
+            }
             Instruction::InBoundsAccessChain {
                 id_result_type,
                 id_result,
@@ -3726,12 +3745,14 @@ impl<'a, 'ctx, C: shader_compiler_backend::Context<'ctx>> ValueUniformityCalcula
                     id,
                     ValueUniformityEntry {
                         value_uniformity: ValueUniformity::Constant,
+                        pointee_variables: VariableSet::new(),
                     },
                 ),
                 IdKind::UniformVariable(..) => self.set_entry(
                     id,
                     ValueUniformityEntry {
                         value_uniformity: ValueUniformity::UniformOverWorkgroup,
+                        pointee_variables: VariableSet::from(id),
                     },
                 ),
                 IdKind::Function(..) => {}

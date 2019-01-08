@@ -9,6 +9,10 @@ pub trait MeetSemilattice: Eq + Clone {
     /// greatest lower bound
     /// similar to the minimum operator
     fn meet(self, rhs: Self) -> Self;
+    /// *self = self.meet(rhs)
+    fn meet_assign(&mut self, rhs: Self) {
+        *self = self.clone().meet(rhs);
+    }
 }
 
 /// a element of a join-semilattice: https://en.wikipedia.org/wiki/Semilattice
@@ -17,6 +21,10 @@ pub trait JoinSemilattice: Eq + Clone {
     /// least upper bound
     /// similar to the maximum operator
     fn join(self, rhs: Self) -> Self;
+    /// *self = self.join(rhs)
+    fn join_assign(&mut self, rhs: Self) {
+        *self = self.clone().join(rhs);
+    }
 }
 
 /// an ordered lattice
