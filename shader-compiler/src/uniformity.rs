@@ -1,18 +1,20 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
-// Copyright 2018 Jacob Lifshay
+// Copyright 2018,2019 Jacob Lifshay
 
 mod variable_set;
 
 use self::variable_set::VariableSet;
 use crate::cfg::{CFGNodeIndex, CFG};
-use crate::instruction_properties::InstructionProperties;
 use crate::lattice::{BoundedOrderedLattice, MeetSemilattice};
 use crate::BuiltInVariable;
 use crate::IdKind;
 use crate::Ids;
+use spirv_parser::IdResult;
 use spirv_parser::{BuiltIn, IdRef, Instruction, StorageClass};
+use std::borrow::Borrow;
 use std::cmp;
 use std::collections::{HashMap, HashSet};
+use std::iter;
 
 /// a lattice for how little values vary
 /// Varying < UniformOverWorkgroup < Constant
@@ -54,24 +56,92 @@ impl BoundedOrderedLattice for ValueUniformity {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
+struct PointeeUniformity {
+    value_uniformity: ValueUniformity,
+    variables: VariableSet,
+}
+
+impl Default for PointeeUniformity {
+    fn default() -> Self {
+        PointeeUniformity {
+            value_uniformity: ValueUniformity::Constant,
+            variables: VariableSet::new(),
+        }
+    }
+}
+
+impl PointeeUniformity {
+    fn check_update_with(&self, new_value: &Self) {
+        let PointeeUniformity {
+            value_uniformity: old_value_uniformity,
+            variables: ref old_variables,
+        } = *self;
+        let PointeeUniformity {
+            value_uniformity: new_value_uniformity,
+            variables: ref new_variables,
+        } = *new_value;
+        assert_eq!(
+            new_value_uniformity,
+            old_value_uniformity.meet(new_value_uniformity),
+            "invalid PointeeUniformity::value_uniformity update"
+        );
+        // faster check first
+        if old_variables != new_variables {
+            assert!(
+                (old_variables - new_variables).is_empty(),
+                "invalid PointeeUniformity::variables update"
+            );
+        }
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
 struct ValueUniformityEntry {
     value_uniformity: ValueUniformity,
-    pointee_variables: VariableSet,
+    pointee_uniformity: Option<PointeeUniformity>,
+}
+
+impl ValueUniformityEntry {
+    fn check_update_with(&self, new_value: &Self) {
+        let ValueUniformityEntry {
+            value_uniformity: old_value_uniformity,
+            pointee_uniformity: ref old_pointee_uniformity,
+        } = *self;
+        let ValueUniformityEntry {
+            value_uniformity: new_value_uniformity,
+            pointee_uniformity: ref new_pointee_uniformity,
+        } = *new_value;
+        assert_eq!(
+            new_value_uniformity,
+            old_value_uniformity.meet(new_value_uniformity),
+            "invalid ValueUniformityEntry::value_uniformity update"
+        );
+        match (old_pointee_uniformity, new_pointee_uniformity) {
+            (Some(_), None) => {
+                unreachable!("invalid ValueUniformityEntry::pointee_uniformity update");
+            }
+            (Some(old_pointee_uniformity), Some(new_pointee_uniformity)) => {
+                old_pointee_uniformity.check_update_with(new_pointee_uniformity);
+            }
+            _ => {}
+        }
+    }
 }
 
 impl Default for ValueUniformityEntry {
     fn default() -> Self {
         Self {
             value_uniformity: ValueUniformity::Constant,
-            pointee_variables: VariableSet::new(),
+            pointee_uniformity: None,
         }
     }
 }
 
 fn get_built_in_initial_value_uniformity_entry(
     built_in_variable: &BuiltInVariable,
+    id: IdRef,
 ) -> ValueUniformityEntry {
-    match built_in_variable.built_in {
+    let value_uniformity = match built_in_variable.built_in {
         BuiltIn::Position => unimplemented!(),
         BuiltIn::PointSize => unimplemented!(),
         BuiltIn::ClipDistance => unimplemented!(),
@@ -98,10 +168,7 @@ fn get_built_in_initial_value_uniformity_entry(
         BuiltIn::WorkgroupSize => unimplemented!(),
         BuiltIn::WorkgroupId => unimplemented!(),
         BuiltIn::LocalInvocationId => unimplemented!(),
-        BuiltIn::GlobalInvocationId => ValueUniformityEntry {
-            value_uniformity: ValueUniformity::Varying,
-            pointee_variables: VariableSet::new(),
-        },
+        BuiltIn::GlobalInvocationId => ValueUniformity::Varying,
         BuiltIn::LocalInvocationIndex => unimplemented!(),
         BuiltIn::WorkDim => unimplemented!(),
         BuiltIn::GlobalSize => unimplemented!(),
@@ -140,6 +207,13 @@ fn get_built_in_initial_value_uniformity_entry(
         BuiltIn::HitTNV => unimplemented!(),
         BuiltIn::HitKindNV => unimplemented!(),
         BuiltIn::IncomingRayFlagsNV => unimplemented!(),
+    };
+    ValueUniformityEntry {
+        value_uniformity: ValueUniformity::UniformOverWorkgroup,
+        pointee_uniformity: Some(PointeeUniformity {
+            value_uniformity,
+            variables: VariableSet::from(id),
+        }),
     }
 }
 
@@ -189,11 +263,37 @@ impl<'a, 'ctx, C: shader_compiler_backend::Context<'ctx>> ValueUniformityCalcula
                 let mut value = entry.clone();
                 f(&mut value);
                 if value != *entry {
+                    entry.check_update_with(&value);
                     *entry = value;
                     self.any_changes = true;
                 }
             }
         }
+    }
+    fn visit_simple_instruction<I: IntoIterator>(&mut self, id_result: IdResult, arguments: I)
+    where
+        I::Item: Borrow<IdRef>,
+    {
+        let mut value_uniformity = ValueUniformity::Constant;
+        for argument in arguments {
+            let argument = *argument.borrow();
+            let ValueUniformityEntry {
+                value_uniformity: argument_value_uniformity,
+                pointee_uniformity,
+            } = self.get_entry(argument);
+            assert!(
+                pointee_uniformity.is_none(),
+                "pointer is invalid argument to simple arithmatic/logic instruction"
+            );
+            value_uniformity.meet_assign(argument_value_uniformity);
+        }
+        self.set_entry(
+            id_result.0,
+            ValueUniformityEntry {
+                value_uniformity,
+                pointee_uniformity: None,
+            },
+        );
     }
     fn visit_instruction(&mut self, basic_block: CFGNodeIndex, instruction: &Instruction) {
         #[allow(unused_variables)]
@@ -381,11 +481,28 @@ impl<'a, 'ctx, C: shader_compiler_backend::Context<'ctx>> ValueUniformityCalcula
                 initializer,
             } => {
                 assert_eq!(storage_class, StorageClass::Function);
-                self.with_entry(id_result.0, |entry| {
-                    entry
-                        .value_uniformity
-                        .meet_assign(ValueUniformity::UniformOverWorkgroup)
-                });
+                assert!(
+                    !self.ids[id_result_type.0]
+                        .get_nonvoid_type()
+                        .get_nonvoid_pointee()
+                        .is_pointer(),
+                    "pointers to pointers are not implemented"
+                );
+                self.with_entry(
+                    id_result.0,
+                    |ValueUniformityEntry {
+                         value_uniformity,
+                         pointee_uniformity,
+                     }| {
+                        let pointee_uniformity =
+                            pointee_uniformity.get_or_insert_with(PointeeUniformity::default);
+                        *value_uniformity = ValueUniformity::UniformOverWorkgroup;
+                        pointee_uniformity
+                            .value_uniformity
+                            .meet_assign(ValueUniformity::Constant);
+                        pointee_uniformity.variables |= VariableSet::from(id_result.0);
+                    },
+                );
             }
             Instruction::ImageTexelPointer {
                 id_result_type,
@@ -399,7 +516,21 @@ impl<'a, 'ctx, C: shader_compiler_backend::Context<'ctx>> ValueUniformityCalcula
                 id_result,
                 pointer,
                 ref memory_access,
-            } => unimplemented!(),
+            } => {
+                let ValueUniformityEntry {
+                    value_uniformity,
+                    pointee_uniformity,
+                } = self.get_entry(pointer);
+                let pointee_uniformity = pointee_uniformity.expect("pointer");
+                self.set_entry(
+                    id_result.0,
+                    ValueUniformityEntry {
+                        value_uniformity: value_uniformity
+                            .meet(pointee_uniformity.value_uniformity),
+                        pointee_uniformity: None,
+                    },
+                );
+            }
             Instruction::Store {
                 pointer,
                 object,
@@ -422,9 +553,21 @@ impl<'a, 'ctx, C: shader_compiler_backend::Context<'ctx>> ValueUniformityCalcula
                 base,
                 ref indexes,
             } => {
-                let mut result_entry = self.get_entry(id_result.0);
-                let mut base_entry = self.get_entry(base);
-                unimplemented!();
+                let ValueUniformityEntry {
+                    mut value_uniformity,
+                    pointee_uniformity,
+                } = self.get_entry(base);
+                let pointee_uniformity = pointee_uniformity.expect("pointer");
+                for &index in indexes.iter() {
+                    value_uniformity.meet_assign(self.get_entry(index).value_uniformity);
+                }
+                self.set_entry(
+                    id_result.0,
+                    ValueUniformityEntry {
+                        value_uniformity,
+                        pointee_uniformity: Some(pointee_uniformity),
+                    },
+                );
             }
             Instruction::InBoundsAccessChain {
                 id_result_type,
@@ -480,55 +623,55 @@ impl<'a, 'ctx, C: shader_compiler_backend::Context<'ctx>> ValueUniformityCalcula
                 id_result,
                 vector,
                 index,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[vector, index]),
             Instruction::VectorInsertDynamic {
                 id_result_type,
                 id_result,
                 vector,
                 component,
                 index,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[vector, component, index]),
             Instruction::VectorShuffle {
                 id_result_type,
                 id_result,
                 vector_1,
                 vector_2,
                 ref components,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[vector_1, vector_2]),
             Instruction::CompositeConstruct {
                 id_result_type,
                 id_result,
                 ref constituents,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, constituents),
             Instruction::CompositeExtract {
                 id_result_type,
                 id_result,
                 composite,
                 ref indexes,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(composite)),
             Instruction::CompositeInsert {
                 id_result_type,
                 id_result,
                 object,
                 composite,
                 ref indexes,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[object, composite]),
             Instruction::CopyObject {
                 id_result_type,
                 id_result,
                 operand,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(operand)),
             Instruction::Transpose {
                 id_result_type,
                 id_result,
                 matrix,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(matrix)),
             Instruction::SampledImage {
                 id_result_type,
                 id_result,
                 image,
                 sampler,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[image, sampler]),
             Instruction::ImageSampleImplicitLod {
                 id_result_type,
                 id_result,
@@ -629,7 +772,7 @@ impl<'a, 'ctx, C: shader_compiler_backend::Context<'ctx>> ValueUniformityCalcula
                 id_result_type,
                 id_result,
                 sampled_image,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(sampled_image)),
             Instruction::ImageQueryFormat {
                 id_result_type,
                 id_result,
@@ -671,42 +814,42 @@ impl<'a, 'ctx, C: shader_compiler_backend::Context<'ctx>> ValueUniformityCalcula
                 id_result_type,
                 id_result,
                 float_value,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(float_value)),
             Instruction::ConvertFToS {
                 id_result_type,
                 id_result,
                 float_value,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(float_value)),
             Instruction::ConvertSToF {
                 id_result_type,
                 id_result,
                 signed_value,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(signed_value)),
             Instruction::ConvertUToF {
                 id_result_type,
                 id_result,
                 unsigned_value,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(unsigned_value)),
             Instruction::UConvert {
                 id_result_type,
                 id_result,
                 unsigned_value,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(unsigned_value)),
             Instruction::SConvert {
                 id_result_type,
                 id_result,
                 signed_value,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(signed_value)),
             Instruction::FConvert {
                 id_result_type,
                 id_result,
                 float_value,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(float_value)),
             Instruction::QuantizeToF16 {
                 id_result_type,
                 id_result,
                 value,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(value)),
             Instruction::ConvertPtrToU {
                 id_result_type,
                 id_result,
@@ -752,244 +895,244 @@ impl<'a, 'ctx, C: shader_compiler_backend::Context<'ctx>> ValueUniformityCalcula
                 id_result_type,
                 id_result,
                 operand,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(operand)),
             Instruction::FNegate {
                 id_result_type,
                 id_result,
                 operand,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(operand)),
             Instruction::IAdd {
                 id_result_type,
                 id_result,
                 operand_1,
                 operand_2,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[operand_1, operand_2]),
             Instruction::FAdd {
                 id_result_type,
                 id_result,
                 operand_1,
                 operand_2,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[operand_1, operand_2]),
             Instruction::ISub {
                 id_result_type,
                 id_result,
                 operand_1,
                 operand_2,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[operand_1, operand_2]),
             Instruction::FSub {
                 id_result_type,
                 id_result,
                 operand_1,
                 operand_2,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[operand_1, operand_2]),
             Instruction::IMul {
                 id_result_type,
                 id_result,
                 operand_1,
                 operand_2,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[operand_1, operand_2]),
             Instruction::FMul {
                 id_result_type,
                 id_result,
                 operand_1,
                 operand_2,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[operand_1, operand_2]),
             Instruction::UDiv {
                 id_result_type,
                 id_result,
                 operand_1,
                 operand_2,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[operand_1, operand_2]),
             Instruction::SDiv {
                 id_result_type,
                 id_result,
                 operand_1,
                 operand_2,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[operand_1, operand_2]),
             Instruction::FDiv {
                 id_result_type,
                 id_result,
                 operand_1,
                 operand_2,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[operand_1, operand_2]),
             Instruction::UMod {
                 id_result_type,
                 id_result,
                 operand_1,
                 operand_2,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[operand_1, operand_2]),
             Instruction::SRem {
                 id_result_type,
                 id_result,
                 operand_1,
                 operand_2,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[operand_1, operand_2]),
             Instruction::SMod {
                 id_result_type,
                 id_result,
                 operand_1,
                 operand_2,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[operand_1, operand_2]),
             Instruction::FRem {
                 id_result_type,
                 id_result,
                 operand_1,
                 operand_2,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[operand_1, operand_2]),
             Instruction::FMod {
                 id_result_type,
                 id_result,
                 operand_1,
                 operand_2,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[operand_1, operand_2]),
             Instruction::VectorTimesScalar {
                 id_result_type,
                 id_result,
                 vector,
                 scalar,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[vector, scalar]),
             Instruction::MatrixTimesScalar {
                 id_result_type,
                 id_result,
                 matrix,
                 scalar,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[matrix, scalar]),
             Instruction::VectorTimesMatrix {
                 id_result_type,
                 id_result,
                 vector,
                 matrix,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[vector, matrix]),
             Instruction::MatrixTimesVector {
                 id_result_type,
                 id_result,
                 matrix,
                 vector,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[matrix, vector]),
             Instruction::MatrixTimesMatrix {
                 id_result_type,
                 id_result,
                 left_matrix,
                 right_matrix,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[left_matrix, right_matrix]),
             Instruction::OuterProduct {
                 id_result_type,
                 id_result,
                 vector_1,
                 vector_2,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[vector_1, vector_2]),
             Instruction::Dot {
                 id_result_type,
                 id_result,
                 vector_1,
                 vector_2,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[vector_1, vector_2]),
             Instruction::IAddCarry {
                 id_result_type,
                 id_result,
                 operand_1,
                 operand_2,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[operand_1, operand_2]),
             Instruction::ISubBorrow {
                 id_result_type,
                 id_result,
                 operand_1,
                 operand_2,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[operand_1, operand_2]),
             Instruction::UMulExtended {
                 id_result_type,
                 id_result,
                 operand_1,
                 operand_2,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[operand_1, operand_2]),
             Instruction::SMulExtended {
                 id_result_type,
                 id_result,
                 operand_1,
                 operand_2,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[operand_1, operand_2]),
             Instruction::Any {
                 id_result_type,
                 id_result,
                 vector,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(vector)),
             Instruction::All {
                 id_result_type,
                 id_result,
                 vector,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(vector)),
             Instruction::IsNan {
                 id_result_type,
                 id_result,
                 x,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(x)),
             Instruction::IsInf {
                 id_result_type,
                 id_result,
                 x,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(x)),
             Instruction::IsFinite {
                 id_result_type,
                 id_result,
                 x,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(x)),
             Instruction::IsNormal {
                 id_result_type,
                 id_result,
                 x,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(x)),
             Instruction::SignBitSet {
                 id_result_type,
                 id_result,
                 x,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(x)),
             Instruction::LessOrGreater {
                 id_result_type,
                 id_result,
                 x,
                 y,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[x, y]),
             Instruction::Ordered {
                 id_result_type,
                 id_result,
                 x,
                 y,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[x, y]),
             Instruction::Unordered {
                 id_result_type,
                 id_result,
                 x,
                 y,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[x, y]),
             Instruction::LogicalEqual {
                 id_result_type,
                 id_result,
                 operand_1,
                 operand_2,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[operand_1, operand_2]),
             Instruction::LogicalNotEqual {
                 id_result_type,
                 id_result,
                 operand_1,
                 operand_2,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[operand_1, operand_2]),
             Instruction::LogicalOr {
                 id_result_type,
                 id_result,
                 operand_1,
                 operand_2,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[operand_1, operand_2]),
             Instruction::LogicalAnd {
                 id_result_type,
                 id_result,
                 operand_1,
                 operand_2,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[operand_1, operand_2]),
             Instruction::LogicalNot {
                 id_result_type,
                 id_result,
                 operand,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(operand)),
             Instruction::Select {
                 id_result_type,
                 id_result,
@@ -1002,174 +1145,174 @@ impl<'a, 'ctx, C: shader_compiler_backend::Context<'ctx>> ValueUniformityCalcula
                 id_result,
                 operand_1,
                 operand_2,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[operand_1, operand_2]),
             Instruction::INotEqual {
                 id_result_type,
                 id_result,
                 operand_1,
                 operand_2,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[operand_1, operand_2]),
             Instruction::UGreaterThan {
                 id_result_type,
                 id_result,
                 operand_1,
                 operand_2,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[operand_1, operand_2]),
             Instruction::SGreaterThan {
                 id_result_type,
                 id_result,
                 operand_1,
                 operand_2,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[operand_1, operand_2]),
             Instruction::UGreaterThanEqual {
                 id_result_type,
                 id_result,
                 operand_1,
                 operand_2,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[operand_1, operand_2]),
             Instruction::SGreaterThanEqual {
                 id_result_type,
                 id_result,
                 operand_1,
                 operand_2,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[operand_1, operand_2]),
             Instruction::ULessThan {
                 id_result_type,
                 id_result,
                 operand_1,
                 operand_2,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[operand_1, operand_2]),
             Instruction::SLessThan {
                 id_result_type,
                 id_result,
                 operand_1,
                 operand_2,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[operand_1, operand_2]),
             Instruction::ULessThanEqual {
                 id_result_type,
                 id_result,
                 operand_1,
                 operand_2,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[operand_1, operand_2]),
             Instruction::SLessThanEqual {
                 id_result_type,
                 id_result,
                 operand_1,
                 operand_2,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[operand_1, operand_2]),
             Instruction::FOrdEqual {
                 id_result_type,
                 id_result,
                 operand_1,
                 operand_2,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[operand_1, operand_2]),
             Instruction::FUnordEqual {
                 id_result_type,
                 id_result,
                 operand_1,
                 operand_2,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[operand_1, operand_2]),
             Instruction::FOrdNotEqual {
                 id_result_type,
                 id_result,
                 operand_1,
                 operand_2,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[operand_1, operand_2]),
             Instruction::FUnordNotEqual {
                 id_result_type,
                 id_result,
                 operand_1,
                 operand_2,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[operand_1, operand_2]),
             Instruction::FOrdLessThan {
                 id_result_type,
                 id_result,
                 operand_1,
                 operand_2,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[operand_1, operand_2]),
             Instruction::FUnordLessThan {
                 id_result_type,
                 id_result,
                 operand_1,
                 operand_2,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[operand_1, operand_2]),
             Instruction::FOrdGreaterThan {
                 id_result_type,
                 id_result,
                 operand_1,
                 operand_2,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[operand_1, operand_2]),
             Instruction::FUnordGreaterThan {
                 id_result_type,
                 id_result,
                 operand_1,
                 operand_2,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[operand_1, operand_2]),
             Instruction::FOrdLessThanEqual {
                 id_result_type,
                 id_result,
                 operand_1,
                 operand_2,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[operand_1, operand_2]),
             Instruction::FUnordLessThanEqual {
                 id_result_type,
                 id_result,
                 operand_1,
                 operand_2,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[operand_1, operand_2]),
             Instruction::FOrdGreaterThanEqual {
                 id_result_type,
                 id_result,
                 operand_1,
                 operand_2,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[operand_1, operand_2]),
             Instruction::FUnordGreaterThanEqual {
                 id_result_type,
                 id_result,
                 operand_1,
                 operand_2,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[operand_1, operand_2]),
             Instruction::ShiftRightLogical {
                 id_result_type,
                 id_result,
                 base,
                 shift,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[base, shift]),
             Instruction::ShiftRightArithmetic {
                 id_result_type,
                 id_result,
                 base,
                 shift,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[base, shift]),
             Instruction::ShiftLeftLogical {
                 id_result_type,
                 id_result,
                 base,
                 shift,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[base, shift]),
             Instruction::BitwiseOr {
                 id_result_type,
                 id_result,
                 operand_1,
                 operand_2,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[operand_1, operand_2]),
             Instruction::BitwiseXor {
                 id_result_type,
                 id_result,
                 operand_1,
                 operand_2,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[operand_1, operand_2]),
             Instruction::BitwiseAnd {
                 id_result_type,
                 id_result,
                 operand_1,
                 operand_2,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[operand_1, operand_2]),
             Instruction::Not {
                 id_result_type,
                 id_result,
                 operand,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(operand)),
             Instruction::BitFieldInsert {
                 id_result_type,
                 id_result,
@@ -1177,31 +1320,31 @@ impl<'a, 'ctx, C: shader_compiler_backend::Context<'ctx>> ValueUniformityCalcula
                 insert,
                 offset,
                 count,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[base, insert, offset, count]),
             Instruction::BitFieldSExtract {
                 id_result_type,
                 id_result,
                 base,
                 offset,
                 count,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[base, offset, count]),
             Instruction::BitFieldUExtract {
                 id_result_type,
                 id_result,
                 base,
                 offset,
                 count,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[base, offset, count]),
             Instruction::BitReverse {
                 id_result_type,
                 id_result,
                 base,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(base)),
             Instruction::BitCount {
                 id_result_type,
                 id_result,
                 base,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(base)),
             Instruction::DPdx {
                 id_result_type,
                 id_result,
@@ -1393,11 +1536,11 @@ impl<'a, 'ctx, C: shader_compiler_backend::Context<'ctx>> ValueUniformityCalcula
                 merge_block,
                 continue_target,
                 ref loop_control,
-            } => unimplemented!(),
+            } => {}
             Instruction::SelectionMerge {
                 merge_block,
                 ref selection_control,
-            } => unimplemented!(),
+            } => {}
             Instruction::Label { .. } => {}
             Instruction::Branch { target_label } => unimplemented!(),
             Instruction::BranchConditional {
@@ -1840,11 +1983,11 @@ impl<'a, 'ctx, C: shader_compiler_backend::Context<'ctx>> ValueUniformityCalcula
             Instruction::ExecutionModeId {
                 entry_point,
                 ref mode,
-            } => unimplemented!(),
+            } => {}
             Instruction::DecorateId {
                 target,
                 ref decoration,
-            } => unimplemented!(),
+            } => {}
             Instruction::GroupNonUniformElect {
                 id_result_type,
                 id_result,
@@ -2120,161 +2263,161 @@ impl<'a, 'ctx, C: shader_compiler_backend::Context<'ctx>> ValueUniformityCalcula
                 id_result,
                 set,
                 x,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(x)),
             Instruction::OpenCLStdAcosh {
                 id_result_type,
                 id_result,
                 set,
                 x,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(x)),
             Instruction::OpenCLStdAcospi {
                 id_result_type,
                 id_result,
                 set,
                 x,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(x)),
             Instruction::OpenCLStdAsin {
                 id_result_type,
                 id_result,
                 set,
                 x,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(x)),
             Instruction::OpenCLStdAsinh {
                 id_result_type,
                 id_result,
                 set,
                 x,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(x)),
             Instruction::OpenCLStdAsinpi {
                 id_result_type,
                 id_result,
                 set,
                 x,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(x)),
             Instruction::OpenCLStdAtan {
                 id_result_type,
                 id_result,
                 set,
                 x,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(x)),
             Instruction::OpenCLStdAtan2 {
                 id_result_type,
                 id_result,
                 set,
                 y,
                 x,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[y, x]),
             Instruction::OpenCLStdAtanh {
                 id_result_type,
                 id_result,
                 set,
                 x,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(x)),
             Instruction::OpenCLStdAtanpi {
                 id_result_type,
                 id_result,
                 set,
                 x,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(x)),
             Instruction::OpenCLStdAtan2pi {
                 id_result_type,
                 id_result,
                 set,
                 y,
                 x,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[y, x]),
             Instruction::OpenCLStdCbrt {
                 id_result_type,
                 id_result,
                 set,
                 x,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(x)),
             Instruction::OpenCLStdCeil {
                 id_result_type,
                 id_result,
                 set,
                 x,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(x)),
             Instruction::OpenCLStdCopysign {
                 id_result_type,
                 id_result,
                 set,
                 x,
                 y,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[x, y]),
             Instruction::OpenCLStdCos {
                 id_result_type,
                 id_result,
                 set,
                 x,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(x)),
             Instruction::OpenCLStdCosh {
                 id_result_type,
                 id_result,
                 set,
                 x,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(x)),
             Instruction::OpenCLStdCospi {
                 id_result_type,
                 id_result,
                 set,
                 x,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(x)),
             Instruction::OpenCLStdErfc {
                 id_result_type,
                 id_result,
                 set,
                 x,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(x)),
             Instruction::OpenCLStdErf {
                 id_result_type,
                 id_result,
                 set,
                 x,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(x)),
             Instruction::OpenCLStdExp {
                 id_result_type,
                 id_result,
                 set,
                 x,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(x)),
             Instruction::OpenCLStdExp2 {
                 id_result_type,
                 id_result,
                 set,
                 x,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(x)),
             Instruction::OpenCLStdExp10 {
                 id_result_type,
                 id_result,
                 set,
                 x,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(x)),
             Instruction::OpenCLStdExpm1 {
                 id_result_type,
                 id_result,
                 set,
                 x,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(x)),
             Instruction::OpenCLStdFabs {
                 id_result_type,
                 id_result,
                 set,
                 x,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(x)),
             Instruction::OpenCLStdFdim {
                 id_result_type,
                 id_result,
                 set,
                 x,
                 y,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[x, y]),
             Instruction::OpenCLStdFloor {
                 id_result_type,
                 id_result,
                 set,
                 x,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(x)),
             Instruction::OpenCLStdFma {
                 id_result_type,
                 id_result,
@@ -2282,28 +2425,28 @@ impl<'a, 'ctx, C: shader_compiler_backend::Context<'ctx>> ValueUniformityCalcula
                 a,
                 b,
                 c,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[a, b, c]),
             Instruction::OpenCLStdFmax {
                 id_result_type,
                 id_result,
                 set,
                 x,
                 y,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[x, y]),
             Instruction::OpenCLStdFmin {
                 id_result_type,
                 id_result,
                 set,
                 x,
                 y,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[x, y]),
             Instruction::OpenCLStdFmod {
                 id_result_type,
                 id_result,
                 set,
                 x,
                 y,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[x, y]),
             Instruction::OpenCLStdFract {
                 id_result_type,
                 id_result,
@@ -2324,26 +2467,26 @@ impl<'a, 'ctx, C: shader_compiler_backend::Context<'ctx>> ValueUniformityCalcula
                 set,
                 x,
                 y,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[x, y]),
             Instruction::OpenCLStdIlogb {
                 id_result_type,
                 id_result,
                 set,
                 x,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(x)),
             Instruction::OpenCLStdLdexp {
                 id_result_type,
                 id_result,
                 set,
                 x,
                 k,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[x, k]),
             Instruction::OpenCLStdLgamma {
                 id_result_type,
                 id_result,
                 set,
                 x,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(x)),
             Instruction::OpenCLStdLgammaR {
                 id_result_type,
                 id_result,
@@ -2356,31 +2499,31 @@ impl<'a, 'ctx, C: shader_compiler_backend::Context<'ctx>> ValueUniformityCalcula
                 id_result,
                 set,
                 x,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(x)),
             Instruction::OpenCLStdLog2 {
                 id_result_type,
                 id_result,
                 set,
                 x,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(x)),
             Instruction::OpenCLStdLog10 {
                 id_result_type,
                 id_result,
                 set,
                 x,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(x)),
             Instruction::OpenCLStdLog1p {
                 id_result_type,
                 id_result,
                 set,
                 x,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(x)),
             Instruction::OpenCLStdLogb {
                 id_result_type,
                 id_result,
                 set,
                 x,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(x)),
             Instruction::OpenCLStdMad {
                 id_result_type,
                 id_result,
@@ -2388,21 +2531,21 @@ impl<'a, 'ctx, C: shader_compiler_backend::Context<'ctx>> ValueUniformityCalcula
                 a,
                 b,
                 c,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[a, b, c]),
             Instruction::OpenCLStdMaxmag {
                 id_result_type,
                 id_result,
                 set,
                 x,
                 y,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[x, y]),
             Instruction::OpenCLStdMinmag {
                 id_result_type,
                 id_result,
                 set,
                 x,
                 y,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[x, y]),
             Instruction::OpenCLStdModf {
                 id_result_type,
                 id_result,
@@ -2415,42 +2558,42 @@ impl<'a, 'ctx, C: shader_compiler_backend::Context<'ctx>> ValueUniformityCalcula
                 id_result,
                 set,
                 nancode,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(nancode)),
             Instruction::OpenCLStdNextafter {
                 id_result_type,
                 id_result,
                 set,
                 x,
                 y,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[x, y]),
             Instruction::OpenCLStdPow {
                 id_result_type,
                 id_result,
                 set,
                 x,
                 y,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[x, y]),
             Instruction::OpenCLStdPown {
                 id_result_type,
                 id_result,
                 set,
                 x,
                 y,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[x, y]),
             Instruction::OpenCLStdPowr {
                 id_result_type,
                 id_result,
                 set,
                 x,
                 y,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[x, y]),
             Instruction::OpenCLStdRemainder {
                 id_result_type,
                 id_result,
                 set,
                 x,
                 y,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[x, y]),
             Instruction::OpenCLStdRemquo {
                 id_result_type,
                 id_result,
@@ -2464,32 +2607,32 @@ impl<'a, 'ctx, C: shader_compiler_backend::Context<'ctx>> ValueUniformityCalcula
                 id_result,
                 set,
                 x,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(x)),
             Instruction::OpenCLStdRootn {
                 id_result_type,
                 id_result,
                 set,
                 x,
                 y,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[x, y]),
             Instruction::OpenCLStdRound {
                 id_result_type,
                 id_result,
                 set,
                 x,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(x)),
             Instruction::OpenCLStdRsqrt {
                 id_result_type,
                 id_result,
                 set,
                 x,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(x)),
             Instruction::OpenCLStdSin {
                 id_result_type,
                 id_result,
                 set,
                 x,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(x)),
             Instruction::OpenCLStdSincos {
                 id_result_type,
                 id_result,
@@ -2502,276 +2645,276 @@ impl<'a, 'ctx, C: shader_compiler_backend::Context<'ctx>> ValueUniformityCalcula
                 id_result,
                 set,
                 x,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(x)),
             Instruction::OpenCLStdSinpi {
                 id_result_type,
                 id_result,
                 set,
                 x,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(x)),
             Instruction::OpenCLStdSqrt {
                 id_result_type,
                 id_result,
                 set,
                 x,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(x)),
             Instruction::OpenCLStdTan {
                 id_result_type,
                 id_result,
                 set,
                 x,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(x)),
             Instruction::OpenCLStdTanh {
                 id_result_type,
                 id_result,
                 set,
                 x,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(x)),
             Instruction::OpenCLStdTanpi {
                 id_result_type,
                 id_result,
                 set,
                 x,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(x)),
             Instruction::OpenCLStdTgamma {
                 id_result_type,
                 id_result,
                 set,
                 x,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(x)),
             Instruction::OpenCLStdTrunc {
                 id_result_type,
                 id_result,
                 set,
                 x,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(x)),
             Instruction::OpenCLStdHalfCos {
                 id_result_type,
                 id_result,
                 set,
                 x,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(x)),
             Instruction::OpenCLStdHalfDivide {
                 id_result_type,
                 id_result,
                 set,
                 x,
                 y,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[x, y]),
             Instruction::OpenCLStdHalfExp {
                 id_result_type,
                 id_result,
                 set,
                 x,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(x)),
             Instruction::OpenCLStdHalfExp2 {
                 id_result_type,
                 id_result,
                 set,
                 x,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(x)),
             Instruction::OpenCLStdHalfExp10 {
                 id_result_type,
                 id_result,
                 set,
                 x,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(x)),
             Instruction::OpenCLStdHalfLog {
                 id_result_type,
                 id_result,
                 set,
                 x,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(x)),
             Instruction::OpenCLStdHalfLog2 {
                 id_result_type,
                 id_result,
                 set,
                 x,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(x)),
             Instruction::OpenCLStdHalfLog10 {
                 id_result_type,
                 id_result,
                 set,
                 x,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(x)),
             Instruction::OpenCLStdHalfPowr {
                 id_result_type,
                 id_result,
                 set,
                 x,
                 y,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[x, y]),
             Instruction::OpenCLStdHalfRecip {
                 id_result_type,
                 id_result,
                 set,
                 x,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(x)),
             Instruction::OpenCLStdHalfRsqrt {
                 id_result_type,
                 id_result,
                 set,
                 x,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(x)),
             Instruction::OpenCLStdHalfSin {
                 id_result_type,
                 id_result,
                 set,
                 x,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(x)),
             Instruction::OpenCLStdHalfSqrt {
                 id_result_type,
                 id_result,
                 set,
                 x,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(x)),
             Instruction::OpenCLStdHalfTan {
                 id_result_type,
                 id_result,
                 set,
                 x,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(x)),
             Instruction::OpenCLStdNativeCos {
                 id_result_type,
                 id_result,
                 set,
                 x,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(x)),
             Instruction::OpenCLStdNativeDivide {
                 id_result_type,
                 id_result,
                 set,
                 x,
                 y,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[x, y]),
             Instruction::OpenCLStdNativeExp {
                 id_result_type,
                 id_result,
                 set,
                 x,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(x)),
             Instruction::OpenCLStdNativeExp2 {
                 id_result_type,
                 id_result,
                 set,
                 x,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(x)),
             Instruction::OpenCLStdNativeExp10 {
                 id_result_type,
                 id_result,
                 set,
                 x,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(x)),
             Instruction::OpenCLStdNativeLog {
                 id_result_type,
                 id_result,
                 set,
                 x,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(x)),
             Instruction::OpenCLStdNativeLog2 {
                 id_result_type,
                 id_result,
                 set,
                 x,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(x)),
             Instruction::OpenCLStdNativeLog10 {
                 id_result_type,
                 id_result,
                 set,
                 x,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(x)),
             Instruction::OpenCLStdNativePowr {
                 id_result_type,
                 id_result,
                 set,
                 x,
                 y,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(x)),
             Instruction::OpenCLStdNativeRecip {
                 id_result_type,
                 id_result,
                 set,
                 x,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(x)),
             Instruction::OpenCLStdNativeRsqrt {
                 id_result_type,
                 id_result,
                 set,
                 x,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(x)),
             Instruction::OpenCLStdNativeSin {
                 id_result_type,
                 id_result,
                 set,
                 x,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(x)),
             Instruction::OpenCLStdNativeSqrt {
                 id_result_type,
                 id_result,
                 set,
                 x,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(x)),
             Instruction::OpenCLStdNativeTan {
                 id_result_type,
                 id_result,
                 set,
                 x,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(x)),
             Instruction::OpenCLStdSAbs {
                 id_result_type,
                 id_result,
                 set,
                 x,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(x)),
             Instruction::OpenCLStdSAbsDiff {
                 id_result_type,
                 id_result,
                 set,
                 x,
                 y,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[x, y]),
             Instruction::OpenCLStdSAddSat {
                 id_result_type,
                 id_result,
                 set,
                 x,
                 y,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[x, y]),
             Instruction::OpenCLStdUAddSat {
                 id_result_type,
                 id_result,
                 set,
                 x,
                 y,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[x, y]),
             Instruction::OpenCLStdSHadd {
                 id_result_type,
                 id_result,
                 set,
                 x,
                 y,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[x, y]),
             Instruction::OpenCLStdUHadd {
                 id_result_type,
                 id_result,
                 set,
                 x,
                 y,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[x, y]),
             Instruction::OpenCLStdSRhadd {
                 id_result_type,
                 id_result,
                 set,
                 x,
                 y,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[x, y]),
             Instruction::OpenCLStdURhadd {
                 id_result_type,
                 id_result,
                 set,
                 x,
                 y,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[x, y]),
             Instruction::OpenCLStdSClamp {
                 id_result_type,
                 id_result,
@@ -2779,7 +2922,7 @@ impl<'a, 'ctx, C: shader_compiler_backend::Context<'ctx>> ValueUniformityCalcula
                 x,
                 minval,
                 maxval,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[x, minval, maxval]),
             Instruction::OpenCLStdUClamp {
                 id_result_type,
                 id_result,
@@ -2787,19 +2930,19 @@ impl<'a, 'ctx, C: shader_compiler_backend::Context<'ctx>> ValueUniformityCalcula
                 x,
                 minval,
                 maxval,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[x, minval, maxval]),
             Instruction::OpenCLStdClz {
                 id_result_type,
                 id_result,
                 set,
                 x,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(x)),
             Instruction::OpenCLStdCtz {
                 id_result_type,
                 id_result,
                 set,
                 x,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(x)),
             Instruction::OpenCLStdSMadHi {
                 id_result_type,
                 id_result,
@@ -2807,7 +2950,7 @@ impl<'a, 'ctx, C: shader_compiler_backend::Context<'ctx>> ValueUniformityCalcula
                 a,
                 b,
                 c,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[a, b, c]),
             Instruction::OpenCLStdUMadSat {
                 id_result_type,
                 id_result,
@@ -2815,7 +2958,7 @@ impl<'a, 'ctx, C: shader_compiler_backend::Context<'ctx>> ValueUniformityCalcula
                 x,
                 y,
                 z,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[x, y, z]),
             Instruction::OpenCLStdSMadSat {
                 id_result_type,
                 id_result,
@@ -2823,83 +2966,83 @@ impl<'a, 'ctx, C: shader_compiler_backend::Context<'ctx>> ValueUniformityCalcula
                 x,
                 y,
                 z,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[x, y, z]),
             Instruction::OpenCLStdSMax {
                 id_result_type,
                 id_result,
                 set,
                 x,
                 y,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[x, y]),
             Instruction::OpenCLStdUMax {
                 id_result_type,
                 id_result,
                 set,
                 x,
                 y,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[x, y]),
             Instruction::OpenCLStdSMin {
                 id_result_type,
                 id_result,
                 set,
                 x,
                 y,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[x, y]),
             Instruction::OpenCLStdUMin {
                 id_result_type,
                 id_result,
                 set,
                 x,
                 y,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[x, y]),
             Instruction::OpenCLStdSMulHi {
                 id_result_type,
                 id_result,
                 set,
                 x,
                 y,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[x, y]),
             Instruction::OpenCLStdRotate {
                 id_result_type,
                 id_result,
                 set,
                 v,
                 i,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[v, i]),
             Instruction::OpenCLStdSSubSat {
                 id_result_type,
                 id_result,
                 set,
                 x,
                 y,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[x, y]),
             Instruction::OpenCLStdUSubSat {
                 id_result_type,
                 id_result,
                 set,
                 x,
                 y,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[x, y]),
             Instruction::OpenCLStdUUpsample {
                 id_result_type,
                 id_result,
                 set,
                 hi,
                 lo,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[hi, lo]),
             Instruction::OpenCLStdSUpsample {
                 id_result_type,
                 id_result,
                 set,
                 hi,
                 lo,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[hi, lo]),
             Instruction::OpenCLStdPopcount {
                 id_result_type,
                 id_result,
                 set,
                 x,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(x)),
             Instruction::OpenCLStdSMad24 {
                 id_result_type,
                 id_result,
@@ -2907,7 +3050,7 @@ impl<'a, 'ctx, C: shader_compiler_backend::Context<'ctx>> ValueUniformityCalcula
                 x,
                 y,
                 z,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[x, y, z]),
             Instruction::OpenCLStdUMad24 {
                 id_result_type,
                 id_result,
@@ -2915,41 +3058,41 @@ impl<'a, 'ctx, C: shader_compiler_backend::Context<'ctx>> ValueUniformityCalcula
                 x,
                 y,
                 z,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[x, y, z]),
             Instruction::OpenCLStdSMul24 {
                 id_result_type,
                 id_result,
                 set,
                 x,
                 y,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[x, y]),
             Instruction::OpenCLStdUMul24 {
                 id_result_type,
                 id_result,
                 set,
                 x,
                 y,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[x, y]),
             Instruction::OpenCLStdUAbs {
                 id_result_type,
                 id_result,
                 set,
                 x,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(x)),
             Instruction::OpenCLStdUAbsDiff {
                 id_result_type,
                 id_result,
                 set,
                 x,
                 y,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[x, y]),
             Instruction::OpenCLStdUMulHi {
                 id_result_type,
                 id_result,
                 set,
                 x,
                 y,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[x, y]),
             Instruction::OpenCLStdUMadHi {
                 id_result_type,
                 id_result,
@@ -2957,7 +3100,7 @@ impl<'a, 'ctx, C: shader_compiler_backend::Context<'ctx>> ValueUniformityCalcula
                 a,
                 b,
                 c,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[a, b, c]),
             Instruction::OpenCLStdFclamp {
                 id_result_type,
                 id_result,
@@ -2965,27 +3108,27 @@ impl<'a, 'ctx, C: shader_compiler_backend::Context<'ctx>> ValueUniformityCalcula
                 x,
                 minval,
                 maxval,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[x, minval, maxval]),
             Instruction::OpenCLStdDegrees {
                 id_result_type,
                 id_result,
                 set,
                 radians,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(radians)),
             Instruction::OpenCLStdFmaxCommon {
                 id_result_type,
                 id_result,
                 set,
                 x,
                 y,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[x, y]),
             Instruction::OpenCLStdFminCommon {
                 id_result_type,
                 id_result,
                 set,
                 x,
                 y,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[x, y]),
             Instruction::OpenCLStdMix {
                 id_result_type,
                 id_result,
@@ -2993,20 +3136,20 @@ impl<'a, 'ctx, C: shader_compiler_backend::Context<'ctx>> ValueUniformityCalcula
                 x,
                 y,
                 a,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[x, y, a]),
             Instruction::OpenCLStdRadians {
                 id_result_type,
                 id_result,
                 set,
                 degrees,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(degrees)),
             Instruction::OpenCLStdStep {
                 id_result_type,
                 id_result,
                 set,
                 edge,
                 x,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[edge, x]),
             Instruction::OpenCLStdSmoothstep {
                 id_result_type,
                 id_result,
@@ -3014,58 +3157,58 @@ impl<'a, 'ctx, C: shader_compiler_backend::Context<'ctx>> ValueUniformityCalcula
                 edge0,
                 edge1,
                 x,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[edge0, edge1, x]),
             Instruction::OpenCLStdSign {
                 id_result_type,
                 id_result,
                 set,
                 x,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(x)),
             Instruction::OpenCLStdCross {
                 id_result_type,
                 id_result,
                 set,
                 p0,
                 p1,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[p0, p1]),
             Instruction::OpenCLStdDistance {
                 id_result_type,
                 id_result,
                 set,
                 p0,
                 p1,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[p0, p1]),
             Instruction::OpenCLStdLength {
                 id_result_type,
                 id_result,
                 set,
                 p,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(p)),
             Instruction::OpenCLStdNormalize {
                 id_result_type,
                 id_result,
                 set,
                 p,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(p)),
             Instruction::OpenCLStdFastDistance {
                 id_result_type,
                 id_result,
                 set,
                 p0,
                 p1,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[p0, p1]),
             Instruction::OpenCLStdFastLength {
                 id_result_type,
                 id_result,
                 set,
                 p,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(p)),
             Instruction::OpenCLStdFastNormalize {
                 id_result_type,
                 id_result,
                 set,
                 p,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(p)),
             Instruction::OpenCLStdBitselect {
                 id_result_type,
                 id_result,
@@ -3073,7 +3216,7 @@ impl<'a, 'ctx, C: shader_compiler_backend::Context<'ctx>> ValueUniformityCalcula
                 a,
                 b,
                 c,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[a, b, c]),
             Instruction::OpenCLStdSelect {
                 id_result_type,
                 id_result,
@@ -3081,7 +3224,7 @@ impl<'a, 'ctx, C: shader_compiler_backend::Context<'ctx>> ValueUniformityCalcula
                 a,
                 b,
                 c,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[a, b, c]),
             Instruction::OpenCLStdVloadn {
                 id_result_type,
                 id_result,
@@ -3178,7 +3321,7 @@ impl<'a, 'ctx, C: shader_compiler_backend::Context<'ctx>> ValueUniformityCalcula
                 set,
                 x,
                 shuffle_mask,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[x, shuffle_mask]),
             Instruction::OpenCLStdShuffle2 {
                 id_result_type,
                 id_result,
@@ -3186,7 +3329,7 @@ impl<'a, 'ctx, C: shader_compiler_backend::Context<'ctx>> ValueUniformityCalcula
                 x,
                 y,
                 shuffle_mask,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[x, y, shuffle_mask]),
             Instruction::OpenCLStdPrintf {
                 id_result_type,
                 id_result,
@@ -3206,207 +3349,207 @@ impl<'a, 'ctx, C: shader_compiler_backend::Context<'ctx>> ValueUniformityCalcula
                 id_result,
                 set,
                 x,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(x)),
             Instruction::GLSLStd450RoundEven {
                 id_result_type,
                 id_result,
                 set,
                 x,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(x)),
             Instruction::GLSLStd450Trunc {
                 id_result_type,
                 id_result,
                 set,
                 x,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(x)),
             Instruction::GLSLStd450FAbs {
                 id_result_type,
                 id_result,
                 set,
                 x,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(x)),
             Instruction::GLSLStd450SAbs {
                 id_result_type,
                 id_result,
                 set,
                 x,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(x)),
             Instruction::GLSLStd450FSign {
                 id_result_type,
                 id_result,
                 set,
                 x,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(x)),
             Instruction::GLSLStd450SSign {
                 id_result_type,
                 id_result,
                 set,
                 x,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(x)),
             Instruction::GLSLStd450Floor {
                 id_result_type,
                 id_result,
                 set,
                 x,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(x)),
             Instruction::GLSLStd450Ceil {
                 id_result_type,
                 id_result,
                 set,
                 x,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(x)),
             Instruction::GLSLStd450Fract {
                 id_result_type,
                 id_result,
                 set,
                 x,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(x)),
             Instruction::GLSLStd450Radians {
                 id_result_type,
                 id_result,
                 set,
                 degrees,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(degrees)),
             Instruction::GLSLStd450Degrees {
                 id_result_type,
                 id_result,
                 set,
                 radians,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(radians)),
             Instruction::GLSLStd450Sin {
                 id_result_type,
                 id_result,
                 set,
                 x,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(x)),
             Instruction::GLSLStd450Cos {
                 id_result_type,
                 id_result,
                 set,
                 x,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(x)),
             Instruction::GLSLStd450Tan {
                 id_result_type,
                 id_result,
                 set,
                 x,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(x)),
             Instruction::GLSLStd450Asin {
                 id_result_type,
                 id_result,
                 set,
                 x,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(x)),
             Instruction::GLSLStd450Acos {
                 id_result_type,
                 id_result,
                 set,
                 x,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(x)),
             Instruction::GLSLStd450Atan {
                 id_result_type,
                 id_result,
                 set,
                 y_over_x,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(y_over_x)),
             Instruction::GLSLStd450Sinh {
                 id_result_type,
                 id_result,
                 set,
                 x,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(x)),
             Instruction::GLSLStd450Cosh {
                 id_result_type,
                 id_result,
                 set,
                 x,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(x)),
             Instruction::GLSLStd450Tanh {
                 id_result_type,
                 id_result,
                 set,
                 x,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(x)),
             Instruction::GLSLStd450Asinh {
                 id_result_type,
                 id_result,
                 set,
                 x,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(x)),
             Instruction::GLSLStd450Acosh {
                 id_result_type,
                 id_result,
                 set,
                 x,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(x)),
             Instruction::GLSLStd450Atanh {
                 id_result_type,
                 id_result,
                 set,
                 x,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(x)),
             Instruction::GLSLStd450Atan2 {
                 id_result_type,
                 id_result,
                 set,
                 y,
                 x,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[y, x]),
             Instruction::GLSLStd450Pow {
                 id_result_type,
                 id_result,
                 set,
                 x,
                 y,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[x, y]),
             Instruction::GLSLStd450Exp {
                 id_result_type,
                 id_result,
                 set,
                 x,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(x)),
             Instruction::GLSLStd450Log {
                 id_result_type,
                 id_result,
                 set,
                 x,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(x)),
             Instruction::GLSLStd450Exp2 {
                 id_result_type,
                 id_result,
                 set,
                 x,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(x)),
             Instruction::GLSLStd450Log2 {
                 id_result_type,
                 id_result,
                 set,
                 x,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(x)),
             Instruction::GLSLStd450Sqrt {
                 id_result_type,
                 id_result,
                 set,
                 x,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(x)),
             Instruction::GLSLStd450InverseSqrt {
                 id_result_type,
                 id_result,
                 set,
                 x,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(x)),
             Instruction::GLSLStd450Determinant {
                 id_result_type,
                 id_result,
                 set,
                 x,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(x)),
             Instruction::GLSLStd450MatrixInverse {
                 id_result_type,
                 id_result,
                 set,
                 x,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(x)),
             Instruction::GLSLStd450Modf {
                 id_result_type,
                 id_result,
@@ -3419,49 +3562,49 @@ impl<'a, 'ctx, C: shader_compiler_backend::Context<'ctx>> ValueUniformityCalcula
                 id_result,
                 set,
                 x,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(x)),
             Instruction::GLSLStd450FMin {
                 id_result_type,
                 id_result,
                 set,
                 x,
                 y,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[x, y]),
             Instruction::GLSLStd450UMin {
                 id_result_type,
                 id_result,
                 set,
                 x,
                 y,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[x, y]),
             Instruction::GLSLStd450SMin {
                 id_result_type,
                 id_result,
                 set,
                 x,
                 y,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[x, y]),
             Instruction::GLSLStd450FMax {
                 id_result_type,
                 id_result,
                 set,
                 x,
                 y,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[x, y]),
             Instruction::GLSLStd450UMax {
                 id_result_type,
                 id_result,
                 set,
                 x,
                 y,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[x, y]),
             Instruction::GLSLStd450SMax {
                 id_result_type,
                 id_result,
                 set,
                 x,
                 y,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[x, y]),
             Instruction::GLSLStd450FClamp {
                 id_result_type,
                 id_result,
@@ -3469,7 +3612,7 @@ impl<'a, 'ctx, C: shader_compiler_backend::Context<'ctx>> ValueUniformityCalcula
                 x,
                 min_val,
                 max_val,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[x, min_val, max_val]),
             Instruction::GLSLStd450UClamp {
                 id_result_type,
                 id_result,
@@ -3477,7 +3620,7 @@ impl<'a, 'ctx, C: shader_compiler_backend::Context<'ctx>> ValueUniformityCalcula
                 x,
                 min_val,
                 max_val,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[x, min_val, max_val]),
             Instruction::GLSLStd450SClamp {
                 id_result_type,
                 id_result,
@@ -3485,7 +3628,7 @@ impl<'a, 'ctx, C: shader_compiler_backend::Context<'ctx>> ValueUniformityCalcula
                 x,
                 min_val,
                 max_val,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[x, min_val, max_val]),
             Instruction::GLSLStd450FMix {
                 id_result_type,
                 id_result,
@@ -3493,22 +3636,17 @@ impl<'a, 'ctx, C: shader_compiler_backend::Context<'ctx>> ValueUniformityCalcula
                 x,
                 y,
                 a,
-            } => unimplemented!(),
-            Instruction::GLSLStd450IMix {
-                id_result_type,
-                id_result,
-                set,
-                x,
-                y,
-                a,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[x, y, a]),
+            Instruction::GLSLStd450IMix { .. } => {
+                unreachable!("imix was removed from spec before release");
+            }
             Instruction::GLSLStd450Step {
                 id_result_type,
                 id_result,
                 set,
                 edge,
                 x,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[edge, x]),
             Instruction::GLSLStd450SmoothStep {
                 id_result_type,
                 id_result,
@@ -3516,7 +3654,7 @@ impl<'a, 'ctx, C: shader_compiler_backend::Context<'ctx>> ValueUniformityCalcula
                 edge0,
                 edge1,
                 x,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[edge0, edge1, x]),
             Instruction::GLSLStd450Fma {
                 id_result_type,
                 id_result,
@@ -3524,7 +3662,7 @@ impl<'a, 'ctx, C: shader_compiler_backend::Context<'ctx>> ValueUniformityCalcula
                 a,
                 b,
                 c,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[a, b, c]),
             Instruction::GLSLStd450Frexp {
                 id_result_type,
                 id_result,
@@ -3537,112 +3675,112 @@ impl<'a, 'ctx, C: shader_compiler_backend::Context<'ctx>> ValueUniformityCalcula
                 id_result,
                 set,
                 x,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(x)),
             Instruction::GLSLStd450Ldexp {
                 id_result_type,
                 id_result,
                 set,
                 x,
                 exp,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[x, exp]),
             Instruction::GLSLStd450PackSnorm4x8 {
                 id_result_type,
                 id_result,
                 set,
                 v,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(v)),
             Instruction::GLSLStd450PackUnorm4x8 {
                 id_result_type,
                 id_result,
                 set,
                 v,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(v)),
             Instruction::GLSLStd450PackSnorm2x16 {
                 id_result_type,
                 id_result,
                 set,
                 v,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(v)),
             Instruction::GLSLStd450PackUnorm2x16 {
                 id_result_type,
                 id_result,
                 set,
                 v,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(v)),
             Instruction::GLSLStd450PackHalf2x16 {
                 id_result_type,
                 id_result,
                 set,
                 v,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(v)),
             Instruction::GLSLStd450PackDouble2x32 {
                 id_result_type,
                 id_result,
                 set,
                 v,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(v)),
             Instruction::GLSLStd450UnpackSnorm2x16 {
                 id_result_type,
                 id_result,
                 set,
                 p,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(p)),
             Instruction::GLSLStd450UnpackUnorm2x16 {
                 id_result_type,
                 id_result,
                 set,
                 p,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(p)),
             Instruction::GLSLStd450UnpackHalf2x16 {
                 id_result_type,
                 id_result,
                 set,
                 v,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(v)),
             Instruction::GLSLStd450UnpackSnorm4x8 {
                 id_result_type,
                 id_result,
                 set,
                 p,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(p)),
             Instruction::GLSLStd450UnpackUnorm4x8 {
                 id_result_type,
                 id_result,
                 set,
                 p,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(p)),
             Instruction::GLSLStd450UnpackDouble2x32 {
                 id_result_type,
                 id_result,
                 set,
                 v,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(v)),
             Instruction::GLSLStd450Length {
                 id_result_type,
                 id_result,
                 set,
                 x,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(x)),
             Instruction::GLSLStd450Distance {
                 id_result_type,
                 id_result,
                 set,
                 p0,
                 p1,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[p0, p1]),
             Instruction::GLSLStd450Cross {
                 id_result_type,
                 id_result,
                 set,
                 x,
                 y,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[x, y]),
             Instruction::GLSLStd450Normalize {
                 id_result_type,
                 id_result,
                 set,
                 x,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(x)),
             Instruction::GLSLStd450FaceForward {
                 id_result_type,
                 id_result,
@@ -3650,14 +3788,14 @@ impl<'a, 'ctx, C: shader_compiler_backend::Context<'ctx>> ValueUniformityCalcula
                 n,
                 i,
                 nref,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[n, i, nref]),
             Instruction::GLSLStd450Reflect {
                 id_result_type,
                 id_result,
                 set,
                 i,
                 n,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[i, n]),
             Instruction::GLSLStd450Refract {
                 id_result_type,
                 id_result,
@@ -3665,25 +3803,25 @@ impl<'a, 'ctx, C: shader_compiler_backend::Context<'ctx>> ValueUniformityCalcula
                 i,
                 n,
                 eta,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[i, n, eta]),
             Instruction::GLSLStd450FindILsb {
                 id_result_type,
                 id_result,
                 set,
                 value,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(value)),
             Instruction::GLSLStd450FindSMsb {
                 id_result_type,
                 id_result,
                 set,
                 value,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(value)),
             Instruction::GLSLStd450FindUMsb {
                 id_result_type,
                 id_result,
                 set,
                 value,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, iter::once(value)),
             Instruction::GLSLStd450InterpolateAtCentroid {
                 id_result_type,
                 id_result,
@@ -3710,14 +3848,14 @@ impl<'a, 'ctx, C: shader_compiler_backend::Context<'ctx>> ValueUniformityCalcula
                 set,
                 x,
                 y,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[x, y]),
             Instruction::GLSLStd450NMax {
                 id_result_type,
                 id_result,
                 set,
                 x,
                 y,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[x, y]),
             Instruction::GLSLStd450NClamp {
                 id_result_type,
                 id_result,
@@ -3725,7 +3863,7 @@ impl<'a, 'ctx, C: shader_compiler_backend::Context<'ctx>> ValueUniformityCalcula
                 x,
                 min_val,
                 max_val,
-            } => unimplemented!(),
+            } => self.visit_simple_instruction(id_result, &[x, min_val, max_val]),
         }
     }
     fn run(mut self) -> ValueUniformities {
@@ -3739,20 +3877,23 @@ impl<'a, 'ctx, C: shader_compiler_backend::Context<'ctx>> ValueUniformityCalcula
                 IdKind::ForwardPointer(..) => {}
                 IdKind::BuiltInVariable(built_in_variable) => self.set_entry(
                     id,
-                    get_built_in_initial_value_uniformity_entry(built_in_variable),
+                    get_built_in_initial_value_uniformity_entry(built_in_variable, id),
                 ),
                 IdKind::Constant(..) => self.set_entry(
                     id,
                     ValueUniformityEntry {
                         value_uniformity: ValueUniformity::Constant,
-                        pointee_variables: VariableSet::new(),
+                        pointee_uniformity: None,
                     },
                 ),
                 IdKind::UniformVariable(..) => self.set_entry(
                     id,
                     ValueUniformityEntry {
                         value_uniformity: ValueUniformity::UniformOverWorkgroup,
-                        pointee_variables: VariableSet::from(id),
+                        pointee_uniformity: Some(PointeeUniformity {
+                            value_uniformity: ValueUniformity::UniformOverWorkgroup,
+                            variables: VariableSet::from(id),
+                        }),
                     },
                 ),
                 IdKind::Function(..) => {}

@@ -1,7 +1,5 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
-// Copyright 2018 Jacob Lifshay
-
-use std::cmp;
+// Copyright 2018,2019 Jacob Lifshay
 
 /// a element of a meet-semilattice: https://en.wikipedia.org/wiki/Semilattice
 pub trait MeetSemilattice: Eq + Clone {
