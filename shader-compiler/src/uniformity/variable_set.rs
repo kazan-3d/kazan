@@ -44,6 +44,13 @@ impl VariableSet {
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
+    pub fn contains(&self, search_for: IdRef) -> bool {
+        match self.0 {
+            Impl::Empty => false,
+            Impl::One(value) => value == search_for,
+            Impl::Many(ref values) => values.binary_search(&search_for).is_ok(),
+        }
+    }
     pub fn retain<F: FnMut(IdRef) -> bool>(&mut self, mut f: F) {
         match self.0 {
             Impl::Empty => {}
@@ -73,7 +80,7 @@ impl iter::FromIterator<IdRef> for VariableSet {
                     .chain(iter::once(second))
                     .chain(iter)
                     .collect();
-                values.sort_unstable_by_key(|value| value.0);
+                values.sort_unstable();
                 values.dedup();
                 VariableSet(Impl::Many(values))
             } else {
@@ -118,6 +125,18 @@ impl PartialEq for VariableSet {
 }
 
 impl Eq for VariableSet {}
+
+impl PartialOrd for VariableSet {
+    fn partial_cmp(&self, rhs: &Self) -> Option<Ordering> {
+        self.as_slice().partial_cmp(rhs.as_slice())
+    }
+}
+
+impl Ord for VariableSet {
+    fn cmp(&self, rhs: &Self) -> Ordering {
+        self.as_slice().cmp(rhs.as_slice())
+    }
+}
 
 impl Hash for VariableSet {
     fn hash<H: Hasher>(&self, h: &mut H) {
@@ -207,8 +226,8 @@ impl BitOrAssign<&'_ VariableSet> for VariableSet {
                     let mut values = Vec::with_capacity(rhs_values.len() + 1);
                     values.push(value);
                     values.extend_from_slice(rhs_values);
-                    values.sort_unstable_by_key(|v| v.0);
-                    values.dedup_by_key(|v| v.0);
+                    values.sort_unstable();
+                    values.dedup();
                     self.0 = Impl::Many(values);
                 }
             },
@@ -217,8 +236,8 @@ impl BitOrAssign<&'_ VariableSet> for VariableSet {
                     return;
                 }
                 values.extend_from_slice(rhs.as_slice());
-                values.sort_unstable_by_key(|v| v.0);
-                values.dedup_by_key(|v| v.0);
+                values.sort_unstable();
+                values.dedup();
             }
         }
     }
@@ -233,7 +252,7 @@ impl SubAssign<&'_ VariableSet> for VariableSet {
             match iter.peek().cloned() {
                 None => break true,
                 Some(rhs_value) => {
-                    if value.0 < rhs_value.0 {
+                    if value < rhs_value {
                         break true;
                     } else if value == rhs_value {
                         iter.next();

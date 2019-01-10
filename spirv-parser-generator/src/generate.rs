@@ -710,7 +710,7 @@ pub(crate) fn generate(
                     &mut out,
                     "{}",
                     quote! {
-                        #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+                        #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default)]
                         #[repr(transparent)]
                         pub struct #kind_id(pub #base);
                     }

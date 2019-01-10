@@ -197,7 +197,7 @@ impl NameFormat {
             let word = self
                 .word_initial_char_case()
                 .convert_initial_ascii_case(word);
-            retval = Some(if let Some(mut s) = retval {
+            retval = Some(if let Some(s) = retval {
                 s + self.word_separator() + &word
             } else {
                 word
