@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
-// Copyright 2018 Jacob Lifshay
+// See Notices.txt for copyright information
 use crate::llvm;
 use shader_compiler_backend as backend;
 use std::cell::RefCell;

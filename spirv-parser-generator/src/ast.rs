@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
-// Copyright 2018 Jacob Lifshay
+// See Notices.txt for copyright information
 
 use crate::util::NameFormat::*;
 use crate::util::WordIterator;

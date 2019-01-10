@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
-// Copyright 2018,2019 Jacob Lifshay
+// See Notices.txt for copyright information
 
 mod variable_set;
 

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
-// Copyright 2018 Jacob Lifshay
+// See Notices.txt for copyright information
 #![allow(clippy::unneeded_field_pattern)]
 use crate::api;
 use crate::constants::IMAGE_ALIGNMENT;
