@@ -11,6 +11,7 @@ use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut};
 use std::ptr::NonNull;
 
+#[doc(hidden)]
 #[macro_export]
 macro_rules! buildable_struct_helper {
     {
@@ -45,6 +46,7 @@ macro_rules! buildable_struct_helper {
     }
 }
 
+/// create a struct that implements `BuildableType`
 #[macro_export]
 macro_rules! buildable_struct {
     {
