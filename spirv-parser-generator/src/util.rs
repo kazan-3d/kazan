@@ -59,7 +59,7 @@ impl<'a> Iterator for WordIterator<'a> {
         }
         self.words = self
             .words
-            .trim_left_matches(|ch| CharClass::from(ch) == CharClass::WordSeparator);
+            .trim_start_matches(|ch| CharClass::from(ch) == CharClass::WordSeparator);
         for custom_word in CUSTOM_WORDS {
             if !self.words.starts_with(custom_word.input) {
                 continue;
