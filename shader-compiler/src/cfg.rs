@@ -9,9 +9,11 @@ use petgraph::{
     visit::{VisitMap, Visitable},
 };
 use spirv_parser::{IdRef, Instruction};
+use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::fmt::{self, Write};
 use std::ops;
+use std::rc::{Rc, Weak};
 
 #[derive(Clone)]
 pub struct Instructions(Vec<Instruction>);
@@ -63,6 +65,7 @@ pub enum EdgeKind {
 pub struct BasicBlock {
     label: IdRef,
     instructions: Instructions,
+    parent_structure_tree: RefCell<Option<Rc<CFGStructureTree>>>,
 }
 
 impl BasicBlock {
@@ -71,6 +74,9 @@ impl BasicBlock {
     }
     pub fn instructions(&self) -> &Instructions {
         &self.instructions
+    }
+    pub fn parent_structure_tree(&self) -> Option<Rc<CFGStructureTree>> {
+        self.parent_structure_tree.borrow().clone()
     }
 }
 
@@ -102,7 +108,7 @@ pub struct CFG {
     graph: CFGGraph,
     label_to_node_index_map: HashMap<IdRef, CFGNodeIndex>,
     dominators: CFGDominators,
-    structure_tree: CFGStructureTree,
+    structure_tree: Rc<CFGStructureTree>,
 }
 
 impl ops::Deref for CFG {
@@ -151,6 +157,7 @@ impl CFG {
                         graph.add_node(BasicBlock {
                             label,
                             instructions: Instructions::new(current_instructions),
+                            parent_structure_tree: RefCell::new(None),
                         }),
                     );
                     current_instructions = Vec::new();
@@ -207,8 +214,23 @@ impl CFG {
 }
 
 #[derive(Clone, Debug)]
+pub struct CFGStructureTreeLoop {
+    children: Rc<CFGStructureTree>,
+    parent_structure_tree: RefCell<Weak<CFGStructureTree>>,
+}
+
+impl CFGStructureTreeLoop {
+    pub fn children(&self) -> &Rc<CFGStructureTree> {
+        &self.children
+    }
+    pub fn parent_structure_tree(&self) -> Rc<CFGStructureTree> {
+        self.parent_structure_tree.borrow().upgrade().unwrap()
+    }
+}
+
+#[derive(Clone, Debug)]
 pub enum CFGStructureTreeNode {
-    Loop { children: CFGStructureTree },
+    Loop(CFGStructureTreeLoop),
     Node { node_index: CFGNodeIndex },
 }
 
@@ -222,7 +244,7 @@ impl CFGStructureTree {
         let mut stack = vec![self.iter()];
         while let Some(mut iter) = stack.pop() {
             match iter.next() {
-                Some(CFGStructureTreeNode::Loop { children }) => {
+                Some(CFGStructureTreeNode::Loop(CFGStructureTreeLoop { children, .. })) => {
                     stack.push(iter);
                     stack.push(children.iter());
                 }
@@ -245,7 +267,7 @@ impl CFGStructureTree {
                 }
                 stack.push(iter);
                 match *node {
-                    CFGStructureTreeNode::Loop { ref children } => {
+                    CFGStructureTreeNode::Loop(CFGStructureTreeLoop { ref children, .. }) => {
                         writeln!(&mut retval, "Loop:").unwrap();
                         stack.push(children.iter());
                     }
@@ -277,7 +299,7 @@ impl CFGStructureTree {
         graph: &CFGGraph,
         label_to_node_index_map: &HashMap<IdRef, CFGNodeIndex>,
         root: CFGNodeIndex,
-    ) -> Self {
+    ) -> Rc<Self> {
         CFGStructureTreeParser {
             graph,
             label_to_node_index_map,
@@ -306,7 +328,7 @@ struct CFGStructureTreeNodeParseResults {
 }
 
 struct CFGStructureTreeParseResults {
-    structure_tree: CFGStructureTree,
+    structure_tree: Rc<CFGStructureTree>,
     merge_reached: MergeReached,
 }
 
@@ -338,9 +360,10 @@ impl CFGStructureTreeParser<'_> {
                 };
                 CFGStructureTreeNodeParseResults {
                     successors,
-                    structure_tree_node: CFGStructureTreeNode::Loop {
+                    structure_tree_node: CFGStructureTreeNode::Loop(CFGStructureTreeLoop {
                         children: structure_tree,
-                    },
+                        parent_structure_tree: RefCell::new(Weak::new()),
+                    }),
                     merge_reached: MergeReached::NotReached,
                 }
             }
@@ -420,9 +443,25 @@ impl CFGStructureTreeParser<'_> {
             }
         }
         structures.reverse(); // change to reverse post-order since we need them in a topological order
+        let structure_tree = Rc::new(CFGStructureTree(structures));
+        for structure in structure_tree.iter() {
+            match *structure {
+                CFGStructureTreeNode::Loop(CFGStructureTreeLoop {
+                    ref parent_structure_tree,
+                    ..
+                }) => {
+                    parent_structure_tree.replace(Rc::downgrade(&structure_tree));
+                }
+                CFGStructureTreeNode::Node { node_index } => {
+                    self.graph[node_index]
+                        .parent_structure_tree
+                        .replace(Some(structure_tree.clone()));
+                }
+            }
+        }
         CFGStructureTreeParseResults {
             merge_reached,
-            structure_tree: CFGStructureTree(structures),
+            structure_tree,
         }
     }
 }
@@ -467,9 +506,10 @@ mod tests {
         fn is_equivalent(&self, rhs: &CFGStructureTreeNode, graph: &CFGGraph) -> bool {
             match self {
                 CFGTemplateStructureTreeNode::Loop { children } => {
-                    if let CFGStructureTreeNode::Loop {
+                    if let CFGStructureTreeNode::Loop(CFGStructureTreeLoop {
                         children: rhs_children,
-                    } = rhs
+                        ..
+                    }) = rhs
                     {
                         children.is_equivalent(rhs_children, graph)
                     } else {
