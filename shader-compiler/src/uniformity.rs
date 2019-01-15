@@ -10,12 +10,14 @@ use crate::lattice::{BoundedOrderedLattice, MeetSemilattice};
 use crate::BuiltInVariable;
 use crate::IdKind;
 use crate::Ids;
+use petgraph::visit::NodeCompactIndexable;
 use spirv_parser::IdResult;
 use spirv_parser::{BuiltIn, IdRef, Instruction, StorageClass};
 use std::borrow::Borrow;
 use std::cmp;
 use std::collections::{HashMap, HashSet};
 use std::iter;
+use std::ops::Deref;
 
 /// a lattice for how little values vary
 /// Varying < UniformOverWorkgroup < Constant
@@ -92,6 +94,35 @@ impl PointeeUniformity {
                 (old_variables - new_variables).is_empty(),
                 "invalid PointeeUniformity::variables update"
             );
+        }
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct BasicBlockUniformityEntry {
+    value_uniformity: ValueUniformity,
+}
+
+impl BasicBlockUniformityEntry {
+    fn check_update_with(&self, new_value: &Self) {
+        let BasicBlockUniformityEntry {
+            value_uniformity: old_value_uniformity,
+        } = *self;
+        let BasicBlockUniformityEntry {
+            value_uniformity: new_value_uniformity,
+        } = *new_value;
+        assert_eq!(
+            new_value_uniformity,
+            old_value_uniformity.meet(new_value_uniformity),
+            "invalid BasicBlockUniformityEntry::value_uniformity update"
+        );
+    }
+}
+
+impl Default for BasicBlockUniformityEntry {
+    fn default() -> Self {
+        Self {
+            value_uniformity: ValueUniformity::Constant,
         }
     }
 }
@@ -219,24 +250,63 @@ fn get_built_in_initial_value_uniformity_entry(
 }
 
 struct ValueUniformityCalculator<'a, 'ctx, C: shader_compiler_backend::Context<'ctx>> {
-    reachable_basic_blocks: HashSet<CFGNodeIndex>,
     entries: HashMap<IdRef, ValueUniformityEntry>,
+    basic_blocks: HashMap<CFGNodeIndex, BasicBlockUniformityEntry>,
     cfg: &'a CFG,
     ids: &'a Ids<'ctx, C>,
     any_changes: bool,
 }
 
 impl<'a, 'ctx, C: shader_compiler_backend::Context<'ctx>> ValueUniformityCalculator<'a, 'ctx, C> {
-    fn new(cfg: &'a CFG, ids: &'a Ids<'ctx, C>) -> Self {
-        let mut reachable_basic_blocks = HashSet::new();
-        reachable_basic_blocks.insert(cfg.entry_node_index());
+    fn new(cfg: &'a CFG, ids: &'a Ids<'ctx, C>) -> Self
+    where
+        <CFG as Deref>::Target: NodeCompactIndexable,
+    {
+        let mut basic_blocks = HashMap::new();
         ValueUniformityCalculator {
-            reachable_basic_blocks,
             entries: HashMap::new(),
+            basic_blocks,
             cfg,
             ids,
             any_changes: false,
         }
+    }
+    fn get_basic_block(&mut self, node_index: CFGNodeIndex) -> BasicBlockUniformityEntry {
+        if let Some(v) = self.basic_blocks.get(&node_index) {
+            v.clone()
+        } else {
+            Default::default()
+        }
+    }
+    fn with_basic_block<F: FnOnce(&mut BasicBlockUniformityEntry)>(
+        &mut self,
+        node_index: CFGNodeIndex,
+        f: F,
+    ) {
+        use std::collections::hash_map::Entry;
+        match self.basic_blocks.entry(node_index) {
+            Entry::Vacant(entry) => {
+                let mut value = BasicBlockUniformityEntry::default();
+                f(&mut value);
+                if value != Default::default() {
+                    entry.insert(value);
+                    self.any_changes = true;
+                }
+            }
+            Entry::Occupied(entry) => {
+                let entry = entry.into_mut();
+                let mut value = entry.clone();
+                f(&mut value);
+                if value != *entry {
+                    entry.check_update_with(&value);
+                    *entry = value;
+                    self.any_changes = true;
+                }
+            }
+        }
+    }
+    fn set_basic_block(&mut self, node_index: CFGNodeIndex, v: BasicBlockUniformityEntry) {
+        self.with_basic_block(node_index, |value| *value = v);
     }
     fn set_entry(&mut self, id: IdRef, v: ValueUniformityEntry) {
         self.with_entry(id, |value| *value = v);
@@ -296,7 +366,7 @@ impl<'a, 'ctx, C: shader_compiler_backend::Context<'ctx>> ValueUniformityCalcula
             },
         );
     }
-    fn visit_instruction(&mut self, basic_block: CFGNodeIndex, instruction: &Instruction) {
+    fn visit_instruction(&mut self, node_index: CFGNodeIndex, instruction: &Instruction) {
         #[allow(unused_variables)]
         match *instruction {
             Instruction::Nop {} => {}
@@ -1549,7 +1619,9 @@ impl<'a, 'ctx, C: shader_compiler_backend::Context<'ctx>> ValueUniformityCalcula
                 true_label,
                 false_label,
                 ref branch_weights,
-            } => unimplemented!(),
+            } => {
+                unimplemented!();
+            }
             Instruction::Switch32 {
                 selector,
                 default,
@@ -3902,13 +3974,10 @@ impl<'a, 'ctx, C: shader_compiler_backend::Context<'ctx>> ValueUniformityCalcula
                 IdKind::Value(..) => {}
             }
         }
-        let basic_blocks = self.cfg.structure_tree().get_basic_blocks_in_order();
+        let basic_blocks: Vec<_> = self.cfg.structure_tree().basic_blocks_in_order().collect();
         loop {
             self.any_changes = false;
             for &basic_block in basic_blocks.iter() {
-                if !self.reachable_basic_blocks.contains(&basic_block) {
-                    continue;
-                }
                 for instruction in self.cfg[basic_block].instructions().iter() {
                     self.visit_instruction(basic_block, instruction);
                 }

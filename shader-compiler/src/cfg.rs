@@ -6,10 +6,10 @@ use petgraph::{
     algo::dominators,
     graph::IndexType,
     prelude::*,
-    visit::{VisitMap, Visitable},
+    visit::{Reversed, VisitMap, Visitable},
 };
 use spirv_parser::{IdRef, Instruction};
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::collections::{HashMap, HashSet};
 use std::fmt::{self, Write};
 use std::ops;
@@ -66,6 +66,7 @@ pub struct BasicBlock {
     label: IdRef,
     instructions: Instructions,
     parent_structure_tree: RefCell<Option<Rc<CFGStructureTree>>>,
+    merge_tree_parent: Cell<Option<CFGNodeIndex>>,
 }
 
 impl BasicBlock {
@@ -107,7 +108,9 @@ pub type CFGDominators = dominators::Dominators<CFGNodeIndex>;
 pub struct CFG {
     graph: CFGGraph,
     label_to_node_index_map: HashMap<IdRef, CFGNodeIndex>,
+    exit_node_index: CFGNodeIndex,
     dominators: CFGDominators,
+    postdominators: CFGDominators,
     structure_tree: Rc<CFGStructureTree>,
 }
 
@@ -127,6 +130,9 @@ impl CFG {
     }
     pub fn dominators(&self) -> &CFGDominators {
         &self.dominators
+    }
+    pub fn postdominators(&self) -> &CFGDominators {
+        &self.postdominators
     }
     pub fn structure_tree(&self) -> &CFGStructureTree {
         &self.structure_tree
@@ -158,6 +164,7 @@ impl CFG {
                             label,
                             instructions: Instructions::new(current_instructions),
                             parent_structure_tree: RefCell::new(None),
+                            merge_tree_parent: Cell::new(None),
                         }),
                     );
                     current_instructions = Vec::new();
@@ -165,6 +172,20 @@ impl CFG {
             }
         }
         assert!(current_instructions.is_empty());
+        let entry_node_index = graph.node_indices().next().unwrap();
+        let mut exit_node_index = entry_node_index;
+        loop {
+            match graph[exit_node_index].instructions().merge_instruction() {
+                None => break,
+                Some(&Instruction::SelectionMerge { merge_block, .. })
+                | Some(&Instruction::LoopMerge { merge_block, .. }) => {
+                    exit_node_index = label_to_node_index_map[&merge_block];
+                }
+                Some(instruction) => {
+                    unreachable!("unimplemented merge instruction:\n{}", instruction);
+                }
+            }
+        }
         let mut successors_set = HashSet::new();
         for node_index in graph.node_indices() {
             successors_set.clear();
@@ -178,15 +199,20 @@ impl CFG {
             .unwrap()
             .filter(|&successor| successors_set.insert(successor)) // remove duplicates
             .collect(); // collect into Vec to retain order
-            for target in successors {
-                graph.add_edge(
-                    node_index,
-                    label_to_node_index_map[&target],
-                    EdgeKind::Normal,
-                );
+            if successors.is_empty() {
+                graph.add_edge(node_index, exit_node_index, EdgeKind::Unreachable);
+            } else {
+                for target in successors {
+                    graph.add_edge(
+                        node_index,
+                        label_to_node_index_map[&target],
+                        EdgeKind::Normal,
+                    );
+                }
             }
         }
-        let dominators = dominators::simple_fast(&graph, graph.node_indices().next().unwrap());
+        let dominators = dominators::simple_fast(&graph, entry_node_index);
+        let postdominators = dominators::simple_fast(&Reversed(&graph), exit_node_index);
         for edge_index in graph.edge_indices() {
             let (source, target) = graph.edge_endpoints(edge_index).unwrap();
             if let Some(mut source_dominators) = dominators.dominators(source) {
@@ -207,7 +233,9 @@ impl CFG {
         CFG {
             graph,
             label_to_node_index_map,
+            exit_node_index,
             dominators,
+            postdominators,
             structure_tree,
         }
     }
@@ -238,24 +266,35 @@ pub enum CFGStructureTreeNode {
 #[derive(Clone, Debug)]
 pub struct CFGStructureTree(Vec<CFGStructureTreeNode>);
 
-impl CFGStructureTree {
-    pub fn get_basic_blocks_in_order(&self) -> Vec<CFGNodeIndex> {
-        let mut retval = Vec::new();
-        let mut stack = vec![self.iter()];
-        while let Some(mut iter) = stack.pop() {
+#[derive(Clone, Debug)]
+pub struct BasicBlocksInOrderIter<'a> {
+    stack: Vec<std::slice::Iter<'a, CFGStructureTreeNode>>,
+}
+
+impl Iterator for BasicBlocksInOrderIter<'_> {
+    type Item = CFGNodeIndex;
+    fn next(&mut self) -> Option<CFGNodeIndex> {
+        while let Some(mut iter) = self.stack.pop() {
             match iter.next() {
                 Some(CFGStructureTreeNode::Loop(CFGStructureTreeLoop { children, .. })) => {
-                    stack.push(iter);
-                    stack.push(children.iter());
+                    self.stack.push(iter);
+                    self.stack.push(children.iter());
                 }
                 Some(&CFGStructureTreeNode::Node { node_index }) => {
-                    stack.push(iter);
-                    retval.push(node_index);
+                    self.stack.push(iter);
+                    return Some(node_index);
                 }
                 None => {}
             }
         }
-        retval
+        None
+    }
+}
+
+impl CFGStructureTree {
+    pub fn basic_blocks_in_order(&self) -> BasicBlocksInOrderIter {
+        let stack = vec![self.iter()];
+        BasicBlocksInOrderIter { stack }
     }
     pub fn dump(&self, graph: &CFGGraph) -> String {
         let mut stack = vec![self.iter()];
