@@ -103,12 +103,53 @@ Stride Registers:
 
 ### Floating-point Element Size (felmsz)
 
+felmsz is zero-extended when it appears in a wider field
+
 | felmsz | Element Size                                   |
 |--------|------------------------------------------------|
 | 00     | 32-bit (s)                                     |
 | 01     | 64-bit (d)                                     |
 | 10     | 16-bit (h)                                     |
 | 11     | 128-bit (q) (only if Q extension is supported) |
+
+### fcvt Integer Type (fity)
+
+| fity    | Element Size |
+|---------|--------------|
+| 000000  | i32 (w)      |
+| 000001  | u32 (wu)     |
+| 000010  | i64 (l)      |
+| 000011  | u64 (lu)     |
+| 100000  | i8  (b)      |
+| 100001  | u8  (bu)     |
+| 100010  | i16 (hi)     |
+| 100011  | u16 (hu)     |
+
+### Floating-point Compare Code (fcc)
+
+| fcc | Condition | Dest Kind        |
+|-----|-----------|------------------|
+| 000 | le        | Integer Elements |
+| 001 | lt        | Integer Elements |
+| 010 | eq        | Integer Elements |
+| 011 | ne        | Integer Elements |
+| 100 | le        | Predication Mask |
+| 101 | lt        | Predication Mask |
+| 110 | eq        | Predication Mask |
+| 111 | ne        | Predication Mask |
+
+### Integer Compare Code (icc)
+
+| icc | Condition  |
+|-----|------------|
+| 000 | eq         |
+| 001 | ne         |
+| 010 | _Reserved_ |
+| 011 | _Reserved_ |
+| 100 | lt         |
+| 101 | ge         |
+| 110 | ltu        |
+| 111 | geu        |
 
 ## 16-bit prefixes
 
@@ -376,7 +417,7 @@ All 48-bit instructions have bits 7:0 set to 1011111 (second half of 48-bit inst
     <td colspan="17"></td>
 </tr>
 <tr>
-    <td>convu.&lt;src>.&lt;dest></td>
+    <td>convu.&lt;dest>.&lt;src></td>
     <td colspan="12" rowspan="2">0</td>
     <td colspan="5" rowspan="2">rs1[4:0]</td>
     <td colspan="1" rowspan="2">src elmsz[1]</td>
@@ -391,7 +432,7 @@ All 48-bit instructions have bits 7:0 set to 1011111 (second half of 48-bit inst
     <td>addi,slti,sltiu,xori,ori,andi,slli,srli,srai</td>
 </tr>
 <tr>
-    <td>conv.&lt;src>.&lt;dest></td>
+    <td>conv.&lt;dest>.&lt;src></td>
     <td colspan="5">00111</td>
     <td>addiw,slliw,srliw,sraiw</td>
 </tr>
@@ -475,41 +516,16 @@ All 48-bit instructions have bits 7:0 set to 1011111 (second half of 48-bit inst
 </tr>
 <tr>
     <td></td>
-    <td colspan="5">47:43</td>
-    <td>42</td>
-    <td>41</td>
-    <td colspan="5">40:36</td>
-    <td colspan="5">35:31</td>
-    <td>30</td>
-    <td colspan="2">29:28</td>
-    <td colspan="5">27:23</td>
-    <td colspan="3">22:20</td>
-    <td>19</td>
-    <td>18</td>
+    <td colspan="25">47:23</td>
+    <td colspan="5">22:18</td>
     <td colspan="2">17:16</td>
-    <td>15</td>
-    <td>14</td>
-    <td>13</td>
-    <td>12</td>
-    <td>11</td>
-    <td>10</td>
-    <td>9</td>
-    <td>8</td>
+    <td colspan="8">15:8</td>
     <td></td>
 </tr>
 <tr>
     <td></td>
-    <td colspan="5">31:27</td>
-    <td>26</td>
-    <td>25</td>
-    <td colspan="5">24:20</td>
-    <td colspan="5">19:15</td>
-    <td>14</td>
-    <td colspan="2">13:12</td>
-    <td colspan="5">11:7</td>
-    <td colspan="3">6:4</td>
-    <td>3</td>
-    <td>2</td>
+    <td colspan="25">31:7</td>
+    <td colspan="5">6:2</td>
     <td colspan="2">1:0</td>
     <td colspan="17"></td>
 </tr>
@@ -533,6 +549,27 @@ All 48-bit instructions have bits 7:0 set to 1011111 (second half of 48-bit inst
     <td colspan="5">01011</td>
     <td colspan="10">&mdash;</td>
     <td>A extension</td>
+</tr>
+<tr>
+    <td><i>Reserved for<br/>V extension</i></td>
+    <td colspan="25">&mdash;</td>
+    <td colspan="5">11001</td>
+    <td colspan="10">&mdash;</td>
+    <td>jalr,V extension</td>
+</tr>
+<tr>
+    <td><i>Reserved</i></td>
+    <td colspan="25">&mdash;</td>
+    <td colspan="5">11011</td>
+    <td colspan="10">&mdash;</td>
+    <td>jal</td>
+</tr>
+<tr>
+    <td><i>Reserved for<br/>supervisor<br/>operations</i></td>
+    <td colspan="25">&mdash;</td>
+    <td colspan="5">11100</td>
+    <td colspan="10">&mdash;</td>
+    <td>SYSTEM operations</td>
 </tr>
 </table>
 
@@ -860,45 +897,33 @@ All 48-bit instructions have bits 7:0 set to 1011111 (second half of 48-bit inst
 <tr>
     <td></td>
     <td colspan="5">47:43</td>
-    <td>42</td>
-    <td>41</td>
+    <td colspan="2">42:41</td>
     <td colspan="5">40:36</td>
     <td colspan="5">35:31</td>
-    <td>30</td>
-    <td colspan="2">29:28</td>
+    <td colspan="3">30:28</td>
     <td colspan="5">27:23</td>
-    <td colspan="3">22:20</td>
-    <td>19</td>
-    <td>18</td>
+    <td colspan="5">22:18</td>
     <td colspan="2">17:16</td>
-    <td>15</td>
-    <td>14</td>
-    <td>13</td>
-    <td>12</td>
-    <td>11</td>
-    <td>10</td>
-    <td>9</td>
-    <td>8</td>
+    <td colspan="2">15:14</td>
+    <td colspan="2">13:12</td>
+    <td colspan="2">11:10</td>
+    <td colspan="2">9:8</td>
     <td></td>
 </tr>
 <tr>
     <td></td>
     <td colspan="5">31:27</td>
-    <td>26</td>
-    <td>25</td>
+    <td colspan="2">26:25</td>
     <td colspan="5">24:20</td>
     <td colspan="5">19:15</td>
-    <td>14</td>
-    <td colspan="2">13:12</td>
+    <td colspan="3">14:12</td>
     <td colspan="5">11:7</td>
-    <td colspan="3">6:4</td>
-    <td>3</td>
-    <td>2</td>
+    <td colspan="5">6:2</td>
     <td colspan="2">1:0</td>
     <td colspan="17"></td>
 </tr>
 <tr>
-    <td>fmadd.s,fmadd.d,<br/>fmadd.h,fmadd.q</td>
+    <td>fmadd.&lt;sz></td>
     <td colspan="5">rs3[4:0]</td>
     <td colspan="2">felmsz</td>
     <td colspan="5">rs2[4:0]</td>
@@ -914,7 +939,7 @@ All 48-bit instructions have bits 7:0 set to 1011111 (second half of 48-bit inst
     <td>fmadd.s,fmadd.d,fmadd.h,fmadd.q</td>
 </tr>
 <tr>
-    <td>fmsub.s,fmsub.d,<br/>fmsub.h,fmsub.q</td>
+    <td>fmsub.&lt;sz></td>
     <td colspan="5">rs3[4:0]</td>
     <td colspan="2">felmsz</td>
     <td colspan="5">rs2[4:0]</td>
@@ -930,7 +955,7 @@ All 48-bit instructions have bits 7:0 set to 1011111 (second half of 48-bit inst
     <td>fmsub.s,fmsub.d,fmsub.h,fmsub.q</td>
 </tr>
 <tr>
-    <td>fnmsub.s,<br/>fnmsub.d,<br/>fnmsub.h,<br/>fnmsub.q</td>
+    <td>fnmsub.&lt;sz></td>
     <td colspan="5">rs3[4:0]</td>
     <td colspan="2">felmsz</td>
     <td colspan="5">rs2[4:0]</td>
@@ -946,7 +971,7 @@ All 48-bit instructions have bits 7:0 set to 1011111 (second half of 48-bit inst
     <td>fnmsub.s,fnmsub.d,fnmsub.h,fnmsub.q</td>
 </tr>
 <tr>
-    <td>fnmadd.s,<br/>fnmadd.d,<br/>fnmadd.h,<br/>fnmadd.q</td>
+    <td>fnmadd.&lt;sz></td>
     <td colspan="5">rs3[4:0]</td>
     <td colspan="2">felmsz</td>
     <td colspan="5">rs2[4:0]</td>
@@ -963,7 +988,7 @@ All 48-bit instructions have bits 7:0 set to 1011111 (second half of 48-bit inst
 </tr>
 </table>
 
-#### Misc operations
+#### FP Operations
 <table>
 <tr>
     <th>Instruction(s)</th>
@@ -975,45 +1000,359 @@ All 48-bit instructions have bits 7:0 set to 1011111 (second half of 48-bit inst
 <tr>
     <td></td>
     <td colspan="5">47:43</td>
-    <td>42</td>
-    <td>41</td>
+    <td colspan="2">42:41</td>
     <td colspan="5">40:36</td>
     <td colspan="5">35:31</td>
-    <td>30</td>
-    <td colspan="2">29:28</td>
+    <td colspan="3">30:28</td>
     <td colspan="5">27:23</td>
-    <td colspan="3">22:20</td>
-    <td>19</td>
-    <td>18</td>
+    <td colspan="5">22:18</td>
     <td colspan="2">17:16</td>
-    <td>15</td>
-    <td>14</td>
+    <td colspan="2">15:14</td>
     <td>13</td>
     <td>12</td>
-    <td>11</td>
-    <td>10</td>
-    <td>9</td>
-    <td>8</td>
+    <td colspan="2">11:10</td>
+    <td colspan="2">9:8</td>
     <td></td>
 </tr>
 <tr>
     <td></td>
     <td colspan="5">31:27</td>
-    <td>26</td>
-    <td>25</td>
+    <td colspan="2">26:25</td>
     <td colspan="5">24:20</td>
     <td colspan="5">19:15</td>
-    <td>14</td>
-    <td colspan="2">13:12</td>
+    <td colspan="3">14:12</td>
     <td colspan="5">11:7</td>
-    <td colspan="3">6:4</td>
-    <td>3</td>
-    <td>2</td>
+    <td colspan="5">6:2</td>
     <td colspan="2">1:0</td>
     <td colspan="17"></td>
 </tr>
 <tr>
-    <td>FIXME: finish</td>
+    <td>fadd.&lt;sz></td>
+    <td colspan="5">00000</td>
+    <td colspan="2">felmsz</td>
+    <td colspan="5">rs2[4:0]</td>
+    <td colspan="5">rs1[4:0]</td>
+    <td colspan="3">rm</td>
+    <td colspan="5">rd[4:0]</td>
+    <td colspan="5">10100</td>
+    <td colspan="2">rs1[6:5]</td>
+    <td colspan="2">rd[6:5]</td>
+    <td colspan="2">rs2[6:5]</td>
+    <td colspan="4">vlp4</td>
+    <td>fadd.&lt;sz></td>
+</tr>
+<tr>
+    <td>fsub.&lt;sz></td>
+    <td colspan="5">00001</td>
+    <td colspan="2">felmsz</td>
+    <td colspan="5">rs2[4:0]</td>
+    <td colspan="5">rs1[4:0]</td>
+    <td colspan="3">rm</td>
+    <td colspan="5">rd[4:0]</td>
+    <td colspan="5">10100</td>
+    <td colspan="2">rs1[6:5]</td>
+    <td colspan="2">rd[6:5]</td>
+    <td colspan="2">rs2[6:5]</td>
+    <td colspan="4">vlp4</td>
+    <td>fsub.&lt;sz></td>
+</tr>
+<tr>
+    <td>fmul.&lt;sz></td>
+    <td colspan="5">00010</td>
+    <td colspan="2">felmsz</td>
+    <td colspan="5">rs2[4:0]</td>
+    <td colspan="5">rs1[4:0]</td>
+    <td colspan="3">rm</td>
+    <td colspan="5">rd[4:0]</td>
+    <td colspan="5">10100</td>
+    <td colspan="2">rs1[6:5]</td>
+    <td colspan="2">rd[6:5]</td>
+    <td colspan="2">rs2[6:5]</td>
+    <td colspan="4">vlp4</td>
+    <td>fmul.&lt;sz></td>
+</tr>
+<tr>
+    <td>fdiv.&lt;sz></td>
+    <td colspan="5">00011</td>
+    <td colspan="2">felmsz</td>
+    <td colspan="5">rs2[4:0]</td>
+    <td colspan="5">rs1[4:0]</td>
+    <td colspan="3">rm</td>
+    <td colspan="5">rd[4:0]</td>
+    <td colspan="5">10100</td>
+    <td colspan="2">rs1[6:5]</td>
+    <td colspan="2">rd[6:5]</td>
+    <td colspan="2">rs2[6:5]</td>
+    <td colspan="4">vlp4</td>
+    <td>fdiv.&lt;sz></td>
+</tr>
+<tr>
+    <td>fsqrt.&lt;sz></td>
+    <td colspan="5">01011</td>
+    <td colspan="2">felmsz</td>
+    <td colspan="5">00000</td>
+    <td colspan="5">rs1[4:0]</td>
+    <td colspan="3">rm</td>
+    <td colspan="5">rd[4:0]</td>
+    <td colspan="5">10100</td>
+    <td colspan="2">rs1[6:5]</td>
+    <td colspan="2">rd[6:5]</td>
+    <td colspan="2">00</td>
+    <td colspan="4">vlp4</td>
+    <td>fsqrt.&lt;sz></td>
+</tr>
+<tr>
+    <td>frsqrt.&lt;sz></td>
+    <td colspan="5">01011</td>
+    <td colspan="2">felmsz</td>
+    <td colspan="5">00000</td>
+    <td colspan="5">rs1[4:0]</td>
+    <td colspan="3">rm</td>
+    <td colspan="5">rd[4:0]</td>
+    <td colspan="5">10100</td>
+    <td colspan="2">rs1[6:5]</td>
+    <td colspan="2">rd[6:5]</td>
+    <td colspan="2">01</td>
+    <td colspan="4">vlp4</td>
+    <td>fsqrt.&lt;sz></td>
+</tr>
+<tr>
+    <td>fsgnj.&lt;sz></td>
+    <td colspan="5">00100</td>
+    <td colspan="2">felmsz</td>
+    <td colspan="5">rs2[4:0]</td>
+    <td colspan="5">rs1[4:0]</td>
+    <td colspan="3">000</td>
+    <td colspan="5">rd[4:0]</td>
+    <td colspan="5">10100</td>
+    <td colspan="2">rs1[6:5]</td>
+    <td colspan="2">rd[6:5]</td>
+    <td colspan="2">rs2[6:5]</td>
+    <td colspan="4">vlp4</td>
+    <td>fsgnj.&lt;sz></td>
+</tr>
+<tr>
+    <td>fsgnjn.&lt;sz></td>
+    <td colspan="5">00100</td>
+    <td colspan="2">felmsz</td>
+    <td colspan="5">rs2[4:0]</td>
+    <td colspan="5">rs1[4:0]</td>
+    <td colspan="3">001</td>
+    <td colspan="5">rd[4:0]</td>
+    <td colspan="5">10100</td>
+    <td colspan="2">rs1[6:5]</td>
+    <td colspan="2">rd[6:5]</td>
+    <td colspan="2">rs2[6:5]</td>
+    <td colspan="4">vlp4</td>
+    <td>fsgnjn.&lt;sz></td>
+</tr>
+<tr>
+    <td>fsgnjx.&lt;sz></td>
+    <td colspan="5">00100</td>
+    <td colspan="2">felmsz</td>
+    <td colspan="5">rs2[4:0]</td>
+    <td colspan="5">rs1[4:0]</td>
+    <td colspan="3">010</td>
+    <td colspan="5">rd[4:0]</td>
+    <td colspan="5">10100</td>
+    <td colspan="2">rs1[6:5]</td>
+    <td colspan="2">rd[6:5]</td>
+    <td colspan="2">rs2[6:5]</td>
+    <td colspan="4">vlp4</td>
+    <td>fsgnjx.&lt;sz></td>
+</tr>
+<tr>
+    <td>fmin.&lt;sz></td>
+    <td colspan="5">00101</td>
+    <td colspan="2">felmsz</td>
+    <td colspan="5">rs2[4:0]</td>
+    <td colspan="5">rs1[4:0]</td>
+    <td colspan="3">000</td>
+    <td colspan="5">rd[4:0]</td>
+    <td colspan="5">10100</td>
+    <td colspan="2">rs1[6:5]</td>
+    <td colspan="2">rd[6:5]</td>
+    <td colspan="2">rs2[6:5]</td>
+    <td colspan="4">vlp4</td>
+    <td>fmin.&lt;sz></td>
+</tr>
+<tr>
+    <td>fmax.&lt;sz></td>
+    <td colspan="5">00101</td>
+    <td colspan="2">felmsz</td>
+    <td colspan="5">rs2[4:0]</td>
+    <td colspan="5">rs1[4:0]</td>
+    <td colspan="3">001</td>
+    <td colspan="5">rd[4:0]</td>
+    <td colspan="5">10100</td>
+    <td colspan="2">rs1[6:5]</td>
+    <td colspan="2">rd[6:5]</td>
+    <td colspan="2">rs2[6:5]</td>
+    <td colspan="4">vlp4</td>
+    <td>fmax.&lt;sz></td>
+</tr>
+<tr>
+    <td>fcvt.&lt;dest>.&lt;src><br/>FP -> FP</td>
+    <td colspan="5">01000</td>
+    <td colspan="2">felmsz<br/>(dest)</td>
+    <td colspan="5">felmsz<br/>(src)</td>
+    <td colspan="5">rs1[4:0]</td>
+    <td colspan="3">rm</td>
+    <td colspan="5">rd[4:0]</td>
+    <td colspan="5">10100</td>
+    <td colspan="2">rs1[6:5]</td>
+    <td colspan="2">rd[6:5]</td>
+    <td colspan="2">00</td>
+    <td colspan="4">vlp4</td>
+    <td>fcvt.&lt;dest>.&lt;src></td>
+</tr>
+<tr>
+    <td>f&lt;fcc>.&lt;dest>.&lt;src></td>
+    <td colspan="5">10100</td>
+    <td colspan="2">felmsz<br/>(src)</td>
+    <td colspan="5">rs2[4:0]</td>
+    <td colspan="5">rs1[4:0]</td>
+    <td colspan="3">fcc</td>
+    <td colspan="5">rd[4:0]</td>
+    <td colspan="5">10100</td>
+    <td colspan="2">rs1[6:5]</td>
+    <td colspan="2">rd[6:5]</td>
+    <td colspan="2">rs2[6:5]</td>
+    <td colspan="2">elmsz<br/>(dest)</td>
+    <td colspan="2">vlp2</td>
+    <td>feq.&lt;sz>,<br/>flt.&lt;sz>,<br/>fle.&lt;sz></td>
+</tr>
+<tr>
+    <td>fclass.&lt;sz></td>
+    <td colspan="5">11100</td>
+    <td colspan="2">felmsz</td>
+    <td colspan="5">00000</td>
+    <td colspan="5">rs1[4:0]</td>
+    <td colspan="3">001</td>
+    <td colspan="5">rd[4:0]</td>
+    <td colspan="5">10100</td>
+    <td colspan="2">rs1[6:5]</td>
+    <td colspan="2">rd[6:5]</td>
+    <td colspan="2">00</td>
+    <td colspan="4">vlp4</td>
+    <td>fclass.&lt;sz></td>
+</tr>
+<tr>
+    <td>fmv.X.&lt;sz></td>
+    <td colspan="5">11100</td>
+    <td colspan="2">felmsz</td>
+    <td colspan="5">00000</td>
+    <td colspan="5">rs1[4:0]</td>
+    <td colspan="3">000</td>
+    <td colspan="5">rd[4:0]</td>
+    <td colspan="5">10100</td>
+    <td colspan="2">rs1[6:5]</td>
+    <td colspan="2">rd[6:5]</td>
+    <td colspan="2">00</td>
+    <td colspan="4">vlp4</td>
+    <td>fmv.X.&lt;sz></td>
+</tr>
+<tr>
+    <td>fmv.&lt;sz>.X</td>
+    <td colspan="5">11110</td>
+    <td colspan="2">felmsz</td>
+    <td colspan="5">00000</td>
+    <td colspan="5">rs1[4:0]</td>
+    <td colspan="3">000</td>
+    <td colspan="5">rd[4:0]</td>
+    <td colspan="5">10100</td>
+    <td colspan="2">rs1[6:5]</td>
+    <td colspan="2">rd[6:5]</td>
+    <td colspan="2">00</td>
+    <td colspan="4">vlp4</td>
+    <td>fmv.&lt;sz>.X</td>
+</tr>
+<tr>
+    <td>fcvt.&lt;ity>.&lt;sz></td>
+    <td colspan="5">11000</td>
+    <td colspan="2">felmsz</td>
+    <td colspan="5">fity[4:0]</td>
+    <td colspan="5">rs1[4:0]</td>
+    <td colspan="3">rm</td>
+    <td colspan="5">rd[4:0]</td>
+    <td colspan="5">10100</td>
+    <td colspan="2">rs1[6:5]</td>
+    <td colspan="2">rd[6:5]</td>
+    <td>0</td>
+    <td>fity[5]</td>
+    <td colspan="4">vlp4</td>
+    <td>fcvt.&lt;ity[4:0]>.&lt;sz></td>
+</tr>
+<tr>
+    <td>fcvt.&lt;sz>.&lt;ity></td>
+    <td colspan="5">11010</td>
+    <td colspan="2">felmsz</td>
+    <td colspan="5">fity[4:0]</td>
+    <td colspan="5">rs1[4:0]</td>
+    <td colspan="3">rm</td>
+    <td colspan="5">rd[4:0]</td>
+    <td colspan="5">10100</td>
+    <td colspan="2">rs1[6:5]</td>
+    <td colspan="2">rd[6:5]</td>
+    <td>0</td>
+    <td>fity[5]</td>
+    <td colspan="4">vlp4</td>
+    <td>fcvt.&lt;sz>.&lt;ity[4:0]></td>
+</tr>
+</table>
+
+#### Integer Compare Operations
+<table>
+<tr>
+    <th>Instruction(s)</th>
+    <th colspan="30">Base Instruction Encoding</th>
+    <th colspan="2">Reused</th>
+    <th colspan="8">Prefix</th>
+    <th>Original<br/> Instruction(s)<br/>(from RV64G)</th>
+</tr>
+<tr>
+    <td></td>
+    <td colspan="7">47:41</td>
+    <td colspan="5">40:36</td>
+    <td colspan="5">35:31</td>
+    <td colspan="3">30:28</td>
+    <td colspan="5">27:23</td>
+    <td colspan="5">22:18</td>
+    <td colspan="2">17:16</td>
+    <td colspan="2">15:14</td>
+    <td colspan="2">13:12</td>
+    <td colspan="4">11:8</td>
+    <td></td>
+</tr>
+<tr>
+    <td></td>
+    <td colspan="7">31:25</td>
+    <td colspan="5">24:20</td>
+    <td colspan="5">19:15</td>
+    <td colspan="3">14:12</td>
+    <td colspan="5">11:7</td>
+    <td colspan="5">6:2</td>
+    <td colspan="2">1:0</td>
+    <td colspan="17"></td>
+</tr>
+<tr>
+    <td>cmp.&lt;icc>.&lt;sz></td>
+    <td colspan="7">0000000</td>
+    <td colspan="5" rowspan="2">rs2[4:0]</td>
+    <td colspan="5" rowspan="2">rs1[4:0]</td>
+    <td colspan="3" rowspan="2">icc</td>
+    <td colspan="5" rowspan="2">rd[4:0]</td>
+    <td colspan="5" rowspan="2">11000</td>
+    <td colspan="2" rowspan="2">rs1[6:5]</td>
+    <td colspan="2" rowspan="2">rd[6:5]</td>
+    <td colspan="2" rowspan="2">rs2[6:5]</td>
+    <td colspan="4" rowspan="2">vlp4</td>
+    <td>beq,bne,blt,<br/>bge,bltu,bgeu</td>
+</tr>
+<tr>
+    <td>cmpm.&lt;icc>.&lt;sz><br/>(mask)</td>
+    <td colspan="7">0000001</td>
+    <td>beq,bne,blt,<br/>bge,bltu,bgeu</td>
 </tr>
 </table>
 
@@ -1310,128 +1649,128 @@ TODO: Reorder to make decoding faster and select which length-types combinations
 </tr>
 <tr>
     <td>01110</td>
-    <td>VL</td>
-    <td>u16</td>
-    <td>u8</td>
-    <td>N/A</td>
+    <td><i>Reserved</i></td>
+    <td><i>Reserved</i></td>
+    <td><i>Reserved</i></td>
+    <td><i>Reserved</i></td>
 </tr>
 <tr>
     <td>01111</td>
-    <td>VL</td>
-    <td>u32</td>
-    <td>u8</td>
-    <td>N/A</td>
+    <td><i>Reserved</i></td>
+    <td><i>Reserved</i></td>
+    <td><i>Reserved</i></td>
+    <td><i>Reserved</i></td>
 </tr>
 <tr>
     <td>10000</td>
-    <td>VL</td>
-    <td>u32</td>
-    <td>u16</td>
-    <td>N/A</td>
+    <td><i>Reserved</i></td>
+    <td><i>Reserved</i></td>
+    <td><i>Reserved</i></td>
+    <td><i>Reserved</i></td>
 </tr>
 <tr>
     <td>10001</td>
-    <td>VL</td>
-    <td>u64</td>
-    <td>u8</td>
-    <td>N/A</td>
+    <td><i>Reserved</i></td>
+    <td><i>Reserved</i></td>
+    <td><i>Reserved</i></td>
+    <td><i>Reserved</i></td>
 </tr>
 <tr>
     <td>10010</td>
-    <td>VL</td>
-    <td>u64</td>
-    <td>u16</td>
-    <td>N/A</td>
+    <td><i>Reserved</i></td>
+    <td><i>Reserved</i></td>
+    <td><i>Reserved</i></td>
+    <td><i>Reserved</i></td>
 </tr>
 <tr>
     <td>10011</td>
-    <td>VL</td>
-    <td>u64</td>
-    <td>u32</td>
-    <td>N/A</td>
+    <td><i>Reserved</i></td>
+    <td><i>Reserved</i></td>
+    <td><i>Reserved</i></td>
+    <td><i>Reserved</i></td>
 </tr>
 <tr>
     <td>10100</td>
-    <td>VL</td>
-    <td>u8</td>
-    <td>u16</td>
-    <td>Zero Extension</td>
+    <td><i>Reserved</i></td>
+    <td><i>Reserved</i></td>
+    <td><i>Reserved</i></td>
+    <td><i>Reserved</i></td>
 </tr>
 <tr>
     <td>10101</td>
-    <td>VL</td>
-    <td>i8</td>
-    <td>i16</td>
-    <td>Sign Extension</td>
+    <td><i>Reserved</i></td>
+    <td><i>Reserved</i></td>
+    <td><i>Reserved</i></td>
+    <td><i>Reserved</i></td>
 </tr>
 <tr>
     <td>10110</td>
-    <td>VL</td>
-    <td>u8</td>
-    <td>u32</td>
-    <td>Zero Extension</td>
+    <td><i>Reserved</i></td>
+    <td><i>Reserved</i></td>
+    <td><i>Reserved</i></td>
+    <td><i>Reserved</i></td>
 </tr>
 <tr>
     <td>10111</td>
-    <td>VL</td>
-    <td>i8</td>
-    <td>i32</td>
-    <td>Sign Extension</td>
+    <td><i>Reserved</i></td>
+    <td><i>Reserved</i></td>
+    <td><i>Reserved</i></td>
+    <td><i>Reserved</i></td>
 </tr>
 <tr>
     <td>11000</td>
-    <td>VL</td>
-    <td>u16</td>
-    <td>u32</td>
-    <td>Zero Extension</td>
+    <td><i>Reserved</i></td>
+    <td><i>Reserved</i></td>
+    <td><i>Reserved</i></td>
+    <td><i>Reserved</i></td>
 </tr>
 <tr>
     <td>11001</td>
-    <td>VL</td>
-    <td>i16</td>
-    <td>i32</td>
-    <td>Sign Extension</td>
+    <td><i>Reserved</i></td>
+    <td><i>Reserved</i></td>
+    <td><i>Reserved</i></td>
+    <td><i>Reserved</i></td>
 </tr>
 <tr>
     <td>11010</td>
-    <td>VL</td>
-    <td>u8</td>
-    <td>u64</td>
-    <td>Zero Extension</td>
+    <td><i>Reserved</i></td>
+    <td><i>Reserved</i></td>
+    <td><i>Reserved</i></td>
+    <td><i>Reserved</i></td>
 </tr>
 <tr>
     <td>11011</td>
-    <td>VL</td>
-    <td>i8</td>
-    <td>i64</td>
-    <td>Sign Extension</td>
+    <td><i>Reserved</i></td>
+    <td><i>Reserved</i></td>
+    <td><i>Reserved</i></td>
+    <td><i>Reserved</i></td>
 </tr>
 <tr>
     <td>11100</td>
-    <td>VL</td>
-    <td>u16</td>
-    <td>u64</td>
-    <td>Zero Extension</td>
+    <td><i>Reserved</i></td>
+    <td><i>Reserved</i></td>
+    <td><i>Reserved</i></td>
+    <td><i>Reserved</i></td>
 </tr>
 <tr>
     <td>11101</td>
-    <td>VL</td>
-    <td>i16</td>
-    <td>i64</td>
-    <td>Sign Extension</td>
+    <td><i>Reserved</i></td>
+    <td><i>Reserved</i></td>
+    <td><i>Reserved</i></td>
+    <td><i>Reserved</i></td>
 </tr>
 <tr>
     <td>11110</td>
-    <td>VL</td>
-    <td>u32</td>
-    <td>u64</td>
-    <td>Zero Extension</td>
+    <td><i>Reserved</i></td>
+    <td><i>Reserved</i></td>
+    <td><i>Reserved</i></td>
+    <td><i>Reserved</i></td>
 </tr>
 <tr>
     <td>11111</td>
-    <td>VL</td>
-    <td>i32</td>
-    <td>i64</td>
-    <td>Sign Extension</td>
+    <td><i>Reserved</i></td>
+    <td><i>Reserved</i></td>
+    <td><i>Reserved</i></td>
+    <td><i>Reserved</i></td>
 </tr>
 </table>
