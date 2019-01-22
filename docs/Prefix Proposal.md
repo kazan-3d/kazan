@@ -133,10 +133,10 @@ felmsz is zero-extended when it appears in a wider field
 | 001 | lt        | Integer Elements |
 | 010 | eq        | Integer Elements |
 | 011 | ne        | Integer Elements |
-| 100 | le        | Predication Mask |
-| 101 | lt        | Predication Mask |
-| 110 | eq        | Predication Mask |
-| 111 | ne        | Predication Mask |
+| 100 | le.m      | Predication Mask |
+| 101 | lt.m      | Predication Mask |
+| 110 | eq.m      | Predication Mask |
+| 111 | ne.m      | Predication Mask |
 
 ### Integer Compare Code (icc)
 
