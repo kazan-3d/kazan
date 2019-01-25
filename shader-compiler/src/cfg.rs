@@ -1,17 +1,14 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 // See Notices.txt for copyright information
 
+pub mod structure_tree;
+
 use crate::instruction_properties::InstructionProperties;
-use petgraph::{
-    algo::dominators,
-    graph::IndexType,
-    prelude::*,
-    visit::{Reversed, VisitMap, Visitable},
-};
+use petgraph::{algo::dominators, graph::IndexType, prelude::*};
 use spirv_parser::{IdRef, Instruction};
-use std::cell::{Cell, RefCell};
+use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
-use std::fmt::{self, Write};
+use std::fmt;
 use std::ops;
 use std::rc::{Rc, Weak};
 
@@ -26,6 +23,12 @@ impl ops::Deref for Instructions {
 }
 
 impl fmt::Debug for Instructions {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        fmt::Display::fmt(self, f)
+    }
+}
+
+impl fmt::Display for Instructions {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         for i in &self.0 {
             write!(f, "{}", i)?;
@@ -54,19 +57,11 @@ impl Instructions {
     }
 }
 
-#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
-pub enum EdgeKind {
-    Unreachable,
-    Normal,
-    LoopBackEdge,
-}
-
 #[derive(Clone, Debug)]
 pub struct BasicBlock {
     label: IdRef,
     instructions: Instructions,
-    parent_structure_tree: RefCell<Option<Rc<CFGStructureTree>>>,
-    merge_tree_parent: Cell<Option<CFGNodeIndex>>,
+    parent_structure_tree_node: RefCell<Weak<structure_tree::Node>>,
 }
 
 impl BasicBlock {
@@ -76,8 +71,13 @@ impl BasicBlock {
     pub fn instructions(&self) -> &Instructions {
         &self.instructions
     }
-    pub fn parent_structure_tree(&self) -> Option<Rc<CFGStructureTree>> {
-        self.parent_structure_tree.borrow().clone()
+    pub fn parent_structure_tree_node(&self) -> Option<Rc<structure_tree::Node>> {
+        self.parent_structure_tree_node.borrow().upgrade()
+    }
+    fn set_parent_structure_tree_node(&self, new_parent: &Rc<structure_tree::Node>) {
+        let mut parent = self.parent_structure_tree_node.borrow_mut();
+        assert!(parent.upgrade().is_none());
+        *parent = Rc::downgrade(new_parent);
     }
 }
 
@@ -100,7 +100,7 @@ unsafe impl IndexType for CFGIndexType {
 pub type CFGNodeIndex = NodeIndex<CFGIndexType>;
 pub type CFGEdgeIndex = EdgeIndex<CFGIndexType>;
 
-pub type CFGGraph = DiGraph<BasicBlock, EdgeKind, CFGIndexType>;
+pub type CFGGraph = DiGraph<BasicBlock, (), CFGIndexType>;
 
 pub type CFGDominators = dominators::Dominators<CFGNodeIndex>;
 
@@ -108,10 +108,8 @@ pub type CFGDominators = dominators::Dominators<CFGNodeIndex>;
 pub struct CFG {
     graph: CFGGraph,
     label_to_node_index_map: HashMap<IdRef, CFGNodeIndex>,
-    exit_node_index: CFGNodeIndex,
     dominators: CFGDominators,
-    postdominators: CFGDominators,
-    structure_tree: Rc<CFGStructureTree>,
+    structure_tree: structure_tree::StructureTree,
 }
 
 impl ops::Deref for CFG {
@@ -131,10 +129,7 @@ impl CFG {
     pub fn dominators(&self) -> &CFGDominators {
         &self.dominators
     }
-    pub fn postdominators(&self) -> &CFGDominators {
-        &self.postdominators
-    }
-    pub fn structure_tree(&self) -> &CFGStructureTree {
+    pub fn structure_tree(&self) -> &structure_tree::StructureTree {
         &self.structure_tree
     }
     pub fn new(function_instructions: &[Instruction]) -> CFG {
@@ -163,8 +158,7 @@ impl CFG {
                         graph.add_node(BasicBlock {
                             label,
                             instructions: Instructions::new(current_instructions),
-                            parent_structure_tree: RefCell::new(None),
-                            merge_tree_parent: Cell::new(None),
+                            parent_structure_tree_node: RefCell::new(Weak::new()),
                         }),
                     );
                     current_instructions = Vec::new();
@@ -173,19 +167,6 @@ impl CFG {
         }
         assert!(current_instructions.is_empty());
         let entry_node_index = graph.node_indices().next().unwrap();
-        let mut exit_node_index = entry_node_index;
-        loop {
-            match graph[exit_node_index].instructions().merge_instruction() {
-                None => break,
-                Some(&Instruction::SelectionMerge { merge_block, .. })
-                | Some(&Instruction::LoopMerge { merge_block, .. }) => {
-                    exit_node_index = label_to_node_index_map[&merge_block];
-                }
-                Some(instruction) => {
-                    unreachable!("unimplemented merge instruction:\n{}", instruction);
-                }
-            }
-        }
         let mut successors_set = HashSet::new();
         for node_index in graph.node_indices() {
             successors_set.clear();
@@ -199,307 +180,21 @@ impl CFG {
             .unwrap()
             .filter(|&successor| successors_set.insert(successor)) // remove duplicates
             .collect(); // collect into Vec to retain order
-            if successors.is_empty() {
-                graph.add_edge(node_index, exit_node_index, EdgeKind::Unreachable);
-            } else {
-                for target in successors {
-                    graph.add_edge(
-                        node_index,
-                        label_to_node_index_map[&target],
-                        EdgeKind::Normal,
-                    );
-                }
+            for target in successors {
+                graph.add_edge(node_index, label_to_node_index_map[&target], ());
             }
         }
         let dominators = dominators::simple_fast(&graph, entry_node_index);
-        let postdominators = dominators::simple_fast(&Reversed(&graph), exit_node_index);
-        for edge_index in graph.edge_indices() {
-            let (source, target) = graph.edge_endpoints(edge_index).unwrap();
-            if let Some(mut source_dominators) = dominators.dominators(source) {
-                if source_dominators.any(|dominator| dominator == target) {
-                    graph[edge_index] = EdgeKind::LoopBackEdge;
-                    let target_block_instructions = graph[target].instructions();
-                    match target_block_instructions[target_block_instructions.len() - 2] {
-                        Instruction::LoopMerge { .. } => {}
-                        _ => unreachable!("back edge must go to loop header block"),
-                    }
-                }
-            } else {
-                graph[edge_index] = EdgeKind::Unreachable;
-            }
-        }
-        let structure_tree =
-            CFGStructureTree::parse(&graph, &label_to_node_index_map, dominators.root());
+        let structure_tree = structure_tree::StructureTree::parse(
+            &graph,
+            &label_to_node_index_map,
+            dominators.root(),
+        );
+        print!("{}", structure_tree.display(&graph));
         CFG {
             graph,
             label_to_node_index_map,
-            exit_node_index,
             dominators,
-            postdominators,
-            structure_tree,
-        }
-    }
-}
-
-#[derive(Clone, Debug)]
-pub struct CFGStructureTreeLoop {
-    children: Rc<CFGStructureTree>,
-    parent_structure_tree: RefCell<Weak<CFGStructureTree>>,
-}
-
-impl CFGStructureTreeLoop {
-    pub fn children(&self) -> &Rc<CFGStructureTree> {
-        &self.children
-    }
-    pub fn parent_structure_tree(&self) -> Rc<CFGStructureTree> {
-        self.parent_structure_tree.borrow().upgrade().unwrap()
-    }
-}
-
-#[derive(Clone, Debug)]
-pub enum CFGStructureTreeNode {
-    Loop(CFGStructureTreeLoop),
-    Node { node_index: CFGNodeIndex },
-}
-
-/// nodes are in a topological order
-#[derive(Clone, Debug)]
-pub struct CFGStructureTree(Vec<CFGStructureTreeNode>);
-
-#[derive(Clone, Debug)]
-pub struct BasicBlocksInOrderIter<'a> {
-    stack: Vec<std::slice::Iter<'a, CFGStructureTreeNode>>,
-}
-
-impl Iterator for BasicBlocksInOrderIter<'_> {
-    type Item = CFGNodeIndex;
-    fn next(&mut self) -> Option<CFGNodeIndex> {
-        while let Some(mut iter) = self.stack.pop() {
-            match iter.next() {
-                Some(CFGStructureTreeNode::Loop(CFGStructureTreeLoop { children, .. })) => {
-                    self.stack.push(iter);
-                    self.stack.push(children.iter());
-                }
-                Some(&CFGStructureTreeNode::Node { node_index }) => {
-                    self.stack.push(iter);
-                    return Some(node_index);
-                }
-                None => {}
-            }
-        }
-        None
-    }
-}
-
-impl CFGStructureTree {
-    pub fn basic_blocks_in_order(&self) -> BasicBlocksInOrderIter {
-        let stack = vec![self.iter()];
-        BasicBlocksInOrderIter { stack }
-    }
-    pub fn dump(&self, graph: &CFGGraph) -> String {
-        let mut stack = vec![self.iter()];
-        let mut retval = String::new();
-        while let Some(mut iter) = stack.pop() {
-            if let Some(node) = iter.next() {
-                for _ in 0..stack.len() {
-                    write!(&mut retval, "    ").unwrap();
-                }
-                stack.push(iter);
-                match *node {
-                    CFGStructureTreeNode::Loop(CFGStructureTreeLoop { ref children, .. }) => {
-                        writeln!(&mut retval, "Loop:").unwrap();
-                        stack.push(children.iter());
-                    }
-                    CFGStructureTreeNode::Node { node_index } => {
-                        writeln!(
-                            &mut retval,
-                            "{}: (index {})",
-                            graph[node_index].label,
-                            node_index.index()
-                        )
-                        .unwrap();
-                    }
-                }
-            }
-        }
-        retval
-    }
-}
-
-impl ops::Deref for CFGStructureTree {
-    type Target = Vec<CFGStructureTreeNode>;
-    fn deref(&self) -> &Vec<CFGStructureTreeNode> {
-        &self.0
-    }
-}
-
-impl CFGStructureTree {
-    fn parse(
-        graph: &CFGGraph,
-        label_to_node_index_map: &HashMap<IdRef, CFGNodeIndex>,
-        root: CFGNodeIndex,
-    ) -> Rc<Self> {
-        CFGStructureTreeParser {
-            graph,
-            label_to_node_index_map,
-        }
-        .parse_tree(root, None, IgnoreInitialLoop::NotIgnored)
-        .structure_tree
-    }
-}
-
-#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
-enum MergeReached {
-    Reached,
-    NotReached,
-}
-
-#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
-enum IgnoreInitialLoop {
-    Ignored,
-    NotIgnored,
-}
-
-struct CFGStructureTreeNodeParseResults {
-    successors: Vec<CFGNodeIndex>,
-    structure_tree_node: CFGStructureTreeNode,
-    merge_reached: MergeReached,
-}
-
-struct CFGStructureTreeParseResults {
-    structure_tree: Rc<CFGStructureTree>,
-    merge_reached: MergeReached,
-}
-
-struct CFGStructureTreeParser<'a> {
-    graph: &'a CFGGraph,
-    label_to_node_index_map: &'a HashMap<IdRef, CFGNodeIndex>,
-}
-
-impl CFGStructureTreeParser<'_> {
-    fn parse_node(
-        &self,
-        start: CFGNodeIndex,
-        merge_target: Option<CFGNodeIndex>,
-        ignore_initial_loop: IgnoreInitialLoop,
-    ) -> CFGStructureTreeNodeParseResults {
-        match self.graph[start].instructions().merge_instruction() {
-            Some(Instruction::LoopMerge { merge_block, .. })
-                if ignore_initial_loop != IgnoreInitialLoop::Ignored =>
-            {
-                let merge_block = self.label_to_node_index_map[merge_block];
-                let CFGStructureTreeParseResults {
-                    structure_tree,
-                    merge_reached,
-                } = self.parse_tree(start, Some(merge_block), IgnoreInitialLoop::Ignored);
-                let successors = if merge_reached == MergeReached::Reached {
-                    vec![merge_block]
-                } else {
-                    Vec::new()
-                };
-                CFGStructureTreeNodeParseResults {
-                    successors,
-                    structure_tree_node: CFGStructureTreeNode::Loop(CFGStructureTreeLoop {
-                        children: structure_tree,
-                        parent_structure_tree: RefCell::new(Weak::new()),
-                    }),
-                    merge_reached: MergeReached::NotReached,
-                }
-            }
-            _ => {
-                let mut merge_reached = MergeReached::NotReached;
-                let mut successors = Vec::new();
-                for edge in self.graph.edges_directed(start, Outgoing) {
-                    // exclude the merge target and loop back edge to
-                    // only visit nodes in the same loop nesting level
-                    if Some(edge.target()) == merge_target {
-                        merge_reached = MergeReached::Reached;
-                    } else if *edge.weight() != EdgeKind::LoopBackEdge {
-                        successors.push(edge.target());
-                    }
-                }
-                CFGStructureTreeNodeParseResults {
-                    successors,
-                    structure_tree_node: CFGStructureTreeNode::Node { node_index: start },
-                    merge_reached,
-                }
-            }
-        }
-    }
-    fn parse_tree(
-        &self,
-        start: CFGNodeIndex,
-        merge_target: Option<CFGNodeIndex>,
-        ignore_initial_loop: IgnoreInitialLoop,
-    ) -> CFGStructureTreeParseResults {
-        let mut structures = Vec::new();
-        let mut merge_reached = MergeReached::NotReached;
-        // visit nodes using a depth-first search recording them to `structures` in post-order
-        let mut reachable = self.graph.visit_map();
-        enum DFSNodeState {
-            Pre(CFGNodeIndex),
-            Post(CFGStructureTreeNode),
-        }
-        impl fmt::Debug for DFSNodeState {
-            fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-                match self {
-                    DFSNodeState::Pre(node) => write!(f, "Pre(#{})", node.index()),
-                    DFSNodeState::Post(node) => write!(f, "Post({:?})", node),
-                }
-            }
-        }
-        let mut stack = vec![DFSNodeState::Pre(start)];
-        loop {
-            match stack.pop() {
-                Some(DFSNodeState::Pre(node)) => {
-                    if reachable.visit(node) {
-                        let CFGStructureTreeNodeParseResults {
-                            successors,
-                            structure_tree_node,
-                            merge_reached: current_merge_reached,
-                        } = self.parse_node(
-                            node,
-                            merge_target,
-                            if node == start {
-                                ignore_initial_loop
-                            } else {
-                                IgnoreInitialLoop::NotIgnored
-                            },
-                        );
-                        if current_merge_reached == MergeReached::Reached {
-                            merge_reached = MergeReached::Reached;
-                        }
-                        stack.push(DFSNodeState::Post(structure_tree_node));
-                        for &successor in successors.iter().rev() {
-                            stack.push(DFSNodeState::Pre(successor));
-                        }
-                    }
-                }
-                Some(DFSNodeState::Post(structure)) => {
-                    structures.push(structure); // build structures in post-order
-                }
-                None => break,
-            }
-        }
-        structures.reverse(); // change to reverse post-order since we need them in a topological order
-        let structure_tree = Rc::new(CFGStructureTree(structures));
-        for structure in structure_tree.iter() {
-            match *structure {
-                CFGStructureTreeNode::Loop(CFGStructureTreeLoop {
-                    ref parent_structure_tree,
-                    ..
-                }) => {
-                    parent_structure_tree.replace(Rc::downgrade(&structure_tree));
-                }
-                CFGStructureTreeNode::Node { node_index } => {
-                    self.graph[node_index]
-                        .parent_structure_tree
-                        .replace(Some(structure_tree.clone()));
-                }
-            }
-        }
-        CFGStructureTreeParseResults {
-            merge_reached,
             structure_tree,
         }
     }
@@ -532,50 +227,21 @@ mod tests {
     }
 
     #[derive(Debug)]
-    enum CFGTemplateStructureTreeNode<'a> {
-        Loop {
-            children: CFGTemplateStructureTree<'a>,
-        },
-        Node {
-            label: IdRef,
-        },
+    struct TemplateStructureTreeNode<'a> {
+        kind: structure_tree::NodeKind,
+        children: &'a [TemplateStructureTreeChild<'a>],
     }
 
-    impl CFGTemplateStructureTreeNode<'_> {
-        fn is_equivalent(&self, rhs: &CFGStructureTreeNode, graph: &CFGGraph) -> bool {
-            match self {
-                CFGTemplateStructureTreeNode::Loop { children } => {
-                    if let CFGStructureTreeNode::Loop(CFGStructureTreeLoop {
-                        children: rhs_children,
-                        ..
-                    }) = rhs
-                    {
-                        children.is_equivalent(rhs_children, graph)
-                    } else {
-                        false
-                    }
-                }
-                CFGTemplateStructureTreeNode::Node { label } => {
-                    if let CFGStructureTreeNode::Node { node_index } = *rhs {
-                        graph[node_index].label == *label
-                    } else {
-                        false
-                    }
-                }
-            }
-        }
-    }
-
-    #[derive(Debug)]
-    struct CFGTemplateStructureTree<'a>(&'a [CFGTemplateStructureTreeNode<'a>]);
-
-    impl CFGTemplateStructureTree<'_> {
-        fn is_equivalent(&self, rhs: &CFGStructureTree, graph: &CFGGraph) -> bool {
-            if self.0.len() != rhs.len() {
+    impl TemplateStructureTreeNode<'_> {
+        fn is_equivalent(&self, rhs: &structure_tree::Node, graph: &CFGGraph) -> bool {
+            if self.kind != rhs.kind() {
                 return false;
             }
-            for (a, b) in self.0.iter().zip(rhs.iter()) {
-                if !a.is_equivalent(b, graph) {
+            if self.children.len() != rhs.children().len() {
+                return false;
+            }
+            for (lhs_child, rhs_child) in self.children.iter().zip(rhs.children().iter()) {
+                if !lhs_child.is_equivalent(rhs_child, graph) {
                     return false;
                 }
             }
@@ -584,10 +250,91 @@ mod tests {
     }
 
     #[derive(Debug)]
+    enum TemplateStructureTreeChild<'a> {
+        Node(TemplateStructureTreeNode<'a>),
+        BasicBlock(IdRef),
+    }
+
+    impl TemplateStructureTreeChild<'_> {
+        fn is_equivalent(&self, rhs: &structure_tree::Child, graph: &CFGGraph) -> bool {
+            match self {
+                TemplateStructureTreeChild::Node(lhs_node) => {
+                    if let structure_tree::Child::Node(rhs_node) = rhs {
+                        lhs_node.is_equivalent(rhs_node, graph)
+                    } else {
+                        false
+                    }
+                }
+                &TemplateStructureTreeChild::BasicBlock(lhs_block) => {
+                    if let structure_tree::Child::BasicBlock(rhs_block) = *rhs {
+                        lhs_block == graph[rhs_block].label()
+                    } else {
+                        false
+                    }
+                }
+            }
+        }
+    }
+
+    #[derive(Debug)]
+    struct TemplateStructureTree<'a>(TemplateStructureTreeNode<'a>);
+
+    impl TemplateStructureTree<'_> {
+        fn is_equivalent(&self, rhs: &structure_tree::StructureTree, graph: &CFGGraph) -> bool {
+            assert_eq!(self.0.kind, structure_tree::NodeKind::Root);
+            self.0.is_equivalent(rhs.root(), graph)
+        }
+    }
+
+    #[derive(Debug)]
     struct CFGTemplate<'a> {
         blocks: &'a [CFGTemplateBlock<'a>],
         entry_block: IdRef,
-        structure_tree: CFGTemplateStructureTree<'a>,
+        structure_tree: TemplateStructureTree<'a>,
+    }
+
+    fn dump_template_structure_tree(
+        structure_tree: &structure_tree::StructureTree,
+        graph: &CFGGraph,
+    ) {
+        fn indent(indent_depth: usize) {
+            for _ in 0..indent_depth {
+                print!("    ");
+            }
+        }
+        fn dump_node(node: &structure_tree::Node, graph: &CFGGraph, indent_depth: usize) {
+            indent(indent_depth);
+            println!("TemplateStructureTreeNode {{");
+            indent(indent_depth + 1);
+            println!("kind: structure_tree::NodeKind::{:?},", node.kind());
+            indent(indent_depth + 1);
+            println!("children: &[");
+            for child in node.children().iter() {
+                match child {
+                    structure_tree::Child::Node(child_node) => {
+                        indent(indent_depth + 2);
+                        println!("TemplateStructureTreeChild::Node(");
+                        dump_node(child_node, graph, indent_depth + 3);
+                        indent(indent_depth + 2);
+                        println!("),");
+                    }
+                    structure_tree::Child::BasicBlock(basic_block) => {
+                        indent(indent_depth + 2);
+                        println!(
+                            "TemplateStructureTreeChild::BasicBlock({:?}),",
+                            graph[*basic_block].label()
+                        );
+                    }
+                }
+            }
+            indent(indent_depth + 1);
+            println!("],");
+            indent(indent_depth);
+            println!("}}");
+        }
+        println!("TemplateStructureTree(");
+        dump_node(structure_tree.root(), graph, 1);
+        println!(")");
     }
 
     fn test_cfg(instructions: &[Instruction], cfg_template: &CFGTemplate) {
@@ -601,7 +348,7 @@ mod tests {
         let dominators = cfg.dominators();
         println!("{:#?}", dominators);
         let structure_tree = cfg.structure_tree();
-        println!("{}", structure_tree.dump(&cfg));
+        print!("{}", structure_tree.display(&*cfg));
         assert_eq!(cfg_template.entry_block, cfg.entry_block().label());
         assert_eq!(cfg_template.blocks.len(), cfg.node_count());
         let label_map: HashMap<_, _> = cfg
@@ -617,20 +364,26 @@ mod tests {
             let expected_successors: HashSet<_> = expected_successors.iter().cloned().collect();
             let node_index = label_map[&label];
             let actual_successors: HashSet<_> = cfg
-                .neighbors(node_index)
-                .map(|node_index| cfg[node_index].label())
+                .neighbors_directed(node_index, Outgoing)
+                .map(|node| cfg[node].label())
                 .collect();
-            assert_eq!(expected_successors, actual_successors);
+            assert_eq!(expected_successors, actual_successors, "label: {}", label);
             assert_eq!(
                 dominators
                     .immediate_dominator(node_index)
                     .map(|v| cfg[v].label()),
-                immediate_dominator
+                immediate_dominator,
+                "label: {}",
+                label
             );
         }
-        assert!(cfg_template
+        if !cfg_template
             .structure_tree
-            .is_equivalent(structure_tree, &cfg));
+            .is_equivalent(structure_tree, &cfg)
+        {
+            dump_template_structure_tree(structure_tree, &*cfg);
+            panic!("Non-equivalent StructureTree");
+        }
     }
 
     #[test]
@@ -654,9 +407,10 @@ mod tests {
                     immediate_dominator: None,
                 }],
                 entry_block: label1,
-                structure_tree: CFGTemplateStructureTree(&[CFGTemplateStructureTreeNode::Node {
-                    label: label1,
-                }]),
+                structure_tree: TemplateStructureTree(TemplateStructureTreeNode {
+                    kind: structure_tree::NodeKind::Root,
+                    children: &[TemplateStructureTreeChild::BasicBlock(label1)],
+                }),
             },
         );
     }
@@ -684,9 +438,10 @@ mod tests {
                     immediate_dominator: None,
                 }],
                 entry_block: label1,
-                structure_tree: CFGTemplateStructureTree(&[CFGTemplateStructureTreeNode::Node {
-                    label: label1,
-                }]),
+                structure_tree: TemplateStructureTree(TemplateStructureTreeNode {
+                    kind: structure_tree::NodeKind::Root,
+                    children: &[TemplateStructureTreeChild::BasicBlock(label1)],
+                }),
             },
         );
     }
@@ -728,10 +483,13 @@ mod tests {
                     },
                 ],
                 entry_block: label1,
-                structure_tree: CFGTemplateStructureTree(&[
-                    CFGTemplateStructureTreeNode::Node { label: label1 },
-                    CFGTemplateStructureTreeNode::Node { label: label2 },
-                ]),
+                structure_tree: TemplateStructureTree(TemplateStructureTreeNode {
+                    kind: structure_tree::NodeKind::Root,
+                    children: &[
+                        TemplateStructureTreeChild::BasicBlock(label1),
+                        TemplateStructureTreeChild::BasicBlock(label2),
+                    ],
+                }),
             },
         );
     }
@@ -780,10 +538,16 @@ mod tests {
                     },
                 ],
                 entry_block: label_start,
-                structure_tree: CFGTemplateStructureTree(&[
-                    CFGTemplateStructureTreeNode::Node { label: label_start },
-                    CFGTemplateStructureTreeNode::Node { label: label_endif },
-                ]),
+                structure_tree: TemplateStructureTree(TemplateStructureTreeNode {
+                    kind: structure_tree::NodeKind::Root,
+                    children: &[
+                        TemplateStructureTreeChild::Node(TemplateStructureTreeNode {
+                            kind: structure_tree::NodeKind::Selection,
+                            children: &[TemplateStructureTreeChild::BasicBlock(label_start)],
+                        }),
+                        TemplateStructureTreeChild::BasicBlock(label_endif),
+                    ],
+                }),
             },
         );
     }
@@ -845,11 +609,19 @@ mod tests {
                     },
                 ],
                 entry_block: label_start,
-                structure_tree: CFGTemplateStructureTree(&[
-                    CFGTemplateStructureTreeNode::Node { label: label_start },
-                    CFGTemplateStructureTreeNode::Node { label: label_then },
-                    CFGTemplateStructureTreeNode::Node { label: label_endif },
-                ]),
+                structure_tree: TemplateStructureTree(TemplateStructureTreeNode {
+                    kind: structure_tree::NodeKind::Root,
+                    children: &[
+                        TemplateStructureTreeChild::Node(TemplateStructureTreeNode {
+                            kind: structure_tree::NodeKind::Selection,
+                            children: &[
+                                TemplateStructureTreeChild::BasicBlock(label_start),
+                                TemplateStructureTreeChild::BasicBlock(label_then),
+                            ],
+                        }),
+                        TemplateStructureTreeChild::BasicBlock(label_endif),
+                    ],
+                }),
             },
         );
     }
@@ -922,12 +694,103 @@ mod tests {
                     },
                 ],
                 entry_block: label_start,
-                structure_tree: CFGTemplateStructureTree(&[
-                    CFGTemplateStructureTreeNode::Node { label: label_start },
-                    CFGTemplateStructureTreeNode::Node { label: label_then },
-                    CFGTemplateStructureTreeNode::Node { label: label_else },
-                    CFGTemplateStructureTreeNode::Node { label: label_endif },
-                ]),
+                structure_tree: TemplateStructureTree(TemplateStructureTreeNode {
+                    kind: structure_tree::NodeKind::Root,
+                    children: &[
+                        TemplateStructureTreeChild::Node(TemplateStructureTreeNode {
+                            kind: structure_tree::NodeKind::Selection,
+                            children: &[
+                                TemplateStructureTreeChild::BasicBlock(label_start),
+                                TemplateStructureTreeChild::BasicBlock(label_then),
+                                TemplateStructureTreeChild::BasicBlock(label_else),
+                            ],
+                        }),
+                        TemplateStructureTreeChild::BasicBlock(label_endif),
+                    ],
+                }),
+            },
+        );
+    }
+
+    #[test]
+    fn test_cfg_conditional_return_return() {
+        let mut id_factory = IdFactory::new();
+        let mut instructions = Vec::new();
+
+        let label_start = id_factory.next();
+        let label_then = id_factory.next();
+        let label_else = id_factory.next();
+        let label_endif = id_factory.next();
+
+        instructions.push(Instruction::NoLine);
+        instructions.push(Instruction::Label {
+            id_result: IdResult(label_start),
+        });
+        instructions.push(Instruction::SelectionMerge {
+            merge_block: label_endif,
+            selection_control: spirv_parser::SelectionControl::default(),
+        });
+        instructions.push(Instruction::BranchConditional {
+            condition: id_factory.next(),
+            true_label: label_then,
+            false_label: label_else,
+            branch_weights: vec![],
+        });
+
+        instructions.push(Instruction::Label {
+            id_result: IdResult(label_then),
+        });
+        instructions.push(Instruction::Return);
+
+        instructions.push(Instruction::Label {
+            id_result: IdResult(label_else),
+        });
+        instructions.push(Instruction::Return);
+
+        instructions.push(Instruction::Label {
+            id_result: IdResult(label_endif),
+        });
+        instructions.push(Instruction::Return);
+
+        test_cfg(
+            &instructions,
+            &CFGTemplate {
+                blocks: &[
+                    CFGTemplateBlock {
+                        label: label_start,
+                        successors: &[label_then, label_else],
+                        immediate_dominator: None,
+                    },
+                    CFGTemplateBlock {
+                        label: label_then,
+                        successors: &[],
+                        immediate_dominator: Some(label_start),
+                    },
+                    CFGTemplateBlock {
+                        label: label_else,
+                        successors: &[],
+                        immediate_dominator: Some(label_start),
+                    },
+                    CFGTemplateBlock {
+                        label: label_endif,
+                        successors: &[],
+                        immediate_dominator: None,
+                    },
+                ],
+                entry_block: label_start,
+                structure_tree: TemplateStructureTree(TemplateStructureTreeNode {
+                    kind: structure_tree::NodeKind::Root,
+                    children: &[TemplateStructureTreeChild::Node(
+                        TemplateStructureTreeNode {
+                            kind: structure_tree::NodeKind::Selection,
+                            children: &[
+                                TemplateStructureTreeChild::BasicBlock(label_start),
+                                TemplateStructureTreeChild::BasicBlock(label_then),
+                                TemplateStructureTreeChild::BasicBlock(label_else),
+                            ],
+                        },
+                    )],
+                }),
             },
         );
     }
@@ -988,13 +851,24 @@ mod tests {
                     },
                 ],
                 entry_block: label_start,
-                structure_tree: CFGTemplateStructureTree(&[
-                    CFGTemplateStructureTreeNode::Node { label: label_start },
-                    CFGTemplateStructureTreeNode::Node {
-                        label: label_default,
-                    },
-                    CFGTemplateStructureTreeNode::Node { label: label_merge },
-                ]),
+                structure_tree: TemplateStructureTree(TemplateStructureTreeNode {
+                    kind: structure_tree::NodeKind::Root,
+                    children: &[
+                        TemplateStructureTreeChild::Node(TemplateStructureTreeNode {
+                            kind: structure_tree::NodeKind::Selection,
+                            children: &[
+                                TemplateStructureTreeChild::BasicBlock(label_start),
+                                TemplateStructureTreeChild::Node(TemplateStructureTreeNode {
+                                    kind: structure_tree::NodeKind::Case,
+                                    children: &[TemplateStructureTreeChild::BasicBlock(
+                                        label_default,
+                                    )],
+                                }),
+                            ],
+                        }),
+                        TemplateStructureTreeChild::BasicBlock(label_merge),
+                    ],
+                }),
             },
         );
     }
@@ -1066,14 +940,30 @@ mod tests {
                     },
                 ],
                 entry_block: label_start,
-                structure_tree: CFGTemplateStructureTree(&[
-                    CFGTemplateStructureTreeNode::Node { label: label_start },
-                    CFGTemplateStructureTreeNode::Node {
-                        label: label_default,
-                    },
-                    CFGTemplateStructureTreeNode::Node { label: label_merge },
-                    CFGTemplateStructureTreeNode::Node { label: label_case1 },
-                ]),
+                structure_tree: TemplateStructureTree(TemplateStructureTreeNode {
+                    kind: structure_tree::NodeKind::Root,
+                    children: &[
+                        TemplateStructureTreeChild::Node(TemplateStructureTreeNode {
+                            kind: structure_tree::NodeKind::Selection,
+                            children: &[
+                                TemplateStructureTreeChild::BasicBlock(label_start),
+                                TemplateStructureTreeChild::Node(TemplateStructureTreeNode {
+                                    kind: structure_tree::NodeKind::Case,
+                                    children: &[TemplateStructureTreeChild::BasicBlock(
+                                        label_case1,
+                                    )],
+                                }),
+                                TemplateStructureTreeChild::Node(TemplateStructureTreeNode {
+                                    kind: structure_tree::NodeKind::Case,
+                                    children: &[TemplateStructureTreeChild::BasicBlock(
+                                        label_default,
+                                    )],
+                                }),
+                            ],
+                        }),
+                        TemplateStructureTreeChild::BasicBlock(label_merge),
+                    ],
+                }),
             },
         );
     }
@@ -1147,14 +1037,30 @@ mod tests {
                     },
                 ],
                 entry_block: label_start,
-                structure_tree: CFGTemplateStructureTree(&[
-                    CFGTemplateStructureTreeNode::Node { label: label_start },
-                    CFGTemplateStructureTreeNode::Node { label: label_case1 },
-                    CFGTemplateStructureTreeNode::Node {
-                        label: label_default,
-                    },
-                    CFGTemplateStructureTreeNode::Node { label: label_merge },
-                ]),
+                structure_tree: TemplateStructureTree(TemplateStructureTreeNode {
+                    kind: structure_tree::NodeKind::Root,
+                    children: &[
+                        TemplateStructureTreeChild::Node(TemplateStructureTreeNode {
+                            kind: structure_tree::NodeKind::Selection,
+                            children: &[
+                                TemplateStructureTreeChild::BasicBlock(label_start),
+                                TemplateStructureTreeChild::Node(TemplateStructureTreeNode {
+                                    kind: structure_tree::NodeKind::Case,
+                                    children: &[TemplateStructureTreeChild::BasicBlock(
+                                        label_case1,
+                                    )],
+                                }),
+                                TemplateStructureTreeChild::Node(TemplateStructureTreeNode {
+                                    kind: structure_tree::NodeKind::Case,
+                                    children: &[TemplateStructureTreeChild::BasicBlock(
+                                        label_default,
+                                    )],
+                                }),
+                            ],
+                        }),
+                        TemplateStructureTreeChild::BasicBlock(label_merge),
+                    ],
+                }),
             },
         );
     }
@@ -1241,15 +1147,36 @@ mod tests {
                     },
                 ],
                 entry_block: label_start,
-                structure_tree: CFGTemplateStructureTree(&[
-                    CFGTemplateStructureTreeNode::Node { label: label_start },
-                    CFGTemplateStructureTreeNode::Node { label: label_case1 },
-                    CFGTemplateStructureTreeNode::Node {
-                        label: label_default,
-                    },
-                    CFGTemplateStructureTreeNode::Node { label: label_case2 },
-                    CFGTemplateStructureTreeNode::Node { label: label_merge },
-                ]),
+                structure_tree: TemplateStructureTree(TemplateStructureTreeNode {
+                    kind: structure_tree::NodeKind::Root,
+                    children: &[
+                        TemplateStructureTreeChild::Node(TemplateStructureTreeNode {
+                            kind: structure_tree::NodeKind::Selection,
+                            children: &[
+                                TemplateStructureTreeChild::BasicBlock(label_start),
+                                TemplateStructureTreeChild::Node(TemplateStructureTreeNode {
+                                    kind: structure_tree::NodeKind::Case,
+                                    children: &[TemplateStructureTreeChild::BasicBlock(
+                                        label_case1,
+                                    )],
+                                }),
+                                TemplateStructureTreeChild::Node(TemplateStructureTreeNode {
+                                    kind: structure_tree::NodeKind::Case,
+                                    children: &[TemplateStructureTreeChild::BasicBlock(
+                                        label_default,
+                                    )],
+                                }),
+                                TemplateStructureTreeChild::Node(TemplateStructureTreeNode {
+                                    kind: structure_tree::NodeKind::Case,
+                                    children: &[TemplateStructureTreeChild::BasicBlock(
+                                        label_case2,
+                                    )],
+                                }),
+                            ],
+                        }),
+                        TemplateStructureTreeChild::BasicBlock(label_merge),
+                    ],
+                }),
             },
         );
     }
@@ -1336,15 +1263,36 @@ mod tests {
                     },
                 ],
                 entry_block: label_start,
-                structure_tree: CFGTemplateStructureTree(&[
-                    CFGTemplateStructureTreeNode::Node { label: label_start },
-                    CFGTemplateStructureTreeNode::Node {
-                        label: label_default,
-                    },
-                    CFGTemplateStructureTreeNode::Node { label: label_case1 },
-                    CFGTemplateStructureTreeNode::Node { label: label_case2 },
-                    CFGTemplateStructureTreeNode::Node { label: label_merge },
-                ]),
+                structure_tree: TemplateStructureTree(TemplateStructureTreeNode {
+                    kind: structure_tree::NodeKind::Root,
+                    children: &[
+                        TemplateStructureTreeChild::Node(TemplateStructureTreeNode {
+                            kind: structure_tree::NodeKind::Selection,
+                            children: &[
+                                TemplateStructureTreeChild::BasicBlock(label_start),
+                                TemplateStructureTreeChild::Node(TemplateStructureTreeNode {
+                                    kind: structure_tree::NodeKind::Case,
+                                    children: &[TemplateStructureTreeChild::BasicBlock(
+                                        label_case1,
+                                    )],
+                                }),
+                                TemplateStructureTreeChild::Node(TemplateStructureTreeNode {
+                                    kind: structure_tree::NodeKind::Case,
+                                    children: &[TemplateStructureTreeChild::BasicBlock(
+                                        label_default,
+                                    )],
+                                }),
+                                TemplateStructureTreeChild::Node(TemplateStructureTreeNode {
+                                    kind: structure_tree::NodeKind::Case,
+                                    children: &[TemplateStructureTreeChild::BasicBlock(
+                                        label_case2,
+                                    )],
+                                }),
+                            ],
+                        }),
+                        TemplateStructureTreeChild::BasicBlock(label_merge),
+                    ],
+                }),
             },
         );
     }
@@ -1431,15 +1379,36 @@ mod tests {
                     },
                 ],
                 entry_block: label_start,
-                structure_tree: CFGTemplateStructureTree(&[
-                    CFGTemplateStructureTreeNode::Node { label: label_start },
-                    CFGTemplateStructureTreeNode::Node {
-                        label: label_default,
-                    },
-                    CFGTemplateStructureTreeNode::Node { label: label_case1 },
-                    CFGTemplateStructureTreeNode::Node { label: label_case2 },
-                    CFGTemplateStructureTreeNode::Node { label: label_merge },
-                ]),
+                structure_tree: TemplateStructureTree(TemplateStructureTreeNode {
+                    kind: structure_tree::NodeKind::Root,
+                    children: &[
+                        TemplateStructureTreeChild::Node(TemplateStructureTreeNode {
+                            kind: structure_tree::NodeKind::Selection,
+                            children: &[
+                                TemplateStructureTreeChild::BasicBlock(label_start),
+                                TemplateStructureTreeChild::Node(TemplateStructureTreeNode {
+                                    kind: structure_tree::NodeKind::Case,
+                                    children: &[TemplateStructureTreeChild::BasicBlock(
+                                        label_case1,
+                                    )],
+                                }),
+                                TemplateStructureTreeChild::Node(TemplateStructureTreeNode {
+                                    kind: structure_tree::NodeKind::Case,
+                                    children: &[TemplateStructureTreeChild::BasicBlock(
+                                        label_default,
+                                    )],
+                                }),
+                                TemplateStructureTreeChild::Node(TemplateStructureTreeNode {
+                                    kind: structure_tree::NodeKind::Case,
+                                    children: &[TemplateStructureTreeChild::BasicBlock(
+                                        label_case2,
+                                    )],
+                                }),
+                            ],
+                        }),
+                        TemplateStructureTreeChild::BasicBlock(label_merge),
+                    ],
+                }),
             },
         );
     }
@@ -1507,15 +1476,17 @@ mod tests {
                     },
                 ],
                 entry_block: label_start,
-                structure_tree: CFGTemplateStructureTree(&[
-                    CFGTemplateStructureTreeNode::Node { label: label_start },
-                    CFGTemplateStructureTreeNode::Loop {
-                        children: CFGTemplateStructureTree(&[CFGTemplateStructureTreeNode::Node {
-                            label: label_header,
-                        }]),
-                    },
-                    CFGTemplateStructureTreeNode::Node { label: label_merge },
-                ]),
+                structure_tree: TemplateStructureTree(TemplateStructureTreeNode {
+                    kind: structure_tree::NodeKind::Root,
+                    children: &[
+                        TemplateStructureTreeChild::BasicBlock(label_start),
+                        TemplateStructureTreeChild::Node(TemplateStructureTreeNode {
+                            kind: structure_tree::NodeKind::Loop,
+                            children: &[TemplateStructureTreeChild::BasicBlock(label_header)],
+                        }),
+                        TemplateStructureTreeChild::BasicBlock(label_merge),
+                    ],
+                }),
             },
         );
     }
@@ -1595,18 +1566,20 @@ mod tests {
                     },
                 ],
                 entry_block: label_start,
-                structure_tree: CFGTemplateStructureTree(&[
-                    CFGTemplateStructureTreeNode::Node { label: label_start },
-                    CFGTemplateStructureTreeNode::Loop {
-                        children: CFGTemplateStructureTree(&[
-                            CFGTemplateStructureTreeNode::Node {
-                                label: label_header,
-                            },
-                            CFGTemplateStructureTreeNode::Node { label: label_body },
-                        ]),
-                    },
-                    CFGTemplateStructureTreeNode::Node { label: label_merge },
-                ]),
+                structure_tree: TemplateStructureTree(TemplateStructureTreeNode {
+                    kind: structure_tree::NodeKind::Root,
+                    children: &[
+                        TemplateStructureTreeChild::BasicBlock(label_start),
+                        TemplateStructureTreeChild::Node(TemplateStructureTreeNode {
+                            kind: structure_tree::NodeKind::Loop,
+                            children: &[
+                                TemplateStructureTreeChild::BasicBlock(label_header),
+                                TemplateStructureTreeChild::BasicBlock(label_body),
+                            ],
+                        }),
+                        TemplateStructureTreeChild::BasicBlock(label_merge),
+                    ],
+                }),
             },
         );
     }
@@ -1683,17 +1656,19 @@ mod tests {
                     },
                 ],
                 entry_block: label_start,
-                structure_tree: CFGTemplateStructureTree(&[
-                    CFGTemplateStructureTreeNode::Node { label: label_start },
-                    CFGTemplateStructureTreeNode::Loop {
-                        children: CFGTemplateStructureTree(&[
-                            CFGTemplateStructureTreeNode::Node {
-                                label: label_header,
-                            },
-                            CFGTemplateStructureTreeNode::Node { label: label_body },
-                        ]),
-                    },
-                ]),
+                structure_tree: TemplateStructureTree(TemplateStructureTreeNode {
+                    kind: structure_tree::NodeKind::Root,
+                    children: &[
+                        TemplateStructureTreeChild::BasicBlock(label_start),
+                        TemplateStructureTreeChild::Node(TemplateStructureTreeNode {
+                            kind: structure_tree::NodeKind::Loop,
+                            children: &[
+                                TemplateStructureTreeChild::BasicBlock(label_header),
+                                TemplateStructureTreeChild::BasicBlock(label_body),
+                            ],
+                        }),
+                    ],
+                }),
             },
         );
     }

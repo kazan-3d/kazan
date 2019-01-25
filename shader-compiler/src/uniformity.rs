@@ -3974,7 +3974,8 @@ impl<'a, 'ctx, C: shader_compiler_backend::Context<'ctx>> ValueUniformityCalcula
                 IdKind::Value(..) => {}
             }
         }
-        let basic_blocks: Vec<_> = self.cfg.structure_tree().basic_blocks_in_order().collect();
+        let basic_blocks: Vec<CFGNodeIndex> =
+            unimplemented!("self.cfg.structure_tree().basic_blocks_in_order().collect()");
         loop {
             self.any_changes = false;
             for &basic_block in basic_blocks.iter() {
