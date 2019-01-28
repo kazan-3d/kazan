@@ -332,17 +332,25 @@ impl Parser<'_> {
             self.parse_child(basic_block, Cow::Borrowed(exit_targets));
         let mut children = vec![child];
         let mut final_targets = HashSet::new();
-        let mut targets_iter = targets.into_iter();
-        while let Some(target) = targets_iter.next() {
-            if exit_targets.contains(&target) {
-                final_targets.insert(target);
-                continue;
-            }
+        let mut get_target = |targets: HashSet<CFGNodeIndex>| -> Option<CFGNodeIndex> {
+            let mut targets_iter = targets.into_iter().filter_map(|target| {
+                if exit_targets.contains(&target) {
+                    final_targets.insert(target);
+                    None
+                } else {
+                    Some(target)
+                }
+            });
+            let retval = targets_iter.next()?;
             assert_eq!(targets_iter.next(), None);
+            Some(retval)
+        };
+        let mut next_target = get_target(targets);
+        while let Some(target) = next_target {
             let ParseChildResult { child, targets } =
                 self.parse_child(target, Cow::Borrowed(exit_targets));
             children.push(child);
-            targets_iter = targets.into_iter();
+            next_target = get_target(targets);
         }
         ParseChildrenResult {
             children,
