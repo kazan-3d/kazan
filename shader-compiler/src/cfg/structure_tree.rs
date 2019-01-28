@@ -249,6 +249,9 @@ impl StructureTree {
             graph,
         }
     }
+    pub fn basic_blocks_in_order(&self) -> BasicBlocksInOrderIter {
+        BasicBlocksInOrderIter(vec![self.root().children().iter()])
+    }
     pub(super) fn parse(
         graph: &CFGGraph,
         label_to_node_index_map: &HashMap<IdRef, CFGNodeIndex>,
@@ -564,5 +567,28 @@ impl Parser<'_> {
             }
             _ => unreachable!(),
         }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct BasicBlocksInOrderIter<'a>(Vec<std::slice::Iter<'a, Child>>);
+
+impl Iterator for BasicBlocksInOrderIter<'_> {
+    type Item = CFGNodeIndex;
+    fn next(&mut self) -> Option<CFGNodeIndex> {
+        while let Some(mut iter) = self.0.pop() {
+            match iter.next() {
+                Some(&Child::BasicBlock(basic_block)) => {
+                    self.0.push(iter);
+                    return Some(basic_block);
+                }
+                Some(Child::Node(node)) => {
+                    self.0.push(iter);
+                    self.0.push(node.children().iter());
+                }
+                None => {}
+            }
+        }
+        None
     }
 }

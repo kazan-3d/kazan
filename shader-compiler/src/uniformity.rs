@@ -3975,7 +3975,7 @@ impl<'a, 'ctx, C: shader_compiler_backend::Context<'ctx>> ValueUniformityCalcula
             }
         }
         let basic_blocks: Vec<CFGNodeIndex> =
-            unimplemented!("self.cfg.structure_tree().basic_blocks_in_order().collect()");
+            self.cfg.structure_tree().basic_blocks_in_order().collect();
         loop {
             self.any_changes = false;
             for &basic_block in basic_blocks.iter() {
