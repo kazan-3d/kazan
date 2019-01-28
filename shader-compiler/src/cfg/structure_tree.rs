@@ -26,6 +26,7 @@ pub struct Node {
     kind: NodeKind,
     parent: RefCell<Weak<Node>>,
     children: Vec<Child>,
+    nesting_depth: usize,
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -60,7 +61,11 @@ pub struct NodeDisplay<'a> {
 
 impl fmt::Display for NodeDisplay<'_> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        writeln!(f, "{}{:?}", self.indent, self.node.kind)?;
+        writeln!(
+            f,
+            "{}{:?} depth={}",
+            self.indent, self.node.kind, self.node.nesting_depth
+        )?;
         for child in self.node.children.iter() {
             fmt::Display::fmt(
                 &child.display_with_indent(self.graph, self.indent.make_more()),
@@ -76,6 +81,7 @@ impl fmt::Debug for NodeDisplay<'_> {
         f.debug_struct("Node")
             .field("kind", &self.node.kind)
             .field("parent", &self.node.parent)
+            .field("nesting_depth", &self.node.nesting_depth)
             .field(
                 "children",
                 &ChildrenDisplay {
@@ -96,6 +102,9 @@ impl Node {
     }
     pub fn children(&self) -> &Vec<Child> {
         &self.children
+    }
+    pub fn nesting_depth(&self) -> usize {
+        self.nesting_depth
     }
     pub fn display<'a>(&'a self, graph: &'a CFGGraph) -> NodeDisplay<'a> {
         self.display_with_indent(graph, Indent::default())
@@ -262,9 +271,9 @@ impl StructureTree {
             label_to_node_index_map,
         };
         let ParseChildrenResult { children, targets } =
-            parser.parse_children(root, Cow::Owned(HashSet::new()));
+            parser.parse_children(root, Cow::Owned(HashSet::new()), 1);
         assert!(targets.is_empty());
-        StructureTree(parser.new_node(NodeKind::Root, children))
+        StructureTree(parser.new_node(NodeKind::Root, children, 0))
     }
 }
 
@@ -303,15 +312,22 @@ impl ChildrenAccumulator {
 }
 
 impl Parser<'_> {
-    fn new_node(&self, kind: NodeKind, children: Vec<Child>) -> Rc<Node> {
+    fn new_node(&self, kind: NodeKind, children: Vec<Child>, nesting_depth: usize) -> Rc<Node> {
         let retval = Rc::new(Node {
             kind,
             parent: RefCell::default(),
             children,
+            nesting_depth,
         });
+        if kind == NodeKind::Root {
+            assert_eq!(nesting_depth, 0);
+        }
         for child in &retval.children {
             match child {
-                Child::Node(node) => node.set_parent(&retval),
+                Child::Node(node) => {
+                    assert_eq!(node.nesting_depth(), nesting_depth + 1);
+                    node.set_parent(&retval);
+                }
                 Child::BasicBlock(basic_block) => {
                     self.graph[*basic_block].set_parent_structure_tree_node(&retval);
                 }
@@ -323,6 +339,7 @@ impl Parser<'_> {
         &self,
         basic_block: CFGNodeIndex,
         exit_targets: Cow<HashSet<CFGNodeIndex>>,
+        nesting_depth: usize,
     ) -> ParseChildrenResult {
         let exit_targets = &*exit_targets;
         if exit_targets.contains(&basic_block) {
@@ -332,7 +349,7 @@ impl Parser<'_> {
             };
         }
         let ParseChildResult { child, targets } =
-            self.parse_child(basic_block, Cow::Borrowed(exit_targets));
+            self.parse_child(basic_block, Cow::Borrowed(exit_targets), nesting_depth);
         let mut children = vec![child];
         let mut final_targets = HashSet::new();
         let mut get_target = |targets: HashSet<CFGNodeIndex>| -> Option<CFGNodeIndex> {
@@ -351,7 +368,7 @@ impl Parser<'_> {
         let mut next_target = get_target(targets);
         while let Some(target) = next_target {
             let ParseChildResult { child, targets } =
-                self.parse_child(target, Cow::Borrowed(exit_targets));
+                self.parse_child(target, Cow::Borrowed(exit_targets), nesting_depth);
             children.push(child);
             next_target = get_target(targets);
         }
@@ -367,6 +384,7 @@ impl Parser<'_> {
         merge_block: CFGNodeIndex,
         default: CFGNodeIndex,
         targets: Vec<CFGNodeIndex>,
+        nesting_depth: usize,
     ) -> ParseChildResult {
         let mut exit_targets = exit_targets.into_owned();
         exit_targets.insert(merge_block);
@@ -375,13 +393,15 @@ impl Parser<'_> {
         let ParseChildrenResult {
             children: default_case_children,
             targets: default_case_targets,
-        } = self.parse_children(default, Cow::Owned(default_exit_targets));
+        } = self.parse_children(default, Cow::Owned(default_exit_targets), nesting_depth + 2);
         let mut default_case_node = if default_case_children.is_empty() {
             None
         } else {
-            Some(Child::Node(
-                self.new_node(NodeKind::Case, default_case_children),
-            ))
+            Some(Child::Node(self.new_node(
+                NodeKind::Case,
+                default_case_children,
+                nesting_depth + 1,
+            )))
         };
         let mut switch_children = vec![Child::BasicBlock(basic_block)];
         let mut returned_targets: HashSet<_> = default_case_targets
@@ -415,9 +435,13 @@ impl Parser<'_> {
                 case_exit_targets.insert(default);
             }
             let ParseChildrenResult { children, targets } =
-                self.parse_children(target, Cow::Owned(case_exit_targets));
+                self.parse_children(target, Cow::Owned(case_exit_targets), nesting_depth + 2);
             if !children.is_empty() {
-                switch_children.push(Child::Node(self.new_node(NodeKind::Case, children)));
+                switch_children.push(Child::Node(self.new_node(
+                    NodeKind::Case,
+                    children,
+                    nesting_depth + 1,
+                )));
             }
             if targets.contains(&default) && !exit_targets.contains(&default) {
                 // this case falls through to default
@@ -431,7 +455,7 @@ impl Parser<'_> {
             switch_children.push(default_case_node);
         }
         ParseChildResult {
-            child: Child::Node(self.new_node(NodeKind::Selection, switch_children)),
+            child: Child::Node(self.new_node(NodeKind::Selection, switch_children, nesting_depth)),
             targets: returned_targets,
         }
     }
@@ -439,6 +463,7 @@ impl Parser<'_> {
         &self,
         basic_block: CFGNodeIndex,
         exit_targets: Cow<HashSet<CFGNodeIndex>>,
+        nesting_depth: usize,
     ) -> ParseChildResult {
         match self.graph[basic_block].instructions().merge_instruction() {
             None => {
@@ -469,9 +494,11 @@ impl Parser<'_> {
                 body_exit_targets.insert(continue_target);
                 let mut children = ChildrenAccumulator::new(vec![Child::BasicBlock(basic_block)]);
                 for successor in self.graph.neighbors_directed(basic_block, Outgoing) {
-                    children.accumulate(
-                        self.parse_children(successor, Cow::Borrowed(&body_exit_targets)),
-                    );
+                    children.accumulate(self.parse_children(
+                        successor,
+                        Cow::Borrowed(&body_exit_targets),
+                        nesting_depth + 1,
+                    ));
                 }
                 let ChildrenAccumulator {
                     mut children,
@@ -483,17 +510,23 @@ impl Parser<'_> {
                     let ParseChildrenResult {
                         children: continue_children,
                         targets: mut continue_targets,
-                    } = self.parse_children(continue_target, Cow::Owned(continue_exit_targets));
+                    } = self.parse_children(
+                        continue_target,
+                        Cow::Owned(continue_exit_targets),
+                        nesting_depth + 2,
+                    );
                     if !continue_children.is_empty() {
-                        children.push(Child::Node(
-                            self.new_node(NodeKind::Continue, continue_children),
-                        ));
+                        children.push(Child::Node(self.new_node(
+                            NodeKind::Continue,
+                            continue_children,
+                            nesting_depth + 1,
+                        )));
                     }
                     continue_targets.remove(&basic_block);
                     targets.extend(continue_targets);
                 }
                 ParseChildResult {
-                    child: Child::Node(self.new_node(NodeKind::Loop, children)),
+                    child: Child::Node(self.new_node(NodeKind::Loop, children, nesting_depth)),
                     targets,
                 }
             }
@@ -516,6 +549,7 @@ impl Parser<'_> {
                             .iter()
                             .map(|&(_, v)| self.label_to_node_index_map[&v])
                             .collect(),
+                        nesting_depth,
                     ),
                     Instruction::Switch64 {
                         default,
@@ -530,6 +564,7 @@ impl Parser<'_> {
                             .iter()
                             .map(|&(_, v)| self.label_to_node_index_map[&v])
                             .collect(),
+                        nesting_depth,
                     ),
                     Instruction::BranchConditional {
                         true_label,
@@ -543,14 +578,20 @@ impl Parser<'_> {
                         children.accumulate(self.parse_children(
                             self.label_to_node_index_map[&true_label],
                             Cow::Borrowed(&children_exit_targets),
+                            nesting_depth + 1,
                         ));
                         children.accumulate(self.parse_children(
                             self.label_to_node_index_map[&false_label],
                             Cow::Owned(children_exit_targets),
+                            nesting_depth + 1,
                         ));
                         let ChildrenAccumulator { children, targets } = children;
                         ParseChildResult {
-                            child: Child::Node(self.new_node(NodeKind::Selection, children)),
+                            child: Child::Node(self.new_node(
+                                NodeKind::Selection,
+                                children,
+                                nesting_depth,
+                            )),
                             targets,
                         }
                     }
