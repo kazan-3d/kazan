@@ -6,3 +6,5 @@
 /TestResults.qpa
 /.vscode
 /external/llvm-7
+/.idea
+/kazan.iml
