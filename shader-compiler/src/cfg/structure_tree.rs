@@ -1,16 +1,168 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 // See Notices.txt for copyright information
 
-use super::{CFGGraph, CFGNodeIndex};
+use super::{CFGEdgeIndex, CFGGraph, CFGNodeIndex};
+use crate::debug_display::{DisplaySetWithCFG, DisplayWithCFG, HandleIsDebugWrapper, Indent};
 use crate::instruction_properties::InstructionProperties;
 use petgraph::prelude::*;
 use spirv_parser::{IdRef, Instruction};
-use std::borrow::Cow;
+use std::borrow::{Borrow, BorrowMut};
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::fmt;
 use std::iter;
 use std::rc::{Rc, Weak};
+
+#[derive(Clone, Debug)]
+pub struct NodeControlProperties {
+    exit_targets: HashMap<CFGNodeIndex, Vec<CFGEdgeIndex>>,
+    any_returns_or_kills: bool,
+}
+
+impl NodeControlProperties {
+    pub fn exit_edges(
+        &self,
+    ) -> impl Iterator<Item = CFGEdgeIndex> + iter::FusedIterator + fmt::Debug + Clone + '_ {
+        self.exit_targets
+            .iter()
+            .flat_map(|(_, edges)| edges)
+            .cloned()
+    }
+    pub fn exit_targets(&self) -> &HashMap<CFGNodeIndex, Vec<CFGEdgeIndex>> {
+        &self.exit_targets
+    }
+    pub fn any_returns_or_kills(&self) -> bool {
+        self.any_returns_or_kills
+    }
+    pub fn new() -> Self {
+        Self::default()
+    }
+    pub fn from_return_or_kill() -> Self {
+        Self {
+            exit_targets: HashMap::new(),
+            any_returns_or_kills: true,
+        }
+    }
+    pub fn from_exit_edge(exit_edge: CFGEdgeIndex, cfg: &CFGGraph) -> Self {
+        Self::from_exit_edges(iter::once(exit_edge), cfg)
+    }
+    pub fn from_exit_edges<I: IntoIterator>(exit_edges: I, cfg: &CFGGraph) -> Self
+    where
+        I::Item: Borrow<CFGEdgeIndex>,
+    {
+        let mut exit_targets: HashMap<_, Vec<_>> = HashMap::new();
+        for exit_edge in exit_edges {
+            let exit_edge = *exit_edge.borrow();
+            exit_targets
+                .entry(cfg.edge_endpoints(exit_edge).unwrap().1)
+                .or_default()
+                .push(exit_edge);
+        }
+        Self {
+            exit_targets,
+            any_returns_or_kills: false,
+        }
+    }
+    fn append_exit_target_and_edges_vec<T: BorrowMut<Vec<CFGEdgeIndex>>>(
+        &mut self,
+        exit_target: CFGNodeIndex,
+        mut exit_edges: T,
+    ) {
+        self.exit_targets
+            .entry(exit_target)
+            .or_default()
+            .append(exit_edges.borrow_mut());
+    }
+    fn append_exit_target_and_edge(&mut self, exit_target: CFGNodeIndex, exit_edge: CFGEdgeIndex) {
+        self.exit_targets
+            .entry(exit_target)
+            .or_default()
+            .push(exit_edge);
+    }
+    fn merge_assign(&mut self, rhs: Self) {
+        let Self {
+            exit_targets,
+            any_returns_or_kills,
+        } = rhs;
+        for (exit_target, exit_edges) in exit_targets.into_iter() {
+            self.append_exit_target_and_edges_vec(exit_target, exit_edges);
+        }
+        self.any_returns_or_kills |= any_returns_or_kills;
+    }
+    fn merge(mut self, rhs: Self) -> Self {
+        self.merge_assign(rhs);
+        self
+    }
+}
+
+impl Default for NodeControlProperties {
+    fn default() -> Self {
+        Self {
+            exit_targets: HashMap::new(),
+            any_returns_or_kills: false,
+        }
+    }
+}
+
+impl<'a> DisplayWithCFG<'a> for NodeControlProperties {
+    type DisplayType = HandleIsDebugWrapper<NodeControlPropertiesDisplay<'a>>;
+    fn display_with_cfg_and_indent_and_is_debug(
+        &'a self,
+        cfg: &'a CFGGraph,
+        indent: Indent,
+        is_debug: Option<bool>,
+    ) -> Self::DisplayType {
+        HandleIsDebugWrapper {
+            value: NodeControlPropertiesDisplay {
+                node_control_properties: self,
+                cfg,
+                indent,
+            },
+            is_debug,
+        }
+    }
+}
+
+pub struct NodeControlPropertiesDisplay<'a> {
+    node_control_properties: &'a NodeControlProperties,
+    cfg: &'a CFGGraph,
+    indent: Indent,
+}
+
+impl fmt::Display for NodeControlPropertiesDisplay<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        writeln!(f, "{}NodeControlProperties {{", self.indent)?;
+        let body_indent = self.indent.make_more();
+        writeln!(
+            f,
+            "{}exit_edges: {}",
+            body_indent,
+            DisplaySetWithCFG::new(self.node_control_properties.exit_edges(), self.cfg, None),
+        )?;
+        writeln!(
+            f,
+            "{}any_returns_or_kills: {},",
+            body_indent,
+            self.node_control_properties.any_returns_or_kills(),
+        )?;
+        writeln!(f, "{}}}", self.indent)
+    }
+}
+
+impl fmt::Debug for NodeControlPropertiesDisplay<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_struct("NodeControlProperties")
+            .field(
+                "exit_edges",
+                &DisplaySetWithCFG::new(self.node_control_properties.exit_edges(), self.cfg, None),
+            )
+            .field(
+                "any_returns_or_kills",
+                &self.node_control_properties.any_returns_or_kills(),
+            )
+            .finish()
+    }
+}
 
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
 pub enum NodeKind {
@@ -24,38 +176,77 @@ pub enum NodeKind {
 #[derive(Clone, Debug)]
 pub struct Node {
     kind: NodeKind,
-    parent: RefCell<Weak<Node>>,
+    parent_node_and_index: RefCell<WeakNodeAndIndex>,
     children: Vec<Child>,
     nesting_depth: usize,
+    first_basic_block: CFGNodeIndex,
+    root: RefCell<Weak<Node>>,
+    control_properties: NodeControlProperties,
 }
 
-#[derive(Copy, Clone, Debug)]
-struct Indent(usize);
-
-impl Indent {
-    fn make_more(self) -> Self {
-        Indent(self.0 + 1)
-    }
-}
-
-impl Default for Indent {
-    fn default() -> Self {
-        Indent(0)
-    }
-}
-
-impl fmt::Display for Indent {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        for _ in 0..self.0 {
-            write!(f, "    ")?;
+impl<'a> DisplayWithCFG<'a> for Node {
+    type DisplayType = HandleIsDebugWrapper<NodeDisplay<'a>>;
+    fn display_with_cfg_and_indent_and_is_debug(
+        &'a self,
+        cfg: &'a CFGGraph,
+        indent: Indent,
+        is_debug: Option<bool>,
+    ) -> Self::DisplayType {
+        HandleIsDebugWrapper {
+            value: NodeDisplay {
+                node: self,
+                cfg,
+                indent,
+            },
+            is_debug,
         }
-        Ok(())
     }
 }
+
+impl Node {
+    pub fn kind(&self) -> NodeKind {
+        self.kind
+    }
+    pub fn parent_node_and_index(&self) -> Option<NodeAndIndex> {
+        self.parent_node_and_index.borrow().upgrade()
+    }
+    pub fn children(&self) -> &Vec<Child> {
+        &self.children
+    }
+    pub fn nesting_depth(&self) -> usize {
+        self.nesting_depth
+    }
+    pub fn first_basic_block(&self) -> CFGNodeIndex {
+        self.first_basic_block
+    }
+    pub fn root(&self) -> Rc<Node> {
+        self.root.borrow().upgrade().expect("missing root node")
+    }
+    pub fn control_properties(&self) -> &NodeControlProperties {
+        &self.control_properties
+    }
+    fn set_parent_node_and_index(&self, new_parent_node_and_index: &NodeAndIndex) {
+        let mut parent_node_and_index = self.parent_node_and_index.borrow_mut();
+        assert!(parent_node_and_index.upgrade().is_none());
+        *parent_node_and_index = new_parent_node_and_index.into();
+    }
+}
+
+impl PartialEq for Node {
+    fn eq(&self, rhs: &Self) -> bool {
+        assert!(
+            Rc::ptr_eq(&self.root(), &rhs.root()),
+            "Nodes from different StructureTrees are not comparable"
+        );
+        self.first_basic_block == rhs.first_basic_block && self.nesting_depth == rhs.nesting_depth
+    }
+}
+
+impl Eq for Node {}
 
 pub struct NodeDisplay<'a> {
     node: &'a Node,
-    graph: &'a CFGGraph,
+    cfg: &'a CFGGraph,
     indent: Indent,
 }
 
@@ -66,9 +257,16 @@ impl fmt::Display for NodeDisplay<'_> {
             "{}{:?} depth={}",
             self.indent, self.node.kind, self.node.nesting_depth
         )?;
+        fmt::Display::fmt(
+            &self
+                .node
+                .control_properties
+                .display_with_cfg_and_indent(self.cfg, self.indent.make_more()),
+            f,
+        )?;
         for child in self.node.children.iter() {
             fmt::Display::fmt(
-                &child.display_with_indent(self.graph, self.indent.make_more()),
+                &child.display_with_cfg_and_indent(self.cfg, self.indent.make_more()),
                 f,
             )?;
         }
@@ -80,85 +278,71 @@ impl fmt::Debug for NodeDisplay<'_> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("Node")
             .field("kind", &self.node.kind)
-            .field("parent", &self.node.parent)
+            .field("parent_node_and_index", &self.node.parent_node_and_index)
             .field("nesting_depth", &self.node.nesting_depth)
             .field(
-                "children",
-                &ChildrenDisplay {
-                    children: &*self.node.children,
-                    graph: self.graph,
-                },
+                "control_properties",
+                &self.node.control_properties.display_with_cfg(self.cfg),
             )
+            .field("children", &self.node.children.display_with_cfg(self.cfg))
             .finish()
     }
 }
 
-impl Node {
-    pub fn kind(&self) -> NodeKind {
-        self.kind
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct NodeAndIndex {
+    pub node: Rc<Node>,
+    pub index: usize,
+}
+
+#[derive(Clone, Debug, Default)]
+pub struct WeakNodeAndIndex {
+    node: Weak<Node>,
+    index: usize,
+}
+
+impl WeakNodeAndIndex {
+    pub fn new() -> Self {
+        Self::default()
     }
-    pub fn parent(&self) -> Option<Rc<Node>> {
-        self.parent.borrow().upgrade()
-    }
-    pub fn children(&self) -> &Vec<Child> {
-        &self.children
-    }
-    pub fn nesting_depth(&self) -> usize {
-        self.nesting_depth
-    }
-    pub fn display<'a>(&'a self, graph: &'a CFGGraph) -> NodeDisplay<'a> {
-        self.display_with_indent(graph, Indent::default())
-    }
-    fn display_with_indent<'a>(&'a self, graph: &'a CFGGraph, indent: Indent) -> NodeDisplay<'a> {
-        NodeDisplay {
-            node: self,
-            graph,
-            indent,
-        }
-    }
-    fn set_parent(&self, new_parent: &Rc<Node>) {
-        let mut parent = self.parent.borrow_mut();
-        assert!(parent.upgrade().is_none());
-        *parent = Rc::downgrade(new_parent);
+    pub fn upgrade(&self) -> Option<NodeAndIndex> {
+        Some(NodeAndIndex {
+            node: self.node.upgrade()?,
+            index: self.index,
+        })
     }
 }
 
-#[derive(Clone, Debug)]
+impl From<&'_ NodeAndIndex> for WeakNodeAndIndex {
+    fn from(node_and_index: &NodeAndIndex) -> Self {
+        Self {
+            node: Rc::downgrade(&node_and_index.node),
+            index: node_and_index.index,
+        }
+    }
+}
+
+impl From<&'_ mut NodeAndIndex> for WeakNodeAndIndex {
+    fn from(node_and_index: &mut NodeAndIndex) -> Self {
+        Self::from(&*node_and_index)
+    }
+}
+
+impl From<NodeAndIndex> for WeakNodeAndIndex {
+    fn from(node_and_index: NodeAndIndex) -> Self {
+        Self::from(&node_and_index)
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Child {
     Node(Rc<Node>),
     BasicBlock(CFGNodeIndex),
 }
 
-struct BasicBlockDisplay<'a> {
-    node_index: CFGNodeIndex,
-    graph: &'a CFGGraph,
-}
-
-impl fmt::Display for BasicBlockDisplay<'_> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "{} ({})",
-            self.graph[self.node_index].label(),
-            self.node_index.index(),
-        )
-    }
-}
-
-impl fmt::Debug for BasicBlockDisplay<'_> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "CFGNodeIndex({}) {}",
-            self.node_index.index(),
-            self.graph[self.node_index].label()
-        )
-    }
-}
-
 pub struct ChildDisplay<'a> {
     child: &'a Child,
-    graph: &'a CFGGraph,
+    cfg: &'a CFGGraph,
     indent: Indent,
 }
 
@@ -166,16 +350,13 @@ impl fmt::Display for ChildDisplay<'_> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self.child {
             Child::Node(node) => {
-                fmt::Display::fmt(&node.display_with_indent(self.graph, self.indent), f)
+                fmt::Display::fmt(&node.display_with_cfg_and_indent(self.cfg, self.indent), f)
             }
             &Child::BasicBlock(node_index) => writeln!(
                 f,
                 "{}{}",
                 self.indent,
-                BasicBlockDisplay {
-                    node_index,
-                    graph: self.graph
-                }
+                node_index.display_with_cfg(self.cfg),
             ),
         }
     }
@@ -186,448 +367,599 @@ impl fmt::Debug for ChildDisplay<'_> {
         match self.child {
             Child::Node(node) => f
                 .debug_tuple("Node")
-                .field(&node.display(self.graph))
+                .field(&node.display_with_cfg(self.cfg))
                 .finish(),
             &Child::BasicBlock(node_index) => f
                 .debug_tuple("BasicBlock")
-                .field(&BasicBlockDisplay {
-                    node_index,
-                    graph: self.graph,
-                })
+                .field(&node_index.display_with_cfg(self.cfg))
                 .finish(),
         }
     }
 }
 
-impl Child {
-    pub fn display<'a>(&'a self, graph: &'a CFGGraph) -> ChildDisplay<'a> {
-        self.display_with_indent(graph, Indent::default())
-    }
-    fn display_with_indent<'a>(&'a self, graph: &'a CFGGraph, indent: Indent) -> ChildDisplay<'a> {
-        ChildDisplay {
-            child: self,
-            graph,
-            indent,
+impl<'a> DisplayWithCFG<'a> for Child {
+    type DisplayType = HandleIsDebugWrapper<ChildDisplay<'a>>;
+    fn display_with_cfg_and_indent_and_is_debug(
+        &'a self,
+        cfg: &'a CFGGraph,
+        indent: Indent,
+        is_debug: Option<bool>,
+    ) -> Self::DisplayType {
+        HandleIsDebugWrapper {
+            value: ChildDisplay {
+                child: self,
+                cfg,
+                indent,
+            },
+            is_debug,
         }
-    }
-}
-
-struct ChildrenDisplay<'a> {
-    children: &'a [Child],
-    graph: &'a CFGGraph,
-}
-
-impl fmt::Debug for ChildrenDisplay<'_> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.debug_list()
-            .entries(self.children.iter().map(|child| child.display(self.graph)))
-            .finish()
-    }
-}
-
-pub struct StructureTreeDisplay<'a> {
-    structure_tree: &'a StructureTree,
-    graph: &'a CFGGraph,
-}
-
-impl fmt::Display for StructureTreeDisplay<'_> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        fmt::Display::fmt(&self.structure_tree.root().display(self.graph), f)
-    }
-}
-
-impl fmt::Debug for StructureTreeDisplay<'_> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.debug_tuple("StructureTree")
-            .field(&self.structure_tree.root().display(self.graph))
-            .finish()
     }
 }
 
 #[derive(Clone, Debug)]
 pub struct StructureTree(Rc<Node>);
 
+impl<'a> DisplayWithCFG<'a> for StructureTree {
+    type DisplayType = <Node as DisplayWithCFG<'a>>::DisplayType;
+    fn display_with_cfg_and_indent_and_is_debug(
+        &'a self,
+        cfg: &'a CFGGraph,
+        indent: Indent,
+        is_debug: Option<bool>,
+    ) -> Self::DisplayType {
+        self.root()
+            .display_with_cfg_and_indent_and_is_debug(cfg, indent, is_debug)
+    }
+}
+
 impl StructureTree {
     pub fn root(&self) -> &Rc<Node> {
         &self.0
     }
-    #[allow(dead_code)]
-    pub fn display<'a>(&'a self, graph: &'a CFGGraph) -> StructureTreeDisplay<'a> {
-        StructureTreeDisplay {
-            structure_tree: self,
-            graph,
-        }
+    pub fn children_recursive(&self) -> ChildrenRecursiveIter {
+        ChildrenRecursiveIter(vec![self.root().children().iter()])
     }
     pub fn basic_blocks_in_order(&self) -> BasicBlocksInOrderIter {
-        BasicBlocksInOrderIter(vec![self.root().children().iter()])
+        BasicBlocksInOrderIter(self.children_recursive())
     }
     pub(super) fn parse(
-        graph: &CFGGraph,
+        graph: &mut CFGGraph,
         label_to_node_index_map: &HashMap<IdRef, CFGNodeIndex>,
         root: CFGNodeIndex,
     ) -> Self {
-        let parser = Parser {
+        let mut parser = Parser {
             graph,
             label_to_node_index_map,
         };
-        let ParseChildrenResult { children, targets } =
-            parser.parse_children(root, Cow::Owned(HashSet::new()), 1);
-        assert!(targets.is_empty());
-        StructureTree(parser.new_node(NodeKind::Root, children, 0))
+        let ParseChildrenResult {
+            children,
+            control_properties,
+        } = parser.parse_children(root, &[], &HashSet::new(), 1);
+        assert!(control_properties.exit_targets().is_empty());
+        let root = parser.new_node(NodeKind::Root, children, 0, control_properties);
+        StructureTree(root)
     }
 }
 
 #[derive(Debug)]
 struct Parser<'a> {
-    graph: &'a CFGGraph,
+    graph: &'a mut CFGGraph,
     label_to_node_index_map: &'a HashMap<IdRef, CFGNodeIndex>,
 }
 
 struct ParseChildResult {
     child: Child,
-    targets: HashSet<CFGNodeIndex>,
+    control_properties: NodeControlProperties,
 }
 
 struct ParseChildrenResult {
     children: Vec<Child>,
-    targets: HashSet<CFGNodeIndex>,
-}
-
-struct ChildrenAccumulator {
-    children: Vec<Child>,
-    targets: HashSet<CFGNodeIndex>,
-}
-
-impl ChildrenAccumulator {
-    fn new(children: Vec<Child>) -> Self {
-        Self {
-            children,
-            targets: HashSet::new(),
-        }
-    }
-    fn accumulate(&mut self, mut rhs: ParseChildrenResult) {
-        self.children.append(&mut rhs.children);
-        self.targets.extend(rhs.targets.into_iter());
-    }
+    control_properties: NodeControlProperties,
 }
 
 impl Parser<'_> {
-    fn new_node(&self, kind: NodeKind, children: Vec<Child>, nesting_depth: usize) -> Rc<Node> {
+    fn new_node(
+        &mut self,
+        kind: NodeKind,
+        children: Vec<Child>,
+        nesting_depth: usize,
+        control_properties: NodeControlProperties,
+    ) -> Rc<Node> {
+        let first_basic_block = match *children.first().expect("Node has no children") {
+            Child::Node(ref node) => node.first_basic_block,
+            Child::BasicBlock(basic_block) => basic_block,
+        };
         let retval = Rc::new(Node {
             kind,
-            parent: RefCell::default(),
+            parent_node_and_index: RefCell::default(),
             children,
             nesting_depth,
+            first_basic_block,
+            root: RefCell::default(),
+            control_properties,
         });
         if kind == NodeKind::Root {
             assert_eq!(nesting_depth, 0);
         }
-        for child in &retval.children {
+        for (index, child) in retval.children.iter().enumerate() {
             match child {
                 Child::Node(node) => {
                     assert_eq!(node.nesting_depth(), nesting_depth + 1);
-                    node.set_parent(&retval);
+                    node.set_parent_node_and_index(&NodeAndIndex {
+                        node: retval.clone(),
+                        index,
+                    });
                 }
                 Child::BasicBlock(basic_block) => {
-                    self.graph[*basic_block].set_parent_structure_tree_node(&retval);
+                    self.graph[*basic_block].set_parent_structure_tree_node_and_index(
+                        &NodeAndIndex {
+                            node: retval.clone(),
+                            index,
+                        },
+                    );
                 }
             }
         }
         retval
     }
-    fn parse_children(
-        &self,
+    fn parse_nonempty_children(
+        &mut self,
         basic_block: CFGNodeIndex,
-        exit_targets: Cow<HashSet<CFGNodeIndex>>,
+        exit_targets: &HashSet<CFGNodeIndex>,
         nesting_depth: usize,
     ) -> ParseChildrenResult {
-        let exit_targets = &*exit_targets;
-        if exit_targets.contains(&basic_block) {
-            return ParseChildrenResult {
-                children: Vec::new(),
-                targets: iter::once(basic_block).collect(),
-            };
-        }
-        let ParseChildResult { child, targets } =
-            self.parse_child(basic_block, Cow::Borrowed(exit_targets), nesting_depth);
-        let mut children = vec![child];
-        let mut final_targets = HashSet::new();
-        let mut get_target = |targets: HashSet<CFGNodeIndex>| -> Option<CFGNodeIndex> {
-            let mut targets_iter = targets.into_iter().filter_map(|target| {
+        assert!(!exit_targets.contains(&basic_block));
+        let mut target = basic_block;
+        let mut children = Vec::new();
+        let mut control_properties = NodeControlProperties::new();
+        loop {
+            let ParseChildResult {
+                child,
+                control_properties: mut child_control_properties,
+            } = self.parse_child(target, exit_targets, nesting_depth);
+            children.push(child);
+            let mut next_target = None;
+            child_control_properties.exit_targets.retain(|&target, _| {
                 if exit_targets.contains(&target) {
-                    final_targets.insert(target);
-                    None
+                    true
                 } else {
-                    Some(target)
+                    assert_eq!(next_target, None, "too many non-exit targets");
+                    next_target = Some(target);
+                    false
                 }
             });
-            let retval = targets_iter.next()?;
-            assert_eq!(targets_iter.next(), None);
-            Some(retval)
-        };
-        let mut next_target = get_target(targets);
-        while let Some(target) = next_target {
-            let ParseChildResult { child, targets } =
-                self.parse_child(target, Cow::Borrowed(exit_targets), nesting_depth);
-            children.push(child);
-            next_target = get_target(targets);
+            control_properties.merge_assign(child_control_properties);
+            if let Some(next_target) = next_target {
+                target = next_target;
+            } else {
+                break;
+            }
         }
         ParseChildrenResult {
             children,
-            targets: final_targets,
+            control_properties,
         }
     }
-    fn parse_switch(
-        &self,
+    fn parse_empty_children_with_sources(
+        &mut self,
         basic_block: CFGNodeIndex,
-        exit_targets: Cow<HashSet<CFGNodeIndex>>,
-        merge_block: CFGNodeIndex,
-        default: CFGNodeIndex,
-        targets: Vec<CFGNodeIndex>,
+        basic_block_sources: &[CFGNodeIndex],
+    ) -> ParseChildrenResult {
+        ParseChildrenResult {
+            children: Vec::new(),
+            control_properties: NodeControlProperties::from_exit_edges(
+                basic_block_sources.iter().map(|&source| {
+                    self.graph
+                        .find_edge(source, basic_block)
+                        .expect("graph edge not found")
+                }),
+                self.graph,
+            ),
+        }
+    }
+    fn parse_children(
+        &mut self,
+        basic_block: CFGNodeIndex,
+        basic_block_sources: &[CFGNodeIndex],
+        exit_targets: &HashSet<CFGNodeIndex>,
+        nesting_depth: usize,
+    ) -> ParseChildrenResult {
+        if exit_targets.contains(&basic_block) {
+            self.parse_empty_children_with_sources(basic_block, basic_block_sources)
+        } else {
+            self.parse_nonempty_children(basic_block, exit_targets, nesting_depth)
+        }
+    }
+    fn parse_simple_child(&mut self, basic_block: CFGNodeIndex) -> ParseChildResult {
+        let terminating_instruction_properties = InstructionProperties::new(
+            self.graph[basic_block]
+                .instructions()
+                .terminating_instruction()
+                .unwrap(),
+        );
+        if terminating_instruction_properties.is_return_or_kill() {
+            ParseChildResult {
+                child: Child::BasicBlock(basic_block),
+                control_properties: NodeControlProperties::from_return_or_kill(),
+            }
+        } else {
+            ParseChildResult {
+                child: Child::BasicBlock(basic_block),
+                control_properties: NodeControlProperties::from_exit_edges(
+                    self.graph
+                        .edges_directed(basic_block, Outgoing)
+                        .map(|v| v.id()),
+                    self.graph,
+                ),
+            }
+        }
+    }
+    fn parse_loop_child(
+        &mut self,
+        basic_block: CFGNodeIndex,
+        exit_targets: &HashSet<CFGNodeIndex>,
+        nesting_depth: usize,
+        merge_target: CFGNodeIndex,
+        continue_target: CFGNodeIndex,
+    ) -> ParseChildResult {
+        let mut exit_targets = exit_targets.clone();
+        exit_targets.insert(merge_target);
+        let mut body_exit_targets = exit_targets.clone();
+        body_exit_targets.insert(continue_target);
+        let mut loop_children = vec![Child::BasicBlock(basic_block)];
+        let mut loop_control_properties = NodeControlProperties::new();
+        for target in self
+            .graph
+            .neighbors_directed(basic_block, Outgoing)
+            .collect::<Vec<_>>()
+        {
+            let ParseChildrenResult {
+                mut children,
+                control_properties,
+            } = self.parse_children(
+                target,
+                &[basic_block],
+                &body_exit_targets,
+                nesting_depth + 1,
+            );
+            loop_children.append(&mut children);
+            loop_control_properties.merge_assign(control_properties);
+        }
+        if let Some(continue_edges) = loop_control_properties
+            .exit_targets
+            .remove(&continue_target)
+        {
+            let mut continue_exit_targets = exit_targets;
+            continue_exit_targets.insert(basic_block);
+            if continue_exit_targets.contains(&continue_target) {
+                loop_control_properties
+                    .append_exit_target_and_edges_vec(continue_target, continue_edges);
+            } else {
+                let ParseChildrenResult {
+                    children,
+                    control_properties,
+                } = self.parse_nonempty_children(
+                    continue_target,
+                    &continue_exit_targets,
+                    nesting_depth + 2,
+                );
+                loop_children.push(Child::Node(self.new_node(
+                    NodeKind::Continue,
+                    children,
+                    nesting_depth + 1,
+                    control_properties.clone(),
+                )));
+                loop_control_properties.merge_assign(control_properties);
+            }
+            loop_control_properties.exit_targets.remove(&basic_block);
+        }
+        ParseChildResult {
+            child: Child::Node(self.new_node(
+                NodeKind::Loop,
+                loop_children,
+                nesting_depth,
+                loop_control_properties.clone(),
+            )),
+            control_properties: loop_control_properties,
+        }
+    }
+    fn parse_switch_child(
+        &mut self,
+        basic_block: CFGNodeIndex,
+        exit_targets: &HashSet<CFGNodeIndex>,
+        merge_target: CFGNodeIndex,
+        default_target: CFGNodeIndex,
+        case_targets: Vec<CFGNodeIndex>,
         nesting_depth: usize,
     ) -> ParseChildResult {
-        let mut exit_targets = exit_targets.into_owned();
-        exit_targets.insert(merge_block);
-        let mut default_exit_targets = exit_targets.clone();
-        default_exit_targets.extend(targets.iter().cloned());
-        let ParseChildrenResult {
-            children: default_case_children,
-            targets: default_case_targets,
-        } = self.parse_children(default, Cow::Owned(default_exit_targets), nesting_depth + 2);
-        let mut default_case_node = if default_case_children.is_empty() {
-            None
-        } else {
-            Some(Child::Node(self.new_node(
-                NodeKind::Case,
-                default_case_children,
-                nesting_depth + 1,
-            )))
+        let mut exit_targets = exit_targets.clone();
+        exit_targets.insert(merge_target);
+        struct Case {
+            node: Option<Rc<Node>>,
+            case_target_and_edges: Option<(CFGNodeIndex, Vec<CFGEdgeIndex>)>,
+            next_case_index: Option<usize>,
+            prev_case_index: Option<usize>,
+        }
+        let get_case_targets = || {
+            case_targets
+                .iter()
+                .cloned()
+                .chain(iter::once(default_target))
         };
-        let mut switch_children = vec![Child::BasicBlock(basic_block)];
-        let mut returned_targets: HashSet<_> = default_case_targets
-            .intersection(&exit_targets)
-            .cloned()
-            .collect();
-        for (target_index, &target) in targets.iter().enumerate() {
-            let next_target = targets.get(target_index + 1).and_then(|&next_target| {
-                if exit_targets.contains(&next_target) {
-                    None
-                } else {
-                    Some(next_target)
-                }
-            });
-            if exit_targets.contains(&target) {
-                continue;
-            }
-            if next_target == Some(target) {
-                // skip empty cases
-                continue;
-            }
-            if default_case_targets.contains(&target) {
-                // default falls through to this case
-                if let Some(default_case_node) = default_case_node.take() {
-                    switch_children.push(default_case_node);
-                }
-            }
-            let mut case_exit_targets = exit_targets.clone();
-            case_exit_targets.extend(next_target);
-            if default_case_node.is_some() {
-                case_exit_targets.insert(default);
-            }
-            let ParseChildrenResult { children, targets } =
-                self.parse_children(target, Cow::Owned(case_exit_targets), nesting_depth + 2);
-            if !children.is_empty() {
-                switch_children.push(Child::Node(self.new_node(
+        let mut switch_control_properties = NodeControlProperties::new();
+        let mut cases = Vec::new();
+        let mut case_map = HashMap::new();
+        let mut handled_cases_set = HashSet::new();
+        for case_target in
+            get_case_targets().filter(move |&case_target| handled_cases_set.insert(case_target))
+        {
+            if exit_targets.contains(&case_target) {
+                switch_control_properties.append_exit_target_and_edge(
+                    case_target,
+                    self.graph
+                        .find_edge(basic_block, case_target)
+                        .expect("graph edge not found"),
+                );
+            } else {
+                let mut case_exit_targets = exit_targets.clone();
+                case_exit_targets.extend(get_case_targets().filter(|&v| v != case_target));
+                let ParseChildrenResult {
+                    children,
+                    mut control_properties,
+                } = self.parse_nonempty_children(
+                    case_target,
+                    &case_exit_targets,
+                    nesting_depth + 2,
+                );
+                let node = Some(self.new_node(
                     NodeKind::Case,
                     children,
                     nesting_depth + 1,
-                )));
+                    control_properties.clone(),
+                ));
+                let mut case_target_and_edges = None;
+                for (exit_target, exit_edges) in control_properties.exit_targets.drain() {
+                    if exit_targets.contains(&exit_target) {
+                        switch_control_properties
+                            .append_exit_target_and_edges_vec(exit_target, exit_edges);
+                    } else {
+                        assert!(
+                            case_target_and_edges.is_none(),
+                            "case branches to more than one other case"
+                        );
+                        case_target_and_edges = Some((exit_target, exit_edges));
+                    }
+                }
+                switch_control_properties.merge_assign(control_properties);
+                case_map.insert(case_target, cases.len());
+                cases.push(Case {
+                    node,
+                    case_target_and_edges,
+                    prev_case_index: None,
+                    next_case_index: None,
+                });
             }
-            if targets.contains(&default) && !exit_targets.contains(&default) {
-                // this case falls through to default
-                if let Some(default_case_node) = default_case_node.take() {
-                    switch_children.push(default_case_node);
+        }
+        for case_index in 0..cases.len() {
+            if let Some((case_target, _)) = cases[case_index].case_target_and_edges {
+                let target_case_index = case_map[&case_target];
+                assert!(cases[target_case_index].prev_case_index.is_none());
+                cases[target_case_index].prev_case_index = Some(case_index);
+                cases[case_index].next_case_index = Some(target_case_index);
+            }
+        }
+        let mut switch_children = Vec::with_capacity(1 + cases.len());
+        switch_children.push(Child::BasicBlock(basic_block));
+        for case_index in 0..cases.len() {
+            if cases[case_index].node.is_none() {
+                continue;
+            }
+            let mut case_index = case_index;
+            for _ in 0..cases.len() {
+                if let Some(prev_case_index) = cases[case_index].prev_case_index {
+                    case_index = prev_case_index;
+                } else {
+                    break;
                 }
             }
-            returned_targets.extend(targets.intersection(&exit_targets).cloned());
-        }
-        if let Some(default_case_node) = default_case_node {
-            switch_children.push(default_case_node);
+            assert!(
+                cases[case_index].prev_case_index.is_none(),
+                "switch children form a loop"
+            );
+            loop {
+                switch_children.push(Child::Node(
+                    cases[case_index].node.take().expect("missing switch child"),
+                ));
+                if let Some(next_case_index) = cases[case_index].next_case_index {
+                    case_index = next_case_index;
+                } else {
+                    break;
+                }
+            }
         }
         ParseChildResult {
-            child: Child::Node(self.new_node(NodeKind::Selection, switch_children, nesting_depth)),
-            targets: returned_targets,
+            child: Child::Node(self.new_node(
+                NodeKind::Selection,
+                switch_children,
+                nesting_depth,
+                switch_control_properties.clone(),
+            )),
+            control_properties: switch_control_properties,
+        }
+    }
+    fn parse_conditional_child(
+        &mut self,
+        basic_block: CFGNodeIndex,
+        exit_targets: &HashSet<CFGNodeIndex>,
+        nesting_depth: usize,
+        merge_target: CFGNodeIndex,
+        true_target: CFGNodeIndex,
+        false_target: CFGNodeIndex,
+    ) -> ParseChildResult {
+        let mut exit_targets = exit_targets.clone();
+        exit_targets.insert(merge_target);
+        let ParseChildrenResult {
+            children: true_children,
+            control_properties: true_control_properties,
+        } = self.parse_children(
+            true_target,
+            &[basic_block],
+            &exit_targets,
+            nesting_depth + 1,
+        );
+        let ParseChildrenResult {
+            children: false_children,
+            control_properties: false_control_properties,
+        } = self.parse_children(
+            false_target,
+            &[basic_block],
+            &exit_targets,
+            nesting_depth + 1,
+        );
+        let children = iter::once(Child::BasicBlock(basic_block))
+            .chain(true_children)
+            .chain(false_children)
+            .collect();
+        let control_properties = true_control_properties.merge(false_control_properties);
+        ParseChildResult {
+            child: Child::Node(self.new_node(
+                NodeKind::Selection,
+                children,
+                nesting_depth,
+                control_properties.clone(),
+            )),
+            control_properties,
+        }
+    }
+    fn parse_selection_child(
+        &mut self,
+        basic_block: CFGNodeIndex,
+        exit_targets: &HashSet<CFGNodeIndex>,
+        nesting_depth: usize,
+        merge_target: CFGNodeIndex,
+    ) -> ParseChildResult {
+        match self.graph[basic_block]
+            .instructions()
+            .terminating_instruction()
+            .expect("missing terminating instruction")
+        {
+            Instruction::Switch32 {
+                default: default_id,
+                target: case_ids,
+                ..
+            } => self.parse_switch_child(
+                basic_block,
+                exit_targets,
+                merge_target,
+                self.label_to_node_index_map[default_id],
+                case_ids
+                    .iter()
+                    .map(|(_, v)| self.label_to_node_index_map[v])
+                    .collect(),
+                nesting_depth,
+            ),
+            Instruction::Switch64 {
+                default: default_id,
+                target: case_ids,
+                ..
+            } => self.parse_switch_child(
+                basic_block,
+                exit_targets,
+                merge_target,
+                self.label_to_node_index_map[default_id],
+                case_ids
+                    .iter()
+                    .map(|(_, v)| self.label_to_node_index_map[v])
+                    .collect(),
+                nesting_depth,
+            ),
+            Instruction::BranchConditional {
+                true_label: true_id,
+                false_label: false_id,
+                ..
+            } => self.parse_conditional_child(
+                basic_block,
+                exit_targets,
+                nesting_depth,
+                merge_target,
+                self.label_to_node_index_map[true_id],
+                self.label_to_node_index_map[false_id],
+            ),
+            Instruction::Branch { .. }
+            | Instruction::Kill
+            | Instruction::Return
+            | Instruction::ReturnValue { .. }
+            | Instruction::Unreachable => unreachable!(
+                "unexpected terminating instruction after OpSelectionMerge:\n{}",
+                self.graph[basic_block]
+                    .instructions()
+                    .terminating_instruction()
+                    .unwrap()
+            ),
+            _ => unreachable!(),
         }
     }
     fn parse_child(
-        &self,
+        &mut self,
         basic_block: CFGNodeIndex,
-        exit_targets: Cow<HashSet<CFGNodeIndex>>,
+        exit_targets: &HashSet<CFGNodeIndex>,
         nesting_depth: usize,
     ) -> ParseChildResult {
         match self.graph[basic_block].instructions().merge_instruction() {
-            None => {
-                let targets: HashSet<_> = InstructionProperties::new(
-                    self.graph[basic_block]
-                        .instructions()
-                        .terminating_instruction()
-                        .unwrap(),
-                )
-                .targets()
-                .unwrap()
-                .map(|label| self.label_to_node_index_map[&label])
-                .collect();
-                ParseChildResult {
-                    child: Child::BasicBlock(basic_block),
-                    targets,
-                }
-            }
-            Some(&Instruction::LoopMerge {
-                merge_block,
-                continue_target,
+            None => self.parse_simple_child(basic_block),
+            Some(Instruction::LoopMerge {
+                merge_block: merge_id,
+                continue_target: continue_id,
                 ..
-            }) => {
-                let mut exit_targets = exit_targets.into_owned();
-                exit_targets.insert(self.label_to_node_index_map[&merge_block]);
-                let mut body_exit_targets = exit_targets.clone();
-                let continue_target = self.label_to_node_index_map[&continue_target];
-                body_exit_targets.insert(continue_target);
-                let mut children = ChildrenAccumulator::new(vec![Child::BasicBlock(basic_block)]);
-                for successor in self.graph.neighbors_directed(basic_block, Outgoing) {
-                    children.accumulate(self.parse_children(
-                        successor,
-                        Cow::Borrowed(&body_exit_targets),
-                        nesting_depth + 1,
-                    ));
-                }
-                let ChildrenAccumulator {
-                    mut children,
-                    mut targets,
-                } = children;
-                if targets.remove(&continue_target) {
-                    let mut continue_exit_targets = exit_targets;
-                    continue_exit_targets.insert(basic_block);
-                    let ParseChildrenResult {
-                        children: continue_children,
-                        targets: mut continue_targets,
-                    } = self.parse_children(
-                        continue_target,
-                        Cow::Owned(continue_exit_targets),
-                        nesting_depth + 2,
-                    );
-                    if !continue_children.is_empty() {
-                        children.push(Child::Node(self.new_node(
-                            NodeKind::Continue,
-                            continue_children,
-                            nesting_depth + 1,
-                        )));
-                    }
-                    continue_targets.remove(&basic_block);
-                    targets.extend(continue_targets);
-                }
-                ParseChildResult {
-                    child: Child::Node(self.new_node(NodeKind::Loop, children, nesting_depth)),
-                    targets,
-                }
-            }
-            Some(&Instruction::SelectionMerge { merge_block, .. }) => {
-                let terminating_instruction = self.graph[basic_block]
-                    .instructions()
-                    .terminating_instruction()
-                    .expect("missing terminating instruction");
-                match *terminating_instruction {
-                    Instruction::Switch32 {
-                        default,
-                        ref target,
-                        ..
-                    } => self.parse_switch(
-                        basic_block,
-                        exit_targets,
-                        self.label_to_node_index_map[&merge_block],
-                        self.label_to_node_index_map[&default],
-                        target
-                            .iter()
-                            .map(|&(_, v)| self.label_to_node_index_map[&v])
-                            .collect(),
-                        nesting_depth,
-                    ),
-                    Instruction::Switch64 {
-                        default,
-                        ref target,
-                        ..
-                    } => self.parse_switch(
-                        basic_block,
-                        exit_targets,
-                        self.label_to_node_index_map[&merge_block],
-                        self.label_to_node_index_map[&default],
-                        target
-                            .iter()
-                            .map(|&(_, v)| self.label_to_node_index_map[&v])
-                            .collect(),
-                        nesting_depth,
-                    ),
-                    Instruction::BranchConditional {
-                        true_label,
-                        false_label,
-                        ..
-                    } => {
-                        let mut children =
-                            ChildrenAccumulator::new(vec![Child::BasicBlock(basic_block)]);
-                        let mut children_exit_targets = exit_targets.into_owned();
-                        children_exit_targets.insert(self.label_to_node_index_map[&merge_block]);
-                        children.accumulate(self.parse_children(
-                            self.label_to_node_index_map[&true_label],
-                            Cow::Borrowed(&children_exit_targets),
-                            nesting_depth + 1,
-                        ));
-                        children.accumulate(self.parse_children(
-                            self.label_to_node_index_map[&false_label],
-                            Cow::Owned(children_exit_targets),
-                            nesting_depth + 1,
-                        ));
-                        let ChildrenAccumulator { children, targets } = children;
-                        ParseChildResult {
-                            child: Child::Node(self.new_node(
-                                NodeKind::Selection,
-                                children,
-                                nesting_depth,
-                            )),
-                            targets,
-                        }
-                    }
-                    Instruction::Branch { .. }
-                    | Instruction::Kill
-                    | Instruction::Return
-                    | Instruction::ReturnValue { .. }
-                    | Instruction::Unreachable => unreachable!(
-                        "unexpected terminating instruction after OpSelectionMerge:\n{}",
-                        terminating_instruction
-                    ),
-                    _ => unreachable!(),
-                }
-            }
+            }) => self.parse_loop_child(
+                basic_block,
+                exit_targets,
+                nesting_depth,
+                self.label_to_node_index_map[merge_id],
+                self.label_to_node_index_map[continue_id],
+            ),
+            Some(Instruction::SelectionMerge {
+                merge_block: merge_id,
+                ..
+            }) => self.parse_selection_child(
+                basic_block,
+                exit_targets,
+                nesting_depth,
+                self.label_to_node_index_map[merge_id],
+            ),
             _ => unreachable!(),
         }
     }
 }
 
 #[derive(Clone, Debug)]
-pub struct BasicBlocksInOrderIter<'a>(Vec<std::slice::Iter<'a, Child>>);
+pub struct ChildrenRecursiveIter<'a>(Vec<std::slice::Iter<'a, Child>>);
+
+impl<'a> Iterator for ChildrenRecursiveIter<'a> {
+    type Item = &'a Child;
+    fn next(&mut self) -> Option<&'a Child> {
+        while let Some(mut iter) = self.0.pop() {
+            if let Some(child) = iter.next() {
+                self.0.push(iter);
+                if let Child::Node(node) = child {
+                    self.0.push(node.children().iter());
+                }
+                return Some(child);
+            }
+        }
+        None
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct BasicBlocksInOrderIter<'a>(ChildrenRecursiveIter<'a>);
 
 impl Iterator for BasicBlocksInOrderIter<'_> {
     type Item = CFGNodeIndex;
     fn next(&mut self) -> Option<CFGNodeIndex> {
-        while let Some(mut iter) = self.0.pop() {
-            match iter.next() {
-                Some(&Child::BasicBlock(basic_block)) => {
-                    self.0.push(iter);
-                    return Some(basic_block);
-                }
-                Some(Child::Node(node)) => {
-                    self.0.push(iter);
-                    self.0.push(node.children().iter());
-                }
-                None => {}
+        while let Some(child) = self.0.next() {
+            if let Child::BasicBlock(basic_block) = *child {
+                return Some(basic_block);
             }
         }
         None

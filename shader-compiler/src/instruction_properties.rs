@@ -113,6 +113,12 @@ impl<'a> InstructionProperties<'a> {
     pub fn is_block_terminator(self) -> bool {
         self.targets().is_some()
     }
+    pub fn is_return_or_kill(self) -> bool {
+        match self.instruction {
+            Instruction::Kill | Instruction::Return | Instruction::ReturnValue { .. } => true,
+            _ => false,
+        }
+    }
     pub fn is_debug_line(self) -> bool {
         match self.instruction {
             Instruction::Line { .. } | Instruction::NoLine => true,

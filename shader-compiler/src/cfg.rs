@@ -3,14 +3,111 @@
 
 pub mod structure_tree;
 
+use crate::debug_display::{DisplayWithCFG, Indent};
 use crate::instruction_properties::InstructionProperties;
 use petgraph::{algo::dominators, graph::IndexType, prelude::*};
 use spirv_parser::{IdRef, Instruction};
-use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::fmt;
 use std::ops;
-use std::rc::{Rc, Weak};
+
+pub struct CFGNodeIndexDisplay<'a> {
+    node_index: CFGNodeIndex,
+    graph: &'a CFGGraph,
+    is_debug: Option<bool>,
+}
+
+impl fmt::Display for CFGNodeIndexDisplay<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        if self.is_debug.unwrap_or(false) {
+            write!(
+                f,
+                "CFGNodeIndex({}) {}",
+                self.node_index.index(),
+                self.graph[self.node_index].label(),
+            )
+        } else {
+            write!(
+                f,
+                "{} ({})",
+                self.graph[self.node_index].label(),
+                self.node_index.index(),
+            )
+        }
+    }
+}
+
+impl fmt::Debug for CFGNodeIndexDisplay<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        fmt::Display::fmt(
+            &CFGNodeIndexDisplay {
+                is_debug: self.is_debug.or(Some(true)),
+                ..*self
+            },
+            f,
+        )
+    }
+}
+
+pub struct CFGEdgeIndexDisplay<'a> {
+    edge_index: CFGEdgeIndex,
+    graph: &'a CFGGraph,
+    is_debug: Option<bool>,
+}
+
+impl fmt::Display for CFGEdgeIndexDisplay<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let (source, target) = self
+            .graph
+            .edge_endpoints(self.edge_index)
+            .expect("invalid edge_index");
+        if self.is_debug.unwrap_or(false) {
+            write!(
+                f,
+                "CFGEdgeIndex({}) ({}, {})",
+                self.edge_index.index(),
+                CFGNodeIndexDisplay {
+                    node_index: source,
+                    graph: self.graph,
+                    is_debug: Some(false)
+                },
+                CFGNodeIndexDisplay {
+                    node_index: target,
+                    graph: self.graph,
+                    is_debug: Some(false)
+                },
+            )
+        } else {
+            write!(
+                f,
+                "{} -> {} ({})",
+                CFGNodeIndexDisplay {
+                    node_index: source,
+                    graph: self.graph,
+                    is_debug: Some(true)
+                },
+                CFGNodeIndexDisplay {
+                    node_index: target,
+                    graph: self.graph,
+                    is_debug: Some(true)
+                },
+                self.edge_index.index(),
+            )
+        }
+    }
+}
+
+impl fmt::Debug for CFGEdgeIndexDisplay<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        fmt::Display::fmt(
+            &CFGEdgeIndexDisplay {
+                is_debug: self.is_debug.or(Some(true)),
+                ..*self
+            },
+            f,
+        )
+    }
+}
 
 #[derive(Clone)]
 pub struct Instructions(Vec<Instruction>);
@@ -61,7 +158,7 @@ impl Instructions {
 pub struct BasicBlock {
     label: IdRef,
     instructions: Instructions,
-    parent_structure_tree_node: RefCell<Weak<structure_tree::Node>>,
+    parent_structure_tree_node_and_index: structure_tree::WeakNodeAndIndex,
 }
 
 impl BasicBlock {
@@ -71,15 +168,25 @@ impl BasicBlock {
     pub fn instructions(&self) -> &Instructions {
         &self.instructions
     }
-    pub fn parent_structure_tree_node(&self) -> Option<Rc<structure_tree::Node>> {
-        self.parent_structure_tree_node.borrow().upgrade()
+    pub fn parent_structure_tree_node_and_index(&self) -> Option<structure_tree::NodeAndIndex> {
+        self.parent_structure_tree_node_and_index.upgrade()
     }
-    fn set_parent_structure_tree_node(&self, new_parent: &Rc<structure_tree::Node>) {
-        let mut parent = self.parent_structure_tree_node.borrow_mut();
-        assert!(parent.upgrade().is_none());
-        *parent = Rc::downgrade(new_parent);
+    fn set_parent_structure_tree_node_and_index(
+        &mut self,
+        new_parent_node_and_index: &structure_tree::NodeAndIndex,
+    ) {
+        assert!(self
+            .parent_structure_tree_node_and_index
+            .upgrade()
+            .is_none());
+        self.parent_structure_tree_node_and_index = new_parent_node_and_index.into();
     }
 }
+
+#[derive(Clone, Debug)]
+pub struct CFGEdge {}
+
+impl CFGEdge {}
 
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default)]
 #[repr(transparent)]
@@ -100,7 +207,39 @@ unsafe impl IndexType for CFGIndexType {
 pub type CFGNodeIndex = NodeIndex<CFGIndexType>;
 pub type CFGEdgeIndex = EdgeIndex<CFGIndexType>;
 
-pub type CFGGraph = DiGraph<BasicBlock, (), CFGIndexType>;
+impl<'a> DisplayWithCFG<'a> for CFGNodeIndex {
+    type DisplayType = CFGNodeIndexDisplay<'a>;
+    fn display_with_cfg_and_indent_and_is_debug(
+        &'a self,
+        graph: &'a CFGGraph,
+        _indent: Indent,
+        is_debug: Option<bool>,
+    ) -> Self::DisplayType {
+        Self::DisplayType {
+            node_index: *self,
+            graph,
+            is_debug,
+        }
+    }
+}
+
+impl<'a> DisplayWithCFG<'a> for CFGEdgeIndex {
+    type DisplayType = CFGEdgeIndexDisplay<'a>;
+    fn display_with_cfg_and_indent_and_is_debug(
+        &'a self,
+        graph: &'a CFGGraph,
+        _indent: Indent,
+        is_debug: Option<bool>,
+    ) -> Self::DisplayType {
+        Self::DisplayType {
+            edge_index: *self,
+            graph,
+            is_debug,
+        }
+    }
+}
+
+pub type CFGGraph = DiGraph<BasicBlock, CFGEdge, CFGIndexType>;
 
 pub type CFGDominators = dominators::Dominators<CFGNodeIndex>;
 
@@ -132,6 +271,20 @@ impl CFG {
     pub fn structure_tree(&self) -> &structure_tree::StructureTree {
         &self.structure_tree
     }
+    pub fn find_node_index_by_label(&self, label_id: IdRef) -> Option<CFGNodeIndex> {
+        self.label_to_node_index_map.get(&label_id).cloned()
+    }
+    pub fn find_block_by_label(&self, label_id: IdRef) -> Option<&BasicBlock> {
+        self.find_node_index_by_label(label_id)
+            .map(|node_index| &self[node_index])
+    }
+    pub fn get_node_index_by_label(&self, label_id: IdRef) -> CFGNodeIndex {
+        self.find_node_index_by_label(label_id)
+            .expect("label not found")
+    }
+    pub fn get_block_by_label(&self, label_id: IdRef) -> &BasicBlock {
+        &self[self.get_node_index_by_label(label_id)]
+    }
     pub fn new(function_instructions: &[Instruction]) -> CFG {
         assert!(!function_instructions.is_empty());
         let mut graph = CFGGraph::default();
@@ -158,7 +311,7 @@ impl CFG {
                         graph.add_node(BasicBlock {
                             label,
                             instructions: Instructions::new(current_instructions),
-                            parent_structure_tree_node: RefCell::new(Weak::new()),
+                            parent_structure_tree_node_and_index: Default::default(),
                         }),
                     );
                     current_instructions = Vec::new();
@@ -181,16 +334,16 @@ impl CFG {
             .filter(|&successor| successors_set.insert(successor)) // remove duplicates
             .collect(); // collect into Vec to retain order
             for target in successors {
-                graph.add_edge(node_index, label_to_node_index_map[&target], ());
+                graph.add_edge(node_index, label_to_node_index_map[&target], CFGEdge {});
             }
         }
         let dominators = dominators::simple_fast(&graph, entry_node_index);
         let structure_tree = structure_tree::StructureTree::parse(
-            &graph,
+            &mut graph,
             &label_to_node_index_map,
             dominators.root(),
         );
-        print!("{}", structure_tree.display(&graph));
+        print!("{}", structure_tree.display_with_cfg(&graph));
         CFG {
             graph,
             label_to_node_index_map,
@@ -348,7 +501,7 @@ mod tests {
         let dominators = cfg.dominators();
         println!("{:#?}", dominators);
         let structure_tree = cfg.structure_tree();
-        print!("{}", structure_tree.display(&*cfg));
+        print!("{}", structure_tree.display_with_cfg(&*cfg));
         assert_eq!(cfg_template.entry_block, cfg.entry_block().label());
         assert_eq!(cfg_template.blocks.len(), cfg.node_count());
         let label_map: HashMap<_, _> = cfg

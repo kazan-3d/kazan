@@ -4,6 +4,7 @@
 #![allow(clippy::unneeded_field_pattern)]
 
 mod cfg;
+mod debug_display;
 mod instruction_properties;
 mod lattice;
 mod parsed_shader_compile;
