@@ -16,7 +16,7 @@ use std::rc::{Rc, Weak};
 #[derive(Clone, Debug)]
 pub struct NodeControlProperties {
     exit_targets: HashMap<CFGNodeIndex, Vec<CFGEdgeIndex>>,
-    any_returns_or_kills: bool,
+    return_or_kill_blocks: Vec<CFGNodeIndex>,
 }
 
 impl NodeControlProperties {
@@ -31,16 +31,16 @@ impl NodeControlProperties {
     pub fn exit_targets(&self) -> &HashMap<CFGNodeIndex, Vec<CFGEdgeIndex>> {
         &self.exit_targets
     }
-    pub fn any_returns_or_kills(&self) -> bool {
-        self.any_returns_or_kills
+    pub fn return_or_kill_blocks(&self) -> &Vec<CFGNodeIndex> {
+        &self.return_or_kill_blocks
     }
     pub fn new() -> Self {
         Self::default()
     }
-    pub fn from_return_or_kill() -> Self {
+    pub fn from_return_or_kill(block: CFGNodeIndex) -> Self {
         Self {
             exit_targets: HashMap::new(),
-            any_returns_or_kills: true,
+            return_or_kill_blocks: vec![block],
         }
     }
     pub fn from_exit_edge(exit_edge: CFGEdgeIndex, cfg: &CFGGraph) -> Self {
@@ -60,7 +60,7 @@ impl NodeControlProperties {
         }
         Self {
             exit_targets,
-            any_returns_or_kills: false,
+            return_or_kill_blocks: Vec::new(),
         }
     }
     fn append_exit_target_and_edges_vec<T: BorrowMut<Vec<CFGEdgeIndex>>>(
@@ -82,12 +82,13 @@ impl NodeControlProperties {
     fn merge_assign(&mut self, rhs: Self) {
         let Self {
             exit_targets,
-            any_returns_or_kills,
+            mut return_or_kill_blocks,
         } = rhs;
         for (exit_target, exit_edges) in exit_targets.into_iter() {
             self.append_exit_target_and_edges_vec(exit_target, exit_edges);
         }
-        self.any_returns_or_kills |= any_returns_or_kills;
+        self.return_or_kill_blocks
+            .append(&mut return_or_kill_blocks);
     }
     fn merge(mut self, rhs: Self) -> Self {
         self.merge_assign(rhs);
@@ -99,7 +100,7 @@ impl Default for NodeControlProperties {
     fn default() -> Self {
         Self {
             exit_targets: HashMap::new(),
-            any_returns_or_kills: false,
+            return_or_kill_blocks: Vec::new(),
         }
     }
 }
@@ -141,9 +142,13 @@ impl fmt::Display for NodeControlPropertiesDisplay<'_> {
         )?;
         writeln!(
             f,
-            "{}any_returns_or_kills: {},",
+            "{}return_or_kill_blocks: {},",
             body_indent,
-            self.node_control_properties.any_returns_or_kills(),
+            DisplaySetWithCFG::new(
+                self.node_control_properties.return_or_kill_blocks(),
+                self.cfg,
+                None
+            ),
         )?;
         writeln!(f, "{}}}", self.indent)
     }
@@ -157,8 +162,12 @@ impl fmt::Debug for NodeControlPropertiesDisplay<'_> {
                 &DisplaySetWithCFG::new(self.node_control_properties.exit_edges(), self.cfg, None),
             )
             .field(
-                "any_returns_or_kills",
-                &self.node_control_properties.any_returns_or_kills(),
+                "return_or_kill_blocks",
+                &DisplaySetWithCFG::new(
+                    self.node_control_properties.return_or_kill_blocks(),
+                    self.cfg,
+                    None,
+                ),
             )
             .finish()
     }
@@ -580,7 +589,7 @@ impl Parser<'_> {
         if terminating_instruction_properties.is_return_or_kill() {
             ParseChildResult {
                 child: Child::BasicBlock(basic_block),
-                control_properties: NodeControlProperties::from_return_or_kill(),
+                control_properties: NodeControlProperties::from_return_or_kill(basic_block),
             }
         } else {
             ParseChildResult {
