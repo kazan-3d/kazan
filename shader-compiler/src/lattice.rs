@@ -73,7 +73,7 @@ pub trait BottomBoundedLattice: Lattice {
     fn bottom() -> Self;
 }
 
-/// a element of a bottom-bounded lattice: https://en.wikipedia.org/wiki/Lattice_%28order%29
+/// a element of a top-bounded lattice: https://en.wikipedia.org/wiki/Lattice_%28order%29
 pub trait TopBoundedLattice: Lattice {
     /// greatest element
     fn top() -> Self;
