@@ -10,6 +10,7 @@ use std::borrow::{Borrow, BorrowMut};
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::fmt;
+use std::hash::{Hash, Hasher};
 use std::iter;
 use std::rc::{Rc, Weak};
 
@@ -253,6 +254,13 @@ impl PartialEq for Node {
 
 impl Eq for Node {}
 
+impl Hash for Node {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.first_basic_block.hash(state);
+        self.nesting_depth.hash(state);
+    }
+}
+
 pub struct NodeDisplay<'a> {
     node: &'a Node,
     cfg: &'a CFGGraph,
@@ -298,7 +306,7 @@ impl fmt::Debug for NodeDisplay<'_> {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct NodeAndIndex {
     pub node: Rc<Node>,
     pub index: usize,
@@ -343,7 +351,7 @@ impl From<NodeAndIndex> for WeakNodeAndIndex {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Child {
     Node(Rc<Node>),
     BasicBlock(CFGNodeIndex),
