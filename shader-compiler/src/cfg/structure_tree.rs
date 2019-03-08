@@ -176,9 +176,12 @@ impl fmt::Debug for NodeControlPropertiesDisplay<'_> {
 
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
 pub enum NodeKind {
-    Selection,
+    If,
+    IfPart,
     Continue,
     Loop,
+    LoopBody,
+    Switch,
     Case,
     Root,
 }
@@ -357,6 +360,15 @@ pub enum Child {
     BasicBlock(CFGNodeIndex),
 }
 
+impl Child {
+    pub fn node_kind(&self) -> Option<NodeKind> {
+        match self {
+            Child::Node(node) => Some(node.kind()),
+            Child::BasicBlock(_) => None,
+        }
+    }
+}
+
 pub struct ChildDisplay<'a> {
     child: &'a Child,
     cfg: &'a CFGGraph,
@@ -495,8 +507,46 @@ impl Parser<'_> {
             root: RefCell::default(),
             control_properties,
         });
-        if kind == NodeKind::Root {
-            assert_eq!(nesting_depth, 0);
+        match kind {
+            NodeKind::Root => assert_eq!(nesting_depth, 0),
+            NodeKind::If => {
+                assert!(retval.children.len() <= 3);
+                assert_eq!(retval.children[0].node_kind(), None);
+                assert!(retval
+                    .children
+                    .iter()
+                    .skip(1)
+                    .all(|child| child.node_kind() == Some(NodeKind::IfPart)));
+            }
+            NodeKind::Loop => {
+                let mut children = retval.children.iter().peekable();
+                assert_eq!(
+                    children.next().expect("Node has no children").node_kind(),
+                    None
+                );
+                match children.peek() {
+                    Some(Child::Node(node)) if node.kind() == NodeKind::LoopBody => {
+                        let _ = children.next();
+                    }
+                    _ => {}
+                }
+                match children.peek() {
+                    Some(Child::Node(node)) if node.kind() == NodeKind::Continue => {
+                        let _ = children.next();
+                    }
+                    _ => {}
+                }
+                assert!(children.peek().is_none());
+            }
+            NodeKind::Switch => {
+                assert_eq!(retval.children[0].node_kind(), None);
+                assert!(retval
+                    .children
+                    .iter()
+                    .skip(1)
+                    .all(|child| child.node_kind() == Some(NodeKind::Case)));
+            }
+            _ => {}
         }
         for (index, child) in retval.children.iter().enumerate() {
             match child {
@@ -631,15 +681,22 @@ impl Parser<'_> {
             .collect::<Vec<_>>()
         {
             let ParseChildrenResult {
-                mut children,
+                children,
                 control_properties,
             } = self.parse_children(
                 target,
                 &[basic_block],
                 &body_exit_targets,
-                nesting_depth + 1,
+                nesting_depth + 2,
             );
-            loop_children.append(&mut children);
+            if !children.is_empty() {
+                loop_children.push(Child::Node(self.new_node(
+                    NodeKind::LoopBody,
+                    children,
+                    nesting_depth + 1,
+                    control_properties.clone(),
+                )));
+            }
             loop_control_properties.merge_assign(control_properties);
         }
         if let Some(continue_edges) = loop_control_properties
@@ -796,7 +853,7 @@ impl Parser<'_> {
         }
         ParseChildResult {
             child: Child::Node(self.new_node(
-                NodeKind::Selection,
+                NodeKind::Switch,
                 switch_children,
                 nesting_depth,
                 switch_control_properties.clone(),
@@ -815,32 +872,39 @@ impl Parser<'_> {
     ) -> ParseChildResult {
         let mut exit_targets = exit_targets.clone();
         exit_targets.insert(merge_target);
-        let ParseChildrenResult {
-            children: true_children,
-            control_properties: true_control_properties,
-        } = self.parse_children(
-            true_target,
-            &[basic_block],
-            &exit_targets,
-            nesting_depth + 1,
-        );
-        let ParseChildrenResult {
-            children: false_children,
-            control_properties: false_control_properties,
-        } = self.parse_children(
-            false_target,
-            &[basic_block],
-            &exit_targets,
-            nesting_depth + 1,
-        );
+        let mut parse_if_part =
+            |if_target: CFGNodeIndex| -> (Option<Child>, NodeControlProperties) {
+                let ParseChildrenResult {
+                    children,
+                    control_properties,
+                } = self.parse_children(
+                    if_target,
+                    &[basic_block],
+                    &exit_targets,
+                    nesting_depth + 2,
+                );
+                let child = if children.is_empty() {
+                    None
+                } else {
+                    Some(Child::Node(self.new_node(
+                        NodeKind::IfPart,
+                        children,
+                        nesting_depth + 1,
+                        control_properties.clone(),
+                    )))
+                };
+                (child, control_properties)
+            };
+        let (true_child, true_control_properties) = parse_if_part(true_target);
+        let (false_child, false_control_properties) = parse_if_part(false_target);
         let children = iter::once(Child::BasicBlock(basic_block))
-            .chain(true_children)
-            .chain(false_children)
+            .chain(true_child)
+            .chain(false_child)
             .collect();
         let control_properties = true_control_properties.merge(false_control_properties);
         ParseChildResult {
             child: Child::Node(self.new_node(
-                NodeKind::Selection,
+                NodeKind::If,
                 children,
                 nesting_depth,
                 control_properties.clone(),

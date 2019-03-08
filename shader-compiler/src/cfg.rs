@@ -695,7 +695,7 @@ mod tests {
                     kind: structure_tree::NodeKind::Root,
                     children: &[
                         TemplateStructureTreeChild::Node(TemplateStructureTreeNode {
-                            kind: structure_tree::NodeKind::Selection,
+                            kind: structure_tree::NodeKind::If,
                             children: &[TemplateStructureTreeChild::BasicBlock(label_start)],
                         }),
                         TemplateStructureTreeChild::BasicBlock(label_endif),
@@ -766,13 +766,93 @@ mod tests {
                     kind: structure_tree::NodeKind::Root,
                     children: &[
                         TemplateStructureTreeChild::Node(TemplateStructureTreeNode {
-                            kind: structure_tree::NodeKind::Selection,
+                            kind: structure_tree::NodeKind::If,
                             children: &[
-                                TemplateStructureTreeChild::BasicBlock(label_start),
-                                TemplateStructureTreeChild::BasicBlock(label_then),
+                                TemplateStructureTreeChild::BasicBlock(IdRef(1)),
+                                TemplateStructureTreeChild::Node(TemplateStructureTreeNode {
+                                    kind: structure_tree::NodeKind::IfPart,
+                                    children: &[TemplateStructureTreeChild::BasicBlock(IdRef(2))],
+                                }),
                             ],
                         }),
-                        TemplateStructureTreeChild::BasicBlock(label_endif),
+                        TemplateStructureTreeChild::BasicBlock(IdRef(3)),
+                    ],
+                }),
+            },
+        );
+    }
+
+    #[test]
+    fn test_cfg_conditional_none_merge() {
+        let mut id_factory = IdFactory::new();
+        let mut instructions = Vec::new();
+
+        let label_start = id_factory.next();
+        let label_else = id_factory.next();
+        let label_endif = id_factory.next();
+
+        instructions.push(Instruction::NoLine);
+        instructions.push(Instruction::Label {
+            id_result: IdResult(label_start),
+        });
+        instructions.push(Instruction::SelectionMerge {
+            merge_block: label_endif,
+            selection_control: spirv_parser::SelectionControl::default(),
+        });
+        instructions.push(Instruction::BranchConditional {
+            condition: id_factory.next(),
+            true_label: label_endif,
+            false_label: label_else,
+            branch_weights: vec![],
+        });
+
+        instructions.push(Instruction::Label {
+            id_result: IdResult(label_else),
+        });
+        instructions.push(Instruction::Branch {
+            target_label: label_endif,
+        });
+
+        instructions.push(Instruction::Label {
+            id_result: IdResult(label_endif),
+        });
+        instructions.push(Instruction::Return);
+
+        test_cfg(
+            &instructions,
+            &CFGTemplate {
+                blocks: &[
+                    CFGTemplateBlock {
+                        label: label_start,
+                        successors: &[label_else, label_endif],
+                        immediate_dominator: None,
+                    },
+                    CFGTemplateBlock {
+                        label: label_else,
+                        successors: &[label_endif],
+                        immediate_dominator: Some(label_start),
+                    },
+                    CFGTemplateBlock {
+                        label: label_endif,
+                        successors: &[],
+                        immediate_dominator: Some(label_start),
+                    },
+                ],
+                entry_block: label_start,
+                structure_tree: TemplateStructureTree(TemplateStructureTreeNode {
+                    kind: structure_tree::NodeKind::Root,
+                    children: &[
+                        TemplateStructureTreeChild::Node(TemplateStructureTreeNode {
+                            kind: structure_tree::NodeKind::If,
+                            children: &[
+                                TemplateStructureTreeChild::BasicBlock(IdRef(1)),
+                                TemplateStructureTreeChild::Node(TemplateStructureTreeNode {
+                                    kind: structure_tree::NodeKind::IfPart,
+                                    children: &[TemplateStructureTreeChild::BasicBlock(IdRef(2))],
+                                }),
+                            ],
+                        }),
+                        TemplateStructureTreeChild::BasicBlock(IdRef(3)),
                     ],
                 }),
             },
@@ -851,14 +931,20 @@ mod tests {
                     kind: structure_tree::NodeKind::Root,
                     children: &[
                         TemplateStructureTreeChild::Node(TemplateStructureTreeNode {
-                            kind: structure_tree::NodeKind::Selection,
+                            kind: structure_tree::NodeKind::If,
                             children: &[
-                                TemplateStructureTreeChild::BasicBlock(label_start),
-                                TemplateStructureTreeChild::BasicBlock(label_then),
-                                TemplateStructureTreeChild::BasicBlock(label_else),
+                                TemplateStructureTreeChild::BasicBlock(IdRef(1)),
+                                TemplateStructureTreeChild::Node(TemplateStructureTreeNode {
+                                    kind: structure_tree::NodeKind::IfPart,
+                                    children: &[TemplateStructureTreeChild::BasicBlock(IdRef(2))],
+                                }),
+                                TemplateStructureTreeChild::Node(TemplateStructureTreeNode {
+                                    kind: structure_tree::NodeKind::IfPart,
+                                    children: &[TemplateStructureTreeChild::BasicBlock(IdRef(3))],
+                                }),
                             ],
                         }),
-                        TemplateStructureTreeChild::BasicBlock(label_endif),
+                        TemplateStructureTreeChild::BasicBlock(IdRef(4)),
                     ],
                 }),
             },
@@ -935,11 +1021,17 @@ mod tests {
                     kind: structure_tree::NodeKind::Root,
                     children: &[TemplateStructureTreeChild::Node(
                         TemplateStructureTreeNode {
-                            kind: structure_tree::NodeKind::Selection,
+                            kind: structure_tree::NodeKind::If,
                             children: &[
-                                TemplateStructureTreeChild::BasicBlock(label_start),
-                                TemplateStructureTreeChild::BasicBlock(label_then),
-                                TemplateStructureTreeChild::BasicBlock(label_else),
+                                TemplateStructureTreeChild::BasicBlock(IdRef(1)),
+                                TemplateStructureTreeChild::Node(TemplateStructureTreeNode {
+                                    kind: structure_tree::NodeKind::IfPart,
+                                    children: &[TemplateStructureTreeChild::BasicBlock(IdRef(2))],
+                                }),
+                                TemplateStructureTreeChild::Node(TemplateStructureTreeNode {
+                                    kind: structure_tree::NodeKind::IfPart,
+                                    children: &[TemplateStructureTreeChild::BasicBlock(IdRef(3))],
+                                }),
                             ],
                         },
                     )],
@@ -1008,7 +1100,7 @@ mod tests {
                     kind: structure_tree::NodeKind::Root,
                     children: &[
                         TemplateStructureTreeChild::Node(TemplateStructureTreeNode {
-                            kind: structure_tree::NodeKind::Selection,
+                            kind: structure_tree::NodeKind::Switch,
                             children: &[
                                 TemplateStructureTreeChild::BasicBlock(label_start),
                                 TemplateStructureTreeChild::Node(TemplateStructureTreeNode {
@@ -1097,7 +1189,7 @@ mod tests {
                     kind: structure_tree::NodeKind::Root,
                     children: &[
                         TemplateStructureTreeChild::Node(TemplateStructureTreeNode {
-                            kind: structure_tree::NodeKind::Selection,
+                            kind: structure_tree::NodeKind::Switch,
                             children: &[
                                 TemplateStructureTreeChild::BasicBlock(label_start),
                                 TemplateStructureTreeChild::Node(TemplateStructureTreeNode {
@@ -1194,7 +1286,7 @@ mod tests {
                     kind: structure_tree::NodeKind::Root,
                     children: &[
                         TemplateStructureTreeChild::Node(TemplateStructureTreeNode {
-                            kind: structure_tree::NodeKind::Selection,
+                            kind: structure_tree::NodeKind::Switch,
                             children: &[
                                 TemplateStructureTreeChild::BasicBlock(label_start),
                                 TemplateStructureTreeChild::Node(TemplateStructureTreeNode {
@@ -1304,7 +1396,7 @@ mod tests {
                     kind: structure_tree::NodeKind::Root,
                     children: &[
                         TemplateStructureTreeChild::Node(TemplateStructureTreeNode {
-                            kind: structure_tree::NodeKind::Selection,
+                            kind: structure_tree::NodeKind::Switch,
                             children: &[
                                 TemplateStructureTreeChild::BasicBlock(label_start),
                                 TemplateStructureTreeChild::Node(TemplateStructureTreeNode {
@@ -1420,7 +1512,7 @@ mod tests {
                     kind: structure_tree::NodeKind::Root,
                     children: &[
                         TemplateStructureTreeChild::Node(TemplateStructureTreeNode {
-                            kind: structure_tree::NodeKind::Selection,
+                            kind: structure_tree::NodeKind::Switch,
                             children: &[
                                 TemplateStructureTreeChild::BasicBlock(label_start),
                                 TemplateStructureTreeChild::Node(TemplateStructureTreeNode {
@@ -1536,7 +1628,7 @@ mod tests {
                     kind: structure_tree::NodeKind::Root,
                     children: &[
                         TemplateStructureTreeChild::Node(TemplateStructureTreeNode {
-                            kind: structure_tree::NodeKind::Selection,
+                            kind: structure_tree::NodeKind::Switch,
                             children: &[
                                 TemplateStructureTreeChild::BasicBlock(label_start),
                                 TemplateStructureTreeChild::Node(TemplateStructureTreeNode {
@@ -1722,15 +1814,18 @@ mod tests {
                 structure_tree: TemplateStructureTree(TemplateStructureTreeNode {
                     kind: structure_tree::NodeKind::Root,
                     children: &[
-                        TemplateStructureTreeChild::BasicBlock(label_start),
+                        TemplateStructureTreeChild::BasicBlock(IdRef(1)),
                         TemplateStructureTreeChild::Node(TemplateStructureTreeNode {
                             kind: structure_tree::NodeKind::Loop,
                             children: &[
-                                TemplateStructureTreeChild::BasicBlock(label_header),
-                                TemplateStructureTreeChild::BasicBlock(label_body),
+                                TemplateStructureTreeChild::BasicBlock(IdRef(2)),
+                                TemplateStructureTreeChild::Node(TemplateStructureTreeNode {
+                                    kind: structure_tree::NodeKind::LoopBody,
+                                    children: &[TemplateStructureTreeChild::BasicBlock(IdRef(3))],
+                                }),
                             ],
                         }),
-                        TemplateStructureTreeChild::BasicBlock(label_merge),
+                        TemplateStructureTreeChild::BasicBlock(IdRef(4)),
                     ],
                 }),
             },
@@ -1812,12 +1907,15 @@ mod tests {
                 structure_tree: TemplateStructureTree(TemplateStructureTreeNode {
                     kind: structure_tree::NodeKind::Root,
                     children: &[
-                        TemplateStructureTreeChild::BasicBlock(label_start),
+                        TemplateStructureTreeChild::BasicBlock(IdRef(1)),
                         TemplateStructureTreeChild::Node(TemplateStructureTreeNode {
                             kind: structure_tree::NodeKind::Loop,
                             children: &[
-                                TemplateStructureTreeChild::BasicBlock(label_header),
-                                TemplateStructureTreeChild::BasicBlock(label_body),
+                                TemplateStructureTreeChild::BasicBlock(IdRef(2)),
+                                TemplateStructureTreeChild::Node(TemplateStructureTreeNode {
+                                    kind: structure_tree::NodeKind::LoopBody,
+                                    children: &[TemplateStructureTreeChild::BasicBlock(IdRef(3))],
+                                }),
                             ],
                         }),
                     ],
