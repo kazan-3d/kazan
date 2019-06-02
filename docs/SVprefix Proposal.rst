@@ -166,17 +166,17 @@ Predication (pred) Field Encoding
 +---------------+------------+--------------------+------------------------------------------------------------------------------+
 | 001           | *Reserved* | *Reserved*         |                                                                              |
 +---------------+------------+--------------------+------------------------------------------------------------------------------+
-| 010           | p0         | x9 (s1)            | Each sub-vector operation is executed when the corresponding bit in x9 is 0  |
+| 010           | !x9        | x9 (s1)            | Each sub-vector operation is executed when the corresponding bit in x9 is 0  |
 +---------------+------------+                    +------------------------------------------------------------------------------+
-| 011           | p1         |                    | Each sub-vector operation is executed when the corresponding bit in x9 is 1  |
+| 011           | x9         |                    | Each sub-vector operation is executed when the corresponding bit in x9 is 1  |
 +---------------+------------+--------------------+------------------------------------------------------------------------------+
-| 100           | p0         | x10 (a0)           | Each sub-vector operation is executed when the corresponding bit in x10 is 0 |
+| 100           | !x10       | x10 (a0)           | Each sub-vector operation is executed when the corresponding bit in x10 is 0 |
 +---------------+------------+                    +------------------------------------------------------------------------------+
-| 101           | p1         |                    | Each sub-vector operation is executed when the corresponding bit in x10 is 1 |
+| 101           | x10        |                    | Each sub-vector operation is executed when the corresponding bit in x10 is 1 |
 +---------------+------------+--------------------+------------------------------------------------------------------------------+
-| 110           | p0         | x11 (a1)           | Each sub-vector operation is executed when the corresponding bit in x11 is 0 |
+| 110           | !x11       | x11 (a1)           | Each sub-vector operation is executed when the corresponding bit in x11 is 0 |
 +---------------+------------+                    +------------------------------------------------------------------------------+
-| 111           | p1         |                    | Each sub-vector operation is executed when the corresponding bit in x11 is 1 |
+| 111           | x11        |                    | Each sub-vector operation is executed when the corresponding bit in x11 is 1 |
 +---------------+------------+--------------------+------------------------------------------------------------------------------+
 
 Integer Element Type (itype) Field Encoding
