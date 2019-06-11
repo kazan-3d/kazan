@@ -20,7 +20,7 @@ shader-compiler-backend = {path = "../shader-compiler-backend"}
 shader-compiler-backend-llvm-7 = {path = "../shader-compiler-backend-llvm-7"}
 
 [target.'cfg(unix)'.dependencies]
-xcb = {version = "0.8", features = ["shm"]}
+xcb = {version = "0.8", features = ["shm", "xlib_xcb"]}
 libc = "0.2"
 errno = "0.2"
 
