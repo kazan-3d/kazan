@@ -57,5 +57,5 @@ fi
     ninja
 )
 if ((do_run)); then
-    exec ./run.sh bash -c "cd '$cts_build'/external/vulkancts/modules/vulkan; exec ./deqp-vk --deqp-caselist-file='$cts_source'/external/vulkancts/mustpass/1.1.3/vk-default.txt --deqp-log-images=disable --deqp-log-shader-sources=disable --deqp-log-filename='$cts_output'"
+    exec ./run.sh bash -c "cd '$cts_build'/external/vulkancts/modules/vulkan; exec ./deqp-vk --deqp-caselist-file='$cts_source'/external/vulkancts/mustpass/master/vk-default.txt --deqp-log-images=disable --deqp-log-shader-sources=disable --deqp-log-filename='$cts_output'"
 fi
