@@ -1,5 +1,5 @@
-64-bit Uniform Instruction Format Proposal
-==========================================
+Uniform Instruction Format Proposal
+===================================
 
 This is a proposal to have a 64-bit instruction that all shorter instructions
 can be translated to, such that the internal representation used in a CPU can
