@@ -342,7 +342,7 @@ impl SwapchainSetupFirstStage {
 }
 
 impl XcbSwapchain {
-    unsafe fn new(
+    pub unsafe fn new(
         _create_info: &api::VkSwapchainCreateInfoKHR,
         _device_group_create_info: Option<&api::VkDeviceGroupSwapchainCreateInfoKHR>,
     ) -> Result<Self, api::VkResult> {

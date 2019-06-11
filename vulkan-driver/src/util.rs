@@ -32,7 +32,8 @@ pub fn is_supported_structure_type(v: api::VkStructureType) -> bool {
     {
         #[allow(clippy::single_match)]
         match v {
-            api::VK_STRUCTURE_TYPE_XCB_SURFACE_CREATE_INFO_KHR => return true,
+            api::VK_STRUCTURE_TYPE_XCB_SURFACE_CREATE_INFO_KHR
+            | api::VK_STRUCTURE_TYPE_XLIB_SURFACE_CREATE_INFO_KHR => return true,
             _ => {}
         }
     }

@@ -6,6 +6,7 @@
 #endif
 #ifdef __unix
 #define VK_USE_PLATFORM_XCB_KHR
+#define VK_USE_PLATFORM_XLIB_KHR
 #endif
 #define VK_NO_PROTOTYPES
 #include <vulkan/vulkan.h>
@@ -13,4 +14,7 @@
 #undef VK_NO_PROTOTYPES
 #ifdef VK_USE_PLATFORM_XCB_KHR
 #undef VK_USE_PLATFORM_XCB_KHR
+#endif
+#ifdef VK_USE_PLATFORM_XLIB_KHR
+#undef VK_USE_PLATFORM_XLIB_KHR
 #endif

@@ -19,6 +19,8 @@ mod shm;
 mod swapchain;
 #[cfg(target_os = "linux")]
 mod xcb_swapchain;
+#[cfg(target_os = "linux")]
+mod xlib_swapchain;
 use std::ffi::CStr;
 use std::os::raw::c_char;
 

@@ -75,6 +75,8 @@ pub enum Extension {
     VK_KHR_swapchain,
     #[cfg(target_os = "linux")]
     VK_KHR_xcb_surface,
+    #[cfg(target_os = "linux")]
+    VK_KHR_xlib_surface,
 }
 
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
@@ -139,6 +141,8 @@ impl Extension {
             Extension::VK_KHR_swapchain => extensions![Extension::VK_KHR_surface],
             #[cfg(target_os = "linux")]
             Extension::VK_KHR_xcb_surface => extensions![Extension::VK_KHR_surface],
+            #[cfg(target_os = "linux")]
+            Extension::VK_KHR_xlib_surface => extensions![Extension::VK_KHR_surface],
         }
     }
     pub fn get_recursively_required_extensions(self) -> Extensions {
@@ -195,6 +199,8 @@ impl Extension {
             VK_KHR_swapchain,
             #[cfg(target_os = "linux")]
             VK_KHR_xcb_surface,
+            #[cfg(target_os = "linux")]
+            VK_KHR_xlib_surface,
         )
     }
     pub fn get_spec_version(self) -> u32 {
@@ -246,6 +252,8 @@ impl Extension {
             Extension::VK_KHR_swapchain => api::VK_KHR_SWAPCHAIN_SPEC_VERSION,
             #[cfg(target_os = "linux")]
             Extension::VK_KHR_xcb_surface => api::VK_KHR_XCB_SURFACE_SPEC_VERSION,
+            #[cfg(target_os = "linux")]
+            Extension::VK_KHR_xlib_surface => api::VK_KHR_XLIB_SURFACE_SPEC_VERSION,
         }
     }
     pub fn get_properties(self) -> api::VkExtensionProperties {
@@ -284,7 +292,8 @@ impl Extension {
             | Extension::VK_KHR_variable_pointers
             | Extension::VK_KHR_swapchain => ExtensionScope::Device,
             #[cfg(target_os = "linux")]
-            Extension::VK_KHR_xcb_surface => ExtensionScope::Instance,
+            Extension::VK_KHR_xcb_surface
+            | Extension::VK_KHR_xlib_surface  => ExtensionScope::Instance,
         }
     }
 }
@@ -754,6 +763,10 @@ fn get_proc_address(
         proc_address!(vkCreateXcbSurfaceKHR, PFN_vkCreateXcbSurfaceKHR, device, extensions[Extension::VK_KHR_xcb_surface]);
         #[cfg(target_os = "linux")]
         proc_address!(vkGetPhysicalDeviceXcbPresentationSupportKHR, PFN_vkGetPhysicalDeviceXcbPresentationSupportKHR, device, extensions[Extension::VK_KHR_xcb_surface]);
+        #[cfg(target_os = "linux")]
+        proc_address!(vkCreateXlibSurfaceKHR, PFN_vkCreateXlibSurfaceKHR, device, extensions[Extension::VK_KHR_xlib_surface]);
+        #[cfg(target_os = "linux")]
+        proc_address!(vkGetPhysicalDeviceXlibPresentationSupportKHR, PFN_vkGetPhysicalDeviceXlibPresentationSupportKHR, device, extensions[Extension::VK_KHR_xlib_surface]);
         /*
         proc_address!(vkCmdBeginConditionalRenderingEXT, PFN_vkCmdBeginConditionalRenderingEXT, device, unknown);
         proc_address!(vkCmdBeginDebugUtilsLabelEXT, PFN_vkCmdBeginDebugUtilsLabelEXT, device, unknown);
@@ -6619,4 +6632,42 @@ pub unsafe extern "system" fn vkGetPhysicalDeviceXcbPresentationSupportKHR(
     _visual_id: xcb::ffi::xcb_visualid_t,
 ) -> api::VkBool32 {
     unimplemented!()
+}
+
+#[cfg(target_os = "linux")]
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkCreateXlibSurfaceKHR(
+    _instance: api::VkInstance,
+    create_info: *const api::VkXlibSurfaceCreateInfoKHR,
+    _allocator: *const api::VkAllocationCallbacks,
+    surface: *mut api::VkSurfaceKHR,
+) -> api::VkResult {
+    parse_next_chain_const! {
+        create_info,
+        root = api::VK_STRUCTURE_TYPE_XLIB_SURFACE_CREATE_INFO_KHR,
+    }
+    let create_info = &*create_info;
+    let new_surface = Box::new(api::VkIcdSurfaceXlib {
+        base: api::VkIcdSurfaceBase {
+            platform: api::VK_ICD_WSI_PLATFORM_XLIB,
+        },
+        dpy: create_info.dpy,
+        window: create_info.window,
+    });
+    *surface = api::VkSurfaceKHR::new(NonNull::new(
+        Box::into_raw(new_surface) as *mut api::VkIcdSurfaceBase
+    ));
+    api::VK_SUCCESS
+}
+
+#[cfg(target_os = "linux")]
+#[allow(non_snake_case)]
+pub unsafe extern "system" fn vkGetPhysicalDeviceXlibPresentationSupportKHR(
+    physicalDevice: api::VkPhysicalDevice,
+    queueFamilyIndex: u32,
+    dpy: *mut api::_XDisplay,
+    visualID: api::VisualID,
+) -> api::VkBool32 {
+    let xcb_connection = xcb::ffi::xlib_xcb::XGetXCBConnection(dpy as *mut _);
+    vkGetPhysicalDeviceXcbPresentationSupportKHR(physicalDevice, queueFamilyIndex, xcb_connection, visualID as u32)
 }

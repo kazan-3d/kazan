@@ -3,6 +3,8 @@
 use crate::api;
 #[cfg(target_os = "linux")]
 use crate::xcb_swapchain::XcbSurfaceImplementation;
+#[cfg(target_os = "linux")]
+use crate::xlib_swapchain::XlibSurfaceImplementation;
 use enum_map::Enum;
 use std::any::Any;
 use std::borrow::Cow;
@@ -51,9 +53,13 @@ impl SurfacePlatform {
     pub fn get_surface_implementation(self) -> Cow<'static, dyn SurfaceImplementation> {
         #[cfg(target_os = "linux")]
         const XCB_SURFACE_IMPLEMENTATION: XcbSurfaceImplementation = XcbSurfaceImplementation;
+        #[cfg(target_os = "linux")]
+        const XLIB_SURFACE_IMPLEMENTATION: XlibSurfaceImplementation = XlibSurfaceImplementation;
         match self {
             #[cfg(target_os = "linux")]
             SurfacePlatform::VK_ICD_WSI_PLATFORM_XCB => Cow::Borrowed(&XCB_SURFACE_IMPLEMENTATION),
+            #[cfg(target_os = "linux")]
+            SurfacePlatform::VK_ICD_WSI_PLATFORM_XLIB => Cow::Borrowed(&XLIB_SURFACE_IMPLEMENTATION),
             _ => Cow::Owned(FallbackSurfaceImplementation(self).duplicate()),
         }
     }
