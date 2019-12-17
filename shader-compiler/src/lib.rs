@@ -9,7 +9,6 @@ mod instruction_properties;
 mod lattice;
 mod parsed_shader_compile;
 mod parsed_shader_create;
-mod uniformity;
 
 use crate::parsed_shader_compile::ParsedShaderCompile;
 use shader_compiler_backend::Module;

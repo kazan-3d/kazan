@@ -2,7 +2,6 @@
 // See Notices.txt for copyright information
 
 use crate::cfg::{CFGGraph, CFGNodeIndex, CFG};
-use crate::uniformity::{ValueUniformities, ValueUniformity};
 use crate::{
     Context, CrossLaneBehavior, FrontendType, IdKind, Ids, ParsedShader, ParsedShaderFunction,
     ScalarType,
@@ -307,7 +306,6 @@ impl<'ctx, C: shader_compiler_backend::Context<'ctx>> ParsedShaderCompile<'ctx, 
             }
             let cfg = CFG::new(instructions);
             let dominators = cfg.dominators();
-            let value_uniformities = ValueUniformities::new(&cfg, &ids);
             let mut visit_events_queue: Vec<Vec<_>> = Vec::new();
             let mut visit_events_stack: Vec<usize> = Vec::new();
             depth_first_search(
