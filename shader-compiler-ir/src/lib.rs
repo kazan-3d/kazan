@@ -3,3 +3,10 @@
 #![deny(missing_docs)]
 
 //! Shader Compiler Intermediate Representation
+
+pub mod debug;
+mod global_state;
+mod interned_string;
+
+pub use crate::global_state::GlobalState;
+pub use crate::interned_string::InternedString;
