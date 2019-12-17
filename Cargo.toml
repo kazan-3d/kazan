@@ -3,6 +3,7 @@
 [workspace]
 members = [
     "shader-compiler",
+    "shader-compiler-ir",
     "shader-compiler-backend",
     "shader-compiler-backend-llvm-7",
     "spirv-parser",
