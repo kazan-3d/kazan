@@ -15,9 +15,9 @@ enum CharClass {
 impl From<char> for CharClass {
     fn from(v: char) -> CharClass {
         match v {
-            'A'...'Z' => CharClass::Uppercase,
-            'a'...'z' => CharClass::OtherIdentifier,
-            '0'...'9' => CharClass::Number,
+            'A'..='Z' => CharClass::Uppercase,
+            'a'..='z' => CharClass::OtherIdentifier,
+            '0'..='9' => CharClass::Number,
             _ => CharClass::WordSeparator,
         }
     }
@@ -81,10 +81,10 @@ impl<'a> Iterator for WordIterator<'a> {
         let mut last_char_class = CharClass::WordSeparator;
         for (i, ch) in self.words.char_indices() {
             let current_char_class = CharClass::from(ch);
-            if word_start.is_some() {
+            if let Some(word_start) = word_start {
                 match current_char_class {
                     CharClass::WordSeparator => {
-                        self.word = Some(&self.words[word_start.unwrap()..i]);
+                        self.word = Some(&self.words[word_start..i]);
                         self.words = &self.words[i..];
                         return self.word;
                     }
@@ -92,14 +92,14 @@ impl<'a> Iterator for WordIterator<'a> {
                         if last_char_class != CharClass::Uppercase
                             && last_char_class != CharClass::Number
                         {
-                            self.word = Some(&self.words[word_start.unwrap()..i]);
+                            self.word = Some(&self.words[word_start..i]);
                             self.words = &self.words[i..];
                             return self.word;
                         }
                         if self.words[i..].chars().nth(1).map(CharClass::from)
                             == Some(CharClass::OtherIdentifier)
                         {
-                            self.word = Some(&self.words[word_start.unwrap()..i]);
+                            self.word = Some(&self.words[word_start..i]);
                             self.words = &self.words[i..];
                             return self.word;
                         }

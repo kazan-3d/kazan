@@ -11,7 +11,7 @@ use spirv_parser::{BuiltIn, Decoration, ExecutionModel, IdRef, Instruction, Stor
 use std::mem;
 use std::rc::Rc;
 
-#[allow(clippy::cyclomatic_complexity)]
+#[allow(clippy::cognitive_complexity)]
 pub(super) fn create<'a, C: shader_compiler_backend::Context<'a>>(
     context: &mut Context,
     stage_info: ShaderStageCreateInfo,

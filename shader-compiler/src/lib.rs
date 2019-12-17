@@ -667,7 +667,7 @@ struct ParsedShaderFunction {
 
 impl fmt::Debug for ParsedShaderFunction {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "ParsedShaderFunction:\n")?;
+        writeln!(f, "ParsedShaderFunction:")?;
         for instruction in &self.instructions {
             write!(f, "{}", instruction)?;
         }

@@ -150,57 +150,6 @@ pub trait TypeBuilder<'a, Ty: Type<'a>> {
     }
 }
 
-impl<'a, 'b, Ty: Type<'a>> TypeBuilder<'a, Ty> for &'b TypeBuilder<'a, Ty> {
-    fn build_bool(&self) -> Ty {
-        (*self).build_bool()
-    }
-    fn build_i8(&self) -> Ty {
-        (*self).build_i8()
-    }
-    fn build_i16(&self) -> Ty {
-        (*self).build_i16()
-    }
-    fn build_i32(&self) -> Ty {
-        (*self).build_i32()
-    }
-    fn build_i64(&self) -> Ty {
-        (*self).build_i64()
-    }
-    fn build_u8(&self) -> Ty {
-        (*self).build_u8()
-    }
-    fn build_u16(&self) -> Ty {
-        (*self).build_u16()
-    }
-    fn build_u32(&self) -> Ty {
-        (*self).build_u32()
-    }
-    fn build_u64(&self) -> Ty {
-        (*self).build_u64()
-    }
-    fn build_f32(&self) -> Ty {
-        (*self).build_f32()
-    }
-    fn build_f64(&self) -> Ty {
-        (*self).build_f64()
-    }
-    fn build_pointer(&self, target: Ty) -> Ty {
-        (*self).build_pointer(target)
-    }
-    fn build_array(&self, element: Ty, count: usize) -> Ty {
-        (*self).build_array(element, count)
-    }
-    fn build_vector(&self, element: Ty, length: VectorLength) -> Ty {
-        (*self).build_vector(element, length)
-    }
-    fn build_struct(&self, members: &[Ty]) -> Ty {
-        (*self).build_struct(members)
-    }
-    fn build_function(&self, arguments: &[Ty], return_type: Option<Ty>) -> Ty {
-        (*self).build_function(arguments, return_type)
-    }
-}
-
 /// trait for rust types that can be built using `TypeBuilder`
 pub trait BuildableType {
     /// build the type represented by `Self`

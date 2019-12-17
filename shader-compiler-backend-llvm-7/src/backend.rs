@@ -14,7 +14,7 @@ use std::ops::Deref;
 use std::os::raw::{c_char, c_uint};
 use std::ptr::null_mut;
 use std::ptr::NonNull;
-use std::sync::{Once, ONCE_INIT};
+use std::sync::Once;
 
 const EMPTY_C_STR: &[c_char] = &[b'0' as c_char];
 
@@ -534,7 +534,7 @@ impl Drop for LLVM7OrcJITStack {
 }
 
 fn initialize_native_target() {
-    static ONCE: Once = ONCE_INIT;
+    static ONCE: Once = Once::new();
     ONCE.call_once(|| unsafe {
         llvm::LLVM_InitializeNativeTarget();
         llvm::LLVM_InitializeNativeAsmPrinter();

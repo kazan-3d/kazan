@@ -266,7 +266,7 @@ void LLVM_InitializeNativeDisassembler(void)
     let llvm_bindings_path = out_dir.join("llvm_bindings.c");
     fs::write(&llvm_bindings_path, llvm_bindings_source).unwrap();
     let include_dir: String = llvm_config(&llvm_config_path, Some("--includedir"))
-        .trim_right()
+        .trim_end()
         .into();
     let builder = bindgen::Builder::default()
         .header(header_path.to_str().unwrap())

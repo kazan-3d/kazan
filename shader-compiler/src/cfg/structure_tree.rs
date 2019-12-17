@@ -919,41 +919,47 @@ impl Parser<'_> {
         nesting_depth: usize,
         merge_target: CFGNodeIndex,
     ) -> ParseChildResult {
-        match self.graph[basic_block]
+        match *self.graph[basic_block]
             .instructions()
             .terminating_instruction()
             .expect("missing terminating instruction")
         {
             Instruction::Switch32 {
                 default: default_id,
-                target: case_ids,
+                target: ref case_ids,
                 ..
-            } => self.parse_switch_child(
-                basic_block,
-                exit_targets,
-                merge_target,
-                self.label_to_node_index_map[default_id],
-                case_ids
+            } => {
+                let case_node_indexes = case_ids
                     .iter()
                     .map(|(_, v)| self.label_to_node_index_map[v])
-                    .collect(),
-                nesting_depth,
-            ),
+                    .collect();
+                self.parse_switch_child(
+                    basic_block,
+                    exit_targets,
+                    merge_target,
+                    self.label_to_node_index_map[&default_id],
+                    case_node_indexes,
+                    nesting_depth,
+                )
+            }
             Instruction::Switch64 {
                 default: default_id,
-                target: case_ids,
+                target: ref case_ids,
                 ..
-            } => self.parse_switch_child(
-                basic_block,
-                exit_targets,
-                merge_target,
-                self.label_to_node_index_map[default_id],
-                case_ids
+            } => {
+                let case_node_indexes = case_ids
                     .iter()
                     .map(|(_, v)| self.label_to_node_index_map[v])
-                    .collect(),
-                nesting_depth,
-            ),
+                    .collect();
+                self.parse_switch_child(
+                    basic_block,
+                    exit_targets,
+                    merge_target,
+                    self.label_to_node_index_map[&default_id],
+                    case_node_indexes,
+                    nesting_depth,
+                )
+            }
             Instruction::BranchConditional {
                 true_label: true_id,
                 false_label: false_id,
@@ -963,8 +969,8 @@ impl Parser<'_> {
                 exit_targets,
                 nesting_depth,
                 merge_target,
-                self.label_to_node_index_map[true_id],
-                self.label_to_node_index_map[false_id],
+                self.label_to_node_index_map[&true_id],
+                self.label_to_node_index_map[&false_id],
             ),
             Instruction::Branch { .. }
             | Instruction::Kill
@@ -988,7 +994,7 @@ impl Parser<'_> {
     ) -> ParseChildResult {
         match self.graph[basic_block].instructions().merge_instruction() {
             None => self.parse_simple_child(basic_block),
-            Some(Instruction::LoopMerge {
+            Some(&Instruction::LoopMerge {
                 merge_block: merge_id,
                 continue_target: continue_id,
                 ..
@@ -996,17 +1002,17 @@ impl Parser<'_> {
                 basic_block,
                 exit_targets,
                 nesting_depth,
-                self.label_to_node_index_map[merge_id],
-                self.label_to_node_index_map[continue_id],
+                self.label_to_node_index_map[&merge_id],
+                self.label_to_node_index_map[&continue_id],
             ),
-            Some(Instruction::SelectionMerge {
+            Some(&Instruction::SelectionMerge {
                 merge_block: merge_id,
                 ..
             }) => self.parse_selection_child(
                 basic_block,
                 exit_targets,
                 nesting_depth,
-                self.label_to_node_index_map[merge_id],
+                self.label_to_node_index_map[&merge_id],
             ),
             _ => unreachable!(),
         }

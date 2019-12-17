@@ -251,16 +251,18 @@ impl SubAssign<&'_ VariableSet> for VariableSet {
         self.retain(|value| loop {
             match iter.peek().cloned() {
                 None => break true,
-                Some(rhs_value) => {
-                    if value < rhs_value {
+                Some(rhs_value) => match value.cmp(&rhs_value) {
+                    Ordering::Less => {
                         break true;
-                    } else if value == rhs_value {
+                    }
+                    Ordering::Equal => {
                         iter.next();
                         break false;
-                    } else {
+                    }
+                    Ordering::Greater => {
                         iter.next();
                     }
-                }
+                },
             }
         });
     }

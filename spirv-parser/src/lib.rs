@@ -2,7 +2,7 @@
 // See Notices.txt for copyright information
 
 #![allow(clippy::unreadable_literal)]
-#![allow(clippy::cyclomatic_complexity)]
+#![allow(clippy::cognitive_complexity)]
 
 include!(concat!(env!("OUT_DIR"), "/generated_parser.rs"));
 

@@ -76,7 +76,7 @@ mod tests {
                 let mut module = context.create_module("test_module");
                 let mut functions = Vec::new();
                 let mut detached_builder = context.create_builder();
-                for name in NAMES {
+                for &name in NAMES {
                     let mut function =
                         module.add_function(name, type_builder.build::<GeneratedFunctionType>());
                     let builder = detached_builder.attach(function.append_new_basic_block(None));

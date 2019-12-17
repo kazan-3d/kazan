@@ -6,6 +6,7 @@ use crate::util::{self, NameFormat::*};
 use crate::Error;
 use crate::Options;
 use proc_macro2;
+use quote::quote;
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::collections::HashSet;
@@ -15,7 +16,6 @@ use std::iter;
 use std::process::{Child, Command, ExitStatus, Stdio};
 use std::thread;
 use which;
-use quote::quote;
 
 #[derive(Debug)]
 enum FormatError {
@@ -137,7 +137,7 @@ struct ParsedExtensionInstructionSet {
     spirv_instruction_set_name: &'static str,
 }
 
-#[allow(clippy::cyclomatic_complexity)]
+#[allow(clippy::cognitive_complexity)]
 pub(crate) fn generate(
     core_grammar: ast::CoreGrammar,
     parsed_extension_instruction_sets: HashMap<
@@ -1418,10 +1418,7 @@ pub(crate) fn generate(
                         parse_state.define_value(#operand1_name, #operand2_name)?;
                     });
                 } else {
-                    assert!(
-                        false,
-                        "spec constant op is missing id_result_type and id_result"
-                    );
+                    panic!("spec constant op is missing id_result_type and id_result");
                 }
                 let operand_names = &operand_names;
                 instruction_spec_constant_parse_cases.push(quote! {#opcode => {
