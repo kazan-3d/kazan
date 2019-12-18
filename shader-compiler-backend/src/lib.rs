@@ -146,7 +146,11 @@ pub trait Module<'a>: Debug + Sized {
     fn verify(
         self,
     ) -> Result<<Self::Context as Context<'a>>::VerifiedModule, VerificationFailure<'a, Self>>;
-    /// convert into a `VerifiedModule` without verifing
+    /// convert into a `VerifiedModule` without verifying
+    ///
+    /// # Safety
+    ///
+    /// Must pass `verify`
     unsafe fn to_verified_module_unchecked(self) -> <Self::Context as Context<'a>>::VerifiedModule;
 }
 
