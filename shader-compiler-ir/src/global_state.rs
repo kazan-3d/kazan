@@ -2,6 +2,7 @@
 // See Notices.txt for copyright information
 
 use crate::debug;
+use crate::types::TypeValue;
 use std::cell::RefCell;
 use std::collections::HashSet;
 use std::fmt;
@@ -39,6 +40,7 @@ impl Interner<str> {
 pub struct GlobalState {
     pub(crate) string_interner: Interner<str>,
     pub(crate) debug_location_interner: Interner<debug::LocationValue>,
+    pub(crate) type_interner: Interner<TypeValue>,
 }
 
 impl fmt::Debug for GlobalState {

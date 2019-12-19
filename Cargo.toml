@@ -2,13 +2,13 @@
 # See Notices.txt for copyright information
 [workspace]
 members = [
-    "shader-compiler",
+    #"shader-compiler",
     "shader-compiler-ir",
     "shader-compiler-backend",
-    "shader-compiler-backend-llvm-7",
+    #"shader-compiler-backend-llvm-7",
     "spirv-parser",
     "spirv-parser-generator",
-    "vulkan-driver",
+    #"vulkan-driver",
 ]
 
 [profile.dev]

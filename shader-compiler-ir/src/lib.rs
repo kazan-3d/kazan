@@ -4,9 +4,12 @@
 
 //! Shader Compiler Intermediate Representation
 
+pub mod code;
 pub mod debug;
 mod global_state;
 mod interned_string;
+pub mod types;
+pub mod value;
 
 pub use crate::global_state::GlobalState;
 pub use crate::interned_string::InternedString;
