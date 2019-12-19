@@ -3,15 +3,15 @@
 
 //! debugger support
 
-use crate::global_state::GlobalState;
-use crate::interned_string::InternedString;
+use crate::GlobalState;
+use crate::InternedString;
 use std::fmt;
 use std::ops::Deref;
 use std::rc::Rc;
 
 /// a debug location; you're probably looking for `Location` instead
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
-pub struct LocationValue {
+pub struct LocationData {
     /// the source file name
     pub file: InternedString,
     /// the line number
@@ -20,7 +20,7 @@ pub struct LocationValue {
     pub column: u32,
 }
 
-impl LocationValue {
+impl LocationData {
     /// create an empty `LocationValue`
     pub const fn empty() -> Self {
         Self {
@@ -37,7 +37,7 @@ impl LocationValue {
 
 /// a debug location
 #[derive(Clone, Eq, PartialEq, Hash)]
-pub struct Location(Option<Rc<LocationValue>>);
+pub struct Location(Option<Rc<LocationData>>);
 
 impl Location {
     /// create an empty `Location`
@@ -49,8 +49,8 @@ impl Location {
         self.0.is_none()
     }
     /// create a new `Location`
-    pub fn new(value: &LocationValue, global_state: &GlobalState) -> Self {
-        if *value == LocationValue::empty() {
+    pub fn new(value: &LocationData, global_state: &GlobalState) -> Self {
+        if *value == LocationData::empty() {
             Self(None)
         } else {
             Self(Some(global_state.debug_location_interner.intern(value)))
@@ -59,9 +59,9 @@ impl Location {
 }
 
 impl Deref for Location {
-    type Target = LocationValue;
-    fn deref(&self) -> &LocationValue {
-        const EMPTY: &LocationValue = &LocationValue::empty();
+    type Target = LocationData;
+    fn deref(&self) -> &LocationData {
+        const EMPTY: &LocationData = &LocationData::empty();
         self.0.as_deref().unwrap_or(EMPTY)
     }
 }
@@ -73,7 +73,7 @@ impl fmt::Debug for Location {
                 $($field:ident,)+
             ) => {
                 {
-                    let LocationValue {
+                    let LocationData {
                         $($field,)+
                     } = &**self;
                     f.debug_struct("Location")

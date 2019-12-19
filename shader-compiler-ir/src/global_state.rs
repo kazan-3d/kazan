@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 // See Notices.txt for copyright information
 
-use crate::debug;
-use crate::types::TypeValue;
+use crate::ConstData;
+use crate::LocationData;
+use crate::TypeData;
 use std::cell::RefCell;
 use std::collections::HashSet;
 use std::fmt;
@@ -10,6 +11,12 @@ use std::hash::Hash;
 use std::rc::Rc;
 
 pub(crate) struct Interner<T: ?Sized>(RefCell<HashSet<Rc<T>>>);
+
+impl<T: Eq + Hash + ?Sized> Default for Interner<T> {
+    fn default() -> Self {
+        Self(RefCell::new(HashSet::new()))
+    }
+}
 
 impl<T: Eq + Hash + ?Sized> Interner<T> {
     fn intern_impl<'a, F: FnOnce(&'a T) -> Rc<T>>(&self, value: &'a T, to_rc: F) -> Rc<T> {
@@ -37,10 +44,12 @@ impl Interner<str> {
 }
 
 /// global state
+#[derive(Default)]
 pub struct GlobalState {
     pub(crate) string_interner: Interner<str>,
-    pub(crate) debug_location_interner: Interner<debug::LocationValue>,
-    pub(crate) type_interner: Interner<TypeValue>,
+    pub(crate) debug_location_interner: Interner<LocationData>,
+    pub(crate) type_interner: Interner<TypeData>,
+    pub(crate) const_interner: Interner<ConstData>,
 }
 
 impl fmt::Debug for GlobalState {
