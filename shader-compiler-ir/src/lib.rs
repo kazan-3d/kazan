@@ -4,6 +4,7 @@
 
 //! Shader Compiler Intermediate Representation
 
+pub mod arena;
 mod debug;
 mod global_state;
 mod interned_string;
