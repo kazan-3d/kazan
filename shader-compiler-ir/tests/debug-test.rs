@@ -2,69 +2,63 @@
 // See Notices.txt for copyright information
 
 use shader_compiler_ir::{
-    Block, BreakBlock, Const, ConstData, ConstInteger, GlobalState, Inhabited, Instruction,
-    InstructionData, IntegerType, InternedString, Location, LocationData, Loop, LoopHeader, Type,
-    TypeData, Value, ValueDefinition, ValueUse,
+    Allocate, Block, BreakBlock, Const, ConstInteger, GlobalState, Inhabited, Instruction,
+    InstructionData, IntegerType, Intern, Interned, Location, Loop, LoopHeader, OnceCell, Type,
+    Value, ValueDefinition, ValueUse,
 };
-use std::rc::Rc;
-use std::rc::Weak;
 
 #[test]
 fn test_debug() {
     let global_state = GlobalState::default();
-    let int32_type = Type::get(
-        &TypeData::Integer {
-            integer_type: IntegerType::Int32,
-        },
-        &global_state,
-    );
-    let code = Rc::new(Block {
+    let global_state = &global_state;
+    let int32_type = global_state.intern(&Type::Integer {
+        integer_type: IntegerType::Int32,
+    });
+    let block0 = global_state.alloc(Block {
+        body: OnceCell::new(),
+        result_definitions: Inhabited(Vec::new()),
+    });
+    block0
+        .body
+        .set(vec![Instruction {
+            location: Some(global_state.intern(&Location {
+                file: global_state.intern("file1.vertex"),
+                line: 2,
+                column: 1,
+            })),
+            data: InstructionData::BreakBlock(BreakBlock {
+                block: block0,
+                block_results: vec![],
+            }),
+        }])
+        .unwrap();
+    let code = global_state.alloc(Block {
         body: vec![
             Instruction {
-                location: Location::new(
-                    &LocationData {
-                        file: InternedString::new("file1.vertex", &global_state),
-                        line: 1,
-                        column: 1,
-                    },
-                    &global_state,
-                ),
+                location: Some(global_state.intern(&Location {
+                    file: global_state.intern("file1.vertex"),
+                    line: 1,
+                    column: 1,
+                })),
                 data: InstructionData::Loop({
                     let loop_arg0 = ValueDefinition::new(
-                        InternedString::new("loop_arg0", &global_state),
+                        global_state.intern("loop_arg0"),
                         int32_type.clone(),
+                        global_state,
                     );
-                    Rc::new(Loop {
+                    global_state.alloc(Loop {
                         arguments: vec![ValueUse::new(Value::from_const(
-                            Const::get(
-                                &ConstData::Integer(ConstInteger {
-                                    integer_type: IntegerType::Int32,
-                                    value: 0,
-                                }),
-                                &global_state,
-                            ),
-                            InternedString::empty(),
+                            global_state.intern(&Const::Integer(ConstInteger {
+                                integer_type: IntegerType::Int32,
+                                value: 0,
+                            })),
+                            global_state.intern(""),
+                            global_state,
                         ))],
                         header: LoopHeader {
                             argument_definitions: vec![loop_arg0],
                         },
-                        body: Rc::new(Block {
-                            body: vec![Instruction {
-                                location: Location::new(
-                                    &LocationData {
-                                        file: InternedString::new("file1.vertex", &global_state),
-                                        line: 2,
-                                        column: 1,
-                                    },
-                                    &global_state,
-                                ),
-                                data: InstructionData::BreakBlock(BreakBlock {
-                                    block: Weak::new(),
-                                    block_results: vec![],
-                                }),
-                            }],
-                            result_definitions: Inhabited(Vec::new()),
-                        }),
+                        body: block0,
                     })
                 }),
             },

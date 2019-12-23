@@ -4,23 +4,176 @@
 
 //! Shader Compiler Intermediate Representation
 
-pub mod arena;
-mod debug;
-mod global_state;
-mod interned_string;
-
-pub use crate::debug::Location;
-pub use crate::debug::LocationData;
-pub use crate::global_state::GlobalState;
-pub use crate::interned_string::InternedString;
+pub use once_cell::unsync::OnceCell;
 use std::cell::RefCell;
+use std::collections::HashSet;
 use std::fmt;
 use std::hash::Hash;
 use std::hash::Hasher;
 use std::ops::Deref;
 use std::ops::DerefMut;
-use std::rc::Rc;
-use std::rc::Weak;
+use typed_arena::Arena;
+
+pub struct GlobalState<'g> {
+    string_byte_arena: Arena<u8>,
+    string_hashtable: RefCell<HashSet<&'g str>>,
+    location_arena: Arena<Location<'g>>,
+    location_hashtable: RefCell<HashSet<&'g Location<'g>>>,
+    type_arena: Arena<Type<'g>>,
+    type_hashtable: RefCell<HashSet<&'g Type<'g>>>,
+    const_arena: Arena<Const<'g>>,
+    const_hashtable: RefCell<HashSet<&'g Const<'g>>>,
+    value_arena: Arena<ValueData<'g>>,
+    block_arena: Arena<Block<'g>>,
+    loop_arena: Arena<Loop<'g>>,
+}
+
+impl<'g> GlobalState<'g> {
+    /// create a new `GlobalState`
+    pub fn new() -> Self {
+        Self {
+            string_byte_arena: Arena::new(),
+            string_hashtable: RefCell::new(HashSet::new()),
+            location_arena: Arena::new(),
+            location_hashtable: RefCell::new(HashSet::new()),
+            type_arena: Arena::new(),
+            type_hashtable: RefCell::new(HashSet::new()),
+            const_arena: Arena::new(),
+            const_hashtable: RefCell::new(HashSet::new()),
+            value_arena: Arena::new(),
+            block_arena: Arena::new(),
+            loop_arena: Arena::new(),
+        }
+    }
+}
+
+impl<'g> Default for GlobalState<'g> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+#[doc(hidden)]
+pub struct Private {
+    _private: (),
+}
+
+impl Private {
+    const fn new() -> Self {
+        Self { _private: () }
+    }
+}
+
+/// allocate value from `GlobalState`
+pub trait Allocate<'g, T> {
+    /// allocate value from `GlobalState`
+    #[must_use]
+    fn alloc(&'g self, value: T) -> &'g mut T;
+}
+
+#[repr(transparent)]
+pub struct Interned<'g, T: ?Sized + Eq + Hash>(&'g T);
+
+impl<T: ?Sized + Eq + Hash> Eq for Interned<'_, T> {}
+
+impl<T: ?Sized + Eq + Hash> Copy for Interned<'_, T> {}
+
+impl<T: ?Sized + Eq + Hash> Clone for Interned<'_, T> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<T: ?Sized + Eq + Hash> PartialEq for Interned<'_, T> {
+    fn eq(&self, rhs: &Self) -> bool {
+        std::ptr::eq(self.0, rhs.0)
+    }
+}
+
+impl<T: ?Sized + Eq + Hash> Hash for Interned<'_, T> {
+    fn hash<H: Hasher>(&self, h: &mut H) {
+        (self.0 as *const T).hash(h)
+    }
+}
+
+impl<T: ?Sized + Eq + Hash> Deref for Interned<'_, T> {
+    type Target = T;
+    fn deref(&self) -> &T {
+        self.0
+    }
+}
+
+impl<T: ?Sized + Eq + Hash> AsRef<T> for Interned<'_, T> {
+    fn as_ref(&self) -> &T {
+        self.0
+    }
+}
+
+impl<'g, T: ?Sized + Eq + Hash> Interned<'g, T> {
+    pub fn get(self) -> &'g T {
+        self.0
+    }
+}
+
+impl<T: ?Sized + Eq + Hash + fmt::Debug> fmt::Debug for Interned<'_, T> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
+impl<T: ?Sized + Eq + Hash + fmt::Display> fmt::Display for Interned<'_, T> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
+pub trait Intern<'g, T: ?Sized + Eq + Hash> {
+    #[doc(hidden)]
+    fn intern_alloc(&'g self, _private: Private, value: &T) -> &'g T;
+    #[doc(hidden)]
+    fn get_hashtable(&'g self, _private: Private) -> &'g RefCell<HashSet<&'g T>>;
+    #[must_use]
+    fn intern<'a>(&'g self, value: &'a T) -> Interned<'g, T> {
+        let mut hashtable = self.get_hashtable(Private::new()).borrow_mut();
+        if let Some(retval) = hashtable.get(value) {
+            Interned(retval)
+        } else {
+            let retval = self.intern_alloc(Private::new(), value);
+            let inserted = hashtable.insert(retval);
+            assert!(inserted);
+            Interned(retval)
+        }
+    }
+}
+
+impl<'g> Intern<'g, str> for GlobalState<'g> {
+    fn intern_alloc(&'g self, _private: Private, value: &str) -> &'g str {
+        self.string_byte_arena.alloc_str(value)
+    }
+    fn get_hashtable(&'g self, _private: Private) -> &'g RefCell<HashSet<&'g str>> {
+        &self.string_hashtable
+    }
+}
+
+/// a debug location
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
+pub struct Location<'g> {
+    /// the source file name
+    pub file: Interned<'g, str>,
+    /// the line number
+    pub line: u32,
+    /// the column number
+    pub column: u32,
+}
+
+impl<'g> Intern<'g, Location<'g>> for GlobalState<'g> {
+    fn intern_alloc(&'g self, _private: Private, value: &Location<'g>) -> &'g Location<'g> {
+        self.location_arena.alloc(*value)
+    }
+    fn get_hashtable(&'g self, _private: Private) -> &'g RefCell<HashSet<&'g Location<'g>>> {
+        &self.location_hashtable
+    }
+}
 
 /// if a type or value `T` is inhabited (is reachable)
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
@@ -79,115 +232,149 @@ impl<T> Inhabitable<T> {
 }
 
 /// code structure input/output
-pub(crate) trait CodeIO {
+pub(crate) trait CodeIO<'g> {
     /// the list of SSA value definitions that are the results of executing `self`, or `Uninhabited` if `self` doesn't return
-    fn results(&self) -> Inhabitable<&[ValueDefinition]>;
+    fn results(&self) -> Inhabitable<&[ValueDefinition<'g>]>;
     /// the list of SSA values that are the arguments for `self`
-    fn arguments(&self) -> &[ValueUse];
+    fn arguments(&self) -> &[ValueUse<'g>];
 }
 
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
 pub(crate) enum SimpleInstructionKind {}
 
 #[derive(Debug)]
-pub struct BreakBlock {
-    pub block: Weak<Block>,
-    pub block_results: Vec<ValueUse>,
+pub struct BreakBlock<'g> {
+    pub block: &'g Block<'g>,
+    pub block_results: Vec<ValueUse<'g>>,
 }
 
-impl CodeIO for BreakBlock {
-    fn results(&self) -> Inhabitable<&[ValueDefinition]> {
+impl<'g> CodeIO<'g> for BreakBlock<'g> {
+    fn results(&self) -> Inhabitable<&[ValueDefinition<'g>]> {
         Uninhabited
     }
-    fn arguments(&self) -> &[ValueUse] {
+    fn arguments(&self) -> &[ValueUse<'g>] {
         &self.block_results
     }
 }
 
 #[derive(Eq, PartialEq, Hash, Debug)]
-pub struct LoopHeader {
-    pub argument_definitions: Vec<ValueDefinition>,
+pub struct LoopHeader<'g> {
+    pub argument_definitions: Vec<ValueDefinition<'g>>,
 }
 
-impl CodeIO for LoopHeader {
-    fn results(&self) -> Inhabitable<&[ValueDefinition]> {
+impl<'g> CodeIO<'g> for LoopHeader<'g> {
+    fn results(&self) -> Inhabitable<&[ValueDefinition<'g>]> {
         Inhabited(&self.argument_definitions)
     }
-    fn arguments(&self) -> &[ValueUse] {
+    fn arguments(&self) -> &[ValueUse<'g>] {
         &[]
     }
 }
 
 #[derive(Debug)]
-pub struct Block {
-    pub body: Vec<Instruction>,
-    pub result_definitions: Inhabitable<Vec<ValueDefinition>>,
+pub struct Block<'g> {
+    pub body: OnceCell<Vec<Instruction<'g>>>,
+    pub result_definitions: Inhabitable<Vec<ValueDefinition<'g>>>,
 }
 
-impl CodeIO for Block {
-    fn results(&self) -> Inhabitable<&[ValueDefinition]> {
+impl<'g> Allocate<'g, Block<'g>> for GlobalState<'g> {
+    fn alloc(&'g self, value: Block<'g>) -> &'g mut Block<'g> {
+        self.block_arena.alloc(value)
+    }
+}
+
+impl<'g> CodeIO<'g> for Block<'g> {
+    fn results(&self) -> Inhabitable<&[ValueDefinition<'g>]> {
         self.result_definitions.as_deref()
     }
-    fn arguments(&self) -> &[ValueUse] {
+    fn arguments(&self) -> &[ValueUse<'g>] {
         &[]
     }
 }
 
 #[derive(Debug)]
-pub struct Loop {
-    pub arguments: Vec<ValueUse>,
-    pub header: LoopHeader,
-    pub body: Rc<Block>,
+pub struct Loop<'g> {
+    pub arguments: Vec<ValueUse<'g>>,
+    pub header: LoopHeader<'g>,
+    pub body: &'g Block<'g>,
 }
 
-impl CodeIO for Loop {
-    fn results(&self) -> Inhabitable<&[ValueDefinition]> {
+impl<'g> Allocate<'g, Loop<'g>> for GlobalState<'g> {
+    fn alloc(&'g self, value: Loop<'g>) -> &'g mut Loop<'g> {
+        self.loop_arena.alloc(value)
+    }
+}
+
+impl<'g> CodeIO<'g> for Loop<'g> {
+    fn results(&self) -> Inhabitable<&[ValueDefinition<'g>]> {
         self.body.results()
     }
-    fn arguments(&self) -> &[ValueUse] {
+    fn arguments(&self) -> &[ValueUse<'g>] {
         &self.arguments
     }
 }
 
 #[derive(Debug)]
-pub struct ContinueLoop {
-    pub target_loop: Weak<Loop>,
-    pub block_arguments: Vec<ValueUse>,
+pub struct ContinueLoop<'g> {
+    pub target_loop: &'g Loop<'g>,
+    pub block_arguments: Vec<ValueUse<'g>>,
 }
 
-impl CodeIO for ContinueLoop {
-    fn results(&self) -> Inhabitable<&[ValueDefinition]> {
+impl<'g> CodeIO<'g> for ContinueLoop<'g> {
+    fn results(&self) -> Inhabitable<&[ValueDefinition<'g>]> {
         Uninhabited
     }
-    fn arguments(&self) -> &[ValueUse] {
+    fn arguments(&self) -> &[ValueUse<'g>] {
         &self.block_arguments
     }
 }
 
 #[derive(Debug)]
-pub enum SimpleInstruction {}
+pub struct BinaryALUInstruction<'g> {
+    arguments: [ValueUse<'g>; 2],
+    result: ValueDefinition<'g>,
+}
 
-impl CodeIO for SimpleInstruction {
-    fn results(&self) -> Inhabitable<&[ValueDefinition]> {
-        match *self {}
+impl<'g> CodeIO<'g> for BinaryALUInstruction<'g> {
+    fn results(&self) -> Inhabitable<&[ValueDefinition<'g>]> {
+        Inhabited(std::slice::from_ref(&self.result))
     }
-    fn arguments(&self) -> &[ValueUse] {
-        match *self {}
+    fn arguments(&self) -> &[ValueUse<'g>] {
+        &self.arguments
+    }
+}
+
+#[derive(Debug)]
+pub enum SimpleInstruction<'g> {
+    Add(BinaryALUInstruction<'g>),
+    // TODO: implement
+}
+
+impl<'g> CodeIO<'g> for SimpleInstruction<'g> {
+    fn results(&self) -> Inhabitable<&[ValueDefinition<'g>]> {
+        match self {
+            SimpleInstruction::Add(binary_alu_instruction) => binary_alu_instruction.results(),
+        }
+    }
+    fn arguments(&self) -> &[ValueUse<'g>] {
+        match self {
+            SimpleInstruction::Add(binary_alu_instruction) => binary_alu_instruction.arguments(),
+        }
     }
 }
 
 /// variable part of `Instruction`
 #[derive(Debug)]
-pub enum InstructionData {
-    Simple(SimpleInstruction),
-    Block(Rc<Block>),
-    Loop(Rc<Loop>),
-    ContinueLoop(ContinueLoop),
-    BreakBlock(BreakBlock),
+pub enum InstructionData<'g> {
+    Simple(SimpleInstruction<'g>),
+    Block(&'g Block<'g>),
+    Loop(&'g Loop<'g>),
+    ContinueLoop(ContinueLoop<'g>),
+    BreakBlock(BreakBlock<'g>),
 }
 
-impl CodeIO for InstructionData {
-    fn results(&self) -> Inhabitable<&[ValueDefinition]> {
+impl<'g> CodeIO<'g> for InstructionData<'g> {
+    fn results(&self) -> Inhabitable<&[ValueDefinition<'g>]> {
         match self {
             InstructionData::Simple(v) => v.results(),
             InstructionData::Block(v) => v.results(),
@@ -196,7 +383,7 @@ impl CodeIO for InstructionData {
             InstructionData::BreakBlock(v) => v.results(),
         }
     }
-    fn arguments(&self) -> &[ValueUse] {
+    fn arguments(&self) -> &[ValueUse<'g>] {
         match self {
             InstructionData::Simple(v) => v.arguments(),
             InstructionData::Block(v) => v.arguments(),
@@ -208,53 +395,17 @@ impl CodeIO for InstructionData {
 }
 
 #[derive(Debug)]
-pub struct Instruction {
-    pub location: Location,
-    pub data: InstructionData,
+pub struct Instruction<'g> {
+    pub location: Option<Interned<'g, Location<'g>>>,
+    pub data: InstructionData<'g>,
 }
 
-impl CodeIO for Instruction {
-    fn results(&self) -> Inhabitable<&[ValueDefinition]> {
+impl<'g> CodeIO<'g> for Instruction<'g> {
+    fn results(&self) -> Inhabitable<&[ValueDefinition<'g>]> {
         self.data.results()
     }
-    fn arguments(&self) -> &[ValueUse] {
+    fn arguments(&self) -> &[ValueUse<'g>] {
         self.data.arguments()
-    }
-}
-
-#[derive(Clone)]
-pub struct Type(Rc<TypeData>);
-
-impl PartialEq for Type {
-    fn eq(&self, rhs: &Self) -> bool {
-        Rc::ptr_eq(&self.0, &rhs.0)
-    }
-}
-
-impl Eq for Type {}
-
-impl Hash for Type {
-    fn hash<H: Hasher>(&self, hasher: &mut H) {
-        (&*self.0 as *const TypeData).hash(hasher)
-    }
-}
-
-impl fmt::Debug for Type {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        fmt::Debug::fmt(&**self, f)
-    }
-}
-
-impl Deref for Type {
-    type Target = TypeData;
-    fn deref(&self) -> &TypeData {
-        &*self.0
-    }
-}
-
-impl Type {
-    pub fn get(value: &TypeData, global_state: &GlobalState) -> Type {
-        Type(global_state.type_interner.intern(value))
     }
 }
 
@@ -273,11 +424,18 @@ pub enum FloatType {
     Float64,
 }
 
-#[derive(Clone, Eq, PartialEq, Hash, Debug)]
-pub enum OpaqueType {}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
+pub enum Void {}
 
 #[derive(Clone, Eq, PartialEq, Hash, Debug)]
-pub enum TypeData {
+pub enum OpaqueType<'g> {
+    // TODO: implement
+    #[doc(hidden)]
+    _Unimplemented(&'g (), Void),
+}
+
+#[derive(Clone, Eq, PartialEq, Hash, Debug)]
+pub enum Type<'g> {
     Integer {
         integer_type: IntegerType,
     },
@@ -286,23 +444,32 @@ pub enum TypeData {
     },
     Bool,
     Pointer {
-        pointee: Type,
+        pointee: Interned<'g, Type<'g>>,
     },
     Vector {
-        size: usize,
-        element: Type,
+        len: usize,
+        element: Interned<'g, Type<'g>>,
     },
     Matrix {
         columns: usize,
         rows: usize,
-        element: Type,
+        element: Interned<'g, Type<'g>>,
     },
     VariableVector {
-        element: Type,
+        element: Interned<'g, Type<'g>>,
     },
     Opaque {
-        opaque_type: OpaqueType,
+        opaque_type: OpaqueType<'g>,
     },
+}
+
+impl<'g> Intern<'g, Type<'g>> for GlobalState<'g> {
+    fn intern_alloc(&'g self, _private: Private, value: &Type<'g>) -> &'g Type<'g> {
+        self.type_arena.alloc(value.clone())
+    }
+    fn get_hashtable(&'g self, _private: Private) -> &'g RefCell<HashSet<&'g Type<'g>>> {
+        &self.type_hashtable
+    }
 }
 
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
@@ -329,190 +496,186 @@ impl ConstFloat {
 }
 
 #[derive(Clone, Eq, PartialEq, Hash, Debug)]
-pub enum ConstData {
+pub struct ConstVector<'g> {
+    element_type: Interned<'g, Type<'g>>,
+    elements: Vec<Interned<'g, Const<'g>>>,
+}
+
+impl<'g> ConstVector<'g> {
+    pub fn new(elements: Vec<Interned<'g, Const<'g>>>, global_state: &'g GlobalState<'g>) -> Self {
+        let mut iter = elements.iter();
+        let element_type = iter
+            .next()
+            .expect("vector must have non-zero size")
+            .get()
+            .get_type(global_state);
+        for element in iter {
+            assert_eq!(
+                element.get().get_type(global_state),
+                element_type,
+                "vector must have consistent type"
+            );
+        }
+        ConstVector {
+            element_type,
+            elements,
+        }
+    }
+    pub fn element_type(&self) -> Interned<'g, Type<'g>> {
+        self.element_type
+    }
+    pub fn elements(&self) -> &[Interned<'g, Const<'g>>] {
+        &self.elements
+    }
+    pub fn get_type(&self, global_state: &'g GlobalState<'g>) -> Interned<'g, Type> {
+        global_state.intern(&Type::Vector {
+            element: self.element_type,
+            len: self.elements.len(),
+        })
+    }
+}
+
+#[derive(Clone, Eq, PartialEq, Hash, Debug)]
+pub enum Const<'g> {
     Integer(ConstInteger),
     Float(ConstFloat),
     Bool(bool),
-    Vector {
-        size: usize,
-        element: Const,
-    },
-    Matrix {
-        columns: usize,
-        rows: usize,
-        element: Const,
-    },
-    Undef(Type),
+    Vector(ConstVector<'g>),
+    // FIXME: add Matrix
+    Undef(Interned<'g, Type<'g>>),
 }
 
-impl ConstData {
-    pub fn get_type(&self, global_state: &GlobalState) -> Type {
+impl<'g> Intern<'g, Const<'g>> for GlobalState<'g> {
+    fn intern_alloc(&'g self, _private: Private, value: &Const<'g>) -> &'g Const<'g> {
+        self.const_arena.alloc(value.clone())
+    }
+    fn get_hashtable(&'g self, _private: Private) -> &'g RefCell<HashSet<&'g Const<'g>>> {
+        &self.const_hashtable
+    }
+}
+
+impl<'g> Const<'g> {
+    pub fn get_type(&self, global_state: &'g GlobalState<'g>) -> Interned<'g, Type> {
         match *self {
-            ConstData::Integer(ConstInteger { integer_type, .. }) => {
-                Type::get(&TypeData::Integer { integer_type }, global_state)
+            Const::Integer(ConstInteger { integer_type, .. }) => {
+                global_state.intern(&Type::Integer { integer_type })
             }
-            ConstData::Float(const_float) => Type::get(
-                &TypeData::Float {
-                    float_type: const_float.get_type(),
-                },
-                global_state,
-            ),
-            ConstData::Bool(_) => Type::get(&TypeData::Bool, global_state),
-            ConstData::Vector { size, ref element } => Type::get(
-                &TypeData::Vector {
-                    size,
-                    element: element.get_type().clone(),
-                },
-                global_state,
-            ),
-            ConstData::Matrix {
-                columns,
-                rows,
-                ref element,
-            } => Type::get(
-                &TypeData::Matrix {
-                    columns,
-                    rows,
-                    element: element.get_type().clone(),
-                },
-                global_state,
-            ),
-            ConstData::Undef(ref retval) => retval.clone(),
+            Const::Float(const_float) => global_state.intern(&Type::Float {
+                float_type: const_float.get_type(),
+            }),
+            Const::Bool(_) => global_state.intern(&Type::Bool),
+            Const::Vector(ref const_vector) => const_vector.get_type(global_state),
+            Const::Undef(ref retval) => retval.clone(),
         }
-    }
-}
-
-#[derive(Clone)]
-pub struct Const {
-    data: Rc<ConstData>,
-    const_type: Type,
-}
-
-impl PartialEq for Const {
-    fn eq(&self, rhs: &Self) -> bool {
-        Rc::ptr_eq(&self.data, &rhs.data)
-    }
-}
-
-impl Eq for Const {}
-
-impl Hash for Const {
-    fn hash<H: Hasher>(&self, hasher: &mut H) {
-        (&*self.data as *const ConstData).hash(hasher)
-    }
-}
-
-impl fmt::Debug for Const {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        fmt::Debug::fmt(&**self, f)
-    }
-}
-
-impl Deref for Const {
-    type Target = ConstData;
-    fn deref(&self) -> &ConstData {
-        &*self.data
-    }
-}
-
-impl Const {
-    pub fn get(value: &ConstData, global_state: &GlobalState) -> Const {
-        let data = global_state.const_interner.intern(value);
-        let const_type = value.get_type(global_state);
-        Const { data, const_type }
-    }
-    pub fn get_type(&self) -> &Type {
-        &self.const_type
     }
 }
 
 #[derive(Eq, PartialEq, Hash, Debug)]
-pub struct ValueDefinition {
-    value: Value,
+pub struct ValueDefinition<'g> {
+    value: Value<'g>,
 }
 
-impl ValueDefinition {
-    pub fn value(&self) -> Value {
-        self.value.clone()
+impl<'g> ValueDefinition<'g> {
+    pub fn value(&self) -> Value<'g> {
+        self.value
     }
-    pub fn new(name: InternedString, value_type: Type) -> Self {
+    pub fn new(
+        name: Interned<'g, str>,
+        value_type: Interned<'g, Type<'g>>,
+        global_state: &'g GlobalState<'g>,
+    ) -> Self {
         ValueDefinition {
-            value: Value {
-                data: Rc::new(ValueData {
+            value: Value::new(
+                ValueData {
                     name,
                     value_type,
-                    const_value: RefCell::new(None),
-                }),
-            },
+                    const_value: OnceCell::new(),
+                },
+                global_state,
+            ),
         }
     }
-    pub fn define_as_const(self, const_value: Const) -> Value {
+    pub fn define_as_const(
+        self,
+        const_value: Interned<'g, Const<'g>>,
+        global_state: &'g GlobalState<'g>,
+    ) -> Value<'g> {
         let Self { value } = self;
-        assert_eq!(value.value_type, *const_value.get_type());
-        *value.const_value.borrow_mut() = Some(const_value);
+        assert_eq!(value.value_type, const_value.get().get_type(global_state));
+        assert!(
+            value.const_value.set(const_value).is_ok(),
+            "invalid Value state"
+        );
         value
     }
 }
 
-impl Deref for ValueDefinition {
-    type Target = ValueData;
-    fn deref(&self) -> &ValueData {
+impl<'g> Deref for ValueDefinition<'g> {
+    type Target = ValueData<'g>;
+    fn deref(&self) -> &ValueData<'g> {
         &*self.value
     }
 }
 
 #[derive(Clone, Debug)]
-pub struct ValueData {
-    pub value_type: Type,
-    pub name: InternedString,
-    const_value: RefCell<Option<Const>>,
+pub struct ValueData<'g> {
+    pub value_type: Interned<'g, Type<'g>>,
+    pub name: Interned<'g, str>,
+    const_value: OnceCell<Interned<'g, Const<'g>>>,
 }
 
-#[derive(Clone)]
-pub struct Value {
-    data: Rc<ValueData>,
-}
+#[derive(Copy, Clone)]
+#[repr(transparent)]
+pub struct Value<'g>(&'g ValueData<'g>);
 
-impl Value {
-    pub fn id(&self) -> *const ValueData {
-        &*self.data
+impl<'g> Value<'g> {
+    pub fn id(self) -> *const ValueData<'g> {
+        self.0
     }
-    pub fn from_const(const_value: Const, name: InternedString) -> Value {
-        Value {
-            data: Rc::new(ValueData {
+    fn new(value: ValueData<'g>, global_state: &'g GlobalState<'g>) -> Value<'g> {
+        Value(global_state.value_arena.alloc(value))
+    }
+    pub fn from_const(
+        const_value: Interned<'g, Const<'g>>,
+        name: Interned<'g, str>,
+        global_state: &'g GlobalState<'g>,
+    ) -> Value<'g> {
+        Value::new(
+            ValueData {
                 name,
-                value_type: const_value.get_type().clone(),
-                const_value: RefCell::new(Some(const_value)),
-            }),
-        }
+                value_type: const_value.get().get_type(global_state),
+                const_value: OnceCell::from(const_value),
+            },
+            global_state,
+        )
     }
-    pub fn const_value(&self) -> Option<Const> {
-        self.const_value.borrow().clone()
+    pub fn const_value(&self) -> Option<Interned<'g, Const<'g>>> {
+        self.const_value.get().copied()
     }
 }
 
-impl Hash for Value {
+impl Hash for Value<'_> {
     fn hash<H: Hasher>(&self, hasher: &mut H) {
         self.id().hash(hasher)
     }
 }
 
-impl PartialEq for Value {
+impl PartialEq for Value<'_> {
     fn eq(&self, rhs: &Self) -> bool {
         self.id() == rhs.id()
     }
 }
 
-impl Eq for Value {}
+impl Eq for Value<'_> {}
 
-impl Deref for Value {
-    type Target = ValueData;
-    fn deref(&self) -> &ValueData {
-        &*self.data
+impl<'g> Deref for Value<'g> {
+    type Target = ValueData<'g>;
+    fn deref(&self) -> &ValueData<'g> {
+        self.0
     }
 }
 
-impl fmt::Debug for Value {
+impl fmt::Debug for Value<'_> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         macro_rules! debug_fields {
             (
@@ -526,7 +689,7 @@ impl fmt::Debug for Value {
                     f.debug_struct("Value")
                     .field("id", &self.id())
                     $(.field(stringify!($field), $field))+
-                    .field("const_value", &*const_value.borrow())
+                    .field("const_value", &const_value.get())
                     .finish()
                 }
             };
@@ -539,22 +702,22 @@ impl fmt::Debug for Value {
 }
 
 #[derive(Clone, Eq, PartialEq, Hash, Debug)]
-pub struct ValueUse {
-    value: Value,
+pub struct ValueUse<'g> {
+    value: Value<'g>,
 }
 
-impl ValueUse {
-    pub fn new(value: Value) -> Self {
+impl<'g> ValueUse<'g> {
+    pub fn new(value: Value<'g>) -> Self {
         Self { value }
     }
-    pub fn value(&self) -> Value {
-        self.value.clone()
+    pub fn value(&self) -> Value<'g> {
+        self.value
     }
 }
 
-impl Deref for ValueUse {
-    type Target = ValueData;
-    fn deref(&self) -> &ValueData {
+impl<'g> Deref for ValueUse<'g> {
+    type Target = ValueData<'g>;
+    fn deref(&self) -> &ValueData<'g> {
         &*self.value
     }
 }
