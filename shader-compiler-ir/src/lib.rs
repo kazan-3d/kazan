@@ -5,13 +5,16 @@
 //! Shader Compiler Intermediate Representation
 
 pub use once_cell::unsync::OnceCell;
+use std::cell::Cell;
 use std::cell::RefCell;
+use std::collections::hash_map::{Entry, HashMap};
 use std::collections::HashSet;
 use std::fmt;
 use std::hash::Hash;
 use std::hash::Hasher;
 use std::ops::Deref;
 use std::ops::DerefMut;
+use std::ptr::NonNull;
 use typed_arena::Arena;
 
 pub struct GlobalState<'g> {
@@ -23,7 +26,7 @@ pub struct GlobalState<'g> {
     type_hashtable: RefCell<HashSet<&'g Type<'g>>>,
     const_arena: Arena<Const<'g>>,
     const_hashtable: RefCell<HashSet<&'g Const<'g>>>,
-    value_arena: Arena<ValueData<'g>>,
+    value_arena: Arena<Value<'g>>,
     block_arena: Arena<Block<'g>>,
     loop_arena: Arena<Loop<'g>>,
 }
@@ -64,11 +67,123 @@ impl Private {
     }
 }
 
+#[repr(transparent)]
+pub struct IdRef<'g, T>(&'g T);
+
+impl<'g, T: fmt::Debug> fmt::Debug for IdRef<'g, T> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        struct Omitted;
+        impl fmt::Debug for Omitted {
+            fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+                f.pad("<omitted>")
+            }
+        }
+        struct NumericId(u64);
+        impl fmt::Debug for NumericId {
+            fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+                write!(f, "#{}", self.0)
+            }
+        }
+        #[derive(Default)]
+        struct InProgressIds {
+            map: HashMap<NonNull<u8>, u64>,
+            next_numeric_id: u64,
+        }
+        thread_local! {
+            static IN_PROGRESS_IDS: RefCell<InProgressIds> = RefCell::default();
+        }
+        struct RemoveOnDrop(NonNull<u8>);
+        impl Drop for RemoveOnDrop {
+            fn drop(&mut self) {
+                let _ = IN_PROGRESS_IDS
+                    .try_with(|in_progress_ids| in_progress_ids.borrow_mut().map.remove(&self.0));
+            }
+        }
+        let id = self.id().cast();
+        let (inserted, numeric_id) = IN_PROGRESS_IDS.with(|in_progress_ids| {
+            let mut in_progress_ids = in_progress_ids.borrow_mut();
+            let InProgressIds {
+                map,
+                next_numeric_id,
+            } = &mut *in_progress_ids;
+            if map.is_empty() {
+                *next_numeric_id = 1;
+            }
+            match map.entry(id) {
+                Entry::Vacant(entry) => {
+                    let numeric_id = *next_numeric_id;
+                    *next_numeric_id += 1;
+                    entry.insert(numeric_id);
+                    (true, numeric_id)
+                }
+                Entry::Occupied(entry) => (false, *entry.get()),
+            }
+        });
+        let remove_on_drop = if inserted {
+            Some(RemoveOnDrop(id))
+        } else {
+            None
+        };
+        let mut debug_helper = f.debug_tuple("IdRef");
+        debug_helper.field(&NumericId(numeric_id));
+        if inserted {
+            debug_helper.field(self.get());
+        } else {
+            debug_helper.field(&Omitted);
+        }
+        let retval = debug_helper.finish();
+        std::mem::drop(remove_on_drop);
+        retval
+    }
+}
+
+impl<'g, T> IdRef<'g, T> {
+    pub fn id(self) -> NonNull<T> {
+        self.0.into()
+    }
+    pub fn get(self) -> &'g T {
+        self.0
+    }
+}
+
+impl<'g, T> Deref for IdRef<'g, T> {
+    type Target = T;
+    fn deref(&self) -> &T {
+        self.0
+    }
+}
+
+impl<'g, T> Eq for IdRef<'g, T> {}
+
+impl<'g, T> Copy for IdRef<'g, T> {}
+
+impl<'g, T> Clone for IdRef<'g, T> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<'g, T> PartialEq for IdRef<'g, T> {
+    fn eq(&self, rhs: &IdRef<'g, T>) -> bool {
+        self.id() == rhs.id()
+    }
+}
+
+impl<'g, T> Hash for IdRef<'g, T> {
+    fn hash<H: Hasher>(&self, h: &mut H) {
+        self.id().hash(h)
+    }
+}
+
 /// allocate value from `GlobalState`
 pub trait Allocate<'g, T> {
+    #[doc(hidden)]
+    fn alloc_private(&'g self, _private: Private, value: T) -> &'g T;
     /// allocate value from `GlobalState`
     #[must_use]
-    fn alloc(&'g self, value: T) -> &'g mut T;
+    fn alloc(&'g self, value: T) -> IdRef<'g, T> {
+        IdRef(self.alloc_private(Private::new(), value))
+    }
 }
 
 #[repr(transparent)]
@@ -244,7 +359,7 @@ pub(crate) enum SimpleInstructionKind {}
 
 #[derive(Debug)]
 pub struct BreakBlock<'g> {
-    pub block: &'g Block<'g>,
+    pub block: IdRef<'g, Block<'g>>,
     pub block_results: Vec<ValueUse<'g>>,
 }
 
@@ -278,8 +393,14 @@ pub struct Block<'g> {
 }
 
 impl<'g> Allocate<'g, Block<'g>> for GlobalState<'g> {
-    fn alloc(&'g self, value: Block<'g>) -> &'g mut Block<'g> {
+    fn alloc_private(&'g self, _private: Private, value: Block<'g>) -> &'g Block<'g> {
         self.block_arena.alloc(value)
+    }
+}
+
+impl<'g> Block<'g> {
+    pub fn id(&'g self) -> NonNull<Self> {
+        self.into()
     }
 }
 
@@ -296,11 +417,17 @@ impl<'g> CodeIO<'g> for Block<'g> {
 pub struct Loop<'g> {
     pub arguments: Vec<ValueUse<'g>>,
     pub header: LoopHeader<'g>,
-    pub body: &'g Block<'g>,
+    pub body: IdRef<'g, Block<'g>>,
+}
+
+impl<'g> Loop<'g> {
+    pub fn id(&'g self) -> NonNull<Self> {
+        self.into()
+    }
 }
 
 impl<'g> Allocate<'g, Loop<'g>> for GlobalState<'g> {
-    fn alloc(&'g self, value: Loop<'g>) -> &'g mut Loop<'g> {
+    fn alloc_private(&'g self, _private: Private, value: Loop<'g>) -> &'g Loop<'g> {
         self.loop_arena.alloc(value)
     }
 }
@@ -316,7 +443,7 @@ impl<'g> CodeIO<'g> for Loop<'g> {
 
 #[derive(Debug)]
 pub struct ContinueLoop<'g> {
-    pub target_loop: &'g Loop<'g>,
+    pub target_loop: IdRef<'g, Loop<'g>>,
     pub block_arguments: Vec<ValueUse<'g>>,
 }
 
@@ -331,8 +458,8 @@ impl<'g> CodeIO<'g> for ContinueLoop<'g> {
 
 #[derive(Debug)]
 pub struct BinaryALUInstruction<'g> {
-    arguments: [ValueUse<'g>; 2],
-    result: ValueDefinition<'g>,
+    pub arguments: [ValueUse<'g>; 2],
+    pub result: ValueDefinition<'g>,
 }
 
 impl<'g> CodeIO<'g> for BinaryALUInstruction<'g> {
@@ -363,14 +490,30 @@ impl<'g> CodeIO<'g> for SimpleInstruction<'g> {
     }
 }
 
+#[derive(Debug)]
+pub struct BranchInstruction<'g> {
+    pub variable: ValueUse<'g>,
+    pub targets: Vec<(Interned<'g, Const<'g>>, BreakBlock<'g>)>,
+}
+
+impl<'g> CodeIO<'g> for BranchInstruction<'g> {
+    fn results(&self) -> Inhabitable<&[ValueDefinition<'g>]> {
+        Inhabited(&[])
+    }
+    fn arguments(&self) -> &[ValueUse<'g>] {
+        std::slice::from_ref(&self.variable)
+    }
+}
+
 /// variable part of `Instruction`
 #[derive(Debug)]
 pub enum InstructionData<'g> {
     Simple(SimpleInstruction<'g>),
-    Block(&'g Block<'g>),
-    Loop(&'g Loop<'g>),
+    Block(IdRef<'g, Block<'g>>),
+    Loop(IdRef<'g, Loop<'g>>),
     ContinueLoop(ContinueLoop<'g>),
     BreakBlock(BreakBlock<'g>),
+    Branch(BranchInstruction<'g>),
 }
 
 impl<'g> CodeIO<'g> for InstructionData<'g> {
@@ -381,6 +524,7 @@ impl<'g> CodeIO<'g> for InstructionData<'g> {
             InstructionData::Loop(v) => v.results(),
             InstructionData::ContinueLoop(v) => v.results(),
             InstructionData::BreakBlock(v) => v.results(),
+            InstructionData::Branch(v) => v.results(),
         }
     }
     fn arguments(&self) -> &[ValueUse<'g>] {
@@ -390,6 +534,7 @@ impl<'g> CodeIO<'g> for InstructionData<'g> {
             InstructionData::Loop(v) => v.arguments(),
             InstructionData::ContinueLoop(v) => v.arguments(),
             InstructionData::BreakBlock(v) => v.arguments(),
+            InstructionData::Branch(v) => v.arguments(),
         }
     }
 }
@@ -572,152 +717,95 @@ impl<'g> Const<'g> {
 
 #[derive(Eq, PartialEq, Hash, Debug)]
 pub struct ValueDefinition<'g> {
-    value: Value<'g>,
+    value: IdRef<'g, Value<'g>>,
 }
 
 impl<'g> ValueDefinition<'g> {
-    pub fn value(&self) -> Value<'g> {
-        self.value
-    }
     pub fn new(
-        name: Interned<'g, str>,
         value_type: Interned<'g, Type<'g>>,
+        name: Interned<'g, str>,
         global_state: &'g GlobalState<'g>,
-    ) -> Self {
+    ) -> ValueDefinition<'g> {
         ValueDefinition {
-            value: Value::new(
-                ValueData {
-                    name,
-                    value_type,
-                    const_value: OnceCell::new(),
-                },
-                global_state,
-            ),
+            value: global_state.alloc(Value {
+                value_type,
+                name,
+                const_value: Cell::new(None),
+            }),
         }
     }
     pub fn define_as_const(
         self,
         const_value: Interned<'g, Const<'g>>,
         global_state: &'g GlobalState<'g>,
-    ) -> Value<'g> {
+    ) -> IdRef<'g, Value<'g>> {
         let Self { value } = self;
         assert_eq!(value.value_type, const_value.get().get_type(global_state));
         assert!(
-            value.const_value.set(const_value).is_ok(),
+            value.const_value.replace(Some(const_value)).is_none(),
             "invalid Value state"
         );
         value
     }
+    pub fn value(&self) -> IdRef<'g, Value<'g>> {
+        self.value
+    }
 }
 
 impl<'g> Deref for ValueDefinition<'g> {
-    type Target = ValueData<'g>;
-    fn deref(&self) -> &ValueData<'g> {
-        &*self.value
+    type Target = IdRef<'g, Value<'g>>;
+    fn deref(&self) -> &IdRef<'g, Value<'g>> {
+        &self.value
     }
 }
 
-#[derive(Clone, Debug)]
-pub struct ValueData<'g> {
+#[derive(Debug)]
+pub struct Value<'g> {
     pub value_type: Interned<'g, Type<'g>>,
     pub name: Interned<'g, str>,
-    const_value: OnceCell<Interned<'g, Const<'g>>>,
+    pub const_value: Cell<Option<Interned<'g, Const<'g>>>>,
 }
 
-#[derive(Copy, Clone)]
-#[repr(transparent)]
-pub struct Value<'g>(&'g ValueData<'g>);
+impl<'g> Allocate<'g, Value<'g>> for GlobalState<'g> {
+    fn alloc_private(&'g self, _private: Private, value: Value<'g>) -> &'g Value<'g> {
+        self.value_arena.alloc(value)
+    }
+}
 
 impl<'g> Value<'g> {
-    pub fn id(self) -> *const ValueData<'g> {
-        self.0
-    }
-    fn new(value: ValueData<'g>, global_state: &'g GlobalState<'g>) -> Value<'g> {
-        Value(global_state.value_arena.alloc(value))
+    pub fn id(&'g self) -> NonNull<Self> {
+        self.into()
     }
     pub fn from_const(
         const_value: Interned<'g, Const<'g>>,
         name: Interned<'g, str>,
         global_state: &'g GlobalState<'g>,
-    ) -> Value<'g> {
-        Value::new(
-            ValueData {
-                name,
-                value_type: const_value.get().get_type(global_state),
-                const_value: OnceCell::from(const_value),
-            },
-            global_state,
-        )
-    }
-    pub fn const_value(&self) -> Option<Interned<'g, Const<'g>>> {
-        self.const_value.get().copied()
-    }
-}
-
-impl Hash for Value<'_> {
-    fn hash<H: Hasher>(&self, hasher: &mut H) {
-        self.id().hash(hasher)
-    }
-}
-
-impl PartialEq for Value<'_> {
-    fn eq(&self, rhs: &Self) -> bool {
-        self.id() == rhs.id()
-    }
-}
-
-impl Eq for Value<'_> {}
-
-impl<'g> Deref for Value<'g> {
-    type Target = ValueData<'g>;
-    fn deref(&self) -> &ValueData<'g> {
-        self.0
-    }
-}
-
-impl fmt::Debug for Value<'_> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        macro_rules! debug_fields {
-            (
-                $($field:ident,)+
-            ) => {
-                {
-                    let ValueData {
-                        $($field,)+
-                        const_value,
-                    } = &**self;
-                    f.debug_struct("Value")
-                    .field("id", &self.id())
-                    $(.field(stringify!($field), $field))+
-                    .field("const_value", &const_value.get())
-                    .finish()
-                }
-            };
-        }
-        debug_fields! {
-            value_type,
+    ) -> IdRef<'g, Value<'g>> {
+        global_state.alloc(Value {
             name,
-        }
+            value_type: const_value.get().get_type(global_state),
+            const_value: Cell::new(Some(const_value)),
+        })
     }
 }
 
 #[derive(Clone, Eq, PartialEq, Hash, Debug)]
 pub struct ValueUse<'g> {
-    value: Value<'g>,
+    value: IdRef<'g, Value<'g>>,
 }
 
 impl<'g> ValueUse<'g> {
-    pub fn new(value: Value<'g>) -> Self {
+    pub fn new(value: IdRef<'g, Value<'g>>) -> Self {
         Self { value }
     }
-    pub fn value(&self) -> Value<'g> {
+    pub fn value(&self) -> IdRef<'g, Value<'g>> {
         self.value
     }
 }
 
 impl<'g> Deref for ValueUse<'g> {
-    type Target = ValueData<'g>;
-    fn deref(&self) -> &ValueData<'g> {
-        &*self.value
+    type Target = IdRef<'g, Value<'g>>;
+    fn deref(&self) -> &IdRef<'g, Value<'g>> {
+        &self.value
     }
 }

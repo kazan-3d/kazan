@@ -6,10 +6,10 @@ use crate::util::WordIterator;
 use proc_macro2::TokenStream;
 use quote::ToTokens;
 use serde::de::{self, Deserialize, Deserializer};
+use serde_derive::Deserialize;
 use std::borrow::Cow;
 use std::fmt;
 use std::mem;
-use serde_derive::Deserialize;
 
 #[derive(Copy, Clone)]
 pub struct QuotedInteger(pub u32);
