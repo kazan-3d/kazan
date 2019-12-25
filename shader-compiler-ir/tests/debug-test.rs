@@ -1,11 +1,10 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 // See Notices.txt for copyright information
 
+use shader_compiler_ir::prelude::*;
 use shader_compiler_ir::{
-    Allocate, BinaryALUInstruction, Block, BranchInstruction, BreakBlock, Const, ConstInteger,
-    ContinueLoop, GlobalState, Inhabited, Instruction, InstructionData, IntegerType, Intern,
-    Location, Loop, LoopHeader, OnceCell, SimpleInstruction, Type, Value, ValueDefinition,
-    ValueUse,
+    BinaryALUInstruction, BranchInstruction, BreakBlock, ConstInteger, ContinueLoop,
+    InstructionData, IntegerType, LoopHeader, OnceCell, SimpleInstruction,
 };
 
 #[test]
