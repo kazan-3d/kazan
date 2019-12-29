@@ -11,6 +11,25 @@ pub struct ConstInteger {
     pub integer_type: IntegerType,
 }
 
+pub struct InvalidFloatSize;
+
+impl ConstInteger {
+    pub fn bitcast_to_float(self) -> Result<ConstFloat, InvalidFloatSize> {
+        match self.integer_type {
+            IntegerType::Int8 => Err(InvalidFloatSize),
+            IntegerType::Int16 => Ok(ConstFloat::Float16 {
+                bits: self.value as u16,
+            }),
+            IntegerType::Int32 => Ok(ConstFloat::Float32 {
+                bits: self.value as u32,
+            }),
+            IntegerType::Int64 => Ok(ConstFloat::Float64 {
+                bits: self.value as u64,
+            }),
+        }
+    }
+}
+
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
 pub enum ConstFloat {
     Float16 { bits: u16 },

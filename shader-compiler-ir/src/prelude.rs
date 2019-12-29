@@ -3,6 +3,7 @@
 
 //! IR prelude
 
+pub use crate::from_text::FromTextCharExt;
 pub use crate::Allocate;
 pub use crate::Block;
 pub use crate::CodeIO;
