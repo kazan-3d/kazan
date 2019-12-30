@@ -11,9 +11,7 @@ use shader_compiler_ir::{
 fn test_debug() {
     let global_state = GlobalState::default();
     let global_state = &global_state;
-    let int32_type = global_state.intern(&Type::Integer {
-        integer_type: IntegerType::Int32,
-    });
+    let int32_type = global_state.intern(&Type::Integer(IntegerType::Int32));
     let loop_counter_def = ValueDefinition::new(
         int32_type,
         global_state.intern("loop_counter"),
@@ -26,18 +24,9 @@ fn test_debug() {
         global_state,
     );
     let loop_counter_next = loop_counter_next_def.value();
-    let loop_start = global_state.intern(&Const::Integer(ConstInteger {
-        integer_type: IntegerType::Int32,
-        value: 0,
-    }));
-    let loop_end = global_state.intern(&Const::Integer(ConstInteger {
-        integer_type: IntegerType::Int32,
-        value: 10,
-    }));
-    let loop_increment = global_state.intern(&Const::Integer(ConstInteger {
-        integer_type: IntegerType::Int32,
-        value: 1,
-    }));
+    let loop_start = global_state.intern(&Const::Integer(ConstInteger::Int32(0)));
+    let loop_end = global_state.intern(&Const::Integer(ConstInteger::Int32(10)));
+    let loop_increment = global_state.intern(&Const::Integer(ConstInteger::Int32(1)));
     let loop_body = global_state.alloc(Block {
         body: OnceCell::new(),
         result_definitions: Inhabited(Vec::new()),
