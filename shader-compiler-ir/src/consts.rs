@@ -6,6 +6,7 @@ use crate::from_text::FromTextState;
 use crate::from_text::IntegerSuffix;
 use crate::from_text::IntegerToken;
 use crate::from_text::Keyword;
+use crate::from_text::Punctuation;
 use crate::from_text::TokenKind;
 use crate::prelude::*;
 use crate::BoolType;
@@ -196,15 +197,15 @@ impl<'g> FromText<'g> for bool {
 impl<'g> FromText<'g> for ConstVector<'g> {
     fn from_text(state: &mut FromTextState<'g, '_>) -> Result<Self, FromTextError> {
         state.parse_parenthesized(
-            '<',
+            Punctuation::LessThan,
             "missing vector constant",
-            '>',
+            Punctuation::GreaterThan,
             "missing closing angle bracket ('>')",
             |state| -> Result<Self, FromTextError> {
                 let element = Interned::<Const>::from_text(state)?;
                 let element_type = element.get().get_type(state.global_state());
                 let mut elements = vec![element];
-                while state.peek_token()?.kind.punct() == Some(',') {
+                while state.peek_token()?.kind.punct() == Some(Punctuation::Comma) {
                     state.parse_token()?;
                     let element_location = state.peek_token()?.span;
                     let element = Interned::<Const>::from_text(state)?;
@@ -229,7 +230,9 @@ impl<'g> FromText<'g> for Const<'g> {
             TokenKind::Keyword(Keyword::False) | TokenKind::Keyword(Keyword::True) => {
                 Ok(Const::Bool(FromText::from_text(state)?))
             }
-            TokenKind::Punct('<') => Ok(Const::Vector(FromText::from_text(state)?)),
+            TokenKind::Punct(Punctuation::LessThan) => {
+                Ok(Const::Vector(FromText::from_text(state)?))
+            }
             TokenKind::Keyword(Keyword::Undef) => {
                 state.parse_token()?;
                 Ok(Const::Undef(FromText::from_text(state)?))

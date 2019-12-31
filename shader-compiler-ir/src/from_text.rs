@@ -286,6 +286,11 @@ macro_rules! keywords {
                     )+
                 }
             }
+            pub const VALUES: &'static [$keyword_enum] = &[
+                $(
+                    $keyword_enum::$name,
+                )+
+            ];
         }
 
         impl fmt::Display for $keyword_enum {
@@ -324,6 +329,7 @@ keywords! {
     Undef = "undef",
     True = "true",
     False = "false",
+    Const = "const",
 }
 
 keywords! {
@@ -333,6 +339,106 @@ keywords! {
     I16 = "i16",
     I32 = "i32",
     I64 = "i64",
+}
+
+macro_rules! punctuation {
+    (
+        $(#[doc = $enum_doc:literal])*
+        $enum:ident,
+        $(#[doc = $doc1:expr] $name1:ident = $text1:literal,)*
+        $name2:ident = $text2:literal,
+        $($(#[doc = $doc3:expr])* $name3:ident = $text3:literal,)*
+    ) => {
+        punctuation! {
+            $(#[doc = $enum_doc])*
+            $enum,
+            $(#[doc = $doc1] $name1 = $text1,)*
+            #[doc = concat!("The punctuation \"", $text2, "\"")]
+            $name2 = $text2,
+            $($(#[doc = $doc3])* $name3 = $text3,)*
+        }
+    };
+    (
+        $(#[doc = $enum_doc:literal])*
+        $enum:ident,
+        $(#[doc = $doc:expr] $name:ident = $text:literal,)+
+    ) => {
+        $(#[doc = $enum_doc])*
+        #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
+        pub enum $enum {
+            $(
+                #[doc = $doc]
+                $name,
+            )+
+        }
+
+        impl $enum {
+            /// Get the textual form of `self`
+            pub fn text(self) -> &'static str {
+                match self {
+                    $(
+                        $enum::$name => $text,
+                    )+
+                }
+            }
+            pub const VALUES: &'static [$enum] = &[
+                $(
+                    $enum::$name,
+                )+
+            ];
+        }
+
+        impl fmt::Display for $enum {
+            fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+                f.pad(self.text())
+            }
+        }
+
+        impl FromStr for $enum {
+            type Err = ParseKeywordError;
+            fn from_str(text: &str) -> Result<Self, ParseKeywordError> {
+                match text {
+                    $(
+                        $text => Ok($enum::$name),
+                    )+
+                    _ => Err(ParseKeywordError),
+                }
+            }
+        }
+    };
+}
+
+punctuation! {
+    /// punctuation
+    Punctuation,
+    ExMark = "!",
+    Pound = "#",
+    Dollar = "$",
+    Percent = "%",
+    Ampersand = "&",
+    LParen = "(",
+    RParen = ")",
+    Asterisk = "*",
+    Plus = "+",
+    Comma = ",",
+    Minus = "-",
+    Period = ".",
+    Slash = "/",
+    Colon = ":",
+    Semicolon = ";",
+    LessThan = "<",
+    Equal = "=",
+    GreaterThan = ">",
+    QMark = "?",
+    At = "@",
+    LSquareBracket = "[",
+    RSquareBracket = "]",
+    Caret = "^",
+    Underscore = "_",
+    LCurlyBracket = "{",
+    VBar = "|",
+    RCurlyBracket = "}",
+    Tilde = "~",
 }
 
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
@@ -474,7 +580,7 @@ pub enum TokenKind<'t> {
     EndOfFile,
     Integer(IntegerToken),
     String(StringToken<'t>),
-    Punct(char),
+    Punct(Punctuation),
 }
 
 impl<'t> TokenKind<'t> {
@@ -527,7 +633,7 @@ impl<'t> TokenKind<'t> {
             None
         }
     }
-    pub fn punct(self) -> Option<char> {
+    pub fn punct(self) -> Option<Punctuation> {
         if let TokenKind::Punct(retval) = self {
             Some(retval)
         } else {
@@ -551,12 +657,6 @@ pub struct Token<'t> {
     pub kind: TokenKind<'t>,
 }
 
-pub struct FromTextState<'g, 't> {
-    global_state: &'g GlobalState<'g>,
-    pub location: TextLocation<'t>,
-    cached_token: Option<Token<'t>>,
-}
-
 pub const COMMENT_START_CHAR: char = '#';
 
 #[derive(Copy, Clone)]
@@ -566,6 +666,12 @@ impl Void {
     pub fn into(self) -> ! {
         match self {}
     }
+}
+
+pub struct FromTextState<'g, 't> {
+    global_state: &'g GlobalState<'g>,
+    pub location: TextLocation<'t>,
+    cached_token: Option<Token<'t>>,
 }
 
 impl<'g, 't> FromTextState<'g, 't> {
@@ -731,17 +837,33 @@ impl<'g, 't> FromTextState<'g, 't> {
             }
         }
     }
-    fn parse_punct(&mut self) -> Result<char, FromTextError> {
-        let ch = match self.peek_char() {
-            Some(ch) => ch,
-            None => self.error_at_peek_char("missing punctuation")?.into(),
-        };
-        match ch {
-            '(' | ')' | '{' | '}' | ',' | '=' | '[' | ']' | '<' | '>' | ';' | '*' | '+' | '-' => {
-                self.next_char();
-                Ok(ch)
+    fn parse_punct(&mut self) -> Result<Punctuation, FromTextError> {
+        if self.peek_char().is_none() {
+            self.error_at_peek_char("missing punctuation")?;
+        }
+        let start_location = self.location;
+        let mut matched = None;
+        while self.next_char().is_some() {
+            let peek_text = TextSpan::new(start_location, self.location).text();
+            let mut is_prefix = false;
+            for &punct in Punctuation::VALUES {
+                let punct_text = punct.text();
+                if peek_text == punct_text {
+                    matched = Some((punct, self.location));
+                } else if punct_text.starts_with(peek_text) {
+                    is_prefix = true;
+                }
             }
-            _ => self.error_at_peek_char("invalid token")?.into(),
+            if !is_prefix {
+                break;
+            }
+        }
+        if let Some((retval, end_location)) = matched {
+            self.location = end_location;
+            Ok(retval)
+        } else {
+            self.location = start_location;
+            self.error_at_peek_char("invalid punctuation")?.into()
         }
     }
     fn parse_token_impl(&mut self) -> Result<Token<'t>, FromTextError> {
@@ -792,7 +914,7 @@ impl<'g, 't> FromTextState<'g, 't> {
     }
     pub fn parse_punct_token_or_error(
         &mut self,
-        punct: char,
+        punct: Punctuation,
         error_msg: impl ToString,
     ) -> Result<Token<'t>, FromTextError> {
         let token = self.parse_token()?;
@@ -814,9 +936,9 @@ impl<'g, 't> FromTextState<'g, 't> {
     }
     pub fn parse_parenthesized<T, F: FnOnce(&mut Self) -> Result<T, FromTextError>>(
         &mut self,
-        open_paren: char,
+        open_paren: Punctuation,
         missing_open_paren_error_msg: impl ToString,
-        close_paren: char,
+        close_paren: Punctuation,
         missing_close_paren_error_msg: impl ToString,
         body: F,
     ) -> Result<T, FromTextError> {

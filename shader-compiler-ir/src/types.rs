@@ -5,6 +5,7 @@ use crate::from_text::FromTextError;
 use crate::from_text::FromTextState;
 use crate::from_text::IntegerToken;
 use crate::from_text::Keyword;
+use crate::from_text::Punctuation;
 use crate::from_text::TokenKind;
 use crate::prelude::*;
 use std::convert::TryInto;
@@ -165,9 +166,9 @@ impl_from_text_for_keyword_type! {
 impl<'g> FromText<'g> for VectorType<'g> {
     fn from_text(state: &mut FromTextState<'g, '_>) -> Result<Self, FromTextError> {
         state.parse_parenthesized(
-            '<',
-            "missing opening angle bracket: '<'",
-            '>',
+            Punctuation::LessThan,
+            "missing opening angle bracket: Punctuation::LessThan",
+            Punctuation::GreaterThan,
             "missing closing angle bracket: '>'",
             |state| -> Result<VectorType<'g>, FromTextError> {
                 let scalable = if let TokenKind::Keyword(Keyword::VScale) = state.peek_token()?.kind
@@ -211,7 +212,7 @@ impl<'g> FromText<'g> for VectorType<'g> {
 
 impl<'g> FromText<'g> for PointerType<'g> {
     fn from_text(state: &mut FromTextState<'g, '_>) -> Result<Self, FromTextError> {
-        state.parse_punct_token_or_error('*', "expected pointer type")?;
+        state.parse_punct_token_or_error(Punctuation::Asterisk, "expected pointer type")?;
         Ok(PointerType {
             pointee: FromText::from_text(state)?,
         })
@@ -229,15 +230,19 @@ impl<'g> FromText<'g> for Type<'g> {
             | TokenKind::Keyword(Keyword::F32)
             | TokenKind::Keyword(Keyword::F64) => Ok(Type::Float(FromText::from_text(state)?)),
             TokenKind::Keyword(Keyword::Bool) => Ok(Type::Bool(FromText::from_text(state)?)),
-            TokenKind::Punct('(') => state.parse_parenthesized(
-                '(',
+            TokenKind::Punct(Punctuation::LParen) => state.parse_parenthesized(
+                Punctuation::LParen,
                 "",
-                ')',
+                Punctuation::RParen,
                 "missing closing parenthesis: ')'",
                 FromText::from_text,
             ),
-            TokenKind::Punct('<') => Ok(Type::Vector(FromText::from_text(state)?)),
-            TokenKind::Punct('*') => Ok(Type::Pointer(FromText::from_text(state)?)),
+            TokenKind::Punct(Punctuation::LessThan) => {
+                Ok(Type::Vector(FromText::from_text(state)?))
+            }
+            TokenKind::Punct(Punctuation::Asterisk) => {
+                Ok(Type::Pointer(FromText::from_text(state)?))
+            }
             _ => state.error_at_peek_token("expected type")?.into(),
         }
     }
