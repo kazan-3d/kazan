@@ -1,19 +1,22 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 // See Notices.txt for copyright information
 
-use crate::from_text::FromTextError;
-use crate::from_text::FromTextState;
-use crate::from_text::IntegerSuffix;
-use crate::from_text::IntegerToken;
-use crate::from_text::Keyword;
-use crate::from_text::Punctuation;
-use crate::from_text::TokenKind;
 use crate::prelude::*;
+use crate::text::FromTextError;
+use crate::text::FromTextState;
+use crate::text::IntegerSuffix;
+use crate::text::IntegerToken;
+use crate::text::Keyword;
+use crate::text::Punctuation;
+use crate::text::ToTextState;
+use crate::text::TokenKind;
+use crate::types::PointerType;
 use crate::BoolType;
 use crate::FloatType;
 use crate::IntegerType;
 use crate::VectorType;
 use std::convert::TryInto;
+use std::fmt;
 
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
 pub enum ConstInteger {
@@ -110,6 +113,7 @@ pub enum Const<'g> {
     Vector(ConstVector<'g>),
     // FIXME: add scalable vectors
     Undef(Interned<'g, Type<'g>>),
+    Null(PointerType<'g>),
 }
 
 impl<'g> Const<'g> {
@@ -120,11 +124,15 @@ impl<'g> Const<'g> {
             Const::Bool(_) => global_state.intern(&Type::Bool(BoolType)),
             Const::Vector(ref const_vector) => const_vector.get_type(global_state),
             Const::Undef(ref retval) => retval.clone(),
+            Const::Null(ref pointer_type) => {
+                global_state.intern(&Type::Pointer(pointer_type.clone()))
+            }
         }
     }
 }
 
 impl<'g> FromText<'g> for ConstInteger {
+    type Parsed = Self;
     fn from_text(state: &mut FromTextState<'g, '_>) -> Result<Self, FromTextError> {
         let IntegerToken { value, suffix } = match state.peek_token()?.kind.integer() {
             Some(v) => v,
@@ -154,7 +162,19 @@ impl<'g> FromText<'g> for ConstInteger {
     }
 }
 
+impl<'g> ToText<'g> for ConstInteger {
+    fn to_text(&self, state: &mut ToTextState<'g, '_>) -> fmt::Result {
+        match *self {
+            ConstInteger::Int8(v) => write!(state, "{:#X}i8", v),
+            ConstInteger::Int16(v) => write!(state, "{:#X}i16", v),
+            ConstInteger::Int32(v) => write!(state, "{:#X}i32", v),
+            ConstInteger::Int64(v) => write!(state, "{:#X}i64", v),
+        }
+    }
+}
+
 impl<'g> FromText<'g> for ConstFloat {
+    type Parsed = Self;
     fn from_text(state: &mut FromTextState<'g, '_>) -> Result<Self, FromTextError> {
         let float_type = FloatType::from_text(state)?;
         let IntegerToken { value, suffix } = match state.peek_token()?.kind.integer() {
@@ -182,7 +202,18 @@ impl<'g> FromText<'g> for ConstFloat {
     }
 }
 
+impl<'g> ToText<'g> for ConstFloat {
+    fn to_text(&self, state: &mut ToTextState<'g, '_>) -> fmt::Result {
+        match *self {
+            ConstFloat::Float16(v) => write!(state, "f16 {:#X}", v),
+            ConstFloat::Float32(v) => write!(state, "f32 {:#X}", v),
+            ConstFloat::Float64(v) => write!(state, "f64 {:#X}", v),
+        }
+    }
+}
+
 impl<'g> FromText<'g> for bool {
+    type Parsed = Self;
     fn from_text(state: &mut FromTextState<'g, '_>) -> Result<Self, FromTextError> {
         let retval = match state.peek_token()?.kind.keyword() {
             Some(Keyword::False) => false,
@@ -194,7 +225,18 @@ impl<'g> FromText<'g> for bool {
     }
 }
 
+impl<'g> ToText<'g> for bool {
+    fn to_text(&self, state: &mut ToTextState<'g, '_>) -> fmt::Result {
+        if *self {
+            write!(state, "true")
+        } else {
+            write!(state, "false")
+        }
+    }
+}
+
 impl<'g> FromText<'g> for ConstVector<'g> {
+    type Parsed = Self;
     fn from_text(state: &mut FromTextState<'g, '_>) -> Result<Self, FromTextError> {
         state.parse_parenthesized(
             Punctuation::LessThan,
@@ -220,31 +262,218 @@ impl<'g> FromText<'g> for ConstVector<'g> {
     }
 }
 
+impl<'g> ToText<'g> for ConstVector<'g> {
+    fn to_text(&self, state: &mut ToTextState<'g, '_>) -> fmt::Result {
+        let mut iter = self.elements.iter().copied();
+        write!(state, "<")?;
+        let first = iter.next().expect("vector must have non-zero size");
+        first.to_text(state)?;
+        for element in iter {
+            write!(state, ", ")?;
+            element.to_text(state)?;
+        }
+        write!(state, ">")
+    }
+}
+
 impl<'g> FromText<'g> for Const<'g> {
-    fn from_text(state: &mut FromTextState<'g, '_>) -> Result<Self, FromTextError> {
-        match state.peek_token()?.kind {
-            TokenKind::Integer(_) => Ok(Const::Integer(FromText::from_text(state)?)),
+    type Parsed = Interned<'g, Const<'g>>;
+    fn from_text(
+        state: &mut FromTextState<'g, '_>,
+    ) -> Result<Interned<'g, Const<'g>>, FromTextError> {
+        let retval = match state.peek_token()?.kind {
+            TokenKind::Integer(_) => Const::Integer(ConstInteger::from_text(state)?),
             TokenKind::Keyword(Keyword::F16)
             | TokenKind::Keyword(Keyword::F32)
-            | TokenKind::Keyword(Keyword::F64) => Ok(Const::Float(FromText::from_text(state)?)),
+            | TokenKind::Keyword(Keyword::F64) => Const::Float(ConstFloat::from_text(state)?),
             TokenKind::Keyword(Keyword::False) | TokenKind::Keyword(Keyword::True) => {
-                Ok(Const::Bool(FromText::from_text(state)?))
+                Const::Bool(bool::from_text(state)?)
             }
             TokenKind::Punct(Punctuation::LessThan) => {
-                Ok(Const::Vector(FromText::from_text(state)?))
+                Const::Vector(ConstVector::from_text(state)?)
             }
             TokenKind::Keyword(Keyword::Undef) => {
                 state.parse_token()?;
-                Ok(Const::Undef(FromText::from_text(state)?))
+                Const::Undef(Type::from_text(state)?)
+            }
+            TokenKind::Keyword(Keyword::Null) => {
+                state.parse_token()?;
+                Const::Null(PointerType::from_text(state)?)
             }
             // FIXME: add scalable vectors
             _ => state.error_at_peek_token("missing constant")?.into(),
+        };
+        Ok(state.global_state().intern(&retval))
+    }
+}
+
+impl<'g> ToText<'g> for Const<'g> {
+    fn to_text(&self, state: &mut ToTextState<'g, '_>) -> fmt::Result {
+        match self {
+            Const::Integer(v) => v.to_text(state),
+            Const::Float(v) => v.to_text(state),
+            Const::Bool(v) => v.to_text(state),
+            Const::Vector(v) => v.to_text(state),
+            Const::Undef(ty) => {
+                write!(state, "undef ")?;
+                ty.to_text(state)
+            }
+            Const::Null(pointer_type) => {
+                write!(state, "null ")?;
+                pointer_type.to_text(state)
+            }
         }
     }
 }
 
-impl<'g> FromText<'g> for Interned<'g, Const<'g>> {
-    fn from_text(state: &mut FromTextState<'g, '_>) -> Result<Self, FromTextError> {
-        Ok(state.global_state().intern(&Const::from_text(state)?))
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::PointerType;
+
+    #[test]
+    fn test_const_from_to_text() {
+        let global_state = GlobalState::new();
+        macro_rules! test_const {
+            ($global_state:ident, $text:literal, $const:expr, $formatted_text:literal) => {
+                let parsed_const = Const::parse("", $text, &$global_state).unwrap();
+                let expected_const = $global_state.intern(&$const);
+                assert_eq!(parsed_const, expected_const);
+                let text = expected_const.display().to_string();
+                assert_eq!($formatted_text, text);
+            };
+            ($global_state:ident, $text:literal, $const:expr) => {
+                test_const!($global_state, $text, $const, $text);
+            };
+        }
+        test_const!(
+            global_state,
+            "0i8",
+            Const::Integer(ConstInteger::Int8(0)),
+            "0x0i8"
+        );
+        test_const!(
+            global_state,
+            "10i8",
+            Const::Integer(ConstInteger::Int8(10)),
+            "0xAi8"
+        );
+        test_const!(
+            global_state,
+            "0b10i8",
+            Const::Integer(ConstInteger::Int8(2)),
+            "0x2i8"
+        );
+        test_const!(
+            global_state,
+            "0B10i8",
+            Const::Integer(ConstInteger::Int8(2)),
+            "0x2i8"
+        );
+        test_const!(
+            global_state,
+            "0o10i8",
+            Const::Integer(ConstInteger::Int8(8)),
+            "0x8i8"
+        );
+        test_const!(
+            global_state,
+            "0O10i8",
+            Const::Integer(ConstInteger::Int8(8)),
+            "0x8i8"
+        );
+        test_const!(
+            global_state,
+            "0X10i8",
+            Const::Integer(ConstInteger::Int8(0x10)),
+            "0x10i8"
+        );
+        test_const!(
+            global_state,
+            "0xFFi8",
+            Const::Integer(ConstInteger::Int8(0xFF))
+        );
+        test_const!(global_state, "0x0i8", Const::Integer(ConstInteger::Int8(0)));
+        test_const!(
+            global_state,
+            "0xFFFFi16",
+            Const::Integer(ConstInteger::Int16(0xFFFF))
+        );
+        test_const!(
+            global_state,
+            "0xFFFFFFFFi32",
+            Const::Integer(ConstInteger::Int32(0xFFFF_FFFF))
+        );
+        test_const!(
+            global_state,
+            "0xFFFFFFFFFFFFFFFFi64",
+            Const::Integer(ConstInteger::Int64(0xFFFF_FFFF_FFFF_FFFF))
+        );
+        test_const!(
+            global_state,
+            "f16 0xF000",
+            Const::Float(ConstFloat::Float16(0xF000))
+        );
+        test_const!(
+            global_state,
+            "f32 0xFF000000",
+            Const::Float(ConstFloat::Float32(0xFF00_0000))
+        );
+        test_const!(
+            global_state,
+            "f64 0xFF00000000000000",
+            Const::Float(ConstFloat::Float64(0xFF00_0000_0000_0000))
+        );
+        test_const!(
+            global_state,
+            "<0x1i8>",
+            Const::Vector(ConstVector::new(
+                vec![global_state.intern(&Const::Integer(ConstInteger::Int8(1)))],
+                &global_state
+            ))
+        );
+        test_const!(
+            global_state,
+            "<0x1i8, 0x2i8>",
+            Const::Vector(ConstVector::new(
+                vec![
+                    global_state.intern(&Const::Integer(ConstInteger::Int8(1))),
+                    global_state.intern(&Const::Integer(ConstInteger::Int8(2))),
+                ],
+                &global_state
+            ))
+        );
+        test_const!(
+            global_state,
+            "<0x1i8, 0x2i8, 0x3i8, 0x4i8>",
+            Const::Vector(ConstVector::new(
+                vec![
+                    global_state.intern(&Const::Integer(ConstInteger::Int8(1))),
+                    global_state.intern(&Const::Integer(ConstInteger::Int8(2))),
+                    global_state.intern(&Const::Integer(ConstInteger::Int8(3))),
+                    global_state.intern(&Const::Integer(ConstInteger::Int8(4))),
+                ],
+                &global_state
+            ))
+        );
+        test_const!(
+            global_state,
+            "undef i8",
+            Const::Undef(global_state.intern(&Type::Integer(IntegerType::Int8)))
+        );
+        test_const!(
+            global_state,
+            "undef *i8",
+            Const::Undef(global_state.intern(&Type::Pointer(PointerType {
+                pointee: global_state.intern(&Type::Integer(IntegerType::Int8))
+            })))
+        );
+        test_const!(
+            global_state,
+            "null *i8",
+            Const::Null(PointerType {
+                pointee: global_state.intern(&Type::Integer(IntegerType::Int8))
+            })
+        );
     }
 }

@@ -10,12 +10,11 @@ mod global_state;
 mod types;
 mod values;
 
-pub mod from_text;
 pub mod prelude;
+pub mod text;
 
 pub use crate::consts::*;
 pub use crate::debug_info::*;
-pub use crate::from_text::FromText;
 pub use crate::global_state::*;
 pub use crate::types::*;
 pub use crate::values::*;

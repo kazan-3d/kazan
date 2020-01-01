@@ -1,14 +1,16 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 // See Notices.txt for copyright information
 
-use crate::from_text::FromTextError;
-use crate::from_text::FromTextState;
-use crate::from_text::IntegerToken;
-use crate::from_text::Keyword;
-use crate::from_text::Punctuation;
-use crate::from_text::TokenKind;
 use crate::prelude::*;
+use crate::text::FromTextError;
+use crate::text::FromTextState;
+use crate::text::IntegerToken;
+use crate::text::Keyword;
+use crate::text::Punctuation;
+use crate::text::ToTextState;
+use crate::text::TokenKind;
 use std::convert::TryInto;
+use std::fmt;
 use std::ops::Deref;
 use std::ops::DerefMut;
 
@@ -119,12 +121,13 @@ impl<T> Inhabitable<T> {
     }
 }
 
-macro_rules! impl_from_text_for_keyword_type {
+macro_rules! impl_from_to_text_for_keyword_type {
     ($type:ident {
-        $($kw:ident => $value:expr,)+
+        $($kw:ident => $value:path,)+
         _ => $error_msg:expr,
     }) => {
         impl<'g> FromText<'g> for $type {
+            type Parsed = Self;
             fn from_text(state: &mut FromTextState<'g, '_>) -> Result<Self, FromTextError> {
                 let retval = match state.peek_token()?.kind {
                     $(TokenKind::Keyword(Keyword::$kw) => $value,)+
@@ -134,10 +137,20 @@ macro_rules! impl_from_text_for_keyword_type {
                 Ok(retval)
             }
         }
+
+        impl<'g> ToText<'g> for $type {
+            fn to_text(&self, state: &mut ToTextState<'g, '_>) -> fmt::Result {
+                match self {
+                    $(
+                        $value => write!(state, "{}", Keyword::$kw),
+                    )+
+                }
+            }
+        }
     };
 }
 
-impl_from_text_for_keyword_type! {
+impl_from_to_text_for_keyword_type! {
     IntegerType {
         I8 => IntegerType::Int8,
         I16 => IntegerType::Int16,
@@ -147,7 +160,7 @@ impl_from_text_for_keyword_type! {
     }
 }
 
-impl_from_text_for_keyword_type! {
+impl_from_to_text_for_keyword_type! {
     FloatType {
         F16 => FloatType::Float16,
         F32 => FloatType::Float32,
@@ -156,7 +169,7 @@ impl_from_text_for_keyword_type! {
     }
 }
 
-impl_from_text_for_keyword_type! {
+impl_from_to_text_for_keyword_type! {
     BoolType {
         Bool => BoolType,
         _ => "invalid bool type",
@@ -164,6 +177,7 @@ impl_from_text_for_keyword_type! {
 }
 
 impl<'g> FromText<'g> for VectorType<'g> {
+    type Parsed = Self;
     fn from_text(state: &mut FromTextState<'g, '_>) -> Result<Self, FromTextError> {
         state.parse_parenthesized(
             Punctuation::LessThan,
@@ -203,54 +217,109 @@ impl<'g> FromText<'g> for VectorType<'g> {
                 Ok(VectorType {
                     len,
                     scalable,
-                    element: FromText::from_text(state)?,
+                    element: Type::from_text(state)?,
                 })
             },
         )
     }
 }
 
+impl<'g> ToText<'g> for VectorType<'g> {
+    fn to_text(&self, state: &mut ToTextState<'g, '_>) -> fmt::Result {
+        let VectorType {
+            len,
+            scalable,
+            element,
+        } = *self;
+        write!(state, "<")?;
+        if scalable {
+            write!(state, "vscale x ")?;
+        }
+        write!(state, "{} x ", len)?;
+        element.to_text(state)?;
+        write!(state, ">")
+    }
+}
+
 impl<'g> FromText<'g> for PointerType<'g> {
+    type Parsed = Self;
     fn from_text(state: &mut FromTextState<'g, '_>) -> Result<Self, FromTextError> {
         state.parse_punct_token_or_error(Punctuation::Asterisk, "expected pointer type")?;
         Ok(PointerType {
-            pointee: FromText::from_text(state)?,
+            pointee: Type::from_text(state)?,
         })
     }
 }
 
-impl<'g> FromText<'g> for Type<'g> {
+impl<'g> ToText<'g> for PointerType<'g> {
+    fn to_text(&self, state: &mut ToTextState<'g, '_>) -> fmt::Result {
+        write!(state, "*")?;
+        self.pointee.to_text(state)
+    }
+}
+
+impl<'g> FromText<'g> for OpaqueType<'g> {
+    type Parsed = Self;
     fn from_text(state: &mut FromTextState<'g, '_>) -> Result<Self, FromTextError> {
-        match state.peek_token()?.kind {
-            TokenKind::Keyword(Keyword::I8)
-            | TokenKind::Keyword(Keyword::I16)
-            | TokenKind::Keyword(Keyword::I32)
-            | TokenKind::Keyword(Keyword::I64) => Ok(Type::Integer(FromText::from_text(state)?)),
-            TokenKind::Keyword(Keyword::F16)
-            | TokenKind::Keyword(Keyword::F32)
-            | TokenKind::Keyword(Keyword::F64) => Ok(Type::Float(FromText::from_text(state)?)),
-            TokenKind::Keyword(Keyword::Bool) => Ok(Type::Bool(FromText::from_text(state)?)),
-            TokenKind::Punct(Punctuation::LParen) => state.parse_parenthesized(
-                Punctuation::LParen,
-                "",
-                Punctuation::RParen,
-                "missing closing parenthesis: ')'",
-                FromText::from_text,
-            ),
-            TokenKind::Punct(Punctuation::LessThan) => {
-                Ok(Type::Vector(FromText::from_text(state)?))
-            }
-            TokenKind::Punct(Punctuation::Asterisk) => {
-                Ok(Type::Pointer(FromText::from_text(state)?))
-            }
-            _ => state.error_at_peek_token("expected type")?.into(),
+        // TODO: implement
+        state
+            .error_at_peek_token("OpaqueType can't be parsed")?
+            .into()
+    }
+}
+
+impl<'g> ToText<'g> for OpaqueType<'g> {
+    fn to_text(&self, _state: &mut ToTextState<'g, '_>) -> fmt::Result {
+        match self {
+            OpaqueType::_Unimplemented(_, v) => match *v {},
         }
     }
 }
 
-impl<'g> FromText<'g> for Interned<'g, Type<'g>> {
-    fn from_text(state: &mut FromTextState<'g, '_>) -> Result<Self, FromTextError> {
-        Ok(state.global_state().intern(&Type::from_text(state)?))
+impl<'g> FromText<'g> for Type<'g> {
+    type Parsed = Interned<'g, Type<'g>>;
+    fn from_text(
+        state: &mut FromTextState<'g, '_>,
+    ) -> Result<Interned<'g, Type<'g>>, FromTextError> {
+        let retval = match state.peek_token()?.kind {
+            TokenKind::Keyword(Keyword::I8)
+            | TokenKind::Keyword(Keyword::I16)
+            | TokenKind::Keyword(Keyword::I32)
+            | TokenKind::Keyword(Keyword::I64) => Type::Integer(IntegerType::from_text(state)?),
+            TokenKind::Keyword(Keyword::F16)
+            | TokenKind::Keyword(Keyword::F32)
+            | TokenKind::Keyword(Keyword::F64) => Type::Float(FloatType::from_text(state)?),
+            TokenKind::Keyword(Keyword::Bool) => Type::Bool(BoolType::from_text(state)?),
+            TokenKind::Punct(Punctuation::LParen) => {
+                return state.parse_parenthesized(
+                    Punctuation::LParen,
+                    "",
+                    Punctuation::RParen,
+                    "missing closing parenthesis: ')'",
+                    Type::from_text,
+                );
+            }
+            TokenKind::Punct(Punctuation::LessThan) => Type::Vector(VectorType::from_text(state)?),
+            TokenKind::Punct(Punctuation::Asterisk) => {
+                Type::Pointer(PointerType::from_text(state)?)
+            }
+            // TODO: add OpaqueType
+            _ => state.error_at_peek_token("expected type")?.into(),
+        };
+        Ok(state.global_state().intern(&retval))
+    }
+}
+
+impl<'g> ToText<'g> for Type<'g> {
+    fn to_text(&self, state: &mut ToTextState<'g, '_>) -> fmt::Result {
+        match self {
+            Type::Integer(v) => v.to_text(state),
+            Type::Float(v) => v.to_text(state),
+            Type::Bool(v) => v.to_text(state),
+            Type::Pointer(v) => v.to_text(state),
+            Type::Vector(v) => v.to_text(state),
+            Type::Opaque(v) => v.to_text(state),
+        }
     }
 }
 
@@ -259,14 +328,18 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_type_from_text() {
+    fn test_type_from_to_text() {
         let global_state = GlobalState::new();
         macro_rules! test_type {
-            ($global_state:ident, $text:literal, $type:expr) => {
-                let parsed_type: Interned<Type> =
-                    FromText::parse("", $text, &$global_state).unwrap();
+            ($global_state:ident, $text:literal, $type:expr, $formatted_text:literal) => {
+                let parsed_type = Type::parse("", $text, &$global_state).unwrap();
                 let expected_type = $global_state.intern(&$type);
                 assert_eq!(parsed_type, expected_type);
+                let text = expected_type.display().to_string();
+                assert_eq!($formatted_text, text);
+            };
+            ($global_state:ident, $text:literal, $type:expr) => {
+                test_type!($global_state, $text, $type, $text);
             };
         }
         test_type!(global_state, "i8", Type::Integer(IntegerType::Int8));
@@ -279,7 +352,7 @@ mod tests {
         test_type!(global_state, "bool", Type::Bool(BoolType));
         test_type!(
             global_state,
-            "* i8",
+            "*i8",
             Type::Pointer(PointerType {
                 pointee: global_state.intern(&Type::Integer(IntegerType::Int8))
             })
@@ -311,7 +384,8 @@ mod tests {
                 element: global_state.intern(&Type::Pointer(PointerType {
                     pointee: global_state.intern(&Type::Bool(BoolType))
                 }))
-            })
+            }),
+            "<vscale x 7 x *bool>"
         );
         // FIXME: add tests for opaque types
     }

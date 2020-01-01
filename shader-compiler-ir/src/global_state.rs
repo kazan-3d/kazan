@@ -2,6 +2,9 @@
 // See Notices.txt for copyright information
 
 use crate::prelude::*;
+use crate::text::FromTextError;
+use crate::text::FromTextState;
+use crate::text::ToTextState;
 use std::cell::RefCell;
 use std::collections::hash_map::{Entry, HashMap};
 use std::collections::HashSet;
@@ -193,6 +196,19 @@ pub trait Allocate<'g, T: Id<'g>> {
 
 #[repr(transparent)]
 pub struct Interned<'g, T: ?Sized + Eq + Hash>(&'g T);
+
+impl<'g, T: ?Sized + Eq + Hash + FromText<'g, Parsed = Self>> FromText<'g> for Interned<'g, T> {
+    type Parsed = Self;
+    fn from_text(state: &mut FromTextState<'g, '_>) -> Result<Self, FromTextError> {
+        T::from_text(state)
+    }
+}
+
+impl<'g, T: ?Sized + Eq + Hash + ToText<'g>> ToText<'g> for Interned<'g, T> {
+    fn to_text(&self, state: &mut ToTextState<'g, '_>) -> fmt::Result {
+        (**self).to_text(state)
+    }
+}
 
 impl<T: ?Sized + Eq + Hash> Eq for Interned<'_, T> {}
 

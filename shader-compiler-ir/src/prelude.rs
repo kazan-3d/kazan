@@ -3,12 +3,13 @@
 
 //! IR prelude
 
-pub use crate::from_text::FromTextCharExt;
+pub use crate::text::FromText;
+pub use crate::text::FromTextCharExt;
+pub use crate::text::ToText;
 pub use crate::Allocate;
 pub use crate::Block;
 pub use crate::CodeIO;
 pub use crate::Const;
-pub use crate::FromText;
 pub use crate::GlobalState;
 pub use crate::Id;
 pub use crate::IdMethod;

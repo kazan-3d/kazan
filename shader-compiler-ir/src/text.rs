@@ -4,9 +4,15 @@
 use crate::prelude::*;
 use once_cell::unsync::OnceCell;
 use std::borrow::Borrow;
+use std::cell::Cell;
+use std::collections::hash_map::Entry;
+use std::collections::HashMap;
 use std::error::Error;
 use std::fmt;
+use std::marker::PhantomData;
+use std::mem;
 use std::ops::Range;
+use std::rc::Rc;
 use std::str::FromStr;
 use unicode_width::UnicodeWidthChar;
 
@@ -330,6 +336,7 @@ keywords! {
     True = "true",
     False = "false",
     Const = "const",
+    Null = "null",
 }
 
 keywords! {
@@ -463,25 +470,16 @@ pub struct StringToken<'t> {
 
 #[derive(Copy, Clone, Debug)]
 struct ShortEscapeSequence {
-    source_char: char,
     value: char,
 }
 
 macro_rules! short_escape_sequences {
     ($($source_char:literal => $value:literal,)+) => {
         impl ShortEscapeSequence {
-            fn from_value(value: char) -> Option<ShortEscapeSequence> {
-                match value {
-                    $(
-                        $value => Some(ShortEscapeSequence { source_char: $source_char, value }),
-                    )+
-                    _ => None
-                }
-            }
             fn from_source(source_char: char) -> Option<ShortEscapeSequence> {
                 match source_char {
                     $(
-                        $source_char => Some(ShortEscapeSequence { source_char, value: $value }),
+                        $source_char => Some(ShortEscapeSequence { value: $value }),
                     )+
                     _ => None,
                 }
@@ -668,15 +666,57 @@ impl Void {
     }
 }
 
+#[derive(Debug)]
+pub(crate) struct ValueAndAvailability<'g> {
+    value: IdRef<'g, Value<'g>>,
+    available: Cell<bool>,
+}
+
+impl<'g> ValueAndAvailability<'g> {
+    pub(crate) fn value_if_available(&self) -> Option<IdRef<'g, Value<'g>>> {
+        if self.available.get() {
+            Some(self.value)
+        } else {
+            None
+        }
+    }
+    pub(crate) fn mark_available(&self) -> IdRef<'g, Value<'g>> {
+        self.available.set(true);
+        self.value
+    }
+    pub(crate) fn new(value: IdRef<'g, Value<'g>>, available: bool) -> Rc<Self> {
+        Rc::new(Self {
+            value,
+            available: Cell::new(available),
+        })
+    }
+}
+
 pub struct FromTextState<'g, 't> {
     global_state: &'g GlobalState<'g>,
     pub location: TextLocation<'t>,
     cached_token: Option<Token<'t>>,
+    values: HashMap<NamedId<'g>, Rc<ValueAndAvailability<'g>>>,
 }
 
 impl<'g, 't> FromTextState<'g, 't> {
     pub fn global_state(&self) -> &'g GlobalState<'g> {
         self.global_state
+    }
+    pub(crate) fn get_value(&mut self, name: NamedId<'g>) -> Option<&Rc<ValueAndAvailability<'g>>> {
+        self.values.get(&name)
+    }
+    pub(crate) fn insert_value(
+        &mut self,
+        name: NamedId<'g>,
+        value: Rc<ValueAndAvailability<'g>>,
+    ) -> Result<(), ()> {
+        if let Entry::Vacant(entry) = self.values.entry(name) {
+            entry.insert(value);
+            Ok(())
+        } else {
+            Err(())
+        }
     }
     pub fn error_at<L: Into<FromTextErrorLocation>>(
         &mut self,
@@ -949,12 +989,13 @@ impl<'g, 't> FromTextState<'g, 't> {
     }
 }
 
-pub trait FromText<'g>: Sized {
+pub trait FromText<'g> {
+    type Parsed: Sized;
     fn parse(
         file_name: impl Borrow<str>,
         text: impl Borrow<str>,
         global_state: &'g GlobalState<'g>,
-    ) -> Result<Self, FromTextError> {
+    ) -> Result<Self::Parsed, FromTextError> {
         let file_name = file_name.borrow();
         let text = text.borrow();
         let source_code = FromTextSourceCode::new(file_name, text);
@@ -962,6 +1003,7 @@ pub trait FromText<'g>: Sized {
             global_state,
             location: TextLocation::new(0, &source_code),
             cached_token: None,
+            values: HashMap::new(),
         };
         let retval = Self::from_text(&mut state)?;
         if !state.peek_token()?.kind.is_end_of_file() {
@@ -969,5 +1011,249 @@ pub trait FromText<'g>: Sized {
         }
         Ok(retval)
     }
-    fn from_text(state: &mut FromTextState<'g, '_>) -> Result<Self, FromTextError>;
+    fn from_text(state: &mut FromTextState<'g, '_>) -> Result<Self::Parsed, FromTextError>;
+}
+
+#[derive(Copy, Clone, Hash, Eq, PartialEq, Debug)]
+pub struct NamedId<'g> {
+    pub name: Interned<'g, str>,
+    pub name_suffix: u64,
+}
+
+impl<'g> NamedId<'g> {
+    pub fn needs_quoted_form(self) -> bool {
+        let NamedId { name, name_suffix } = self;
+        if name_suffix != 0 {
+            true
+        } else {
+            let mut chars = name.chars();
+            if let Some(first) = chars.next() {
+                if !first.is_identifier_start() {
+                    true
+                } else {
+                    !chars.all(|ch| ch.is_identifier_continue())
+                }
+            } else {
+                true
+            }
+        }
+    }
+}
+
+impl<'g> FromText<'g> for NamedId<'g> {
+    type Parsed = Self;
+    fn from_text(state: &mut FromTextState<'g, '_>) -> Result<Self, FromTextError> {
+        match state.peek_token()?.kind {
+            TokenKind::Identifier(name) => {
+                state.parse_token()?;
+                Ok(Self {
+                    name: state.global_state().intern(name),
+                    name_suffix: 0,
+                })
+            }
+            TokenKind::Keyword(name) => {
+                state.parse_token()?;
+                Ok(Self {
+                    name: state.global_state().intern(name.text()),
+                    name_suffix: 0,
+                })
+            }
+            TokenKind::String(name) => {
+                state.parse_token()?;
+                let name = state.global_state().intern(&*name.value());
+                if let Some(IntegerToken { value, suffix }) = state.peek_token()?.kind.integer() {
+                    if suffix.is_some() {
+                        state.error_at_peek_token(r#"name suffix must be unsuffixed integer ("my_name"123 and not "my_name"123i8)"#)?;
+                    }
+                    state.parse_token()?;
+                    Ok(Self {
+                        name: state.global_state().intern(&name),
+                        name_suffix: value,
+                    })
+                } else {
+                    state.error_at_peek_token("missing name suffix")?.into()
+                }
+            }
+            _ => state
+                .error_at_peek_token("missing name -- must be identifier or string")?
+                .into(),
+        }
+    }
+}
+
+impl<'g> ToText<'g> for NamedId<'g> {
+    fn to_text(&self, state: &mut ToTextState<'g, '_>) -> fmt::Result {
+        if self.needs_quoted_form() {
+            self.name.to_text(state)?;
+            write!(state, "{}", self.name_suffix)
+        } else {
+            write!(state, "{}", self.name)
+        }
+    }
+}
+
+impl<'g> ToText<'g> for str {
+    fn to_text(&self, state: &mut ToTextState<'g, '_>) -> fmt::Result {
+        write!(state, "\"{}\"", self.escape_default())
+    }
+}
+
+trait NameMapGetName<'g>: Id<'g> {
+    fn name(&self) -> Interned<'g, str>;
+}
+
+impl<'g> NameMapGetName<'g> for Value<'g> {
+    fn name(&self) -> Interned<'g, str> {
+        self.name
+    }
+}
+
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
+pub(crate) enum NewOrOld<T> {
+    New(T),
+    Old(T),
+}
+
+struct NameMap<'g, T: NameMapGetName<'g>> {
+    named_ids: HashMap<IdRef<'g, T>, NamedId<'g>>,
+    name_suffixes: HashMap<Interned<'g, str>, u64>,
+}
+
+impl<'g, T: NameMapGetName<'g>> NameMap<'g, T> {
+    fn new() -> Self {
+        Self {
+            named_ids: HashMap::new(),
+            name_suffixes: HashMap::new(),
+        }
+    }
+    fn get(&mut self, value: IdRef<'g, T>) -> NewOrOld<NamedId<'g>> {
+        match self.named_ids.entry(value) {
+            Entry::Occupied(entry) => NewOrOld::Old(*entry.get()),
+            Entry::Vacant(entry) => {
+                let name = value.name();
+                let next_name_suffix = self.name_suffixes.entry(name).or_insert(0);
+                let name_suffix = *next_name_suffix;
+                *next_name_suffix += 1;
+                NewOrOld::New(*entry.insert(NamedId { name, name_suffix }))
+            }
+        }
+    }
+}
+
+pub struct ToTextState<'g, 'w> {
+    indent: usize,
+    at_start_of_line: bool,
+    base_writer: &'w mut dyn FnMut(&str) -> fmt::Result,
+    values: NameMap<'g, Value<'g>>,
+}
+
+impl<'g> ToTextState<'g, '_> {
+    pub(crate) fn get_value_named_id(
+        &mut self,
+        value: IdRef<'g, Value<'g>>,
+    ) -> NewOrOld<NamedId<'g>> {
+        self.values.get(value)
+    }
+    pub fn indent<R, E, F: FnOnce(&mut Self) -> Result<R, E>>(&mut self, f: F) -> Result<R, E> {
+        assert!(
+            self.at_start_of_line,
+            "can't call indent() in the middle of a text line"
+        );
+        self.indent += 1;
+        let retval = f(self)?;
+        assert!(
+            self.at_start_of_line,
+            "can't return Ok to indent() in the middle of a text line"
+        );
+        self.indent -= 1;
+        Ok(retval)
+    }
+    /// rebind `std::fmt::Write::write_fmt` to make it easily visible for use with the `write!` macro
+    #[inline]
+    pub fn write_fmt(&mut self, args: fmt::Arguments) -> fmt::Result {
+        fmt::Write::write_fmt(self, args)
+    }
+}
+
+impl fmt::Write for ToTextState<'_, '_> {
+    fn write_str(&mut self, text: &str) -> fmt::Result {
+        let mut first = true;
+        for text in text.split('\n') {
+            if !mem::replace(&mut first, false) {
+                (self.base_writer)("\n")?;
+                self.at_start_of_line = true;
+            }
+            if text.is_empty() {
+                continue;
+            }
+            if self.indent != 0 {
+                // 256 spaces arranged in a 16x16 grid
+                const SPACES: &str = concat!(
+                    "                ",
+                    "                ",
+                    "                ",
+                    "                ",
+                    //
+                    "                ",
+                    "                ",
+                    "                ",
+                    "                ",
+                    //
+                    "                ",
+                    "                ",
+                    "                ",
+                    "                ",
+                    //
+                    "                ",
+                    "                ",
+                    "                ",
+                    "                ",
+                );
+                const INDENT_MULTIPLE: usize = 4;
+
+                // write in larger chunks to speed-up output
+
+                let mut indent = self.indent * INDENT_MULTIPLE;
+                while indent >= SPACES.len() {
+                    (self.base_writer)(SPACES)?;
+                    indent -= SPACES.len();
+                }
+                (self.base_writer)(&SPACES[..indent])?;
+            }
+            (self.base_writer)(text)?;
+        }
+        Ok(())
+    }
+}
+
+pub trait ToText<'g> {
+    fn display(&self) -> ToTextDisplay<'g, '_, Self> {
+        ToTextDisplay(self, PhantomData)
+    }
+    fn to_text(&self, state: &mut ToTextState<'g, '_>) -> fmt::Result;
+}
+
+pub struct ToTextDisplay<'g, 'a, T: ToText<'g> + ?Sized>(&'a T, PhantomData<&'g ()>);
+
+impl<'g, T: ToText<'g> + ?Sized> fmt::Display for ToTextDisplay<'g, '_, T> {
+    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        self.0.to_text(&mut ToTextState {
+            indent: 0,
+            at_start_of_line: true,
+            base_writer: &mut |text: &str| formatter.write_str(text),
+            values: NameMap::new(),
+        })
+    }
+}
+
+impl<'g, T: ToText<'g> + ?Sized> fmt::Debug for ToTextDisplay<'g, '_, T> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        fmt::Display::fmt(self, f)
+    }
+}
+
+impl<'g, T: ToText<'g> + ?Sized> ToText<'g> for &'_ T {
+    fn to_text(&self, state: &mut ToTextState<'g, '_>) -> fmt::Result {
+        (**self).to_text(state)
+    }
 }
