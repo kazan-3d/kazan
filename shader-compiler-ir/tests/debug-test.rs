@@ -33,9 +33,9 @@ fn test_debug() {
     loop_body
         .body
         .set(vec![
-            Instruction {
-                location: Some(Location::new_interned("file1.vertex", 2, 1, global_state)),
-                data: InstructionData::Branch(BranchInstruction {
+            Instruction::with_location(
+                Location::new_interned("file1.vertex", 2, 1, global_state),
+                BranchInstruction {
                     variable: ValueUse::new(loop_counter),
                     targets: vec![(
                         loop_end.intern(global_state),
@@ -44,25 +44,25 @@ fn test_debug() {
                             block_results: vec![],
                         },
                     )],
-                }),
-            },
-            Instruction {
-                location: Some(Location::new_interned("file1.vertex", 3, 1, global_state)),
-                data: InstructionData::Simple(SimpleInstruction::Add(BinaryALUInstruction {
+                },
+            ),
+            Instruction::with_location(
+                Location::new_interned("file1.vertex", 3, 1, global_state),
+                SimpleInstruction::Add(BinaryALUInstruction {
                     arguments: [
                         ValueUse::new(loop_counter),
                         ValueUse::from_const(loop_increment, "loop_increment", global_state),
                     ],
                     result: loop_counter_next_def,
-                })),
-            },
-            Instruction {
-                location: Some(Location::new_interned("file1.vertex", 4, 1, global_state)),
-                data: InstructionData::ContinueLoop(ContinueLoop {
+                }),
+            ),
+            Instruction::with_location(
+                Location::new_interned("file1.vertex", 4, 1, global_state),
+                ContinueLoop {
                     target_loop: loop_,
                     block_arguments: vec![ValueUse::new(loop_counter_next)],
-                }),
-            },
+                },
+            ),
         ])
         .unwrap();
     let entry_block = global_state.alloc(Block {
@@ -72,17 +72,17 @@ fn test_debug() {
     entry_block
         .body
         .set(vec![
-            Instruction {
-                location: Some(Location::new_interned("file1.vertex", 1, 1, global_state)),
-                data: InstructionData::Loop(loop_),
-            },
-            Instruction {
-                location: Some(Location::new_interned("file1.vertex", 2, 1, global_state)),
-                data: InstructionData::BreakBlock(BreakBlock {
+            Instruction::with_location(
+                Location::new_interned("file1.vertex", 1, 1, global_state),
+                InstructionData::Loop(loop_),
+            ),
+            Instruction::with_location(
+                Location::new_interned("file1.vertex", 2, 1, global_state),
+                BreakBlock {
                     block: entry_block,
                     block_results: vec![],
-                }),
-            },
+                },
+            ),
         ])
         .unwrap();
     let expected_code = r#"IdRef(

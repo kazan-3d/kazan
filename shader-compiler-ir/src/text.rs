@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 // See Notices.txt for copyright information
 
+//! conversion from/to text
+
 use crate::prelude::*;
-use once_cell::unsync::OnceCell;
+use crate::OnceCell;
 use std::borrow::Borrow;
 use std::cell::Cell;
 use std::collections::hash_map::Entry;
