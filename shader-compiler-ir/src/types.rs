@@ -14,12 +14,43 @@ use std::fmt;
 use std::ops::Deref;
 use std::ops::DerefMut;
 
+pub trait GenericType<'g>: Internable<'g, Interned = Type<'g>> {
+    fn undef(&self, global_state: &'g GlobalState<'g>) -> Const<'g> {
+        self.intern(global_state).undef()
+    }
+    fn pointer(&self, global_state: &'g GlobalState<'g>) -> PointerType<'g> {
+        self.intern(global_state).pointer()
+    }
+    fn new_value_definition<Name: Internable<'g, Interned = str>>(
+        &self,
+        name: Name,
+        global_state: &'g GlobalState<'g>,
+    ) -> ValueDefinition<'g> {
+        ValueDefinition::new(self, name, global_state)
+    }
+}
+
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
 pub enum IntegerType {
     Int8,
     Int16,
     Int32,
     Int64,
+}
+
+impl<'g> Internable<'g> for IntegerType {
+    type Interned = Type<'g>;
+    fn intern(&self, global_state: &'g GlobalState<'g>) -> Interned<'g, Type<'g>> {
+        Type::from(*self).intern(global_state)
+    }
+}
+
+impl<'g> GenericType<'g> for IntegerType {}
+
+impl From<IntegerType> for Type<'_> {
+    fn from(v: IntegerType) -> Self {
+        Type::Integer(v)
+    }
 }
 
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
@@ -29,30 +60,115 @@ pub enum FloatType {
     Float64,
 }
 
-#[doc(hidden)]
-#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
-pub enum Void {}
+impl<'g> Internable<'g> for FloatType {
+    type Interned = Type<'g>;
+    fn intern(&self, global_state: &'g GlobalState<'g>) -> Interned<'g, Type<'g>> {
+        Type::from(*self).intern(global_state)
+    }
+}
+
+impl<'g> GenericType<'g> for FloatType {}
+
+impl From<FloatType> for Type<'_> {
+    fn from(v: FloatType) -> Self {
+        Type::Float(v)
+    }
+}
+
+mod private {
+    #[doc(hidden)]
+    #[derive(Clone, Eq, PartialEq, Hash, Debug)]
+    pub enum Void {}
+}
 
 #[derive(Clone, Eq, PartialEq, Hash, Debug)]
 pub enum OpaqueType<'g> {
     // TODO: implement
     #[doc(hidden)]
-    _Unimplemented(&'g (), Void),
+    _Unimplemented(&'g (), private::Void),
 }
 
-#[derive(Clone, Eq, PartialEq, Hash, Debug)]
+impl<'g> Internable<'g> for OpaqueType<'g> {
+    type Interned = Type<'g>;
+    fn intern(&self, _global_state: &'g GlobalState<'g>) -> Interned<'g, Type<'g>> {
+        match self {
+            OpaqueType::_Unimplemented(_, v) => match *v {},
+        }
+    }
+}
+
+impl<'g> GenericType<'g> for OpaqueType<'g> {}
+
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
 pub struct BoolType;
 
-#[derive(Clone, Eq, PartialEq, Hash, Debug)]
+impl<'g> Internable<'g> for BoolType {
+    type Interned = Type<'g>;
+    fn intern(&self, global_state: &'g GlobalState<'g>) -> Interned<'g, Type<'g>> {
+        Type::from(*self).intern(global_state)
+    }
+}
+
+impl<'g> GenericType<'g> for BoolType {}
+
+impl From<BoolType> for Type<'_> {
+    fn from(v: BoolType) -> Self {
+        Type::Bool(v)
+    }
+}
+
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
 pub struct PointerType<'g> {
     pub pointee: Interned<'g, Type<'g>>,
 }
 
-#[derive(Clone, Eq, PartialEq, Hash, Debug)]
+impl<'g> Internable<'g> for PointerType<'g> {
+    type Interned = Type<'g>;
+    fn intern(&self, global_state: &'g GlobalState<'g>) -> Interned<'g, Type<'g>> {
+        Type::from(*self).intern(global_state)
+    }
+}
+
+impl<'g> GenericType<'g> for PointerType<'g> {}
+
+impl<'g> PointerType<'g> {
+    pub fn null(self) -> Const<'g> {
+        Const::Null(self)
+    }
+}
+
+impl<'g> From<PointerType<'g>> for Type<'g> {
+    fn from(v: PointerType<'g>) -> Self {
+        Type::Pointer(v)
+    }
+}
+
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
 pub struct VectorType<'g> {
     pub len: usize,
     pub scalable: bool,
     pub element: Interned<'g, Type<'g>>,
+}
+
+impl<'g> Internable<'g> for VectorType<'g> {
+    type Interned = Type<'g>;
+    fn intern(&self, global_state: &'g GlobalState<'g>) -> Interned<'g, Type<'g>> {
+        Type::from(*self).intern(global_state)
+    }
+}
+
+impl<'g> GenericType<'g> for VectorType<'g> {}
+
+impl<'g> From<VectorType<'g>> for Type<'g> {
+    fn from(v: VectorType<'g>) -> Self {
+        Type::Vector(v)
+    }
+}
+
+impl<'g> From<OpaqueType<'g>> for Type<'g> {
+    fn from(v: OpaqueType<'g>) -> Self {
+        Type::Opaque(v)
+    }
 }
 
 #[derive(Clone, Eq, PartialEq, Hash, Debug)]
@@ -64,6 +180,17 @@ pub enum Type<'g> {
     Vector(VectorType<'g>),
     Opaque(OpaqueType<'g>),
 }
+
+impl<'g> Internable<'g> for Type<'g> {
+    type Interned = Type<'g>;
+    fn intern(&self, global_state: &'g GlobalState<'g>) -> Interned<'g, Type<'g>> {
+        global_state.intern(self)
+    }
+}
+
+impl<'g> GenericType<'g> for Type<'g> {}
+
+impl<'g> GenericType<'g> for Interned<'g, Type<'g>> {}
 
 /// if a type or value `T` is inhabited (is reachable)
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
@@ -323,6 +450,15 @@ impl<'g> ToText<'g> for Type<'g> {
     }
 }
 
+impl<'g> Interned<'g, Type<'g>> {
+    pub fn pointer(self) -> PointerType<'g> {
+        PointerType { pointee: self }
+    }
+    pub fn undef(self) -> Const<'g> {
+        Const::Undef(self)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -333,7 +469,7 @@ mod tests {
         macro_rules! test_type {
             ($global_state:ident, $text:literal, $type:expr, $formatted_text:literal) => {
                 let parsed_type = Type::parse("", $text, &$global_state).unwrap();
-                let expected_type = $global_state.intern(&$type);
+                let expected_type = $type.intern(&$global_state);
                 assert_eq!(parsed_type, expected_type);
                 let text = expected_type.display().to_string();
                 assert_eq!($formatted_text, text);
@@ -342,49 +478,48 @@ mod tests {
                 test_type!($global_state, $text, $type, $text);
             };
         }
-        test_type!(global_state, "i8", Type::Integer(IntegerType::Int8));
-        test_type!(global_state, "i16", Type::Integer(IntegerType::Int16));
-        test_type!(global_state, "i32", Type::Integer(IntegerType::Int32));
-        test_type!(global_state, "i64", Type::Integer(IntegerType::Int64));
-        test_type!(global_state, "f16", Type::Float(FloatType::Float16));
-        test_type!(global_state, "f32", Type::Float(FloatType::Float32));
-        test_type!(global_state, "f64", Type::Float(FloatType::Float64));
-        test_type!(global_state, "bool", Type::Bool(BoolType));
+        test_type!(global_state, "i8", IntegerType::Int8);
+        test_type!(global_state, "i16", IntegerType::Int16);
+        test_type!(global_state, "i32", IntegerType::Int32);
+        test_type!(global_state, "i64", IntegerType::Int64);
+        test_type!(global_state, "f16", FloatType::Float16);
+        test_type!(global_state, "f32", FloatType::Float32);
+        test_type!(global_state, "f64", FloatType::Float64);
+        test_type!(global_state, "bool", BoolType);
         test_type!(
             global_state,
             "*i8",
-            Type::Pointer(PointerType {
-                pointee: global_state.intern(&Type::Integer(IntegerType::Int8))
-            })
+            IntegerType::Int8.intern(&global_state).pointer()
         );
         test_type!(
             global_state,
             "<4 x f16>",
-            Type::Vector(VectorType {
+            VectorType {
                 len: 4,
                 scalable: false,
-                element: global_state.intern(&Type::Float(FloatType::Float16))
-            })
+                element: FloatType::Float16.intern(&global_state)
+            }
         );
         test_type!(
             global_state,
             "<vscale x 7 x f32>",
-            Type::Vector(VectorType {
+            VectorType {
                 len: 7,
                 scalable: true,
-                element: global_state.intern(&Type::Float(FloatType::Float32))
-            })
+                element: FloatType::Float32.intern(&global_state)
+            }
         );
         test_type!(
             global_state,
             "(<vscale x 7 x ((* bool))>)",
-            Type::Vector(VectorType {
+            VectorType {
                 len: 7,
                 scalable: true,
-                element: global_state.intern(&Type::Pointer(PointerType {
-                    pointee: global_state.intern(&Type::Bool(BoolType))
-                }))
-            }),
+                element: BoolType
+                    .intern(&global_state)
+                    .pointer()
+                    .intern(&global_state)
+            },
             "<vscale x 7 x *bool>"
         );
         // FIXME: add tests for opaque types

@@ -3,40 +3,28 @@
 
 use shader_compiler_ir::prelude::*;
 use shader_compiler_ir::{
-    BinaryALUInstruction, BranchInstruction, BreakBlock, ConstInteger, ContinueLoop,
-    InstructionData, IntegerType, LoopHeader, OnceCell, SimpleInstruction,
+    BinaryALUInstruction, BranchInstruction, BreakBlock, ContinueLoop, InstructionData,
+    IntegerType, LoopHeader, OnceCell, SimpleInstruction,
 };
 
 #[test]
 fn test_debug() {
     let global_state = GlobalState::default();
     let global_state = &global_state;
-    let int32_type = global_state.intern(&Type::Integer(IntegerType::Int32));
-    let loop_counter_def = ValueDefinition::new(
-        int32_type,
-        global_state.intern("loop_counter"),
-        global_state,
-    );
+    let loop_counter_def = IntegerType::Int32.new_value_definition("loop_counter", global_state);
     let loop_counter = loop_counter_def.value();
-    let loop_counter_next_def = ValueDefinition::new(
-        int32_type,
-        global_state.intern("loop_counter_next"),
-        global_state,
-    );
+    let loop_counter_next_def =
+        IntegerType::Int32.new_value_definition("loop_counter_next", global_state);
     let loop_counter_next = loop_counter_next_def.value();
-    let loop_start = global_state.intern(&Const::Integer(ConstInteger::Int32(0)));
-    let loop_end = global_state.intern(&Const::Integer(ConstInteger::Int32(10)));
-    let loop_increment = global_state.intern(&Const::Integer(ConstInteger::Int32(1)));
+    let loop_start = 0u32;
+    let loop_end = 10u32;
+    let loop_increment = 1u32;
     let loop_body = global_state.alloc(Block {
         body: OnceCell::new(),
         result_definitions: Inhabited(Vec::new()),
     });
     let loop_ = global_state.alloc(Loop {
-        arguments: vec![ValueUse::new(Value::from_const(
-            loop_start,
-            global_state.intern("loop_start"),
-            global_state,
-        ))],
+        arguments: vec![ValueUse::from_const(loop_start, "loop_start", global_state)],
         header: LoopHeader {
             argument_definitions: vec![loop_counter_def],
         },
@@ -46,15 +34,11 @@ fn test_debug() {
         .body
         .set(vec![
             Instruction {
-                location: Some(global_state.intern(&Location {
-                    file: global_state.intern("file1.vertex"),
-                    line: 2,
-                    column: 1,
-                })),
+                location: Some(Location::new_interned("file1.vertex", 2, 1, global_state)),
                 data: InstructionData::Branch(BranchInstruction {
                     variable: ValueUse::new(loop_counter),
                     targets: vec![(
-                        loop_end,
+                        loop_end.intern(global_state),
                         BreakBlock {
                             block: loop_body,
                             block_results: vec![],
@@ -63,29 +47,17 @@ fn test_debug() {
                 }),
             },
             Instruction {
-                location: Some(global_state.intern(&Location {
-                    file: global_state.intern("file1.vertex"),
-                    line: 3,
-                    column: 1,
-                })),
+                location: Some(Location::new_interned("file1.vertex", 3, 1, global_state)),
                 data: InstructionData::Simple(SimpleInstruction::Add(BinaryALUInstruction {
                     arguments: [
                         ValueUse::new(loop_counter),
-                        ValueUse::new(Value::from_const(
-                            loop_increment,
-                            global_state.intern("loop_increment"),
-                            global_state,
-                        )),
+                        ValueUse::from_const(loop_increment, "loop_increment", global_state),
                     ],
                     result: loop_counter_next_def,
                 })),
             },
             Instruction {
-                location: Some(global_state.intern(&Location {
-                    file: global_state.intern("file1.vertex"),
-                    line: 4,
-                    column: 1,
-                })),
+                location: Some(Location::new_interned("file1.vertex", 4, 1, global_state)),
                 data: InstructionData::ContinueLoop(ContinueLoop {
                     target_loop: loop_,
                     block_arguments: vec![ValueUse::new(loop_counter_next)],
@@ -101,19 +73,11 @@ fn test_debug() {
         .body
         .set(vec![
             Instruction {
-                location: Some(global_state.intern(&Location {
-                    file: global_state.intern("file1.vertex"),
-                    line: 1,
-                    column: 1,
-                })),
+                location: Some(Location::new_interned("file1.vertex", 1, 1, global_state)),
                 data: InstructionData::Loop(loop_),
             },
             Instruction {
-                location: Some(global_state.intern(&Location {
-                    file: global_state.intern("file1.vertex"),
-                    line: 2,
-                    column: 1,
-                })),
+                location: Some(Location::new_interned("file1.vertex", 2, 1, global_state)),
                 data: InstructionData::BreakBlock(BreakBlock {
                     block: entry_block,
                     block_results: vec![],

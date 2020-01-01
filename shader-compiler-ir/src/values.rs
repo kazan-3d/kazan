@@ -22,24 +22,25 @@ pub struct ValueDefinition<'g> {
 
 impl<'g> ValueDefinition<'g> {
     pub fn new(
-        value_type: Interned<'g, Type<'g>>,
-        name: Interned<'g, str>,
+        value_type: impl Internable<'g, Interned = Type<'g>>,
+        name: impl Internable<'g, Interned = str>,
         global_state: &'g GlobalState<'g>,
     ) -> ValueDefinition<'g> {
         ValueDefinition {
             value: global_state.alloc(Value {
-                value_type,
-                name,
+                value_type: value_type.intern(global_state),
+                name: name.intern(global_state),
                 const_value: Cell::new(None),
             }),
         }
     }
     pub fn define_as_const(
         self,
-        const_value: Interned<'g, Const<'g>>,
+        const_value: impl Internable<'g, Interned = Const<'g>>,
         global_state: &'g GlobalState<'g>,
     ) -> IdRef<'g, Value<'g>> {
         let Self { value } = self;
+        let const_value = const_value.intern(global_state);
         assert_eq!(value.value_type, const_value.get().get_type(global_state));
         assert!(
             value.const_value.replace(Some(const_value)).is_none(),
@@ -70,12 +71,13 @@ impl<'g> Id<'g> for Value<'g> {}
 
 impl<'g> Value<'g> {
     pub fn from_const(
-        const_value: Interned<'g, Const<'g>>,
-        name: Interned<'g, str>,
+        const_value: impl Internable<'g, Interned = Const<'g>>,
+        name: impl Internable<'g, Interned = str>,
         global_state: &'g GlobalState<'g>,
     ) -> IdRef<'g, Value<'g>> {
+        let const_value = const_value.intern(global_state);
         global_state.alloc(Value {
-            name,
+            name: name.intern(global_state),
             value_type: const_value.get().get_type(global_state),
             const_value: Cell::new(Some(const_value)),
         })
@@ -90,6 +92,15 @@ pub struct ValueUse<'g> {
 impl<'g> ValueUse<'g> {
     pub fn new(value: IdRef<'g, Value<'g>>) -> Self {
         Self { value }
+    }
+    pub fn from_const(
+        const_value: impl Internable<'g, Interned = Const<'g>>,
+        name: impl Internable<'g, Interned = str>,
+        global_state: &'g GlobalState<'g>,
+    ) -> ValueUse<'g> {
+        Self {
+            value: Value::from_const(const_value, name, global_state),
+        }
     }
     pub fn value(&self) -> IdRef<'g, Value<'g>> {
         self.value
@@ -126,7 +137,7 @@ impl<'g> FromText<'g> for ValueDefinition<'g> {
     ) -> Result<UnavailableValueDefinition<'g>, FromTextError> {
         let name_location = state.peek_token()?.span;
         let name = NamedId::from_text(state)?;
-        state.parse_punct_token_or_error(Punctuation::At, "missing '@'")?;
+        state.parse_punct_token_or_error(Punctuation::Colon, "missing ':'")?;
         let value_type = Type::from_text(state)?;
         let retval = UnavailableValueDefinition::from(Self::new(
             value_type,
@@ -145,14 +156,10 @@ impl<'g> FromText<'g> for ValueUse<'g> {
     fn from_text(state: &mut FromTextState<'g, '_>) -> Result<Self, FromTextError> {
         let name_location = state.peek_token()?.span;
         let name = NamedId::from_text(state)?;
-        if let TokenKind::Punct(Punctuation::At) = state.peek_token()?.kind {
+        if let TokenKind::Punct(Punctuation::Colon) = state.peek_token()?.kind {
             state.parse_token()?;
             let const_value = Const::from_text(state)?;
-            let retval = ValueUse::new(Value::from_const(
-                const_value,
-                name.name,
-                state.global_state(),
-            ));
+            let retval = ValueUse::from_const(const_value, name.name, state.global_state());
             if let Err(_) =
                 state.insert_value(name, ValueAndAvailability::new(retval.value(), true))
             {
@@ -177,7 +184,7 @@ impl<'g> ToText<'g> for ValueDefinition<'g> {
     fn to_text(&self, state: &mut ToTextState<'g, '_>) -> fmt::Result {
         if let NewOrOld::New(name) = state.get_value_named_id(self.value()) {
             name.to_text(state)?;
-            write!(state, " @ ")?;
+            write!(state, " : ")?;
             self.value().value_type.to_text(state)
         } else {
             panic!("value definition must be written first");
@@ -190,7 +197,7 @@ impl<'g> ToText<'g> for ValueUse<'g> {
         match state.get_value_named_id(self.value()) {
             NewOrOld::New(name) => {
                 name.to_text(state)?;
-                write!(state, " @ ")?;
+                write!(state, " : ")?;
                 self.value()
                     .const_value
                     .get()

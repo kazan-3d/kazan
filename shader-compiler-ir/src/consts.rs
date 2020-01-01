@@ -26,6 +26,63 @@ pub enum ConstInteger {
     Int64(u64),
 }
 
+impl<'g> Internable<'g> for ConstInteger {
+    type Interned = Const<'g>;
+    fn intern(&self, global_state: &'g GlobalState<'g>) -> Interned<'g, Const<'g>> {
+        Const::from(*self).intern(global_state)
+    }
+}
+
+macro_rules! impl_const_types {
+    (
+        $name:ident {
+            $(
+                $enumerant:ident($type:ident $(as $as_type:ident)*),
+            )+
+        }
+    ) => {
+        $(
+            impl From<$type> for $name {
+                fn from(v: $type) -> Self {
+                    $name::$enumerant(v $(as $as_type)*)
+                }
+            }
+
+            impl From<$type> for Const<'_> {
+                fn from(v: $type) -> Self {
+                    $name::from(v).into()
+                }
+            }
+
+            impl<'g> Internable<'g> for $type {
+                type Interned = Const<'g>;
+                fn intern(&self, global_state: &'g GlobalState<'g>) -> Interned<'g, Const<'g>> {
+                    Const::from(*self).intern(global_state)
+                }
+            }
+        )+
+    };
+}
+
+impl_const_types! {
+    ConstInteger {
+        Int8(u8),
+        Int8(i8 as u8),
+        Int16(u16),
+        Int16(i16 as u16),
+        Int32(u32),
+        Int32(i32 as u32),
+        Int64(u64),
+        Int64(i64 as u64),
+    }
+}
+
+impl From<ConstInteger> for Const<'_> {
+    fn from(v: ConstInteger) -> Self {
+        Const::Integer(v)
+    }
+}
+
 pub struct InvalidFloatSize;
 
 impl ConstInteger {
@@ -54,6 +111,13 @@ pub enum ConstFloat {
     Float64(u64),
 }
 
+impl<'g> Internable<'g> for ConstFloat {
+    type Interned = Const<'g>;
+    fn intern(&self, global_state: &'g GlobalState<'g>) -> Interned<'g, Const<'g>> {
+        Const::from(*self).intern(global_state)
+    }
+}
+
 impl ConstFloat {
     pub fn get_type(self) -> FloatType {
         match self {
@@ -64,6 +128,12 @@ impl ConstFloat {
     }
 }
 
+impl From<ConstFloat> for Const<'_> {
+    fn from(v: ConstFloat) -> Self {
+        Const::Float(v)
+    }
+}
+
 #[derive(Clone, Eq, PartialEq, Hash, Debug)]
 pub struct ConstVector<'g> {
     element_type: Interned<'g, Type<'g>>,
@@ -71,7 +141,14 @@ pub struct ConstVector<'g> {
 }
 
 impl<'g> ConstVector<'g> {
-    pub fn new(elements: Vec<Interned<'g, Const<'g>>>, global_state: &'g GlobalState<'g>) -> Self {
+    pub fn new(
+        elements: impl IntoIterator<Item = impl Internable<'g, Interned = Const<'g>>>,
+        global_state: &'g GlobalState<'g>,
+    ) -> Self {
+        let elements: Vec<_> = elements
+            .into_iter()
+            .map(|v| v.intern(global_state))
+            .collect();
         let mut iter = elements.iter();
         let element_type = iter
             .next()
@@ -105,6 +182,19 @@ impl<'g> ConstVector<'g> {
     }
 }
 
+impl<'g> Internable<'g> for ConstVector<'g> {
+    type Interned = Const<'g>;
+    fn intern(&self, global_state: &'g GlobalState<'g>) -> Interned<'g, Const<'g>> {
+        Const::from(self.clone()).intern(global_state)
+    }
+}
+
+impl<'g> From<ConstVector<'g>> for Const<'g> {
+    fn from(v: ConstVector<'g>) -> Self {
+        Const::Vector(v)
+    }
+}
+
 #[derive(Clone, Eq, PartialEq, Hash, Debug)]
 pub enum Const<'g> {
     Integer(ConstInteger),
@@ -114,6 +204,19 @@ pub enum Const<'g> {
     // FIXME: add scalable vectors
     Undef(Interned<'g, Type<'g>>),
     Null(PointerType<'g>),
+}
+
+impl<'g> From<bool> for Const<'g> {
+    fn from(v: bool) -> Self {
+        Const::Bool(v)
+    }
+}
+
+impl<'g> Internable<'g> for bool {
+    type Interned = Const<'g>;
+    fn intern(&self, global_state: &'g GlobalState<'g>) -> Interned<'g, Const<'g>> {
+        Const::from(*self).intern(global_state)
+    }
 }
 
 impl<'g> Const<'g> {
@@ -128,6 +231,13 @@ impl<'g> Const<'g> {
                 global_state.intern(&Type::Pointer(pointer_type.clone()))
             }
         }
+    }
+}
+
+impl<'g> Internable<'g> for Const<'g> {
+    type Interned = Const<'g>;
+    fn intern(&self, global_state: &'g GlobalState<'g>) -> Interned<'g, Const<'g>> {
+        global_state.intern(self)
     }
 }
 
@@ -244,13 +354,13 @@ impl<'g> FromText<'g> for ConstVector<'g> {
             Punctuation::GreaterThan,
             "missing closing angle bracket ('>')",
             |state| -> Result<Self, FromTextError> {
-                let element = Interned::<Const>::from_text(state)?;
+                let element = Const::from_text(state)?;
                 let element_type = element.get().get_type(state.global_state());
                 let mut elements = vec![element];
                 while state.peek_token()?.kind.punct() == Some(Punctuation::Comma) {
                     state.parse_token()?;
                     let element_location = state.peek_token()?.span;
-                    let element = Interned::<Const>::from_text(state)?;
+                    let element = Const::from_text(state)?;
                     if element.get().get_type(state.global_state()) != element_type {
                         state.error_at(element_location, "vector must have consistent type")?;
                     }
@@ -329,7 +439,6 @@ impl<'g> ToText<'g> for Const<'g> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::PointerType;
 
     #[test]
     fn test_const_from_to_text() {
@@ -337,7 +446,7 @@ mod tests {
         macro_rules! test_const {
             ($global_state:ident, $text:literal, $const:expr, $formatted_text:literal) => {
                 let parsed_const = Const::parse("", $text, &$global_state).unwrap();
-                let expected_const = $global_state.intern(&$const);
+                let expected_const = $const.intern(&$global_state);
                 assert_eq!(parsed_const, expected_const);
                 let text = expected_const.display().to_string();
                 assert_eq!($formatted_text, text);
@@ -346,134 +455,66 @@ mod tests {
                 test_const!($global_state, $text, $const, $text);
             };
         }
-        test_const!(
-            global_state,
-            "0i8",
-            Const::Integer(ConstInteger::Int8(0)),
-            "0x0i8"
-        );
-        test_const!(
-            global_state,
-            "10i8",
-            Const::Integer(ConstInteger::Int8(10)),
-            "0xAi8"
-        );
-        test_const!(
-            global_state,
-            "0b10i8",
-            Const::Integer(ConstInteger::Int8(2)),
-            "0x2i8"
-        );
-        test_const!(
-            global_state,
-            "0B10i8",
-            Const::Integer(ConstInteger::Int8(2)),
-            "0x2i8"
-        );
-        test_const!(
-            global_state,
-            "0o10i8",
-            Const::Integer(ConstInteger::Int8(8)),
-            "0x8i8"
-        );
-        test_const!(
-            global_state,
-            "0O10i8",
-            Const::Integer(ConstInteger::Int8(8)),
-            "0x8i8"
-        );
-        test_const!(
-            global_state,
-            "0X10i8",
-            Const::Integer(ConstInteger::Int8(0x10)),
-            "0x10i8"
-        );
-        test_const!(
-            global_state,
-            "0xFFi8",
-            Const::Integer(ConstInteger::Int8(0xFF))
-        );
-        test_const!(global_state, "0x0i8", Const::Integer(ConstInteger::Int8(0)));
-        test_const!(
-            global_state,
-            "0xFFFFi16",
-            Const::Integer(ConstInteger::Int16(0xFFFF))
-        );
-        test_const!(
-            global_state,
-            "0xFFFFFFFFi32",
-            Const::Integer(ConstInteger::Int32(0xFFFF_FFFF))
-        );
+        test_const!(global_state, "0i8", 0u8, "0x0i8");
+        test_const!(global_state, "10i8", 10u8, "0xAi8");
+        test_const!(global_state, "0b10i8", 2u8, "0x2i8");
+        test_const!(global_state, "0B10i8", 2u8, "0x2i8");
+        test_const!(global_state, "0o10i8", 8u8, "0x8i8");
+        test_const!(global_state, "0O10i8", 8u8, "0x8i8");
+        test_const!(global_state, "0X10i8", 0x10u8, "0x10i8");
+        test_const!(global_state, "0xFFi8", 0xFFu8);
+        test_const!(global_state, "0x0i8", 0u8);
+        test_const!(global_state, "0xFFFFi16", 0xFFFFu16);
+        test_const!(global_state, "0xFFFFFFFFi32", 0xFFFF_FFFFu32);
         test_const!(
             global_state,
             "0xFFFFFFFFFFFFFFFFi64",
-            Const::Integer(ConstInteger::Int64(0xFFFF_FFFF_FFFF_FFFF))
+            0xFFFF_FFFF_FFFF_FFFFu64
         );
-        test_const!(
-            global_state,
-            "f16 0xF000",
-            Const::Float(ConstFloat::Float16(0xF000))
-        );
+        test_const!(global_state, "f16 0xF000", ConstFloat::Float16(0xF000));
         test_const!(
             global_state,
             "f32 0xFF000000",
-            Const::Float(ConstFloat::Float32(0xFF00_0000))
+            ConstFloat::Float32(0xFF00_0000)
         );
         test_const!(
             global_state,
             "f64 0xFF00000000000000",
-            Const::Float(ConstFloat::Float64(0xFF00_0000_0000_0000))
+            ConstFloat::Float64(0xFF00_0000_0000_0000)
         );
         test_const!(
             global_state,
             "<0x1i8>",
-            Const::Vector(ConstVector::new(
-                vec![global_state.intern(&Const::Integer(ConstInteger::Int8(1)))],
-                &global_state
-            ))
+            ConstVector::new(&[1u8], &global_state)
         );
         test_const!(
             global_state,
             "<0x1i8, 0x2i8>",
-            Const::Vector(ConstVector::new(
-                vec![
-                    global_state.intern(&Const::Integer(ConstInteger::Int8(1))),
-                    global_state.intern(&Const::Integer(ConstInteger::Int8(2))),
-                ],
-                &global_state
-            ))
+            ConstVector::new(&[1u8, 2u8], &global_state)
         );
         test_const!(
             global_state,
             "<0x1i8, 0x2i8, 0x3i8, 0x4i8>",
-            Const::Vector(ConstVector::new(
-                vec![
-                    global_state.intern(&Const::Integer(ConstInteger::Int8(1))),
-                    global_state.intern(&Const::Integer(ConstInteger::Int8(2))),
-                    global_state.intern(&Const::Integer(ConstInteger::Int8(3))),
-                    global_state.intern(&Const::Integer(ConstInteger::Int8(4))),
-                ],
-                &global_state
-            ))
+            ConstVector::new(&[1u8, 2, 3, 4], &global_state)
         );
         test_const!(
             global_state,
             "undef i8",
-            Const::Undef(global_state.intern(&Type::Integer(IntegerType::Int8)))
+            IntegerType::Int8.intern(&global_state).undef()
         );
         test_const!(
             global_state,
             "undef *i8",
-            Const::Undef(global_state.intern(&Type::Pointer(PointerType {
-                pointee: global_state.intern(&Type::Integer(IntegerType::Int8))
-            })))
+            IntegerType::Int8
+                .intern(&global_state)
+                .pointer()
+                .intern(&global_state)
+                .undef()
         );
         test_const!(
             global_state,
             "null *i8",
-            Const::Null(PointerType {
-                pointee: global_state.intern(&Type::Integer(IntegerType::Int8))
-            })
+            IntegerType::Int8.intern(&global_state).pointer().null()
         );
     }
 }

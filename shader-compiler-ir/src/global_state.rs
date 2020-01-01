@@ -335,3 +335,36 @@ impl<'g> Allocate<'g, Block<'g>> for GlobalState<'g> {
         self.block_arena.alloc(value)
     }
 }
+
+pub trait Internable<'g> {
+    type Interned: ?Sized + Eq + Hash;
+    fn intern(&self, global_state: &'g GlobalState<'g>) -> Interned<'g, Self::Interned>;
+}
+
+impl<'g> Internable<'g> for str {
+    type Interned = str;
+    fn intern(&self, global_state: &'g GlobalState<'g>) -> Interned<'g, Self::Interned> {
+        global_state.intern(self)
+    }
+}
+
+impl<'g> Internable<'g> for String {
+    type Interned = str;
+    fn intern(&self, global_state: &'g GlobalState<'g>) -> Interned<'g, Self::Interned> {
+        global_state.intern(self)
+    }
+}
+
+impl<'g, T: ?Sized + Eq + Hash> Internable<'g> for Interned<'g, T> {
+    type Interned = T;
+    fn intern(&self, _global_state: &'g GlobalState<'g>) -> Interned<'g, T> {
+        *self
+    }
+}
+
+impl<'g, T: Internable<'g> + ?Sized> Internable<'g> for &'_ T {
+    type Interned = T::Interned;
+    fn intern(&self, global_state: &'g GlobalState<'g>) -> Interned<'g, Self::Interned> {
+        (**self).intern(global_state)
+    }
+}
