@@ -8,7 +8,7 @@ mod block;
 mod consts;
 mod debug_info;
 mod global_state;
-mod instructions;
+mod instructions_impl;
 mod types;
 mod values;
 
@@ -19,7 +19,7 @@ pub use crate::block::*;
 pub use crate::consts::*;
 pub use crate::debug_info::*;
 pub use crate::global_state::*;
-pub use crate::instructions::*;
+pub use crate::instructions_impl::*;
 pub use crate::types::*;
 pub use crate::values::*;
 pub use once_cell::unsync::OnceCell;

@@ -25,8 +25,8 @@ pub struct GlobalState<'g> {
     const_arena: Arena<Const<'g>>,
     const_hashtable: RefCell<HashSet<&'g Const<'g>>>,
     value_arena: Arena<Value<'g>>,
-    block_arena: Arena<Block<'g>>,
-    loop_arena: Arena<Loop<'g>>,
+    block_arena: Arena<BlockData<'g>>,
+    loop_arena: Arena<LoopData<'g>>,
 }
 
 impl<'g> GlobalState<'g> {
@@ -183,6 +183,13 @@ impl<'g, T: Id<'g>> Hash for IdRef<'g, T> {
     }
 }
 
+impl<'g, T: Id<'g> + FromText<'g, Parsed = Self>> FromText<'g> for IdRef<'g, T> {
+    type Parsed = Self;
+    fn from_text(state: &mut FromTextState<'g, '_>) -> Result<Self, FromTextError> {
+        T::from_text(state)
+    }
+}
+
 /// allocate value from `GlobalState`
 pub trait Allocate<'g, T: Id<'g>> {
     #[doc(hidden)]
@@ -324,14 +331,14 @@ impl<'g> Intern<'g, Type<'g>> for GlobalState<'g> {
     }
 }
 
-impl<'g> Allocate<'g, Loop<'g>> for GlobalState<'g> {
-    fn alloc_private(&'g self, _private: Private, value: Loop<'g>) -> &'g Loop<'g> {
+impl<'g> Allocate<'g, LoopData<'g>> for GlobalState<'g> {
+    fn alloc_private(&'g self, _private: Private, value: LoopData<'g>) -> &'g LoopData<'g> {
         self.loop_arena.alloc(value)
     }
 }
 
-impl<'g> Allocate<'g, Block<'g>> for GlobalState<'g> {
-    fn alloc_private(&'g self, _private: Private, value: Block<'g>) -> &'g Block<'g> {
+impl<'g> Allocate<'g, BlockData<'g>> for GlobalState<'g> {
+    fn alloc_private(&'g self, _private: Private, value: BlockData<'g>) -> &'g BlockData<'g> {
         self.block_arena.alloc(value)
     }
 }

@@ -248,6 +248,28 @@ impl<T> Inhabitable<T> {
     }
 }
 
+impl<'g, T: FromText<'g>> FromText<'g> for Inhabitable<T> {
+    type Parsed = Inhabitable<T::Parsed>;
+    fn from_text(state: &mut FromTextState<'g, '_>) -> Result<Self::Parsed, FromTextError> {
+        match state.peek_token()?.kind {
+            TokenKind::Punct(Punctuation::ExMark) => {
+                state.parse_token()?;
+                Ok(Uninhabited)
+            }
+            _ => Ok(Inhabited(T::from_text(state)?)),
+        }
+    }
+}
+
+impl<'g, T: ToText<'g>> ToText<'g> for Inhabitable<T> {
+    fn to_text(&self, state: &mut ToTextState<'g, '_>) -> fmt::Result {
+        match self {
+            Uninhabited => write!(state, "!"),
+            Inhabited(v) => v.to_text(state),
+        }
+    }
+}
+
 macro_rules! impl_from_to_text_for_keyword_type {
     ($type:ident {
         $($kw:ident => $value:path,)+

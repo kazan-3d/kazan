@@ -3,17 +3,19 @@
 
 use crate::prelude::*;
 use crate::text::FromTextError;
+use crate::text::FromTextScopeId;
 use crate::text::FromTextState;
+use crate::text::FromTextSymbol;
+use crate::text::FromTextSymbolsState;
+use crate::text::FromTextSymbolsStateBase;
 use crate::text::NamedId;
 use crate::text::NewOrOld;
 use crate::text::Punctuation;
 use crate::text::ToTextState;
 use crate::text::TokenKind;
-use crate::text::ValueAndAvailability;
 use std::cell::Cell;
 use std::fmt;
 use std::ops::Deref;
-use std::rc::Rc;
 
 #[derive(Eq, PartialEq, Hash, Debug)]
 pub struct ValueDefinition<'g> {
@@ -114,37 +116,22 @@ impl<'g> Deref for ValueUse<'g> {
     }
 }
 
-#[derive(Debug)]
-pub struct UnavailableValueDefinition<'g>(Rc<ValueAndAvailability<'g>>);
-
-impl<'g> UnavailableValueDefinition<'g> {
-    pub fn mark_available(self) -> ValueDefinition<'g> {
-        let value = self.0.mark_available();
-        ValueDefinition { value }
-    }
-}
-
-impl<'g> From<ValueDefinition<'g>> for UnavailableValueDefinition<'g> {
-    fn from(v: ValueDefinition<'g>) -> Self {
-        UnavailableValueDefinition(ValueAndAvailability::new(v.value(), false))
-    }
-}
-
 impl<'g> FromText<'g> for ValueDefinition<'g> {
-    type Parsed = UnavailableValueDefinition<'g>;
-    fn from_text(
-        state: &mut FromTextState<'g, '_>,
-    ) -> Result<UnavailableValueDefinition<'g>, FromTextError> {
+    type Parsed = ValueDefinition<'g>;
+    fn from_text(state: &mut FromTextState<'g, '_>) -> Result<ValueDefinition<'g>, FromTextError> {
         let name_location = state.peek_token()?.span;
         let name = NamedId::from_text(state)?;
         state.parse_punct_token_or_error(Punctuation::Colon, "missing ':'")?;
         let value_type = Type::from_text(state)?;
-        let retval = UnavailableValueDefinition::from(Self::new(
-            value_type,
-            name.name,
-            state.global_state(),
-        ));
-        if let Err(_) = state.insert_value(name, retval.0.clone()) {
+        let retval = Self::new(value_type, name.name, state.global_state());
+        let scope = state.push_new_nested_scope();
+        if let Err(_) = state.insert_symbol(
+            name,
+            FromTextSymbol {
+                value: retval.value(),
+                scope,
+            },
+        ) {
             state.error_at(name_location, "value defined previously")?;
         }
         Ok(retval)
@@ -160,19 +147,21 @@ impl<'g> FromText<'g> for ValueUse<'g> {
             state.parse_token()?;
             let const_value = Const::from_text(state)?;
             let retval = ValueUse::from_const(const_value, name.name, state.global_state());
-            if let Err(_) =
-                state.insert_value(name, ValueAndAvailability::new(retval.value(), true))
-            {
+            if let Err(_) = state.insert_symbol(
+                name,
+                FromTextSymbol {
+                    value: retval.value(),
+                    scope: FromTextScopeId::ROOT,
+                },
+            ) {
                 state.error_at(name_location, "value defined previously")?;
             }
             Ok(retval)
-        } else if let Some(value) = state.get_value(name) {
-            if let Some(value) = value.value_if_available() {
+        } else if let Some(FromTextSymbol { value, scope }) = state.get_symbol(name) {
+            if state.is_scope_visible(scope) {
                 Ok(ValueUse::new(value))
             } else {
-                state
-                    .error_at(name_location, "value not yet available")?
-                    .into()
+                state.error_at(name_location, "value not in scope")?.into()
             }
         } else {
             state.error_at(name_location, "name not found")?.into()

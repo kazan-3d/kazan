@@ -6,7 +6,7 @@
 use crate::prelude::*;
 use crate::OnceCell;
 use std::borrow::Borrow;
-use std::cell::Cell;
+use std::borrow::BorrowMut;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::error::Error;
@@ -14,7 +14,6 @@ use std::fmt;
 use std::marker::PhantomData;
 use std::mem;
 use std::ops::Range;
-use std::rc::Rc;
 use std::str::FromStr;
 use unicode_width::UnicodeWidthChar;
 
@@ -443,10 +442,11 @@ punctuation! {
     RSquareBracket = "]",
     Caret = "^",
     Underscore = "_",
-    LCurlyBracket = "{",
+    LCurlyBrace = "{",
     VBar = "|",
-    RCurlyBracket = "}",
+    RCurlyBrace = "}",
     Tilde = "~",
+    Arrow = "->",
 }
 
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
@@ -667,29 +667,101 @@ impl Void {
     }
 }
 
-#[derive(Debug)]
-pub(crate) struct ValueAndAvailability<'g> {
-    value: IdRef<'g, Value<'g>>,
-    available: Cell<bool>,
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
+#[repr(transparent)]
+pub struct FromTextScopeId {
+    index: usize,
 }
 
-impl<'g> ValueAndAvailability<'g> {
-    pub(crate) fn value_if_available(&self) -> Option<IdRef<'g, Value<'g>>> {
-        if self.available.get() {
-            Some(self.value)
-        } else {
+impl FromTextScopeId {
+    pub const ROOT: Self = Self { index: 0 };
+}
+
+#[derive(Debug)]
+pub struct FromTextSymbol<'g, T: Id<'g>> {
+    pub value: IdRef<'g, T>,
+    pub scope: FromTextScopeId,
+}
+
+impl<'g, T: Id<'g>> Clone for FromTextSymbol<'g, T> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<'g, T: Id<'g>> Copy for FromTextSymbol<'g, T> {}
+
+pub trait FromTextSymbolsStateBase<'g, 't>: BorrowMut<FromTextState<'g, 't>> {
+    fn get_parent_scope(&self, scope: FromTextScopeId) -> Option<FromTextScopeId> {
+        if scope == FromTextScopeId::ROOT {
             None
+        } else {
+            Some(self.borrow().parent_scopes[scope.index])
         }
     }
-    pub(crate) fn mark_available(&self) -> IdRef<'g, Value<'g>> {
-        self.available.set(true);
-        self.value
+    fn allocate_scope(&mut self, parent_scope: FromTextScopeId) -> FromTextScopeId {
+        let parent_scopes = &mut self.borrow_mut().parent_scopes;
+        let index = parent_scopes.len();
+        debug_assert_ne!(index, FromTextScopeId::ROOT.index, "invalid state");
+        parent_scopes.push(parent_scope);
+        FromTextScopeId { index }
     }
-    pub(crate) fn new(value: IdRef<'g, Value<'g>>, available: bool) -> Rc<Self> {
-        Rc::new(Self {
-            value,
-            available: Cell::new(available),
-        })
+    fn is_scope_visible(&self, search_for_scope: FromTextScopeId) -> bool {
+        let mut scope = self.borrow().scope_stack_top;
+        loop {
+            if scope == search_for_scope {
+                break true;
+            }
+            if let Some(parent_scope) = self.get_parent_scope(scope) {
+                scope = parent_scope;
+            } else {
+                break false;
+            }
+        }
+    }
+    fn push_new_nested_scope(&mut self) -> FromTextScopeId {
+        let this = self.borrow_mut();
+        let scope = this.allocate_scope(this.scope_stack_top);
+        this.scope_stack_top = scope;
+        scope
+    }
+}
+
+#[doc(hidden)]
+pub struct Private {
+    _private: (),
+}
+
+impl Private {
+    const fn new() -> Self {
+        Self { _private: () }
+    }
+}
+
+impl<'g, 't> FromTextSymbolsStateBase<'g, 't> for FromTextState<'g, 't> {}
+
+pub trait FromTextSymbolsState<'g, 't, T: Id<'g>>: FromTextSymbolsStateBase<'g, 't> {
+    #[doc(hidden)]
+    fn get_symbol_table(&self, _: Private) -> &HashMap<NamedId<'g>, FromTextSymbol<'g, T>>;
+    #[doc(hidden)]
+    fn get_symbol_table_mut(
+        &mut self,
+        _: Private,
+    ) -> &mut HashMap<NamedId<'g>, FromTextSymbol<'g, T>>;
+    fn get_symbol(&self, name: NamedId<'g>) -> Option<FromTextSymbol<'g, T>> {
+        self.get_symbol_table(Private::new()).get(&name).copied()
+    }
+    fn insert_symbol(
+        &mut self,
+        name: NamedId<'g>,
+        symbol: FromTextSymbol<'g, T>,
+    ) -> Result<(), ()> {
+        if let Entry::Vacant(entry) = self.get_symbol_table_mut(Private::new()).entry(name) {
+            entry.insert(symbol);
+            Ok(())
+        } else {
+            Err(())
+        }
     }
 }
 
@@ -697,27 +769,70 @@ pub struct FromTextState<'g, 't> {
     global_state: &'g GlobalState<'g>,
     pub location: TextLocation<'t>,
     cached_token: Option<Token<'t>>,
-    values: HashMap<NamedId<'g>, Rc<ValueAndAvailability<'g>>>,
+    values: HashMap<NamedId<'g>, FromTextSymbol<'g, Value<'g>>>,
+    blocks: HashMap<NamedId<'g>, FromTextSymbol<'g, BlockData<'g>>>,
+    loops: HashMap<NamedId<'g>, FromTextSymbol<'g, LoopData<'g>>>,
+    parent_scopes: Vec<FromTextScopeId>,
+    pub scope_stack_top: FromTextScopeId,
+}
+
+impl<'g, 't> FromTextSymbolsState<'g, 't, Value<'g>> for FromTextState<'g, 't> {
+    fn get_symbol_table(&self, _: Private) -> &HashMap<NamedId<'g>, FromTextSymbol<'g, Value<'g>>> {
+        &self.values
+    }
+    fn get_symbol_table_mut(
+        &mut self,
+        _: Private,
+    ) -> &mut HashMap<NamedId<'g>, FromTextSymbol<'g, Value<'g>>> {
+        &mut self.values
+    }
+}
+
+impl<'g, 't> FromTextSymbolsState<'g, 't, BlockData<'g>> for FromTextState<'g, 't> {
+    fn get_symbol_table(
+        &self,
+        _: Private,
+    ) -> &HashMap<NamedId<'g>, FromTextSymbol<'g, BlockData<'g>>> {
+        &self.blocks
+    }
+    fn get_symbol_table_mut(
+        &mut self,
+        _: Private,
+    ) -> &mut HashMap<NamedId<'g>, FromTextSymbol<'g, BlockData<'g>>> {
+        &mut self.blocks
+    }
+}
+
+impl<'g, 't> FromTextSymbolsState<'g, 't, LoopData<'g>> for FromTextState<'g, 't> {
+    fn get_symbol_table(
+        &self,
+        _: Private,
+    ) -> &HashMap<NamedId<'g>, FromTextSymbol<'g, LoopData<'g>>> {
+        &self.loops
+    }
+    fn get_symbol_table_mut(
+        &mut self,
+        _: Private,
+    ) -> &mut HashMap<NamedId<'g>, FromTextSymbol<'g, LoopData<'g>>> {
+        &mut self.loops
+    }
 }
 
 impl<'g, 't> FromTextState<'g, 't> {
+    fn new(source_code: &'t FromTextSourceCode<'t>, global_state: &'g GlobalState<'g>) -> Self {
+        Self {
+            global_state,
+            location: TextLocation::new(0, source_code),
+            cached_token: None,
+            values: HashMap::new(),
+            blocks: HashMap::new(),
+            loops: HashMap::new(),
+            parent_scopes: vec![FromTextScopeId::ROOT],
+            scope_stack_top: FromTextScopeId::ROOT,
+        }
+    }
     pub fn global_state(&self) -> &'g GlobalState<'g> {
         self.global_state
-    }
-    pub(crate) fn get_value(&mut self, name: NamedId<'g>) -> Option<&Rc<ValueAndAvailability<'g>>> {
-        self.values.get(&name)
-    }
-    pub(crate) fn insert_value(
-        &mut self,
-        name: NamedId<'g>,
-        value: Rc<ValueAndAvailability<'g>>,
-    ) -> Result<(), ()> {
-        if let Entry::Vacant(entry) = self.values.entry(name) {
-            entry.insert(value);
-            Ok(())
-        } else {
-            Err(())
-        }
     }
     pub fn error_at<L: Into<FromTextErrorLocation>>(
         &mut self,
@@ -990,8 +1105,11 @@ impl<'g, 't> FromTextState<'g, 't> {
     }
 }
 
+/// parse text
 pub trait FromText<'g> {
+    /// the type produced by parsing text successfully
     type Parsed: Sized;
+    /// top-level parse function -- should not be called from `from_text` implementations
     fn parse(
         file_name: impl Borrow<str>,
         text: impl Borrow<str>,
@@ -1000,18 +1118,14 @@ pub trait FromText<'g> {
         let file_name = file_name.borrow();
         let text = text.borrow();
         let source_code = FromTextSourceCode::new(file_name, text);
-        let mut state = FromTextState {
-            global_state,
-            location: TextLocation::new(0, &source_code),
-            cached_token: None,
-            values: HashMap::new(),
-        };
+        let mut state = FromTextState::new(&source_code, global_state);
         let retval = Self::from_text(&mut state)?;
         if !state.peek_token()?.kind.is_end_of_file() {
             state.error_at_peek_token("extra tokens at end")?;
         }
         Ok(retval)
     }
+    /// do the actual parsing work
     fn from_text(state: &mut FromTextState<'g, '_>) -> Result<Self::Parsed, FromTextError>;
 }
 
@@ -1109,6 +1223,18 @@ impl<'g> NameMapGetName<'g> for Value<'g> {
     }
 }
 
+impl<'g> NameMapGetName<'g> for BlockData<'g> {
+    fn name(&self) -> Interned<'g, str> {
+        self.name
+    }
+}
+
+impl<'g> NameMapGetName<'g> for LoopData<'g> {
+    fn name(&self) -> Interned<'g, str> {
+        self.name
+    }
+}
+
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
 pub(crate) enum NewOrOld<T> {
     New(T),
@@ -1146,6 +1272,8 @@ pub struct ToTextState<'g, 'w> {
     at_start_of_line: bool,
     base_writer: &'w mut dyn FnMut(&str) -> fmt::Result,
     values: NameMap<'g, Value<'g>>,
+    blocks: NameMap<'g, BlockData<'g>>,
+    loops: NameMap<'g, LoopData<'g>>,
 }
 
 impl<'g> ToTextState<'g, '_> {
@@ -1154,6 +1282,18 @@ impl<'g> ToTextState<'g, '_> {
         value: IdRef<'g, Value<'g>>,
     ) -> NewOrOld<NamedId<'g>> {
         self.values.get(value)
+    }
+    pub(crate) fn get_block_named_id(
+        &mut self,
+        value: IdRef<'g, BlockData<'g>>,
+    ) -> NewOrOld<NamedId<'g>> {
+        self.blocks.get(value)
+    }
+    pub(crate) fn get_loop_named_id(
+        &mut self,
+        value: IdRef<'g, LoopData<'g>>,
+    ) -> NewOrOld<NamedId<'g>> {
+        self.loops.get(value)
     }
     pub fn indent<R, E, F: FnOnce(&mut Self) -> Result<R, E>>(&mut self, f: F) -> Result<R, E> {
         assert!(
@@ -1187,7 +1327,8 @@ impl fmt::Write for ToTextState<'_, '_> {
             if text.is_empty() {
                 continue;
             }
-            if self.indent != 0 {
+            let do_indent = mem::replace(&mut self.at_start_of_line, false);
+            if do_indent && self.indent != 0 {
                 // 256 spaces arranged in a 16x16 grid
                 const SPACES: &str = concat!(
                     "                ",
@@ -1243,6 +1384,8 @@ impl<'g, T: ToText<'g> + ?Sized> fmt::Display for ToTextDisplay<'g, '_, T> {
             at_start_of_line: true,
             base_writer: &mut |text: &str| formatter.write_str(text),
             values: NameMap::new(),
+            blocks: NameMap::new(),
+            loops: NameMap::new(),
         })
     }
 }
@@ -1258,3 +1401,290 @@ impl<'g, T: ToText<'g> + ?Sized> ToText<'g> for &'_ T {
         (**self).to_text(state)
     }
 }
+
+impl<'g, T: ToText<'g>> ToText<'g> for [T] {
+    fn to_text(&self, state: &mut ToTextState<'g, '_>) -> fmt::Result {
+        let mut iter = self.iter();
+        write!(state, "[")?;
+        if let Some(first) = iter.next() {
+            first.to_text(state)?;
+            for element in iter {
+                write!(state, ", ")?;
+                element.to_text(state)?;
+            }
+        }
+        write!(state, "]")
+    }
+}
+
+impl<'g, T: ToText<'g>> ToText<'g> for Vec<T> {
+    fn to_text(&self, state: &mut ToTextState<'g, '_>) -> fmt::Result {
+        (**self).to_text(state)
+    }
+}
+
+fn list_from_text_helper<'g, 't, T: FromText<'g>>(
+    state: &mut FromTextState<'g, 't>,
+    output: Option<&mut [Option<T::Parsed>]>,
+) -> Result<Vec<T::Parsed>, FromTextError> {
+    let expected_len = output.as_ref().map(|v| v.len());
+    fn too_short_msg(expected_len: usize, actual_len: usize) -> String {
+        format!(
+            "list is too short, expected {} items, got {}",
+            expected_len, actual_len
+        )
+    }
+    let missing_close = "list missing closing square bracket: ']'";
+    state.parse_parenthesized(
+        Punctuation::LSquareBracket,
+        "missing list: must start with '['",
+        Punctuation::RSquareBracket,
+        missing_close,
+        |state| {
+            let mut retval = Vec::new();
+            let mut output = output.map(IntoIterator::into_iter);
+            let mut actual_len = 0;
+            let mut write_output = |v: T::Parsed| {
+                if let Some(output_element) = output.as_mut().and_then(Iterator::next) {
+                    *output_element = Some(v);
+                } else {
+                    retval.push(v);
+                }
+            };
+            match state.peek_token()?.kind {
+                TokenKind::EndOfFile => state.error_at_peek_token(missing_close)?.into(),
+                TokenKind::Punct(Punctuation::RSquareBracket) => {
+                    match expected_len {
+                        Some(0) | None => {}
+                        Some(expected_len) => state
+                            .error_at_peek_token(too_short_msg(expected_len, 0))?
+                            .into(),
+                    }
+                    return Ok(retval);
+                }
+                _ => {}
+            }
+            let mut too_long_location = None;
+            let mut check_len = |state: &mut FromTextState<'g, 't>,
+                                 actual_len: usize|
+             -> Result<(), FromTextError> {
+                if expected_len == Some(actual_len) {
+                    too_long_location = Some(state.peek_token()?.span);
+                }
+                Ok(())
+            };
+            check_len(state, actual_len)?;
+            write_output(T::from_text(state)?);
+            actual_len += 1;
+            while state.peek_token()?.kind.punct() == Some(Punctuation::Comma) {
+                state.parse_token()?;
+                if state.peek_token()?.kind.punct() == Some(Punctuation::RSquareBracket) {
+                    break;
+                }
+                check_len(state, actual_len)?;
+                write_output(T::from_text(state)?);
+                actual_len += 1;
+            }
+            if let Some(too_long_location) = too_long_location {
+                state
+                    .error_at(
+                        too_long_location,
+                        format!(
+                            "list too long, expected {} items, got {}",
+                            expected_len.unwrap_or_default(),
+                            actual_len
+                        ),
+                    )?
+                    .into()
+            } else {
+                match expected_len {
+                    Some(expected_len) if expected_len != actual_len => state
+                        .error_at_peek_token(too_short_msg(expected_len, actual_len))?
+                        .into(),
+                    _ => Ok(retval),
+                }
+            }
+        },
+    )
+}
+
+impl<'g, T: FromText<'g>> FromText<'g> for [T] {
+    type Parsed = Vec<T::Parsed>;
+    fn from_text(state: &mut FromTextState<'g, '_>) -> Result<Vec<T::Parsed>, FromTextError> {
+        list_from_text_helper::<T>(state, None)
+    }
+}
+
+impl<'g, T: FromText<'g>> FromText<'g> for Vec<T> {
+    type Parsed = Vec<T::Parsed>;
+    fn from_text(state: &mut FromTextState<'g, '_>) -> Result<Vec<T::Parsed>, FromTextError> {
+        list_from_text_helper::<T>(state, None)
+    }
+}
+
+impl<'g, T: ToText<'g>> ToText<'g> for [T; 0] {
+    fn to_text(&self, state: &mut ToTextState<'g, '_>) -> fmt::Result {
+        (self as &[T]).to_text(state)
+    }
+}
+
+impl<'g, T: FromText<'g>> FromText<'g> for [T; 0] {
+    type Parsed = [T::Parsed; 0];
+    fn from_text(state: &mut FromTextState<'g, '_>) -> Result<[T::Parsed; 0], FromTextError> {
+        list_from_text_helper::<T>(state, Some(&mut []))?;
+        Ok([])
+    }
+}
+
+macro_rules! impl_from_to_text_for_arrays {
+    ($n:literal, [$($element:ident,)*]) => {
+        impl<'g, T: ToText<'g>> ToText<'g> for [T; $n] {
+            fn to_text(&self, state: &mut ToTextState<'g, '_>) -> fmt::Result {
+                (self as &[T]).to_text(state)
+            }
+        }
+
+        impl<'g, T: FromText<'g>> FromText<'g> for [T; $n] {
+            type Parsed = [T::Parsed; $n];
+            fn from_text(
+                state: &mut FromTextState<'g, '_>,
+            ) -> Result<[T::Parsed; $n], FromTextError> {
+                let mut elements: [Option<T::Parsed>; $n] = Default::default();
+                list_from_text_helper::<T>(state, Some(&mut elements))?;
+                match elements {
+                    [$(Some($element)),*] => Ok([$($element),*]),
+                    _ => unreachable!(),
+                }
+            }
+        }
+    };
+}
+
+impl_from_to_text_for_arrays!(1, [e1,]);
+impl_from_to_text_for_arrays!(2, [e1, e2,]);
+impl_from_to_text_for_arrays!(3, [e1, e2, e3,]);
+impl_from_to_text_for_arrays!(4, [e1, e2, e3, e4,]);
+impl_from_to_text_for_arrays!(5, [e1, e2, e3, e4, e5,]);
+impl_from_to_text_for_arrays!(6, [e1, e2, e3, e4, e5, e6,]);
+impl_from_to_text_for_arrays!(7, [e1, e2, e3, e4, e5, e6, e7,]);
+impl_from_to_text_for_arrays!(8, [e1, e2, e3, e4, e5, e6, e7, e8,]);
+impl_from_to_text_for_arrays!(9, [e1, e2, e3, e4, e5, e6, e7, e8, e9,]);
+impl_from_to_text_for_arrays!(10, [e1, e2, e3, e4, e5, e6, e7, e8, e9, e10,]);
+impl_from_to_text_for_arrays!(11, [e1, e2, e3, e4, e5, e6, e7, e8, e9, e10, e11,]);
+impl_from_to_text_for_arrays!(12, [e1, e2, e3, e4, e5, e6, e7, e8, e9, e10, e11, e12,]);
+impl_from_to_text_for_arrays!(
+    13,
+    [e1, e2, e3, e4, e5, e6, e7, e8, e9, e10, e11, e12, e13,]
+);
+impl_from_to_text_for_arrays!(
+    14,
+    [e1, e2, e3, e4, e5, e6, e7, e8, e9, e10, e11, e12, e13, e14,]
+);
+impl_from_to_text_for_arrays!(
+    15,
+    [e1, e2, e3, e4, e5, e6, e7, e8, e9, e10, e11, e12, e13, e14, e15,]
+);
+impl_from_to_text_for_arrays!(
+    16,
+    [e1, e2, e3, e4, e5, e6, e7, e8, e9, e10, e11, e12, e13, e14, e15, e16,]
+);
+impl_from_to_text_for_arrays!(
+    17,
+    [e1, e2, e3, e4, e5, e6, e7, e8, e9, e10, e11, e12, e13, e14, e15, e16, e17,]
+);
+impl_from_to_text_for_arrays!(
+    18,
+    [e1, e2, e3, e4, e5, e6, e7, e8, e9, e10, e11, e12, e13, e14, e15, e16, e17, e18,]
+);
+impl_from_to_text_for_arrays!(
+    19,
+    [e1, e2, e3, e4, e5, e6, e7, e8, e9, e10, e11, e12, e13, e14, e15, e16, e17, e18, e19,]
+);
+impl_from_to_text_for_arrays!(
+    20,
+    [e1, e2, e3, e4, e5, e6, e7, e8, e9, e10, e11, e12, e13, e14, e15, e16, e17, e18, e19, e20,]
+);
+impl_from_to_text_for_arrays!(
+    21,
+    [
+        e1, e2, e3, e4, e5, e6, e7, e8, e9, e10, e11, e12, e13, e14, e15, e16, e17, e18, e19, e20,
+        e21,
+    ]
+);
+impl_from_to_text_for_arrays!(
+    22,
+    [
+        e1, e2, e3, e4, e5, e6, e7, e8, e9, e10, e11, e12, e13, e14, e15, e16, e17, e18, e19, e20,
+        e21, e22,
+    ]
+);
+impl_from_to_text_for_arrays!(
+    23,
+    [
+        e1, e2, e3, e4, e5, e6, e7, e8, e9, e10, e11, e12, e13, e14, e15, e16, e17, e18, e19, e20,
+        e21, e22, e23,
+    ]
+);
+impl_from_to_text_for_arrays!(
+    24,
+    [
+        e1, e2, e3, e4, e5, e6, e7, e8, e9, e10, e11, e12, e13, e14, e15, e16, e17, e18, e19, e20,
+        e21, e22, e23, e24,
+    ]
+);
+impl_from_to_text_for_arrays!(
+    25,
+    [
+        e1, e2, e3, e4, e5, e6, e7, e8, e9, e10, e11, e12, e13, e14, e15, e16, e17, e18, e19, e20,
+        e21, e22, e23, e24, e25,
+    ]
+);
+impl_from_to_text_for_arrays!(
+    26,
+    [
+        e1, e2, e3, e4, e5, e6, e7, e8, e9, e10, e11, e12, e13, e14, e15, e16, e17, e18, e19, e20,
+        e21, e22, e23, e24, e25, e26,
+    ]
+);
+impl_from_to_text_for_arrays!(
+    27,
+    [
+        e1, e2, e3, e4, e5, e6, e7, e8, e9, e10, e11, e12, e13, e14, e15, e16, e17, e18, e19, e20,
+        e21, e22, e23, e24, e25, e26, e27,
+    ]
+);
+impl_from_to_text_for_arrays!(
+    28,
+    [
+        e1, e2, e3, e4, e5, e6, e7, e8, e9, e10, e11, e12, e13, e14, e15, e16, e17, e18, e19, e20,
+        e21, e22, e23, e24, e25, e26, e27, e28,
+    ]
+);
+impl_from_to_text_for_arrays!(
+    29,
+    [
+        e1, e2, e3, e4, e5, e6, e7, e8, e9, e10, e11, e12, e13, e14, e15, e16, e17, e18, e19, e20,
+        e21, e22, e23, e24, e25, e26, e27, e28, e29,
+    ]
+);
+impl_from_to_text_for_arrays!(
+    30,
+    [
+        e1, e2, e3, e4, e5, e6, e7, e8, e9, e10, e11, e12, e13, e14, e15, e16, e17, e18, e19, e20,
+        e21, e22, e23, e24, e25, e26, e27, e28, e29, e30,
+    ]
+);
+impl_from_to_text_for_arrays!(
+    31,
+    [
+        e1, e2, e3, e4, e5, e6, e7, e8, e9, e10, e11, e12, e13, e14, e15, e16, e17, e18, e19, e20,
+        e21, e22, e23, e24, e25, e26, e27, e28, e29, e30, e31,
+    ]
+);
+impl_from_to_text_for_arrays!(
+    32,
+    [
+        e1, e2, e3, e4, e5, e6, e7, e8, e9, e10, e11, e12, e13, e14, e15, e16, e17, e18, e19, e20,
+        e21, e22, e23, e24, e25, e26, e27, e28, e29, e30, e31, e32,
+    ]
+);
