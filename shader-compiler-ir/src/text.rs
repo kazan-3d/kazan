@@ -421,7 +421,6 @@ punctuation! {
     /// punctuation
     Punctuation,
     ExMark = "!",
-    Pound = "#",
     Dollar = "$",
     Percent = "%",
     Ampersand = "&",
