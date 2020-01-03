@@ -12,6 +12,7 @@ RUN set -e; \
         clang \
         ; \
     rm -rf /var/lib/apt/lists/*
+RUN rustup component add rustfmt
 WORKDIR /build
 RUN version=1.1.85.0; wget -O vulkansdk.tar.gz -nv "https://sdk.lunarg.com/sdk/download/1.1.85.0/linux/vulkansdk-linux-x86_64-$version.tar.gz" && tar -xaf vulkansdk.tar.gz && rm vulkansdk.tar.gz && mv "$version" vulkansdk
 ENV VULKAN_SDK=/build/vulkansdk/x86_64
