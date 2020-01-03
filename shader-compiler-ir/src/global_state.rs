@@ -15,6 +15,7 @@ use std::ops::Deref;
 use std::ptr::NonNull;
 use typed_arena::Arena;
 
+/// the struct containing all the arenas in which IR objects are allocated as well as the state needed for interning.
 pub struct GlobalState<'g> {
     string_byte_arena: Arena<u8>,
     string_hashtable: RefCell<HashSet<&'g str>>,
@@ -65,9 +66,12 @@ impl Private {
     }
 }
 
+/// a trait for types where the address of a value is used as the value's identity. Use `IdMethod::id()` to get the identity in a directly comparable form.
 pub trait Id<'g> {}
 
+/// a trait for providing the `id` method for all types implementing `Id`.
 pub trait IdMethod<'g>: Id<'g> {
+    /// get the identity (address) of `self` in a directly comparable form.
     fn id(&'g self) -> NonNull<Self> {
         self.into()
     }
@@ -75,6 +79,7 @@ pub trait IdMethod<'g>: Id<'g> {
 
 impl<'g, T: Id<'g>> IdMethod<'g> for T {}
 
+/// a wrapper for a shared reference to a type implementing `Id`.
 #[repr(transparent)]
 pub struct IdRef<'g, T: Id<'g>>(&'g T);
 
@@ -146,9 +151,11 @@ impl<'g, T: fmt::Debug + Id<'g>> fmt::Debug for IdRef<'g, T> {
 }
 
 impl<'g, T: Id<'g>> IdRef<'g, T> {
+    /// get the identity (address) of the value `self` points to.
     pub fn id(self) -> NonNull<T> {
         self.0.id()
     }
+    /// get the contained reference
     pub fn get(self) -> &'g T {
         self.0
     }
@@ -191,7 +198,7 @@ impl<'g, T: Id<'g> + FromText<'g, Parsed = Self>> FromText<'g> for IdRef<'g, T> 
 }
 
 /// allocate value from `GlobalState`
-pub trait Allocate<'g, T: Id<'g>> {
+pub(crate) trait Allocate<'g, T: Id<'g>> {
     #[doc(hidden)]
     fn alloc_private(&'g self, _private: Private, value: T) -> &'g T;
     /// allocate value from `GlobalState`
@@ -201,6 +208,7 @@ pub trait Allocate<'g, T: Id<'g>> {
     }
 }
 
+/// a reference to an interned value. Create using `Internable::intern`
 #[repr(transparent)]
 pub struct Interned<'g, T: ?Sized + Eq + Hash>(&'g T);
 
@@ -253,6 +261,7 @@ impl<T: ?Sized + Eq + Hash> AsRef<T> for Interned<'_, T> {
 }
 
 impl<'g, T: ?Sized + Eq + Hash> Interned<'g, T> {
+    ///
     pub fn get(self) -> &'g T {
         self.0
     }
@@ -270,7 +279,7 @@ impl<T: ?Sized + Eq + Hash + fmt::Display> fmt::Display for Interned<'_, T> {
     }
 }
 
-pub trait Intern<'g, T: ?Sized + Eq + Hash> {
+trait Intern<'g, T: ?Sized + Eq + Hash> {
     #[doc(hidden)]
     fn intern_alloc(&'g self, _private: Private, value: &T) -> &'g T;
     #[doc(hidden)]
@@ -343,8 +352,11 @@ impl<'g> Allocate<'g, BlockData<'g>> for GlobalState<'g> {
     }
 }
 
+/// types that can be interned, possibly by converting to another type before interning
 pub trait Internable<'g> {
+    /// the type that is actually interned
     type Interned: ?Sized + Eq + Hash;
+    /// convert `self` to `Self::Interned` and intern the result
     fn intern(&self, global_state: &'g GlobalState<'g>) -> Interned<'g, Self::Interned>;
 }
 
@@ -364,7 +376,7 @@ impl<'g> Internable<'g> for String {
 
 impl<'g, T: ?Sized + Eq + Hash> Internable<'g> for Interned<'g, T> {
     type Interned = T;
-    fn intern(&self, _global_state: &'g GlobalState<'g>) -> Interned<'g, T> {
+    fn intern(&self, _: &'g GlobalState<'g>) -> Interned<'g, T> {
         *self
     }
 }
@@ -373,5 +385,26 @@ impl<'g, T: Internable<'g> + ?Sized> Internable<'g> for &'_ T {
     type Interned = T::Interned;
     fn intern(&self, global_state: &'g GlobalState<'g>) -> Interned<'g, Self::Interned> {
         (**self).intern(global_state)
+    }
+}
+
+impl<'g> Internable<'g> for Const<'g> {
+    type Interned = Const<'g>;
+    fn intern(&self, global_state: &'g GlobalState<'g>) -> Interned<'g, Const<'g>> {
+        global_state.intern(self)
+    }
+}
+
+impl<'g> Internable<'g> for Location<'g> {
+    type Interned = Location<'g>;
+    fn intern(&self, global_state: &'g GlobalState<'g>) -> Interned<'g, Location<'g>> {
+        global_state.intern(self)
+    }
+}
+
+impl<'g> Internable<'g> for Type<'g> {
+    type Interned = Type<'g>;
+    fn intern(&self, global_state: &'g GlobalState<'g>) -> Interned<'g, Type<'g>> {
+        global_state.intern(self)
     }
 }

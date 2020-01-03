@@ -18,11 +18,16 @@ use crate::VectorType;
 use std::convert::TryInto;
 use std::fmt;
 
+/// a constant integer
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
 pub enum ConstInteger {
+    /// a constant 8-bit signed or unsigned integer
     Int8(u8),
+    /// a constant 16-bit signed or unsigned integer
     Int16(u16),
+    /// a constant 32-bit signed or unsigned integer
     Int32(u32),
+    /// a constant 64-bit signed or unsigned integer
     Int64(u64),
 }
 
@@ -83,9 +88,11 @@ impl From<ConstInteger> for Const<'_> {
     }
 }
 
+/// there is no matching float size when bitcasting to/from integers
 pub struct InvalidFloatSize;
 
 impl ConstInteger {
+    /// bitcast `self` to the corresponding float.
     pub fn bitcast_to_float(self) -> Result<ConstFloat, InvalidFloatSize> {
         match self {
             ConstInteger::Int8(_) => Err(InvalidFloatSize),
@@ -94,6 +101,7 @@ impl ConstInteger {
             ConstInteger::Int64(v) => Ok(ConstFloat::Float64(v)),
         }
     }
+    /// get `self`'s type
     pub fn get_type(self) -> IntegerType {
         match self {
             ConstInteger::Int8(_) => IntegerType::Int8,
@@ -104,10 +112,14 @@ impl ConstInteger {
     }
 }
 
+/// a constant float.
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
 pub enum ConstFloat {
+    /// a constant 16-bit float. The bits are stored as a `u16` in `Float16.0`.
     Float16(u16),
+    /// a constant 32-bit float. The bits are stored as a `u32` in `Float32.0`.
     Float32(u32),
+    /// a constant 64-bit float. The bits are stored as a `u64` in `Float64.0`.
     Float64(u64),
 }
 
@@ -119,6 +131,7 @@ impl<'g> Internable<'g> for ConstFloat {
 }
 
 impl ConstFloat {
+    /// get `self`'s type
     pub fn get_type(self) -> FloatType {
         match self {
             ConstFloat::Float16(_) => FloatType::Float16,
@@ -134,6 +147,7 @@ impl From<ConstFloat> for Const<'_> {
     }
 }
 
+/// a constant non-scalable non-empty vector.
 #[derive(Clone, Eq, PartialEq, Hash, Debug)]
 pub struct ConstVector<'g> {
     element_type: Interned<'g, Type<'g>>,
@@ -141,6 +155,12 @@ pub struct ConstVector<'g> {
 }
 
 impl<'g> ConstVector<'g> {
+    /// create a new `ConstVector` using the provided elements.
+    ///
+    /// # Panics
+    ///
+    /// Panics if there are no provided elements.
+    /// Panics if not all elements are the same type.
     pub fn new(
         elements: impl IntoIterator<Item = impl Internable<'g, Interned = Const<'g>>>,
         global_state: &'g GlobalState<'g>,
@@ -167,18 +187,22 @@ impl<'g> ConstVector<'g> {
             elements,
         }
     }
+    /// get the type of an element.
     pub fn element_type(&self) -> Interned<'g, Type<'g>> {
         self.element_type
     }
+    /// get the elements.
     pub fn elements(&self) -> &[Interned<'g, Const<'g>>] {
         &self.elements
     }
+    /// get `self`'s type
     pub fn get_type(&self, global_state: &'g GlobalState<'g>) -> Interned<'g, Type> {
-        global_state.intern(&Type::Vector(VectorType {
+        VectorType {
             element: self.element_type,
             scalable: false,
             len: self.elements.len(),
-        }))
+        }
+        .intern(global_state)
     }
 }
 
@@ -195,14 +219,21 @@ impl<'g> From<ConstVector<'g>> for Const<'g> {
     }
 }
 
+/// a constant.
 #[derive(Clone, Eq, PartialEq, Hash, Debug)]
 pub enum Const<'g> {
+    /// a constant integer
     Integer(ConstInteger),
+    /// a constant float
     Float(ConstFloat),
+    /// a constant boolean
     Bool(bool),
+    /// a constant vector
     Vector(ConstVector<'g>),
     // FIXME: add scalable vectors
+    /// a `undef` constant
     Undef(Interned<'g, Type<'g>>),
+    /// a null pointer constant
     Null(PointerType<'g>),
 }
 
@@ -220,24 +251,16 @@ impl<'g> Internable<'g> for bool {
 }
 
 impl<'g> Const<'g> {
+    /// get `self`'s type
     pub fn get_type(&self, global_state: &'g GlobalState<'g>) -> Interned<'g, Type> {
         match *self {
-            Const::Integer(const_int) => global_state.intern(&Type::Integer(const_int.get_type())),
-            Const::Float(const_float) => global_state.intern(&Type::Float(const_float.get_type())),
-            Const::Bool(_) => global_state.intern(&Type::Bool(BoolType)),
+            Const::Integer(const_int) => const_int.get_type().intern(global_state),
+            Const::Float(const_float) => const_float.get_type().intern(global_state),
+            Const::Bool(_) => BoolType.intern(global_state),
             Const::Vector(ref const_vector) => const_vector.get_type(global_state),
-            Const::Undef(ref retval) => retval.clone(),
-            Const::Null(ref pointer_type) => {
-                global_state.intern(&Type::Pointer(pointer_type.clone()))
-            }
+            Const::Undef(retval) => retval,
+            Const::Null(ref pointer_type) => pointer_type.intern(global_state),
         }
-    }
-}
-
-impl<'g> Internable<'g> for Const<'g> {
-    type Interned = Const<'g>;
-    fn intern(&self, global_state: &'g GlobalState<'g>) -> Interned<'g, Const<'g>> {
-        global_state.intern(self)
     }
 }
 
@@ -413,7 +436,7 @@ impl<'g> FromText<'g> for Const<'g> {
             // FIXME: add scalable vectors
             _ => state.error_at_peek_token("missing constant")?.into(),
         };
-        Ok(state.global_state().intern(&retval))
+        Ok(retval.intern(state.global_state()))
     }
 }
 

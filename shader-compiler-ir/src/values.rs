@@ -13,16 +13,20 @@ use crate::text::NewOrOld;
 use crate::text::Punctuation;
 use crate::text::ToTextState;
 use crate::text::TokenKind;
-use std::cell::Cell;
+use crate::Allocate;
+use crate::OnceCell;
 use std::fmt;
 use std::ops::Deref;
 
+/// the definition of a SSA value -- the point at which the value is assigned to
 #[derive(Eq, PartialEq, Hash, Debug)]
 pub struct ValueDefinition<'g> {
     value: IdRef<'g, Value<'g>>,
 }
 
 impl<'g> ValueDefinition<'g> {
+    /// create a new `ValueDefinition`.
+    /// `name` doesn't need to be unique.
     pub fn new(
         value_type: impl Internable<'g, Interned = Type<'g>>,
         name: impl Internable<'g, Interned = str>,
@@ -32,10 +36,15 @@ impl<'g> ValueDefinition<'g> {
             value: global_state.alloc(Value {
                 value_type: value_type.intern(global_state),
                 name: name.intern(global_state),
-                const_value: Cell::new(None),
+                const_value: OnceCell::new(),
             }),
         }
     }
+    /// permanently assign a constant to this IR value.
+    ///
+    /// # Panics
+    ///
+    /// panics if `const_value` doesn't have the same IR type as this IR value.
     pub fn define_as_const(
         self,
         const_value: impl Internable<'g, Interned = Const<'g>>,
@@ -44,12 +53,13 @@ impl<'g> ValueDefinition<'g> {
         let Self { value } = self;
         let const_value = const_value.intern(global_state);
         assert_eq!(value.value_type, const_value.get().get_type(global_state));
-        assert!(
-            value.const_value.replace(Some(const_value)).is_none(),
-            "invalid Value state"
-        );
+        value
+            .const_value
+            .set(const_value)
+            .expect("invalid Value state");
         value
     }
+    /// get the contained `Value`
     pub fn value(&self) -> IdRef<'g, Value<'g>> {
         self.value
     }
@@ -62,16 +72,25 @@ impl<'g> Deref for ValueDefinition<'g> {
     }
 }
 
+/// the data for a IR value
 #[derive(Debug)]
 pub struct Value<'g> {
+    /// the IR type
     pub value_type: Interned<'g, Type<'g>>,
+    /// the name -- doesn't need to be unique
     pub name: Interned<'g, str>,
-    pub const_value: Cell<Option<Interned<'g, Const<'g>>>>,
+    const_value: OnceCell<Interned<'g, Const<'g>>>,
 }
 
 impl<'g> Id<'g> for Value<'g> {}
 
 impl<'g> Value<'g> {
+    /// the constant value of `self`, if `self` is known to be a constant
+    pub fn const_value(&self) -> Option<Interned<'g, Const<'g>>> {
+        self.const_value.get().copied()
+    }
+    /// create a new constant IR value.
+    /// `name` doesn't need to be unique.
     pub fn from_const(
         const_value: impl Internable<'g, Interned = Const<'g>>,
         name: impl Internable<'g, Interned = str>,
@@ -81,20 +100,24 @@ impl<'g> Value<'g> {
         global_state.alloc(Value {
             name: name.intern(global_state),
             value_type: const_value.get().get_type(global_state),
-            const_value: Cell::new(Some(const_value)),
+            const_value: OnceCell::from(const_value),
         })
     }
 }
 
+/// a use of an IR value
 #[derive(Clone, Eq, PartialEq, Hash, Debug)]
 pub struct ValueUse<'g> {
     value: IdRef<'g, Value<'g>>,
 }
 
 impl<'g> ValueUse<'g> {
+    /// create a new `ValueUse`
     pub fn new(value: IdRef<'g, Value<'g>>) -> Self {
         Self { value }
     }
+    /// create a `ValueUse` for a new constant IR value.
+    /// `name` doesn't need to be unique.
     pub fn from_const(
         const_value: impl Internable<'g, Interned = Const<'g>>,
         name: impl Internable<'g, Interned = str>,
@@ -104,6 +127,7 @@ impl<'g> ValueUse<'g> {
             value: Value::from_const(const_value, name, global_state),
         }
     }
+    /// get the contained `Value`
     pub fn value(&self) -> IdRef<'g, Value<'g>> {
         self.value
     }

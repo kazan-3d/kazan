@@ -6,7 +6,6 @@
 pub use crate::text::FromText;
 pub use crate::text::FromTextCharExt;
 pub use crate::text::ToText;
-pub use crate::Allocate;
 pub use crate::Block;
 pub use crate::BlockData;
 pub use crate::BlockRef;
@@ -20,7 +19,6 @@ pub use crate::IdRef;
 pub use crate::Inhabitable;
 pub use crate::Inhabited;
 pub use crate::Instruction;
-pub use crate::Intern;
 pub use crate::Internable;
 pub use crate::Interned;
 pub use crate::Location;

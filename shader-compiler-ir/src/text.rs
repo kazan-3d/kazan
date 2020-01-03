@@ -17,14 +17,18 @@ use std::ops::Range;
 use std::str::FromStr;
 use unicode_width::UnicodeWidthChar;
 
+/// the struct managing the source code for `FromText`.
 #[derive(Debug)]
 pub struct FromTextSourceCode<'a> {
+    /// the file name for the source code
     pub file_name: &'a str,
+    /// the source code
     pub text: &'a str,
     line_start_byte_indexes: OnceCell<Vec<usize>>,
 }
 
 impl<'a> FromTextSourceCode<'a> {
+    /// create a new `FromTextSourceCode`
     pub fn new(file_name: &'a str, text: &'a str) -> Self {
         Self {
             file_name,
@@ -57,11 +61,16 @@ impl<'a> FromTextSourceCode<'a> {
     }
 }
 
+/// the location of an error produced by `FromText`
 #[derive(Clone, Eq, PartialEq, Hash, Debug)]
 pub struct FromTextErrorLocation {
+    /// the file name for the source code
     pub file_name: String,
+    /// the 0-based index of the source code byte where the error occurred
     pub byte_index: usize,
+    /// the 1-based line number where the error occurred
     pub line_number: usize,
+    /// the 1-based column number where the error occurred
     pub column_number: usize,
 }
 
@@ -75,9 +84,12 @@ impl fmt::Display for FromTextErrorLocation {
     }
 }
 
+/// an error produced by `FromText`
 #[derive(Clone, Debug)]
 pub struct FromTextError {
+    /// the source location where the error occurred
     pub location: FromTextErrorLocation,
+    /// the description of the error
     pub message: String,
 }
 
@@ -89,6 +101,7 @@ impl fmt::Display for FromTextError {
 
 impl Error for FromTextError {}
 
+/// a location in the source code for `FromText`
 #[derive(Copy, Clone, Debug)]
 pub struct TextLocation<'a> {
     byte_index: usize,
@@ -118,6 +131,11 @@ impl Iterator for TextLocation<'_> {
 }
 
 impl<'a> TextLocation<'a> {
+    /// create a new `TextLocation` at the specified 0-based byte index.
+    ///
+    /// # Panics
+    ///
+    /// Panics if byte_index is not on a `char` boundary (see `str::is_char_boundary()`)
     pub fn new(byte_index: usize, source_code: &'a FromTextSourceCode<'a>) -> Self {
         assert!(source_code.text.is_char_boundary(byte_index));
         Self {
@@ -125,24 +143,32 @@ impl<'a> TextLocation<'a> {
             source_code,
         }
     }
+    /// return the next `char` in the source code without advancing `self`
     pub fn peek(&self) -> Option<char> {
         let mut copy = *self;
         copy.next()
     }
+    /// get the source code
     pub fn source_code(&self) -> &'a FromTextSourceCode<'a> {
         self.source_code
     }
+    /// get the 0-based byte index into the source code
     pub fn byte_index(&self) -> usize {
         self.byte_index
     }
-    pub fn to_error_location(&self) -> FromTextErrorLocation {
-        let file_name = self.source_code.file_name.into();
-        let byte_index = self.byte_index();
-        let text = self.source_code.text;
-        let line_index = self
+}
+
+impl From<TextLocation<'_>> for FromTextErrorLocation {
+    /// Convert to `FromTextErrorLocation`.
+    /// This is a relatively expensive operation since line and column information needs to be calculated.
+    fn from(text_location: TextLocation) -> FromTextErrorLocation {
+        let file_name = text_location.source_code.file_name.into();
+        let byte_index = text_location.byte_index();
+        let text = text_location.source_code.text;
+        let line_index = text_location
             .source_code
-            .line_index_of_containing_line(self.byte_index);
-        let line_start_index = self.source_code.line_start_byte_indexes()[line_index];
+            .line_index_of_containing_line(text_location.byte_index);
+        let line_start_index = text_location.source_code.line_start_byte_indexes()[line_index];
         let line_number = line_index + 1;
         const TAB_WIDTH: usize = 4;
         let column_number = 1 + text[line_start_index..byte_index]
@@ -164,12 +190,7 @@ impl<'a> TextLocation<'a> {
     }
 }
 
-impl From<TextLocation<'_>> for FromTextErrorLocation {
-    fn from(v: TextLocation) -> FromTextErrorLocation {
-        v.to_error_location()
-    }
-}
-
+/// a range of locations in source code -- for `FromText`
 #[derive(Copy, Clone, Debug)]
 pub struct TextSpan<'a> {
     start_byte_index: usize,
@@ -190,6 +211,12 @@ impl PartialEq for TextSpan<'_> {
 }
 
 impl<'a> TextSpan<'a> {
+    /// create a new `TextSpan` starting with `start` and up to but not including `end`.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `start` and `end` are not in the same source code.
+    /// Panics if `start` comes after `end`.
     pub fn new(start: TextLocation<'a>, end: TextLocation<'a>) -> Self {
         assert_eq!(
             start.source_code as *const _, end.source_code,
@@ -205,21 +232,27 @@ impl<'a> TextSpan<'a> {
             source_code: start.source_code,
         }
     }
+    /// gets the 0-based byte indexes as a `Range<usize>`
     pub fn byte_indexes(self) -> Range<usize> {
         self.start_byte_index..self.end_byte_index
     }
+    /// gets the source code
     pub fn source_code(self) -> &'a FromTextSourceCode<'a> {
         self.source_code
     }
+    /// gets the text contained in this span. The lifetime is that of the source code, not of `self`.
     pub fn text(self) -> &'a str {
         &self.source_code().text[self.byte_indexes()]
     }
+    /// gets the length in bytes of the text contained in this span.
     pub fn len(self) -> usize {
         self.end_byte_index - self.start_byte_index
     }
+    /// gets the `TextLocation` for the start of this span.
     pub fn start(self) -> TextLocation<'a> {
         TextLocation::new(self.start_byte_index, self.source_code)
     }
+    /// gets the `TextLocation` for the first character after the end of this span.
     pub fn end(self) -> TextLocation<'a> {
         TextLocation::new(self.end_byte_index, self.source_code)
     }
@@ -236,8 +269,15 @@ mod private {
     impl Sealed for char {}
 }
 
+/// extension trait for `char` to provide `is_identifier_start` and `is_identifier_continue`
 pub trait FromTextCharExt: Copy + private::Sealed {
+    /// check if this is a valid `char` for starting an identifier.
+    /// This is true only for `'_'` and ascii alphabetic (`is_ascii_alphabetic`) characters.
+    /// This is a subset of the values accepted by `is_identifier_continue`.
     fn is_identifier_start(self) -> bool;
+    /// check if this is a valid `char` for starting an identifier.
+    /// This is true only for `'_'` and ascii alphanumeric (`is_ascii_alphanumeric`) characters.
+    /// This is a superset of the values accepted by `is_identifier_start`.
     fn is_identifier_continue(self) -> bool;
 }
 
@@ -250,6 +290,7 @@ impl FromTextCharExt for char {
     }
 }
 
+/// the error type returned when `FromStr::from_str` fails to match a keyword
 #[derive(Debug)]
 pub struct ParseKeywordError;
 
@@ -293,6 +334,7 @@ macro_rules! keywords {
                     )+
                 }
             }
+            /// the list of all the values of `Self`
             pub const VALUES: &'static [$keyword_enum] = &[
                 $(
                     $keyword_enum::$name,
@@ -389,6 +431,7 @@ macro_rules! punctuation {
                     )+
                 }
             }
+            /// the list of all the values of `Self`
             pub const VALUES: &'static [$enum] = &[
                 $(
                     $enum::$name,
@@ -417,7 +460,7 @@ macro_rules! punctuation {
 }
 
 punctuation! {
-    /// punctuation
+    /// a punctuation character or character sequence
     Punctuation,
     ExMark = "!",
     Dollar = "$",
@@ -450,7 +493,7 @@ punctuation! {
 }
 
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
-pub enum IdentifierOrKeyword<'t> {
+enum IdentifierOrKeyword<'t> {
     Identifier(&'t str),
     Keyword(Keyword),
 }
@@ -464,8 +507,10 @@ impl<'t> From<&'t str> for IdentifierOrKeyword<'t> {
     }
 }
 
+/// a string literal token
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
 pub struct StringToken<'t> {
+    /// the source text for the string literal excluding the enclosing quotes
     pub source_text: &'t str,
 }
 
@@ -500,8 +545,9 @@ short_escape_sequences! {
 }
 
 impl StringToken<'_> {
+    /// the quote mark used to delimit string literals
     pub const QUOTE: char = '\"';
-    pub fn parse_escape_sequence(location: &mut TextLocation) -> Result<char, &'static str> {
+    fn parse_escape_sequence(location: &mut TextLocation) -> Result<char, &'static str> {
         if let Some(ShortEscapeSequence { value, .. }) =
             location.peek().and_then(ShortEscapeSequence::from_source)
         {
@@ -543,7 +589,7 @@ impl StringToken<'_> {
             _ => Err("invalid escape sequence; unicode escapes must be of the form \\u{1234}"),
         }
     }
-    pub fn parse_char(location: &mut TextLocation) -> Result<char, &'static str> {
+    fn parse_char(location: &mut TextLocation) -> Result<char, &'static str> {
         match location.next().ok_or("missing character")? {
             '\\' => Self::parse_escape_sequence(location),
             '\n' | '\r' => {
@@ -553,6 +599,11 @@ impl StringToken<'_> {
             ch => Ok(ch),
         }
     }
+    /// get the decoded value of `self`
+    ///
+    /// # Panics
+    ///
+    /// Panics if `self.source_code` is not valid.
     pub fn value(self) -> String {
         let mut value = String::with_capacity(self.source_text.len());
         let source_code = FromTextSourceCode::new("", self.source_text);
@@ -566,23 +617,34 @@ impl StringToken<'_> {
     }
 }
 
+/// an integer token
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
 pub struct IntegerToken {
+    /// the value of the integer -- not checked to be in-bounds for the suffix used
     pub value: u64,
+    /// the suffix used for the integer token
     pub suffix: Option<IntegerSuffix>,
 }
 
+/// the kind of a token
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
 pub enum TokenKind<'t> {
+    /// a keyword
     Keyword(Keyword),
+    /// an identifier
     Identifier(&'t str),
+    /// the end of the source code
     EndOfFile,
+    /// a potentially-suffixed integer
     Integer(IntegerToken),
+    /// a string literal
     String(StringToken<'t>),
+    /// a punctuation character or character sequence
     Punct(Punctuation),
 }
 
 impl<'t> TokenKind<'t> {
+    /// return `Some` if `self` is a keyword
     pub fn keyword(self) -> Option<Keyword> {
         if let TokenKind::Keyword(retval) = self {
             Some(retval)
@@ -590,6 +652,7 @@ impl<'t> TokenKind<'t> {
             None
         }
     }
+    /// return `Some` if `self` is an identifier
     pub fn identifier(self) -> Option<&'t str> {
         if let TokenKind::Identifier(retval) = self {
             Some(retval)
@@ -597,13 +660,7 @@ impl<'t> TokenKind<'t> {
             None
         }
     }
-    pub fn identifier_or_keyword(self) -> Option<IdentifierOrKeyword<'t>> {
-        match self {
-            Self::Identifier(v) => Some(IdentifierOrKeyword::Identifier(v)),
-            Self::Keyword(v) => Some(IdentifierOrKeyword::Keyword(v)),
-            _ => None,
-        }
-    }
+    /// return `Some` if `self` is an identifier or keyword, returning the textual form
     pub fn raw_identifier(self) -> Option<&'t str> {
         match self {
             Self::Identifier(v) => Some(v),
@@ -611,6 +668,7 @@ impl<'t> TokenKind<'t> {
             _ => None,
         }
     }
+    /// return `true` if self is `EndOfFile`
     pub fn is_end_of_file(self) -> bool {
         if let TokenKind::EndOfFile = self {
             true
@@ -618,6 +676,7 @@ impl<'t> TokenKind<'t> {
             false
         }
     }
+    /// return `Some` if `self` is an integer token
     pub fn integer(self) -> Option<IntegerToken> {
         if let TokenKind::Integer(retval) = self {
             Some(retval)
@@ -625,6 +684,7 @@ impl<'t> TokenKind<'t> {
             None
         }
     }
+    /// return `Some` if `self` is a string literal
     pub fn string(self) -> Option<StringToken<'t>> {
         if let TokenKind::String(retval) = self {
             Some(retval)
@@ -632,6 +692,7 @@ impl<'t> TokenKind<'t> {
             None
         }
     }
+    /// return `Some` if `self` is a `Punctuation`
     pub fn punct(self) -> Option<Punctuation> {
         if let TokenKind::Punct(retval) = self {
             Some(retval)
@@ -650,23 +711,42 @@ impl<'t> From<IdentifierOrKeyword<'t>> for TokenKind<'t> {
     }
 }
 
+/// a token, used for `FromText`
 #[derive(Copy, Clone, Debug)]
 pub struct Token<'t> {
+    /// the text span
     pub span: TextSpan<'t>,
+    /// the `TokenKind`
     pub kind: TokenKind<'t>,
 }
 
+/// the character used to start comments
 pub const COMMENT_START_CHAR: char = '#';
 
-#[derive(Copy, Clone)]
+/// the uninhabited type used for functions that always return `Err` or `Ok`
+///
+/// Use `Void::into` to convert to `!`, allowing Rust to coerce to any type
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Ord, PartialOrd, Debug)]
 pub enum Void {}
 
+impl fmt::Display for Void {
+    fn fmt(&self, _: &mut fmt::Formatter) -> fmt::Result {
+        match *self {}
+    }
+}
+
+impl Error for Void {}
+
 impl Void {
+    /// convert to `!`, allowing Rust to coerce to any type
     pub fn into(self) -> ! {
         match self {}
     }
 }
 
+/// a scope id, for tracking where names are valid to use -- used for `FromText`
+///
+/// Use `FromTextSymbolsStateBase` to get the parent scope id, check if scope is visible, etc.
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
 #[repr(transparent)]
 pub struct FromTextScopeId {
@@ -674,12 +754,16 @@ pub struct FromTextScopeId {
 }
 
 impl FromTextScopeId {
+    /// the root scope, always visible. Doesn't have a parent scope.
     pub const ROOT: Self = Self { index: 0 };
 }
 
+/// the combination of a value and a scope id. Used as the value a name maps to.
 #[derive(Debug)]
 pub struct FromTextSymbol<'g, T: Id<'g>> {
+    /// the value that `self` represents.
     pub value: IdRef<'g, T>,
+    /// the scope in which `self` is visible
     pub scope: FromTextScopeId,
 }
 
@@ -691,7 +775,9 @@ impl<'g, T: Id<'g>> Clone for FromTextSymbol<'g, T> {
 
 impl<'g, T: Id<'g>> Copy for FromTextSymbol<'g, T> {}
 
+/// extension trait for `FromTextState`
 pub trait FromTextSymbolsStateBase<'g, 't>: BorrowMut<FromTextState<'g, 't>> {
+    /// get the parent scope id of `scope`
     fn get_parent_scope(&self, scope: FromTextScopeId) -> Option<FromTextScopeId> {
         if scope == FromTextScopeId::ROOT {
             None
@@ -699,6 +785,7 @@ pub trait FromTextSymbolsStateBase<'g, 't>: BorrowMut<FromTextState<'g, 't>> {
             Some(self.borrow().parent_scopes[scope.index])
         }
     }
+    /// allocate a new scope id
     fn allocate_scope(&mut self, parent_scope: FromTextScopeId) -> FromTextScopeId {
         let parent_scopes = &mut self.borrow_mut().parent_scopes;
         let index = parent_scopes.len();
@@ -706,6 +793,9 @@ pub trait FromTextSymbolsStateBase<'g, 't>: BorrowMut<FromTextState<'g, 't>> {
         parent_scopes.push(parent_scope);
         FromTextScopeId { index }
     }
+    /// return true if `search_for_scope` is visible.
+    /// A scope is visible if it is either `self.scope_stack_top` or
+    /// a transitive parent of `self.scope_stack_top`.
     fn is_scope_visible(&self, search_for_scope: FromTextScopeId) -> bool {
         let mut scope = self.borrow().scope_stack_top;
         loop {
@@ -719,6 +809,8 @@ pub trait FromTextSymbolsStateBase<'g, 't>: BorrowMut<FromTextState<'g, 't>> {
             }
         }
     }
+    /// create a new scope with the parent set to `self.scope_stack_top`,
+    /// then set `self.scope_stack_top` to the new scope id.
     fn push_new_nested_scope(&mut self) -> FromTextScopeId {
         let this = self.borrow_mut();
         let scope = this.allocate_scope(this.scope_stack_top);
@@ -740,6 +832,7 @@ impl Private {
 
 impl<'g, 't> FromTextSymbolsStateBase<'g, 't> for FromTextState<'g, 't> {}
 
+/// extension trait for `FromTextState`
 pub trait FromTextSymbolsState<'g, 't, T: Id<'g>>: FromTextSymbolsStateBase<'g, 't> {
     #[doc(hidden)]
     fn get_symbol_table(&self, _: Private) -> &HashMap<NamedId<'g>, FromTextSymbol<'g, T>>;
@@ -748,9 +841,13 @@ pub trait FromTextSymbolsState<'g, 't, T: Id<'g>>: FromTextSymbolsStateBase<'g, 
         &mut self,
         _: Private,
     ) -> &mut HashMap<NamedId<'g>, FromTextSymbol<'g, T>>;
+    /// get the `FromTextSymbol` corresponding to `name` in the symbol table for type `T`
     fn get_symbol(&self, name: NamedId<'g>) -> Option<FromTextSymbol<'g, T>> {
         self.get_symbol_table(Private::new()).get(&name).copied()
     }
+    /// insert `name` and `symbol` in the symbol table for type `T`.
+    /// returns `Err` without doing anything else if `name` was already in
+    /// the symbol table for type `T`.
     fn insert_symbol(
         &mut self,
         name: NamedId<'g>,
@@ -765,14 +862,19 @@ pub trait FromTextSymbolsState<'g, 't, T: Id<'g>>: FromTextSymbolsStateBase<'g, 
     }
 }
 
+/// state struct for `FromText`
 pub struct FromTextState<'g, 't> {
     global_state: &'g GlobalState<'g>,
+    /// the current `TextLocation`
     pub location: TextLocation<'t>,
     cached_token: Option<Token<'t>>,
     values: HashMap<NamedId<'g>, FromTextSymbol<'g, Value<'g>>>,
     blocks: HashMap<NamedId<'g>, FromTextSymbol<'g, BlockData<'g>>>,
     loops: HashMap<NamedId<'g>, FromTextSymbol<'g, LoopData<'g>>>,
     parent_scopes: Vec<FromTextScopeId>,
+    /// the scope id that defines what is currently visible.
+    /// A scope is visible if it is either `self.scope_stack_top` or
+    /// a transitive parent of `self.scope_stack_top`.
     pub scope_stack_top: FromTextScopeId,
 }
 
@@ -831,9 +933,11 @@ impl<'g, 't> FromTextState<'g, 't> {
             scope_stack_top: FromTextScopeId::ROOT,
         }
     }
+    /// get the `GlobalState` reference
     pub fn global_state(&self) -> &'g GlobalState<'g> {
         self.global_state
     }
+    /// create an error at the specified location with the specified message
     pub fn error_at<L: Into<FromTextErrorLocation>>(
         &mut self,
         location: L,
@@ -850,6 +954,7 @@ impl<'g, 't> FromTextState<'g, 't> {
     fn next_char(&mut self) -> Option<char> {
         self.location.next()
     }
+    /// create an error at the location of the next token with the specified message
     pub fn error_at_peek_token(&mut self, message: impl ToString) -> Result<Void, FromTextError> {
         let span = self.peek_token()?.span;
         self.error_at(span, message.to_string())
@@ -1048,6 +1153,10 @@ impl<'g, 't> FromTextState<'g, 't> {
             }),
         }
     }
+    /// return the next token, but resetting `self.location` to the beginning
+    /// of the next token so that it is returned again at the next
+    /// `peek_token` or `parse_token` call.
+    /// However, this does advance `self.location` past any intervening comments or whitespace.
     pub fn peek_token(&mut self) -> Result<Token<'t>, FromTextError> {
         if let Some(cached_token) = self.cached_token {
             if cached_token.span.start() == self.location {
@@ -1059,6 +1168,7 @@ impl<'g, 't> FromTextState<'g, 't> {
         self.cached_token = Some(token);
         Ok(token)
     }
+    /// parse the next token, advancing `self.location` to right after it.
     pub fn parse_token(&mut self) -> Result<Token<'t>, FromTextError> {
         if let Some(cached_token) = self.cached_token.take() {
             if cached_token.span.start() == self.location {
@@ -1068,6 +1178,7 @@ impl<'g, 't> FromTextState<'g, 't> {
         }
         self.parse_token_impl()
     }
+    /// parse the next token, erroring if it is not the passed-in `punct`
     pub fn parse_punct_token_or_error(
         &mut self,
         punct: Punctuation,
@@ -1079,6 +1190,7 @@ impl<'g, 't> FromTextState<'g, 't> {
         }
         Ok(token)
     }
+    /// parse the next token, erroring if it is not the passed-in `keyword`
     pub fn parse_keyword_token_or_error(
         &mut self,
         keyword: Keyword,
@@ -1090,6 +1202,9 @@ impl<'g, 't> FromTextState<'g, 't> {
         }
         Ok(token)
     }
+    /// parse `open_paren` then call `body` then parse `close_paren`.
+    /// Useful for parsing source that is grouped using delimiter
+    /// punctuation, such as `"(i8)"`.
     pub fn parse_parenthesized<T, F: FnOnce(&mut Self) -> Result<T, FromTextError>>(
         &mut self,
         open_paren: Punctuation,
@@ -1129,13 +1244,19 @@ pub trait FromText<'g> {
     fn from_text(state: &mut FromTextState<'g, '_>) -> Result<Self::Parsed, FromTextError>;
 }
 
+/// a name plus the integer suffix
 #[derive(Copy, Clone, Hash, Eq, PartialEq, Debug)]
 pub struct NamedId<'g> {
+    /// the name
     pub name: Interned<'g, str>,
+    /// the integer suffix. is `0` when the name doesn't have a suffix.
     pub name_suffix: u64,
 }
 
 impl<'g> NamedId<'g> {
+    /// check if the name must be in quoted form (`"non-id-name"234` instead of `name`).
+    /// This is true if the name is not a valid
+    /// raw identifier (`TokenKind::raw_identifier`) or `self.name_suffix` is non-zero.
     pub fn needs_quoted_form(self) -> bool {
         let NamedId { name, name_suffix } = self;
         if name_suffix != 0 {
@@ -1162,27 +1283,26 @@ impl<'g> FromText<'g> for NamedId<'g> {
             TokenKind::Identifier(name) => {
                 state.parse_token()?;
                 Ok(Self {
-                    name: state.global_state().intern(name),
+                    name: name.intern(state.global_state()),
                     name_suffix: 0,
                 })
             }
             TokenKind::Keyword(name) => {
                 state.parse_token()?;
                 Ok(Self {
-                    name: state.global_state().intern(name.text()),
+                    name: name.text().intern(state.global_state()),
                     name_suffix: 0,
                 })
             }
             TokenKind::String(name) => {
                 state.parse_token()?;
-                let name = state.global_state().intern(&*name.value());
                 if let Some(IntegerToken { value, suffix }) = state.peek_token()?.kind.integer() {
                     if suffix.is_some() {
                         state.error_at_peek_token(r#"name suffix must be unsuffixed integer ("my_name"123 and not "my_name"123i8)"#)?;
                     }
                     state.parse_token()?;
                     Ok(Self {
-                        name: state.global_state().intern(&name),
+                        name: name.value().intern(state.global_state()),
                         name_suffix: value,
                     })
                 } else {
@@ -1267,6 +1387,7 @@ impl<'g, T: NameMapGetName<'g>> NameMap<'g, T> {
     }
 }
 
+/// state struct for `ToText`
 pub struct ToTextState<'g, 'w> {
     indent: usize,
     at_start_of_line: bool,
@@ -1277,6 +1398,8 @@ pub struct ToTextState<'g, 'w> {
 }
 
 impl<'g> ToTextState<'g, '_> {
+    /// the number of spaces used as an indentation unit.
+    pub const INDENT_MULTIPLE: usize = 4;
     pub(crate) fn get_value_named_id(
         &mut self,
         value: IdRef<'g, Value<'g>>,
@@ -1295,6 +1418,12 @@ impl<'g> ToTextState<'g, '_> {
     ) -> NewOrOld<NamedId<'g>> {
         self.loops.get(value)
     }
+    /// indent the text produced by the passed-in function by 1 unit (`Self::INDENT_MULTIPLE` spaces).
+    ///
+    /// # Panics
+    ///
+    /// Panics if the text output is not at the start of a line both before and
+    /// after the passed-in function is called (only checked if the passed-in function succeeds).
     pub fn indent<R, E, F: FnOnce(&mut Self) -> Result<R, E>>(&mut self, f: F) -> Result<R, E> {
         assert!(
             self.at_start_of_line,
@@ -1309,7 +1438,7 @@ impl<'g> ToTextState<'g, '_> {
         self.indent -= 1;
         Ok(retval)
     }
-    /// rebind `std::fmt::Write::write_fmt` to make it easily visible for use with the `write!` macro
+    /// rebind `std::fmt::Write::write_fmt` to make it easily visible for use with the `write!` and `writeln!` macros
     #[inline]
     pub fn write_fmt(&mut self, args: fmt::Arguments) -> fmt::Result {
         fmt::Write::write_fmt(self, args)
@@ -1351,11 +1480,10 @@ impl fmt::Write for ToTextState<'_, '_> {
                     "                ",
                     "                ",
                 );
-                const INDENT_MULTIPLE: usize = 4;
 
                 // write in larger chunks to speed-up output
 
-                let mut indent = self.indent * INDENT_MULTIPLE;
+                let mut indent = self.indent * Self::INDENT_MULTIPLE;
                 while indent >= SPACES.len() {
                     (self.base_writer)(SPACES)?;
                     indent -= SPACES.len();
@@ -1368,13 +1496,23 @@ impl fmt::Write for ToTextState<'_, '_> {
     }
 }
 
+/// trait for converting IR to text
+///
+/// To convert to a `String` or print or write, use `ToText::display`
 pub trait ToText<'g> {
+    /// produce a value that can be used with `std::fmt`.
+    ///
+    /// should not be used from `ToText` implementations, `ToText::to_text` should instead be called.
     fn display(&self) -> ToTextDisplay<'g, '_, Self> {
         ToTextDisplay(self, PhantomData)
     }
+    /// convert `self` to text.
+    ///
+    /// `ToText` implementations should call `ToText::to_text` rather than `ToText::display`.
     fn to_text(&self, state: &mut ToTextState<'g, '_>) -> fmt::Result;
 }
 
+/// helper struct to allow a type implementing `ToText` to be used with `std::fmt`.
 pub struct ToTextDisplay<'g, 'a, T: ToText<'g> + ?Sized>(&'a T, PhantomData<&'g ()>);
 
 impl<'g, T: ToText<'g> + ?Sized> fmt::Display for ToTextDisplay<'g, '_, T> {

@@ -51,6 +51,7 @@ macro_rules! impl_instructions {
         }
 
         impl<$g> $instruction_data<$g> {
+            /// get the kind of instruction
             pub fn kind(&self) -> $instruction_kind {
                 match self {
                     $(
@@ -264,9 +265,12 @@ macro_rules! instructions {
 
             pub use crate::$break_instruction;
 
+            /// the target of a `Branch` instruction
             #[derive(Debug)]
             pub struct BranchTarget<'g> {
+                /// the value the `Branch` instruction must match for this target to be executed
                 pub value: Interned<'g, Const<'g>>,
+                /// the break instruction that is executed when this target is executed
                 pub break_block: BreakBlock<'g>,
             }
 
@@ -289,9 +293,15 @@ macro_rules! instructions {
                 }
             }
 
+            $(#[doc = $branch_instruction_doc])+
             #[derive(Debug)]
             pub struct $branch_instruction<'g> {
+                /// the value to be matched against the list of `BranchTarget`s.
                 pub variable: ValueUse<'g>,
+                /// the list of branch targets. When this branch instruction is
+                /// executed, the first matching target is executed (which
+                /// executes the contained break instruction). If no targets
+                /// match, execution proceeds to the following instruction.
                 pub targets: Vec<BranchTarget<'g>>,
             }
 
@@ -359,7 +369,7 @@ instructions! {
         BreakBlock,
 
         #[branch]
-        /// dynamically select a `Block` to break from
+        /// dynamically select a `Block` to break from, equivalent of Rust's `match` and C, SPIR-V, and LLVM's `switch`.
         Branch,
 
         #[continue]
@@ -376,13 +386,17 @@ instructions! {
     }
 }
 
+/// a instruction
 #[derive(Debug)]
 pub struct Instruction<'g> {
+    /// the debug location of this instruction
     pub location: Option<Interned<'g, Location<'g>>>,
+    /// the `InstructionData` for this instruction
     pub data: InstructionData<'g>,
 }
 
 impl<'g> Instruction<'g> {
+    /// create a new `Instruction`, optionally with a debug location
     pub fn new(
         location: Option<Interned<'g, Location<'g>>>,
         data: impl Into<InstructionData<'g>>,
@@ -392,6 +406,7 @@ impl<'g> Instruction<'g> {
             data: data.into(),
         }
     }
+    /// create a new `Instruction`, with a debug location
     pub fn with_location(
         location: Interned<'g, Location<'g>>,
         data: impl Into<InstructionData<'g>>,
@@ -401,6 +416,7 @@ impl<'g> Instruction<'g> {
             data: data.into(),
         }
     }
+    /// create a new `Instruction`, with a debug location
     pub fn with_internable_location(
         location: impl Internable<'g, Interned = Location<'g>>,
         data: impl Into<InstructionData<'g>>,
@@ -411,6 +427,8 @@ impl<'g> Instruction<'g> {
             data: data.into(),
         }
     }
+    /// create a new `Instruction`, without a debug location.
+    /// Having a debug location should be preferred when that information is available.
     pub fn without_location(data: impl Into<InstructionData<'g>>) -> Self {
         Self {
             location: None,

@@ -13,14 +13,19 @@ use crate::text::Punctuation;
 use crate::text::ToTextState;
 use crate::text::Token;
 use crate::text::TokenKind;
+use crate::Allocate;
 use crate::InstructionKind;
 use crate::OnceCell;
 use std::fmt;
 use std::ops::Deref;
 
+/// break out of a block.
+/// jumps to the first instruction after `self.block`.
 #[derive(Debug)]
 pub struct BreakBlock<'g> {
+    /// the block to break out of
     pub block: BlockRef<'g>,
+    /// the values the block will return
     pub block_results: Vec<ValueUse<'g>>,
 }
 
@@ -65,8 +70,10 @@ impl<'g> CodeIO<'g> for BreakBlock<'g> {
     }
 }
 
+/// the header of a loop, holds the `ValueDefinition`s assigned at the beginning of each loop iteration
 #[derive(Eq, PartialEq, Hash, Debug)]
 pub struct LoopHeader<'g> {
+    /// the `ValueDefinition`s assigned at the beginning of each loop iteration
     pub argument_definitions: Vec<ValueDefinition<'g>>,
 }
 
@@ -79,14 +86,24 @@ impl<'g> CodeIO<'g> for LoopHeader<'g> {
     }
 }
 
+/// the struct storing the data for a `Block`
 #[derive(Debug)]
 pub struct BlockData<'g> {
+    /// the name of the `Block` -- doesn't need to be unique
     pub name: Interned<'g, str>,
+    /// the body of the `Block`
     pub body: OnceCell<Vec<Instruction<'g>>>,
+    /// The `ValueDefinition`s assigned to by `BreakBlock` when the block finishes executing.
+    /// Is `Uninhabited` if there is no `BreakBlock` targeting `self`.
     pub result_definitions: Inhabitable<Vec<ValueDefinition<'g>>>,
 }
 
 impl<'g> BlockData<'g> {
+    /// Sets the body of `self` to the passed-in value.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the body was already set.
     pub fn set_body(&self, body: Vec<Instruction<'g>>) {
         self.body.set(body).ok().expect("block body already set");
     }
@@ -103,26 +120,33 @@ impl<'g> CodeIO<'g> for BlockData<'g> {
     }
 }
 
+/// a reference to a `Block`
 #[derive(Clone, Eq, PartialEq, Hash, Debug)]
 pub struct BlockRef<'g> {
     value: IdRef<'g, BlockData<'g>>,
 }
 
 impl<'g> BlockRef<'g> {
+    /// create a new reference to the passed in block
     pub fn new(value: IdRef<'g, BlockData<'g>>) -> Self {
         Self { value }
     }
+    /// get the contained `IdRef<BlockData>`
     pub fn value(&self) -> IdRef<'g, BlockData<'g>> {
         self.value
     }
 }
 
+/// a block of code
 #[derive(Eq, PartialEq, Hash, Debug)]
 pub struct Block<'g> {
     value: IdRef<'g, BlockData<'g>>,
 }
 
 impl<'g> Block<'g> {
+    /// create a new block of code.
+    /// Sets the body if the `body` argument is `Some`.
+    /// the name doesn't need to be unique
     pub fn new(
         name: impl Internable<'g, Interned = str>,
         body: Option<Vec<Instruction<'g>>>,
@@ -141,6 +165,8 @@ impl<'g> Block<'g> {
             }),
         }
     }
+    /// create a new block of code, setting the body to the passed in value.
+    /// the name doesn't need to be unique
     pub fn with_body(
         name: impl Internable<'g, Interned = str>,
         body: Vec<Instruction<'g>>,
@@ -149,6 +175,9 @@ impl<'g> Block<'g> {
     ) -> Self {
         Self::new(name, Some(body), result_definitions, global_state)
     }
+    /// create a new block of code without setting the body.
+    /// The body needs to be later set, `BlockData::set_body` can be used to do that.
+    /// the name doesn't need to be unique
     pub fn without_body(
         name: impl Internable<'g, Interned = str>,
         result_definitions: Inhabitable<Vec<ValueDefinition<'g>>>,
@@ -156,10 +185,13 @@ impl<'g> Block<'g> {
     ) -> Self {
         Self::new(name, None, result_definitions, global_state)
     }
+    /// get the contained `IdRef<BlockData>`
     pub fn value(&self) -> IdRef<'g, BlockData<'g>> {
         self.value
     }
-    pub fn from_text_with_callbacks<
+    /// the equivalent of `FromText::from_text` while additionally calling the
+    /// provided callbacks at the appropriate points.
+    fn from_text_with_callbacks<
         't,
         BeforeResultDefinitionsCallback: FnOnce(&mut FromTextState<'g, 't>) -> Result<(), FromTextError>,
         AfterResultDefinitionsCallback: FnOnce(&mut FromTextState<'g, 't>) -> Result<(), FromTextError>,
@@ -338,11 +370,18 @@ impl<'g> ToText<'g> for Block<'g> {
     }
 }
 
+/// the struct storing the data for a `Loop`
 #[derive(Debug)]
 pub struct LoopData<'g> {
+    /// the name of the `Loop` -- doesn't need to be unique
     pub name: Interned<'g, str>,
+    /// the values assigned to `self.header.argument_definitions` on the first iteration.
+    /// The values assigned on later iterations are provided in the corresponding `ContinueLoop` instructions.
     pub arguments: Vec<ValueUse<'g>>,
+    /// the loop header, holds the `ValueDefinition`s assigned at the beginning of each loop iteration
     pub header: LoopHeader<'g>,
+    /// The body of the loop, the loop exits when `body` finishes.
+    /// The values defined in `body.result_definitions` are the results of the loop.
     pub body: Block<'g>,
 }
 
@@ -366,26 +405,31 @@ impl<'g> CodeIO<'g> for Loop<'g> {
     }
 }
 
+/// a reference to a `Loop`
 #[derive(Clone, Eq, PartialEq, Hash, Debug)]
 pub struct LoopRef<'g> {
     value: IdRef<'g, LoopData<'g>>,
 }
 
 impl<'g> LoopRef<'g> {
+    /// create a new reference to the passed in loop
     pub fn new(value: IdRef<'g, LoopData<'g>>) -> Self {
         Self { value }
     }
+    /// get the contained `IdRef<LoopData>`
     pub fn value(&self) -> IdRef<'g, LoopData<'g>> {
         self.value
     }
 }
 
+/// a loop
 #[derive(Eq, PartialEq, Hash, Debug)]
 pub struct Loop<'g> {
     value: IdRef<'g, LoopData<'g>>,
 }
 
 impl<'g> Loop<'g> {
+    /// create a new `Loop`. the name doesn't need to be unique
     pub fn new(
         name: impl Internable<'g, Interned = str>,
         arguments: Vec<ValueUse<'g>>,
@@ -404,6 +448,7 @@ impl<'g> Loop<'g> {
             }),
         }
     }
+    /// get the contained `IdRef<LoopData>`
     pub fn value(&self) -> IdRef<'g, LoopData<'g>> {
         self.value
     }
@@ -549,10 +594,15 @@ impl<'g> ToText<'g> for Loop<'g> {
     }
 }
 
+/// continue a loop.
+/// jumps back to the beginning of `self.target_loop`.
+/// only valid when contained inside of `self.target_loop`.
 #[derive(Debug)]
 pub struct ContinueLoop<'g> {
+    /// the loop to continue.
     pub target_loop: LoopRef<'g>,
-    pub block_arguments: Vec<ValueUse<'g>>,
+    /// the values assigned to the loop header's `ValueDefinition`s: `self.target_loop.header.argument_definitions`.
+    pub loop_arguments: Vec<ValueUse<'g>>,
 }
 
 impl<'g> ToText<'g> for ContinueLoop<'g> {
@@ -561,10 +611,10 @@ impl<'g> ToText<'g> for ContinueLoop<'g> {
         write!(state, " ")?;
         let Self {
             target_loop,
-            block_arguments,
+            loop_arguments,
         } = self;
         target_loop.to_text(state)?;
-        block_arguments.to_text(state)
+        loop_arguments.to_text(state)
     }
 }
 
@@ -579,10 +629,10 @@ impl<'g> FromText<'g> for ContinueLoop<'g> {
             )?;
         }
         let target_loop = LoopRef::from_text(state)?;
-        let block_arguments = Vec::<ValueUse<'g>>::from_text(state)?;
+        let loop_arguments = Vec::<ValueUse<'g>>::from_text(state)?;
         Ok(Self {
             target_loop,
-            block_arguments,
+            loop_arguments,
         })
     }
 }
@@ -592,7 +642,7 @@ impl<'g> CodeIO<'g> for ContinueLoop<'g> {
         Uninhabited
     }
     fn arguments(&self) -> &[ValueUse<'g>] {
-        &self.block_arguments
+        &self.loop_arguments
     }
 }
 
@@ -668,7 +718,7 @@ mod tests {
         let loop1 = Loop::new("loop1", vec![], vec![], block2, global_state);
         block2_body.push(Instruction::without_location(ContinueLoop {
             target_loop: LoopRef::new(loop1.value()),
-            block_arguments: vec![],
+            loop_arguments: vec![],
         }));
         loop1.body.set_body(block2_body);
         block1_body.push(Instruction::without_location(loop1));

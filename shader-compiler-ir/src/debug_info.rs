@@ -22,6 +22,7 @@ pub struct Location<'g> {
 }
 
 impl<'g> Location<'g> {
+    /// create a new `Location`
     pub fn new_interned(
         file: impl Internable<'g, Interned = str>,
         line: u32,
@@ -30,13 +31,6 @@ impl<'g> Location<'g> {
     ) -> Interned<'g, Location<'g>> {
         let file = file.intern(global_state);
         Location { file, line, column }.intern(global_state)
-    }
-}
-
-impl<'g> Internable<'g> for Location<'g> {
-    type Interned = Location<'g>;
-    fn intern(&self, global_state: &'g GlobalState<'g>) -> Interned<'g, Location<'g>> {
-        global_state.intern(self)
     }
 }
 

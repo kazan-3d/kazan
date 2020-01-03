@@ -14,13 +14,17 @@ use std::fmt;
 use std::ops::Deref;
 use std::ops::DerefMut;
 
+/// extension trait for types
 pub trait GenericType<'g>: Internable<'g, Interned = Type<'g>> {
+    /// create an `undef` constant
     fn undef(&self, global_state: &'g GlobalState<'g>) -> Const<'g> {
         self.intern(global_state).undef()
     }
+    /// create a pointer to `self`
     fn pointer(&self, global_state: &'g GlobalState<'g>) -> PointerType<'g> {
         self.intern(global_state).pointer()
     }
+    /// create a new `ValueDefinition` using `self` as the new value's type
     fn new_value_definition<Name: Internable<'g, Interned = str>>(
         &self,
         name: Name,
@@ -30,11 +34,16 @@ pub trait GenericType<'g>: Internable<'g, Interned = Type<'g>> {
     }
 }
 
+/// an integer type
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
 pub enum IntegerType {
+    /// 8-bit signed or unsigned integer type
     Int8,
+    /// 16-bit signed or unsigned integer type
     Int16,
+    /// 32-bit signed or unsigned integer type
     Int32,
+    /// 64-bit signed or unsigned integer type
     Int64,
 }
 
@@ -53,10 +62,14 @@ impl From<IntegerType> for Type<'_> {
     }
 }
 
+/// a float type
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
 pub enum FloatType {
+    /// 16-bit float type
     Float16,
+    /// 32-bit float type
     Float32,
+    /// 64-bit float type
     Float64,
 }
 
@@ -81,6 +94,9 @@ mod private {
     pub enum Void {}
 }
 
+/// an opaque type.
+///
+/// currently there aren't any defined opaque types.
 #[derive(Clone, Eq, PartialEq, Hash, Debug)]
 pub enum OpaqueType<'g> {
     // TODO: implement
@@ -99,6 +115,7 @@ impl<'g> Internable<'g> for OpaqueType<'g> {
 
 impl<'g> GenericType<'g> for OpaqueType<'g> {}
 
+/// the `bool` type
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
 pub struct BoolType;
 
@@ -117,8 +134,10 @@ impl From<BoolType> for Type<'_> {
     }
 }
 
+/// a pointer type
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
 pub struct PointerType<'g> {
+    /// the type that this type points to
     pub pointee: Interned<'g, Type<'g>>,
 }
 
@@ -132,6 +151,7 @@ impl<'g> Internable<'g> for PointerType<'g> {
 impl<'g> GenericType<'g> for PointerType<'g> {}
 
 impl<'g> PointerType<'g> {
+    /// create a null pointer constant
     pub fn null(self) -> Const<'g> {
         Const::Null(self)
     }
@@ -143,10 +163,19 @@ impl<'g> From<PointerType<'g>> for Type<'g> {
     }
 }
 
+/// a vector type.
+///
+/// There are two variants of a vector:
+/// * a non-scalable vector where the number of elements is just `self.len`
+/// * a scalable vector where the number of elements is a constant multiple (called
+///   `vscale`) of `self.len`, where `vscale` may not be known till runtime.
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
 pub struct VectorType<'g> {
+    /// the number of elements for non-scalable vectors and the multiplier of the number of elements for scalable vectors
     pub len: usize,
+    /// determines if the vector type is scalable or not.
     pub scalable: bool,
+    /// the type of an element
     pub element: Interned<'g, Type<'g>>,
 }
 
@@ -171,21 +200,21 @@ impl<'g> From<OpaqueType<'g>> for Type<'g> {
     }
 }
 
+/// an IR type
 #[derive(Clone, Eq, PartialEq, Hash, Debug)]
 pub enum Type<'g> {
+    /// an integer type
     Integer(IntegerType),
+    /// a float type
     Float(FloatType),
+    /// the `bool` type
     Bool(BoolType),
+    /// a pointer type
     Pointer(PointerType<'g>),
+    /// a vector type
     Vector(VectorType<'g>),
+    /// an opaque type
     Opaque(OpaqueType<'g>),
-}
-
-impl<'g> Internable<'g> for Type<'g> {
-    type Interned = Type<'g>;
-    fn intern(&self, global_state: &'g GlobalState<'g>) -> Interned<'g, Type<'g>> {
-        global_state.intern(self)
-    }
 }
 
 impl<'g> GenericType<'g> for Type<'g> {}
@@ -434,11 +463,17 @@ impl<'g> FromText<'g> for Type<'g> {
             TokenKind::Keyword(Keyword::I8)
             | TokenKind::Keyword(Keyword::I16)
             | TokenKind::Keyword(Keyword::I32)
-            | TokenKind::Keyword(Keyword::I64) => Type::Integer(IntegerType::from_text(state)?),
+            | TokenKind::Keyword(Keyword::I64) => {
+                IntegerType::from_text(state)?.intern(state.global_state())
+            }
             TokenKind::Keyword(Keyword::F16)
             | TokenKind::Keyword(Keyword::F32)
-            | TokenKind::Keyword(Keyword::F64) => Type::Float(FloatType::from_text(state)?),
-            TokenKind::Keyword(Keyword::Bool) => Type::Bool(BoolType::from_text(state)?),
+            | TokenKind::Keyword(Keyword::F64) => {
+                FloatType::from_text(state)?.intern(state.global_state())
+            }
+            TokenKind::Keyword(Keyword::Bool) => {
+                BoolType::from_text(state)?.intern(state.global_state())
+            }
             TokenKind::Punct(Punctuation::LParen) => {
                 return state.parse_parenthesized(
                     Punctuation::LParen,
@@ -448,14 +483,16 @@ impl<'g> FromText<'g> for Type<'g> {
                     Type::from_text,
                 );
             }
-            TokenKind::Punct(Punctuation::LessThan) => Type::Vector(VectorType::from_text(state)?),
+            TokenKind::Punct(Punctuation::LessThan) => {
+                VectorType::from_text(state)?.intern(state.global_state())
+            }
             TokenKind::Punct(Punctuation::Asterisk) => {
-                Type::Pointer(PointerType::from_text(state)?)
+                PointerType::from_text(state)?.intern(state.global_state())
             }
             // TODO: add OpaqueType
             _ => state.error_at_peek_token("expected type")?.into(),
         };
-        Ok(state.global_state().intern(&retval))
+        Ok(retval)
     }
 }
 
@@ -473,9 +510,11 @@ impl<'g> ToText<'g> for Type<'g> {
 }
 
 impl<'g> Interned<'g, Type<'g>> {
+    /// create a pointer to `self`
     pub fn pointer(self) -> PointerType<'g> {
         PointerType { pointee: self }
     }
+    /// create an `undef` constant
     pub fn undef(self) -> Const<'g> {
         Const::Undef(self)
     }
