@@ -206,7 +206,23 @@ pub(crate) fn generate(
             use std::result;
             use std::str::Utf8Error;
             use std::string::FromUtf8Error;
-
+        )
+    )?;
+    writeln!(
+        &mut out,
+        "{}",
+        concat!(
+            "macro_rules! split_fn {\n",
+            "    ($body:expr) => {\n",
+            "        (|| $body)()\n",
+            "    }\n",
+            "}"
+        )
+    )?;
+    writeln!(
+        &mut out,
+        "{}",
+        stringify!(
             trait SPIRVParse: Sized {
                 fn spirv_parse<'a>(words: &'a [u32], parse_state: &mut ParseState)
                     -> Result<(Self, &'a [u32])>;
@@ -860,9 +876,9 @@ pub(crate) fn generate(
                     }
                 };
                 let instruction_extension_parse_case = quote! {
-                    (ExtensionInstructionSet::#extension_instruction_set, #opcode) => {
+                    (ExtensionInstructionSet::#extension_instruction_set, #opcode) => split_fn!({
                         #body
-                    }
+                    }),
                 };
                 instruction_extension_parse_cases.push(instruction_extension_parse_case);
                 let display_opname = &instruction.opname;
@@ -872,7 +888,7 @@ pub(crate) fn generate(
                         id_result,
                         set,
                         #(#operand_names,)*
-                    } => {
+                    } => split_fn!({
                         write!(
                             f,
                             "{}OpExtInst {} {} {}",
@@ -883,7 +899,7 @@ pub(crate) fn generate(
                         )?;
                         #(#display_operations)*
                         writeln!(f)
-                    }
+                    }),
                 };
                 instruction_extension_display_cases.push(instruction_extension_display_case);
             }
@@ -909,15 +925,15 @@ pub(crate) fn generate(
                             Err(Error::InstructionTooLong)
                         }
                     };
-                    instruction_parse_case = quote! {#opcode => {
+                    instruction_parse_case = quote! {#opcode => split_fn!({
                         let (id_result, words) = IdResult::spirv_parse(words, parse_state)?;
                         let (name, words) = LiteralString::spirv_parse(words, parse_state)?;
                         #body
-                    }};
+                    }),};
                     instruction_display_case = quote! {
-                        Instruction::ExtInstImport { id_result, name } => {
+                        Instruction::ExtInstImport { id_result, name } => split_fn!({
                             writeln!(f, "{}{} {:?}", InstructionIndentAndResult(Some(*id_result)), #display_opname, name)
-                        }
+                        }),
                     };
                 }
                 ast::InstructionName::OpExtInst => {
@@ -949,14 +965,14 @@ pub(crate) fn generate(
                         }
                     };
                     instruction_parse_case = quote! {
-                        #opcode => {
+                        #opcode => split_fn!({
                             let (id_result_type, words) = IdResultType::spirv_parse(words, parse_state)?;
                             let (id_result, words) = IdResult::spirv_parse(words, parse_state)?;
                             parse_state.define_value(id_result_type, id_result)?;
                             let (set, words) = IdRef::spirv_parse(words, parse_state)?;
                             let (instruction, words) = LiteralExtInstInteger::spirv_parse(words, parse_state)?;
                             #body
-                        }
+                        }),
                     };
                     instruction_display_case = quote! {
                         Instruction::ExtInst {
@@ -965,14 +981,14 @@ pub(crate) fn generate(
                             set,
                             instruction,
                             operands,
-                        } => {
+                        } => split_fn!({
                             write!(f, "{}{}", InstructionIndentAndResult(Some(*id_result)), #display_opname)?;
                             id_result_type.spirv_display(f)?;
                             set.spirv_display(f)?;
                             instruction.spirv_display(f)?;
                             operands.spirv_display(f)?;
                             writeln!(f)
-                        }
+                        }),
                     };
                 }
                 ast::InstructionName::OpTypeInt => {
@@ -995,18 +1011,18 @@ pub(crate) fn generate(
                         }
                     };
                     instruction_parse_case = quote! {
-                        #opcode => {
+                        #opcode => split_fn!({
                             let (id_result, words) = IdResult::spirv_parse(words, parse_state)?;
                             let (width, words) = LiteralInteger32::spirv_parse(words, parse_state)?;
                             #body
-                        }
+                        }),
                     };
                     instruction_display_case = quote! {
                         Instruction::TypeInt {
                             id_result,
                             width,
                             signedness,
-                        } => {
+                        } => split_fn!({
                             write!(
                                 f,
                                 "{}{}",
@@ -1016,12 +1032,12 @@ pub(crate) fn generate(
                             width.spirv_display(f)?;
                             signedness.spirv_display(f)?;
                             writeln!(f)
-                        }
+                        }),
                     };
                 }
                 ast::InstructionName::OpTypeFloat => {
                     instruction_parse_case = quote! {
-                        #opcode => {
+                        #opcode => split_fn!({
                             let (id_result, words) = IdResult::spirv_parse(words, parse_state)?;
                             let (width, words) = LiteralInteger32::spirv_parse(words, parse_state)?;
                             let id_state = match width {
@@ -1038,10 +1054,10 @@ pub(crate) fn generate(
                             } else {
                                 Err(Error::InstructionTooLong)
                             }
-                        }
+                        }),
                     };
                     instruction_display_case = quote! {
-                        Instruction::TypeFloat { id_result, width } => {
+                        Instruction::TypeFloat { id_result, width } => split_fn!({
                             write!(
                                 f,
                                 "{}{}",
@@ -1050,7 +1066,7 @@ pub(crate) fn generate(
                             )?;
                             width.spirv_display(f)?;
                             writeln!(f)
-                        }
+                        }),
                     };
                 }
                 ast::InstructionName::OpSwitch32 => {
@@ -1083,7 +1099,7 @@ pub(crate) fn generate(
                         }
                     };
                     instruction_parse_case = quote! {
-                        #opcode => {
+                        #opcode => split_fn!({
                             let (selector, words) = IdRef::spirv_parse(words, parse_state)?;
                             let (default, words) = IdRef::spirv_parse(words, parse_state)?;
                             match &parse_state.id_states[selector.0 as usize] {
@@ -1091,14 +1107,14 @@ pub(crate) fn generate(
                                 #body64
                                 _ => Err(Error::SwitchSelectorIsInvalid(selector)),
                             }
-                        }
+                        }),
                     };
                     instruction_display_case = quote! {
                         Instruction::Switch32 {
                             selector,
                             default,
                             target,
-                        } => {
+                        } => split_fn!({
                             write!(
                                 f,
                                 "{}{}",
@@ -1109,12 +1125,12 @@ pub(crate) fn generate(
                             default.spirv_display(f)?;
                             target.spirv_display(f)?;
                             writeln!(f)
-                        }
+                        }),
                         Instruction::Switch64 {
                             selector,
                             default,
                             target,
-                        } => {
+                        } => split_fn!({
                             write!(
                                 f,
                                 "{}{}",
@@ -1125,7 +1141,7 @@ pub(crate) fn generate(
                             default.spirv_display(f)?;
                             target.spirv_display(f)?;
                             writeln!(f)
-                        }
+                        }),
                     };
                 }
                 ast::InstructionName::OpSwitch64 => {
@@ -1162,7 +1178,7 @@ pub(crate) fn generate(
                         }
                     };
                     instruction_parse_case = quote! {
-                        #opcode => {
+                        #opcode => split_fn!({
                             let (id_result_type, words) = IdResultType::spirv_parse(words, parse_state)?;
                             let (id_result, words) = IdResult::spirv_parse(words, parse_state)?;
                             parse_state.define_value(id_result_type, id_result)?;
@@ -1170,14 +1186,14 @@ pub(crate) fn generate(
                                 #body32
                                 #body64
                             }
-                        }
+                        }),
                     };
                     instruction_display_case = quote! {
                         Instruction::Constant32 {
                             id_result_type,
                             id_result,
                             value,
-                        } => {
+                        } => split_fn!({
                             write!(
                                 f,
                                 "{}{}",
@@ -1186,12 +1202,12 @@ pub(crate) fn generate(
                             )?;
                             id_result_type.spirv_display(f)?;
                             writeln!(f, " {:#010X}", value)
-                        }
+                        }),
                         Instruction::Constant64 {
                             id_result_type,
                             id_result,
                             value,
-                        } => {
+                        } => split_fn!({
                             write!(
                                 f,
                                 "{}{}",
@@ -1200,7 +1216,7 @@ pub(crate) fn generate(
                             )?;
                             id_result_type.spirv_display(f)?;
                             writeln!(f, " {:#018X}", value)
-                        }
+                        }),
                     };
                 }
                 ast::InstructionName::OpConstant64 => {
@@ -1237,7 +1253,7 @@ pub(crate) fn generate(
                         }
                     };
                     instruction_parse_case = quote! {
-                        #opcode => {
+                        #opcode => split_fn!({
                             let (id_result_type, words) = IdResultType::spirv_parse(words, parse_state)?;
                             let (id_result, words) = IdResult::spirv_parse(words, parse_state)?;
                             parse_state.define_value(id_result_type, id_result)?;
@@ -1245,14 +1261,14 @@ pub(crate) fn generate(
                                 #body32
                                 #body64
                             }
-                        }
+                        }),
                     };
                     instruction_display_case = quote! {
                         Instruction::SpecConstant32 {
                             id_result_type,
                             id_result,
                             value,
-                        } => {
+                        } => split_fn!({
                             write!(
                                 f,
                                 "{}{}",
@@ -1261,12 +1277,12 @@ pub(crate) fn generate(
                             )?;
                             id_result_type.spirv_display(f)?;
                             writeln!(f, " {:#010X}", value)
-                        }
+                        }),
                         Instruction::SpecConstant64 {
                             id_result_type,
                             id_result,
                             value,
-                        } => {
+                        } => split_fn!({
                             write!(
                                 f,
                                 "{}{}",
@@ -1275,7 +1291,7 @@ pub(crate) fn generate(
                             )?;
                             id_result_type.spirv_display(f)?;
                             writeln!(f, " {:#018X}", value)
-                        }
+                        }),
                     };
                 }
                 ast::InstructionName::OpSpecConstant64 => {
@@ -1283,14 +1299,14 @@ pub(crate) fn generate(
                     instruction_display_case = quote! {};
                 }
                 ast::InstructionName::OpSpecConstantOp => {
-                    instruction_parse_case = quote! {#opcode => {
+                    instruction_parse_case = quote! {#opcode => split_fn!({
                         let (operation, words) = OpSpecConstantOp::spirv_parse(words, parse_state)?;
                         if words.is_empty() {
                             Ok(Instruction::#opname { operation })
                         } else {
                             Err(Error::InstructionTooLong)
                         }
-                    }};
+                    }),};
                     instruction_display_case = quote! {
                         Instruction::#opname { operation } => fmt::Display::fmt(operation, f),
                     };
@@ -1333,7 +1349,7 @@ pub(crate) fn generate(
                         }
                     }
                     let operand_names = &operand_names;
-                    instruction_parse_case = quote! {#opcode => {
+                    instruction_parse_case = quote! {#opcode => split_fn!({
                         #(#parse_operations)*
                         if words.is_empty() {
                             Ok(Instruction::#opname {
@@ -1342,17 +1358,17 @@ pub(crate) fn generate(
                         } else {
                             Err(Error::InstructionTooLong)
                         }
-                    }};
+                    }),};
                     let result_value = match result_name {
                         None => quote! {None},
                         Some(result_name) => quote! {Some(*#result_name)},
                     };
                     instruction_display_case = quote! {
-                        Instruction::#opname { #(#operand_names,)* } => {
+                        Instruction::#opname { #(#operand_names,)* } => split_fn!({
                             write!(f, "{}{}", InstructionIndentAndResult(#result_value), #display_opname)?;
                             #(#display_operations)*
                             writeln!(f)
-                        }
+                        }),
                     };
                 }
             }
