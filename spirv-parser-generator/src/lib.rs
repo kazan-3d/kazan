@@ -102,7 +102,7 @@ impl Output {
         write!(writer, "{}", self.text)
     }
     pub fn write_to_file<T: AsRef<Path>>(&self, path: T) -> Result<(), io::Error> {
-        self.write(File::create(path)?)
+        self.write(file_create_helper(path)?)
     }
 }
 
@@ -130,6 +130,26 @@ fn get_spirv_grammar_path<T: AsRef<Path>>(name: T) -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../external/SPIRV-Headers/include/spirv/unified1")
         .join(name)
+}
+
+fn file_open_helper<T: AsRef<Path>>(name: T) -> Result<File, io::Error> {
+    let name = name.as_ref();
+    File::open(name).map_err(|err| {
+        io::Error::new(
+            err.kind(),
+            format!("failed to open file: {}", name.display()),
+        )
+    })
+}
+
+fn file_create_helper<T: AsRef<Path>>(name: T) -> Result<File, io::Error> {
+    let name = name.as_ref();
+    File::create(name).map_err(|err| {
+        io::Error::new(
+            err.kind(),
+            format!("failed to create file: {}", name.display()),
+        )
+    })
 }
 
 impl Input {
@@ -172,7 +192,7 @@ impl Input {
             options,
         } = self;
         let mut core_grammar: ast::CoreGrammar =
-            serde_json::from_reader(File::open(spirv_core_grammar_json_path)?)?;
+            serde_json::from_reader(file_open_helper(spirv_core_grammar_json_path)?)?;
         core_grammar.fixup()?;
         let mut parsed_extension_instruction_sets: HashMap<
             ExtensionInstructionSet,
@@ -180,7 +200,7 @@ impl Input {
         > = Default::default();
         for (extension_instruction_set, path) in extension_instruction_sets {
             let mut parsed_extension_instruction_set: ast::ExtensionInstructionSet =
-                serde_json::from_reader(File::open(path)?)?;
+                serde_json::from_reader(file_open_helper(path)?)?;
             parsed_extension_instruction_set.fixup()?;
             assert!(parsed_extension_instruction_sets
                 .insert(extension_instruction_set, parsed_extension_instruction_set)
