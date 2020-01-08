@@ -1,4 +1,4 @@
-Copyright 2018-2019 Jacob Lifshay
+Copyright 2018-2020 Jacob Lifshay
 
 This file is part of Kazan.
 
