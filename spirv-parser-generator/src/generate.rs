@@ -153,6 +153,7 @@ pub(crate) fn generate(
         major_version,
         minor_version,
         revision: core_revision,
+        instruction_printing_class: _instruction_printing_class,
         instructions: core_instructions,
         operand_kinds,
     } = core_grammar;

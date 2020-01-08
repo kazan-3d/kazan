@@ -70,7 +70,7 @@ impl<'de> Deserialize<'de> for QuotedInteger {
 pub enum SPIRVVersion {
     Any,
     None,
-    AtLeast { major: u32, minor: u32 },
+    Specific { major: u32, minor: u32 },
 }
 
 impl Default for SPIRVVersion {
@@ -110,7 +110,7 @@ impl<'de> Deserialize<'de> for SPIRVVersion {
         };
         let major = parse_digits(major_digits)?;
         let minor = parse_digits(minor_digits)?;
-        Ok(SPIRVVersion::AtLeast { major, minor })
+        Ok(SPIRVVersion::Specific { major, minor })
     }
 }
 
@@ -153,84 +153,130 @@ impl InstructionOperand {
     }
 }
 
-#[derive(Clone, Eq, PartialEq, Hash, Debug)]
-pub enum InstructionName {
-    OpSwitch,
-    OpSwitch32,
-    OpSwitch64,
-    OpConstant,
-    OpConstant32,
-    OpConstant64,
-    OpSpecConstant,
-    OpSpecConstant32,
-    OpSpecConstant64,
-    OpSpecConstantOp,
-    OpAccessChain,
-    OpBitcast,
-    OpBitwiseAnd,
-    OpBitwiseOr,
-    OpBitwiseXor,
-    OpCompositeExtract,
-    OpCompositeInsert,
-    OpConvertFToS,
-    OpConvertFToU,
-    OpConvertPtrToU,
-    OpConvertSToF,
-    OpConvertUToF,
-    OpConvertUToPtr,
-    OpFAdd,
-    OpFConvert,
-    OpFDiv,
-    OpFMod,
-    OpFMul,
-    OpFNegate,
-    OpFRem,
-    OpFSub,
-    OpGenericCastToPtr,
-    OpIAdd,
-    OpIEqual,
-    OpIMul,
-    OpINotEqual,
-    OpISub,
-    OpInBoundsAccessChain,
-    OpInBoundsPtrAccessChain,
-    OpLogicalAnd,
-    OpLogicalEqual,
-    OpLogicalNot,
-    OpLogicalNotEqual,
-    OpLogicalOr,
-    OpNot,
-    OpPtrAccessChain,
-    OpPtrCastToGeneric,
-    OpQuantizeToF16,
-    OpSConvert,
-    OpSDiv,
-    OpSGreaterThan,
-    OpSGreaterThanEqual,
-    OpSLessThan,
-    OpSLessThanEqual,
-    OpSMod,
-    OpSNegate,
-    OpSRem,
-    OpSelect,
-    OpShiftLeftLogical,
-    OpShiftRightArithmetic,
-    OpShiftRightLogical,
-    OpUConvert,
-    OpUDiv,
-    OpUGreaterThan,
-    OpUGreaterThanEqual,
-    OpULessThan,
-    OpULessThanEqual,
-    OpUMod,
-    OpVectorShuffle,
-    OpTypeInt,
-    OpTypeFloat,
-    OpExtInstImport,
-    OpExtInst,
-    Other(String),
+macro_rules! define_instruction_name {
+    (
+        pub enum $instruction_name:ident {
+            $other:ident($other_ty:ty),
+            $(
+                $name:ident,
+            )+
+        }
+    ) => {
+        #[derive(Clone, Eq, PartialEq, Hash, Debug)]
+        pub enum $instruction_name {
+            $other($other_ty),
+            $(
+                $name,
+            )+
+        }
+
+        impl From<String> for $instruction_name {
+            fn from(v: String) -> Self {
+                match &*v {
+                    $(
+                        stringify!($name) => return $instruction_name::$name,
+                    )+
+                    _ => {}
+                }
+                $instruction_name::$other(v)
+            }
+        }
+
+        impl AsRef<str> for $instruction_name {
+            fn as_ref(&self) -> &str {
+                match self {
+                    $(
+                        $instruction_name::$name => stringify!($name),
+                    )+
+                    $instruction_name::$other(v) => v,
+                }
+            }
+        }
+    };
 }
 
+define_instruction_name! {
+    pub enum InstructionName {
+        Other(String),
+        OpAccessChain,
+        OpBitcast,
+        OpBitwiseAnd,
+        OpBitwiseOr,
+        OpBitwiseXor,
+        OpCompositeExtract,
+        OpCompositeInsert,
+        OpConstant,
+        OpConstant32,
+        OpConstant64,
+        OpConvertFToS,
+        OpConvertFToU,
+        OpConvertPtrToU,
+        OpConvertSToF,
+        OpConvertUToF,
+        OpConvertUToPtr,
+        OpCopyMemory,
+        OpCopyMemorySized,
+        OpExtInst,
+        OpExtInstImport,
+        OpFAdd,
+        OpFConvert,
+        OpFDiv,
+        OpFMod,
+        OpFMul,
+        OpFNegate,
+        OpFRem,
+        OpFSub,
+        OpGenericCastToPtr,
+        OpIAdd,
+        OpIEqual,
+        OpIMul,
+        OpInBoundsAccessChain,
+        OpInBoundsPtrAccessChain,
+        OpINotEqual,
+        OpISub,
+        OpLogicalAnd,
+        OpLogicalEqual,
+        OpLogicalNot,
+        OpLogicalNotEqual,
+        OpLogicalOr,
+        OpNot,
+        OpPtrAccessChain,
+        OpPtrCastToGeneric,
+        OpQuantizeToF16,
+        OpSConvert,
+        OpSDiv,
+        OpSelect,
+        OpSGreaterThan,
+        OpSGreaterThanEqual,
+        OpShiftLeftLogical,
+        OpShiftRightArithmetic,
+        OpShiftRightLogical,
+        OpSLessThan,
+        OpSLessThanEqual,
+        OpSMod,
+        OpSNegate,
+        OpSpecConstant,
+        OpSpecConstant32,
+        OpSpecConstant64,
+        OpSpecConstantOp,
+        OpSRem,
+        OpSwitch,
+        OpSwitch32,
+        OpSwitch64,
+        OpTypeFloat,
+        OpTypeInt,
+        OpUConvert,
+        OpUDiv,
+        OpUGreaterThan,
+        OpUGreaterThanEqual,
+        OpULessThan,
+        OpULessThanEqual,
+        OpUMod,
+        OpVectorShuffle,
+    }
+}
+
+// not the same as InstructionName
 pub const OP_SPEC_CONSTANT_OP_SUPPORTED_INSTRUCTIONS: &[InstructionName] = &[
     InstructionName::OpAccessChain,
     InstructionName::OpBitcast,
@@ -299,163 +345,6 @@ impl Default for InstructionName {
     }
 }
 
-impl From<String> for InstructionName {
-    fn from(v: String) -> Self {
-        match &*v {
-            "OpSwitch" => return InstructionName::OpSwitch,
-            "OpConstant" => return InstructionName::OpConstant,
-            "OpSpecConstant" => return InstructionName::OpSpecConstant,
-            "OpSpecConstantOp" => return InstructionName::OpSpecConstantOp,
-            "OpAccessChain" => return InstructionName::OpAccessChain,
-            "OpBitcast" => return InstructionName::OpBitcast,
-            "OpBitwiseAnd" => return InstructionName::OpBitwiseAnd,
-            "OpBitwiseOr" => return InstructionName::OpBitwiseOr,
-            "OpBitwiseXor" => return InstructionName::OpBitwiseXor,
-            "OpCompositeExtract" => return InstructionName::OpCompositeExtract,
-            "OpCompositeInsert" => return InstructionName::OpCompositeInsert,
-            "OpConvertFToS" => return InstructionName::OpConvertFToS,
-            "OpConvertFToU" => return InstructionName::OpConvertFToU,
-            "OpConvertPtrToU" => return InstructionName::OpConvertPtrToU,
-            "OpConvertSToF" => return InstructionName::OpConvertSToF,
-            "OpConvertUToF" => return InstructionName::OpConvertUToF,
-            "OpConvertUToPtr" => return InstructionName::OpConvertUToPtr,
-            "OpFAdd" => return InstructionName::OpFAdd,
-            "OpFConvert" => return InstructionName::OpFConvert,
-            "OpFDiv" => return InstructionName::OpFDiv,
-            "OpFMod" => return InstructionName::OpFMod,
-            "OpFMul" => return InstructionName::OpFMul,
-            "OpFNegate" => return InstructionName::OpFNegate,
-            "OpFRem" => return InstructionName::OpFRem,
-            "OpFSub" => return InstructionName::OpFSub,
-            "OpGenericCastToPtr" => return InstructionName::OpGenericCastToPtr,
-            "OpIAdd" => return InstructionName::OpIAdd,
-            "OpIEqual" => return InstructionName::OpIEqual,
-            "OpIMul" => return InstructionName::OpIMul,
-            "OpINotEqual" => return InstructionName::OpINotEqual,
-            "OpISub" => return InstructionName::OpISub,
-            "OpInBoundsAccessChain" => return InstructionName::OpInBoundsAccessChain,
-            "OpInBoundsPtrAccessChain" => return InstructionName::OpInBoundsPtrAccessChain,
-            "OpLogicalAnd" => return InstructionName::OpLogicalAnd,
-            "OpLogicalEqual" => return InstructionName::OpLogicalEqual,
-            "OpLogicalNot" => return InstructionName::OpLogicalNot,
-            "OpLogicalNotEqual" => return InstructionName::OpLogicalNotEqual,
-            "OpLogicalOr" => return InstructionName::OpLogicalOr,
-            "OpNot" => return InstructionName::OpNot,
-            "OpPtrAccessChain" => return InstructionName::OpPtrAccessChain,
-            "OpPtrCastToGeneric" => return InstructionName::OpPtrCastToGeneric,
-            "OpQuantizeToF16" => return InstructionName::OpQuantizeToF16,
-            "OpSConvert" => return InstructionName::OpSConvert,
-            "OpSDiv" => return InstructionName::OpSDiv,
-            "OpSGreaterThan" => return InstructionName::OpSGreaterThan,
-            "OpSGreaterThanEqual" => return InstructionName::OpSGreaterThanEqual,
-            "OpSLessThan" => return InstructionName::OpSLessThan,
-            "OpSLessThanEqual" => return InstructionName::OpSLessThanEqual,
-            "OpSMod" => return InstructionName::OpSMod,
-            "OpSNegate" => return InstructionName::OpSNegate,
-            "OpSRem" => return InstructionName::OpSRem,
-            "OpSelect" => return InstructionName::OpSelect,
-            "OpShiftLeftLogical" => return InstructionName::OpShiftLeftLogical,
-            "OpShiftRightArithmetic" => return InstructionName::OpShiftRightArithmetic,
-            "OpShiftRightLogical" => return InstructionName::OpShiftRightLogical,
-            "OpUConvert" => return InstructionName::OpUConvert,
-            "OpUDiv" => return InstructionName::OpUDiv,
-            "OpUGreaterThan" => return InstructionName::OpUGreaterThan,
-            "OpUGreaterThanEqual" => return InstructionName::OpUGreaterThanEqual,
-            "OpULessThan" => return InstructionName::OpULessThan,
-            "OpULessThanEqual" => return InstructionName::OpULessThanEqual,
-            "OpUMod" => return InstructionName::OpUMod,
-            "OpVectorShuffle" => return InstructionName::OpVectorShuffle,
-            "OpTypeInt" => return InstructionName::OpTypeInt,
-            "OpTypeFloat" => return InstructionName::OpTypeFloat,
-            "OpExtInstImport" => return InstructionName::OpExtInstImport,
-            "OpExtInst" => return InstructionName::OpExtInst,
-            _ => {}
-        }
-        InstructionName::Other(v)
-    }
-}
-
-impl AsRef<str> for InstructionName {
-    fn as_ref(&self) -> &str {
-        match self {
-            InstructionName::OpSwitch => "OpSwitch",
-            InstructionName::OpSwitch32 => "OpSwitch32",
-            InstructionName::OpSwitch64 => "OpSwitch64",
-            InstructionName::OpConstant => "OpConstant",
-            InstructionName::OpConstant32 => "OpConstant32",
-            InstructionName::OpConstant64 => "OpConstant64",
-            InstructionName::OpSpecConstant => "OpSpecConstant",
-            InstructionName::OpSpecConstant32 => "OpSpecConstant32",
-            InstructionName::OpSpecConstant64 => "OpSpecConstant64",
-            InstructionName::OpSpecConstantOp => "OpSpecConstantOp",
-            InstructionName::OpAccessChain => "OpAccessChain",
-            InstructionName::OpBitcast => "OpBitcast",
-            InstructionName::OpBitwiseAnd => "OpBitwiseAnd",
-            InstructionName::OpBitwiseOr => "OpBitwiseOr",
-            InstructionName::OpBitwiseXor => "OpBitwiseXor",
-            InstructionName::OpCompositeExtract => "OpCompositeExtract",
-            InstructionName::OpCompositeInsert => "OpCompositeInsert",
-            InstructionName::OpConvertFToS => "OpConvertFToS",
-            InstructionName::OpConvertFToU => "OpConvertFToU",
-            InstructionName::OpConvertPtrToU => "OpConvertPtrToU",
-            InstructionName::OpConvertSToF => "OpConvertSToF",
-            InstructionName::OpConvertUToF => "OpConvertUToF",
-            InstructionName::OpConvertUToPtr => "OpConvertUToPtr",
-            InstructionName::OpFAdd => "OpFAdd",
-            InstructionName::OpFConvert => "OpFConvert",
-            InstructionName::OpFDiv => "OpFDiv",
-            InstructionName::OpFMod => "OpFMod",
-            InstructionName::OpFMul => "OpFMul",
-            InstructionName::OpFNegate => "OpFNegate",
-            InstructionName::OpFRem => "OpFRem",
-            InstructionName::OpFSub => "OpFSub",
-            InstructionName::OpGenericCastToPtr => "OpGenericCastToPtr",
-            InstructionName::OpIAdd => "OpIAdd",
-            InstructionName::OpIEqual => "OpIEqual",
-            InstructionName::OpIMul => "OpIMul",
-            InstructionName::OpINotEqual => "OpINotEqual",
-            InstructionName::OpISub => "OpISub",
-            InstructionName::OpInBoundsAccessChain => "OpInBoundsAccessChain",
-            InstructionName::OpInBoundsPtrAccessChain => "OpInBoundsPtrAccessChain",
-            InstructionName::OpLogicalAnd => "OpLogicalAnd",
-            InstructionName::OpLogicalEqual => "OpLogicalEqual",
-            InstructionName::OpLogicalNot => "OpLogicalNot",
-            InstructionName::OpLogicalNotEqual => "OpLogicalNotEqual",
-            InstructionName::OpLogicalOr => "OpLogicalOr",
-            InstructionName::OpNot => "OpNot",
-            InstructionName::OpPtrAccessChain => "OpPtrAccessChain",
-            InstructionName::OpPtrCastToGeneric => "OpPtrCastToGeneric",
-            InstructionName::OpQuantizeToF16 => "OpQuantizeToF16",
-            InstructionName::OpSConvert => "OpSConvert",
-            InstructionName::OpSDiv => "OpSDiv",
-            InstructionName::OpSGreaterThan => "OpSGreaterThan",
-            InstructionName::OpSGreaterThanEqual => "OpSGreaterThanEqual",
-            InstructionName::OpSLessThan => "OpSLessThan",
-            InstructionName::OpSLessThanEqual => "OpSLessThanEqual",
-            InstructionName::OpSMod => "OpSMod",
-            InstructionName::OpSNegate => "OpSNegate",
-            InstructionName::OpSRem => "OpSRem",
-            InstructionName::OpSelect => "OpSelect",
-            InstructionName::OpShiftLeftLogical => "OpShiftLeftLogical",
-            InstructionName::OpShiftRightArithmetic => "OpShiftRightArithmetic",
-            InstructionName::OpShiftRightLogical => "OpShiftRightLogical",
-            InstructionName::OpUConvert => "OpUConvert",
-            InstructionName::OpUDiv => "OpUDiv",
-            InstructionName::OpUGreaterThan => "OpUGreaterThan",
-            InstructionName::OpUGreaterThanEqual => "OpUGreaterThanEqual",
-            InstructionName::OpULessThan => "OpULessThan",
-            InstructionName::OpULessThanEqual => "OpULessThanEqual",
-            InstructionName::OpUMod => "OpUMod",
-            InstructionName::OpVectorShuffle => "OpVectorShuffle",
-            InstructionName::OpTypeInt => "OpTypeInt",
-            InstructionName::OpTypeFloat => "OpTypeFloat",
-            InstructionName::OpExtInstImport => "OpExtInstImport",
-            InstructionName::OpExtInst => "OpExtInst",
-            InstructionName::Other(v) => v,
-        }
-    }
-}
-
 impl<'de> Deserialize<'de> for InstructionName {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         Ok(Self::from(String::deserialize(deserializer)?))
@@ -466,6 +355,7 @@ impl<'de> Deserialize<'de> for InstructionName {
 #[serde(deny_unknown_fields)]
 pub struct Instruction {
     pub opname: InstructionName,
+    pub class: String,
     pub opcode: u16,
     #[serde(default)]
     pub operands: Vec<InstructionOperand>,
@@ -475,6 +365,9 @@ pub struct Instruction {
     pub extensions: Vec<String>,
     #[serde(default)]
     pub version: SPIRVVersion,
+    #[serde(default)]
+    #[serde(rename = "lastVersion")]
+    pub last_version: SPIRVVersion,
 }
 
 impl Instruction {
@@ -482,11 +375,34 @@ impl Instruction {
         for operand in self.operands.iter_mut() {
             operand.fixup()?;
         }
-        if self.opname == InstructionName::OpExtInst {
-            assert_eq!(self.operands.len(), 5);
-            assert_eq!(self.operands[4].kind, Kind::IdRef);
-            assert_eq!(self.operands[4].quantifier, Some(Quantifier::Variadic));
-            self.operands[4].kind = Kind::Literal(LiteralKind::LiteralInteger32);
+        match self.opname {
+            InstructionName::OpExtInst => {
+                assert_eq!(self.operands.len(), 5);
+                assert_eq!(self.operands[4].kind, Kind::IdRef);
+                assert_eq!(self.operands[4].quantifier, Some(Quantifier::Variadic));
+                self.operands[4].kind = Kind::Literal(LiteralKind::LiteralInteger32);
+            }
+            InstructionName::OpCopyMemory => {
+                assert_eq!(self.operands.len(), 4);
+                assert_eq!(self.operands[2].kind, Kind::MemoryAccess);
+                assert_eq!(self.operands[2].quantifier, Some(Quantifier::Optional));
+                assert_eq!(self.operands[2].name.as_deref(), Some("memory_access"));
+                assert_eq!(self.operands[3].kind, Kind::MemoryAccess);
+                assert_eq!(self.operands[3].quantifier, Some(Quantifier::Optional));
+                assert_eq!(self.operands[3].name.as_deref(), Some("memory_access"));
+                self.operands[3].name = Some("source_memory_access".into());
+            }
+            InstructionName::OpCopyMemorySized => {
+                assert_eq!(self.operands.len(), 5);
+                assert_eq!(self.operands[3].kind, Kind::MemoryAccess);
+                assert_eq!(self.operands[3].quantifier, Some(Quantifier::Optional));
+                assert_eq!(self.operands[3].name.as_deref(), Some("memory_access"));
+                assert_eq!(self.operands[4].kind, Kind::MemoryAccess);
+                assert_eq!(self.operands[4].quantifier, Some(Quantifier::Optional));
+                assert_eq!(self.operands[4].name.as_deref(), Some("memory_access"));
+                self.operands[4].name = Some("source_memory_access".into());
+            }
+            _ => {}
         }
         Ok(())
     }
@@ -559,6 +475,9 @@ pub struct Enumerant<Value, EnumerantParameter> {
     pub extensions: Vec<String>,
     #[serde(default)]
     pub version: SPIRVVersion,
+    #[serde(default)]
+    #[serde(rename = "lastVersion")]
+    pub last_version: SPIRVVersion,
 }
 
 impl Enumerant<u32, ValueEnumerantParameter> {
@@ -588,6 +507,7 @@ pub enum Kind {
     PairLiteralIntegerIdRef,
     PairLiteralInteger32IdRef,
     PairLiteralInteger64IdRef,
+    MemoryAccess,
     Other(String),
 }
 
@@ -606,6 +526,7 @@ impl Kind {
             | (Kind::IdResultType, _)
             | (Kind::PairLiteralInteger32IdRef, _)
             | (Kind::PairLiteralInteger64IdRef, _)
+            | (Kind::MemoryAccess, _)
             | (Kind::Other(_), _) => {}
         }
     }
@@ -629,6 +550,8 @@ impl<'a> From<Cow<'a, str>> for Kind {
             Kind::IdResultType
         } else if v == "PairLiteralIntegerIdRef" {
             Kind::PairLiteralIntegerIdRef
+        } else if v == "MemoryAccess" {
+            Kind::MemoryAccess
         } else {
             Kind::Other(v.into_owned())
         }
@@ -657,6 +580,7 @@ impl AsRef<str> for Kind {
             Kind::PairLiteralIntegerIdRef => "PairLiteralIntegerIdRef",
             Kind::PairLiteralInteger32IdRef => "PairLiteralInteger32IdRef",
             Kind::PairLiteralInteger64IdRef => "PairLiteralInteger64IdRef",
+            Kind::MemoryAccess => "MemoryAccess",
             Kind::Other(v) => v,
         }
     }
@@ -767,19 +691,29 @@ pub enum OperandKind {
 
 #[derive(Deserialize, Debug)]
 #[serde(deny_unknown_fields)]
+pub struct InstructionPrintingClass {
+    pub tag: String,
+    pub heading: Option<String>,
+}
+
+#[derive(Deserialize, Debug)]
+#[serde(deny_unknown_fields)]
 pub struct CoreGrammar {
     pub copyright: Vec<String>,
     pub magic_number: QuotedInteger,
     pub major_version: u32,
     pub minor_version: u32,
     pub revision: u32,
+    pub instruction_printing_class: Vec<InstructionPrintingClass>,
     pub instructions: Vec<Instruction>,
     pub operand_kinds: Vec<OperandKind>,
 }
 
 impl CoreGrammar {
     pub fn fixup(&mut self) -> Result<(), crate::Error> {
-        let instructions = mem::replace(&mut self.instructions, Vec::new());
+        let mut instructions = mem::replace(&mut self.instructions, Vec::new());
+        instructions.sort_by_key(|instruction| instruction.opcode);
+        instructions.dedup_by_key(|instruction| instruction.opcode);
         for mut instruction in instructions {
             if instruction.version == SPIRVVersion::None {
                 continue;
