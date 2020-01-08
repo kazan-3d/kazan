@@ -248,6 +248,10 @@ impl<'a> TextSpan<'a> {
     pub fn len(self) -> usize {
         self.end_byte_index - self.start_byte_index
     }
+    /// checks if this span is empty.
+    pub fn is_empty(self) -> bool {
+        self.len() == 0
+    }
     /// gets the `TextLocation` for the start of this span.
     pub fn start(self) -> TextLocation<'a> {
         TextLocation::new(self.start_byte_index, self.source_code)

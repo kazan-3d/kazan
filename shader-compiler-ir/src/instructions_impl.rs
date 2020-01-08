@@ -402,7 +402,7 @@ impl<'g> Instruction<'g> {
         data: impl Into<InstructionData<'g>>,
     ) -> Self {
         Self {
-            location: location,
+            location,
             data: data.into(),
         }
     }

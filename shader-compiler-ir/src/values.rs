@@ -149,13 +149,16 @@ impl<'g> FromText<'g> for ValueDefinition<'g> {
         let value_type = Type::from_text(state)?;
         let retval = Self::new(value_type, name.name, state.global_state());
         let scope = state.push_new_nested_scope();
-        if let Err(_) = state.insert_symbol(
-            name,
-            FromTextSymbol {
-                value: retval.value(),
-                scope,
-            },
-        ) {
+        if state
+            .insert_symbol(
+                name,
+                FromTextSymbol {
+                    value: retval.value(),
+                    scope,
+                },
+            )
+            .is_err()
+        {
             state.error_at(name_location, "value defined previously")?;
         }
         Ok(retval)
@@ -171,13 +174,16 @@ impl<'g> FromText<'g> for ValueUse<'g> {
             state.parse_token()?;
             let const_value = Const::from_text(state)?;
             let retval = ValueUse::from_const(const_value, name.name, state.global_state());
-            if let Err(_) = state.insert_symbol(
-                name,
-                FromTextSymbol {
-                    value: retval.value(),
-                    scope: FromTextScopeId::ROOT,
-                },
-            ) {
+            if state
+                .insert_symbol(
+                    name,
+                    FromTextSymbol {
+                        value: retval.value(),
+                        scope: FromTextScopeId::ROOT,
+                    },
+                )
+                .is_err()
+            {
                 state.error_at(name_location, "value defined previously")?;
             }
             Ok(retval)

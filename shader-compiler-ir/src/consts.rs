@@ -277,7 +277,7 @@ impl<'g> FromText<'g> for ConstInteger {
             Some(IntegerSuffix::I8) => value.try_into().map(ConstInteger::Int8),
             Some(IntegerSuffix::I16) => value.try_into().map(ConstInteger::Int16),
             Some(IntegerSuffix::I32) => value.try_into().map(ConstInteger::Int32),
-            Some(IntegerSuffix::I64) => Ok(value.into()).map(ConstInteger::Int64),
+            Some(IntegerSuffix::I64) => Ok(value).map(ConstInteger::Int64),
             None => state
                 .error_at_peek_token(
                     "integer literal must have type suffix (for example, use `23i32` rather than `23`)",
@@ -322,7 +322,7 @@ impl<'g> FromText<'g> for ConstFloat {
         let retval = match float_type {
             FloatType::Float16 => value.try_into().map(ConstFloat::Float16),
             FloatType::Float32 => value.try_into().map(ConstFloat::Float32),
-            FloatType::Float64 => Ok(value.into()).map(ConstFloat::Float64),
+            FloatType::Float64 => Ok(value).map(ConstFloat::Float64),
         };
         let retval = match retval {
             Ok(retval) => retval,
@@ -465,6 +465,7 @@ mod tests {
 
     #[test]
     fn test_const_from_to_text() {
+        #![allow(clippy::cognitive_complexity)]
         let global_state = GlobalState::new();
         macro_rules! test_const {
             ($global_state:ident, $text:literal, $const:expr, $formatted_text:literal) => {

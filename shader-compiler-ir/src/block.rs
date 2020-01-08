@@ -105,6 +105,7 @@ impl<'g> BlockData<'g> {
     ///
     /// Panics if the body was already set.
     pub fn set_body(&self, body: Vec<Instruction<'g>>) {
+        #![allow(clippy::ok_expect)]
         self.body.set(body).ok().expect("block body already set");
     }
 }
@@ -353,7 +354,7 @@ impl<'g> ToText<'g> for Block<'g> {
         }
         write!(state, " -> ")?;
         let BlockData {
-            name: _,
+            name: _name,
             body,
             result_definitions,
         } = &***self;
@@ -573,7 +574,7 @@ impl<'g> ToText<'g> for Loop<'g> {
             NewOrOld::New(name) => name.to_text(state)?,
         }
         let LoopData {
-            name: _,
+            name: _name,
             arguments,
             header: LoopHeader {
                 argument_definitions,
