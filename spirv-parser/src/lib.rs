@@ -3,6 +3,7 @@
 
 #![allow(clippy::unreadable_literal)]
 #![allow(clippy::cognitive_complexity)]
+#![allow(clippy::redundant_closure_call)]
 
 include!(concat!(env!("OUT_DIR"), "/generated_parser.rs"));
 
