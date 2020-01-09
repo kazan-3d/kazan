@@ -384,6 +384,7 @@ keywords! {
     False = "false",
     Const = "const",
     Null = "null",
+    Fn = "fn",
 }
 
 keywords! {
@@ -875,6 +876,7 @@ pub struct FromTextState<'g, 't> {
     values: HashMap<NamedId<'g>, FromTextSymbol<'g, Value<'g>>>,
     blocks: HashMap<NamedId<'g>, FromTextSymbol<'g, BlockData<'g>>>,
     loops: HashMap<NamedId<'g>, FromTextSymbol<'g, LoopData<'g>>>,
+    functions: HashMap<NamedId<'g>, FromTextSymbol<'g, FunctionData<'g>>>,
     parent_scopes: Vec<FromTextScopeId>,
     /// the scope id that defines what is currently visible.
     /// A scope is visible if it is either `self.scope_stack_top` or
@@ -924,6 +926,21 @@ impl<'g, 't> FromTextSymbolsState<'g, 't, LoopData<'g>> for FromTextState<'g, 't
     }
 }
 
+impl<'g, 't> FromTextSymbolsState<'g, 't, FunctionData<'g>> for FromTextState<'g, 't> {
+    fn get_symbol_table(
+        &self,
+        _: Private,
+    ) -> &HashMap<NamedId<'g>, FromTextSymbol<'g, FunctionData<'g>>> {
+        &self.functions
+    }
+    fn get_symbol_table_mut(
+        &mut self,
+        _: Private,
+    ) -> &mut HashMap<NamedId<'g>, FromTextSymbol<'g, FunctionData<'g>>> {
+        &mut self.functions
+    }
+}
+
 impl<'g, 't> FromTextState<'g, 't> {
     fn new(source_code: &'t FromTextSourceCode<'t>, global_state: &'g GlobalState<'g>) -> Self {
         Self {
@@ -933,6 +950,7 @@ impl<'g, 't> FromTextState<'g, 't> {
             values: HashMap::new(),
             blocks: HashMap::new(),
             loops: HashMap::new(),
+            functions: HashMap::new(),
             parent_scopes: vec![FromTextScopeId::ROOT],
             scope_stack_top: FromTextScopeId::ROOT,
         }
@@ -1359,6 +1377,12 @@ impl<'g> NameMapGetName<'g> for LoopData<'g> {
     }
 }
 
+impl<'g> NameMapGetName<'g> for FunctionData<'g> {
+    fn name(&self) -> Interned<'g, str> {
+        self.name
+    }
+}
+
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
 pub(crate) enum NewOrOld<T> {
     New(T),
@@ -1399,6 +1423,7 @@ pub struct ToTextState<'g, 'w> {
     values: NameMap<'g, Value<'g>>,
     blocks: NameMap<'g, BlockData<'g>>,
     loops: NameMap<'g, LoopData<'g>>,
+    functions: NameMap<'g, FunctionData<'g>>,
 }
 
 impl<'g> ToTextState<'g, '_> {
@@ -1421,6 +1446,12 @@ impl<'g> ToTextState<'g, '_> {
         value: IdRef<'g, LoopData<'g>>,
     ) -> NewOrOld<NamedId<'g>> {
         self.loops.get(value)
+    }
+    pub(crate) fn get_function_named_id(
+        &mut self,
+        value: IdRef<'g, FunctionData<'g>>,
+    ) -> NewOrOld<NamedId<'g>> {
+        self.functions.get(value)
     }
     /// indent the text produced by the passed-in function by 1 unit (`Self::INDENT_MULTIPLE` spaces).
     ///
@@ -1528,6 +1559,7 @@ impl<'g, T: ToText<'g> + ?Sized> fmt::Display for ToTextDisplay<'g, '_, T> {
             values: NameMap::new(),
             blocks: NameMap::new(),
             loops: NameMap::new(),
+            functions: NameMap::new(),
         })
     }
 }

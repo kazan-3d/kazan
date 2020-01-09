@@ -10,10 +10,10 @@ use crate::text::Keyword;
 use crate::text::Punctuation;
 use crate::text::ToTextState;
 use crate::text::TokenKind;
-use crate::types::PointerType;
 use crate::BoolType;
 use crate::FloatType;
 use crate::IntegerType;
+use crate::PointerType;
 use crate::VectorType;
 use std::convert::TryInto;
 use std::fmt;
@@ -462,6 +462,7 @@ impl<'g> ToText<'g> for Const<'g> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::FunctionPointerType;
 
     #[test]
     fn test_const_from_to_text() {
@@ -539,6 +540,15 @@ mod tests {
             global_state,
             "null *i8",
             IntegerType::Int8.intern(&global_state).pointer().null()
+        );
+        test_const!(
+            global_state,
+            "null *fn[] -> !",
+            FunctionPointerType {
+                arguments: vec![],
+                returns: Uninhabited
+            }
+            .null()
         );
     }
 }

@@ -7,6 +7,7 @@
 mod block;
 mod consts;
 mod debug_info;
+mod function;
 mod global_state;
 mod instructions_impl;
 mod types;
@@ -18,6 +19,7 @@ pub mod text;
 pub use crate::block::*;
 pub use crate::consts::*;
 pub use crate::debug_info::*;
+pub use crate::function::*;
 pub use crate::global_state::*;
 pub use crate::instructions_impl::*;
 pub use crate::types::*;

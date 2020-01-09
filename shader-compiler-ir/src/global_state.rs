@@ -28,6 +28,7 @@ pub struct GlobalState<'g> {
     value_arena: Arena<Value<'g>>,
     block_arena: Arena<BlockData<'g>>,
     loop_arena: Arena<LoopData<'g>>,
+    function_arena: Arena<FunctionData<'g>>,
 }
 
 impl<'g> GlobalState<'g> {
@@ -45,6 +46,7 @@ impl<'g> GlobalState<'g> {
             value_arena: Arena::new(),
             block_arena: Arena::new(),
             loop_arena: Arena::new(),
+            function_arena: Arena::new(),
         }
     }
 }
@@ -52,6 +54,20 @@ impl<'g> GlobalState<'g> {
 impl<'g> Default for GlobalState<'g> {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+impl<'g> fmt::Debug for GlobalState<'g> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        struct Ellipsis;
+        impl fmt::Debug for Ellipsis {
+            fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+                f.pad("...")
+            }
+        }
+        f.debug_struct("GlobalState")
+            .field("state", &Ellipsis)
+            .finish()
     }
 }
 
@@ -343,6 +359,12 @@ impl<'g> Intern<'g, Type<'g>> for GlobalState<'g> {
 impl<'g> Allocate<'g, LoopData<'g>> for GlobalState<'g> {
     fn alloc_private(&'g self, _private: Private, value: LoopData<'g>) -> &'g LoopData<'g> {
         self.loop_arena.alloc(value)
+    }
+}
+
+impl<'g> Allocate<'g, FunctionData<'g>> for GlobalState<'g> {
+    fn alloc_private(&'g self, _private: Private, value: FunctionData<'g>) -> &'g FunctionData<'g> {
+        self.function_arena.alloc(value)
     }
 }
 

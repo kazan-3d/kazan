@@ -10,6 +10,7 @@ use crate::text::FromTextSymbolsStateBase;
 use crate::text::NamedId;
 use crate::text::NewOrOld;
 use crate::text::Punctuation;
+use crate::text::TextSpan;
 use crate::text::ToTextState;
 use crate::text::Token;
 use crate::text::TokenKind;
@@ -86,6 +87,32 @@ impl<'g> CodeIO<'g> for LoopHeader<'g> {
     }
 }
 
+/// a block name definition in parsed form; Used for `BlockData::parse_body`
+#[derive(Debug)]
+pub struct ParsedBlockNameDefinition<'g, 't> {
+    named_id: NamedId<'g>,
+    name_location: TextSpan<'t>,
+}
+
+impl<'g> Deref for ParsedBlockNameDefinition<'g, '_> {
+    type Target = NamedId<'g>;
+    fn deref(&self) -> &NamedId<'g> {
+        &self.named_id
+    }
+}
+
+impl<'g, 't> ParsedBlockNameDefinition<'g, 't> {
+    /// parse the block name definition; Used for `BlockData::parse_body`
+    pub fn from_text(state: &mut FromTextState<'g, 't>) -> Result<Self, FromTextError> {
+        let name_location = state.peek_token()?.span;
+        let named_id = NamedId::from_text(state)?;
+        Ok(ParsedBlockNameDefinition {
+            named_id,
+            name_location,
+        })
+    }
+}
+
 /// the struct storing the data for a `Block`
 #[derive(Debug)]
 pub struct BlockData<'g> {
@@ -107,6 +134,20 @@ impl<'g> BlockData<'g> {
     pub fn set_body(&self, body: Vec<Instruction<'g>>) {
         #![allow(clippy::ok_expect)]
         self.body.set(body).ok().expect("block body already set");
+    }
+    /// convert the block body to text.
+    /// The block body extends from the opening curly brace (`{`) up to and
+    /// including the closing curly brace (`}`).
+    pub fn body_to_text(&self, state: &mut ToTextState<'g, '_>) -> fmt::Result {
+        writeln!(state, "{{")?;
+        state.indent(|state| -> fmt::Result {
+            for instruction in self.body.get().expect("block body not set") {
+                instruction.to_text(state)?;
+                writeln!(state, ";")?;
+            }
+            Ok(())
+        })?;
+        write!(state, "}}")
     }
 }
 
@@ -190,8 +231,87 @@ impl<'g> Block<'g> {
     pub fn value(&self) -> IdRef<'g, BlockData<'g>> {
         self.value
     }
+    /// output the block name definition to text
+    pub fn name_definition_to_text(
+        block: IdRef<'g, BlockData<'g>>,
+        state: &mut ToTextState<'g, '_>,
+    ) -> fmt::Result {
+        match state.get_block_named_id(block) {
+            NewOrOld::Old(_) => unreachable!("block definition must be written first"),
+            NewOrOld::New(name) => name.to_text(state),
+        }
+    }
+    /// parse the block body.
+    /// The block body extends from the opening curly brace (`{`) up to and
+    /// including the closing curly brace (`}`).
+    ///
+    /// # Panics
+    ///
+    /// Panics if the block body was already set.
+    pub fn parse_body<'t>(
+        block: IdRef<'g, BlockData<'g>>,
+        name: ParsedBlockNameDefinition<'g, 't>,
+        state: &mut FromTextState<'g, 't>,
+    ) -> Result<(), FromTextError> {
+        let initial_scope = state.scope_stack_top;
+        let scope = state.push_new_nested_scope();
+        if state
+            .insert_symbol(
+                name.named_id,
+                FromTextSymbol {
+                    value: block,
+                    scope,
+                },
+            )
+            .is_err()
+        {
+            state.error_at(name.name_location, "duplicate block name")?;
+        }
+        let missing_closing_brace = "missing closing curly brace: '}'";
+        state.parse_parenthesized(
+            Punctuation::LCurlyBrace,
+            "missing opening curly brace: '{'",
+            Punctuation::RCurlyBrace,
+            missing_closing_brace,
+            |state| -> Result<_, _> {
+                let mut body = Vec::new();
+                let mut end_reachable = true;
+                loop {
+                    let Token {
+                        span: instruction_location,
+                        kind: peek_token_kind,
+                    } = state.peek_token()?;
+                    match peek_token_kind {
+                        TokenKind::EndOfFile => {
+                            state.error_at_peek_token(missing_closing_brace)?;
+                        }
+                        TokenKind::Punct(Punctuation::RCurlyBrace) => break,
+                        _ => {}
+                    }
+                    let instruction = Instruction::from_text(state)?;
+                    state.parse_punct_token_or_error(
+                        Punctuation::Semicolon,
+                        "missing terminating semicolon: ';'",
+                    )?;
+                    if !end_reachable {
+                        state.error_at(instruction_location, "unreachable instruction")?;
+                    } else if let Uninhabited = instruction.results() {
+                        end_reachable = false;
+                    }
+                    body.push(instruction);
+                }
+                if end_reachable {
+                    state.error_at_peek_token("missing terminating instruction")?;
+                }
+                block.set_body(body);
+                state.scope_stack_top = initial_scope;
+                Ok(())
+            },
+        )
+    }
     /// the equivalent of `FromText::from_text` while additionally calling the
     /// provided callbacks at the appropriate points.
+    #[cfg(all(not(test), test))]
     fn from_text_with_callbacks<
         't,
         BeforeResultDefinitionsCallback: FnOnce(&mut FromTextState<'g, 't>) -> Result<(), FromTextError>,
@@ -331,43 +451,34 @@ impl<'g> ToText<'g> for BlockRef<'g> {
 impl<'g> FromText<'g> for Block<'g> {
     type Parsed = Self;
     fn from_text(state: &mut FromTextState<'g, '_>) -> Result<Self, FromTextError> {
-        let mut retval = None;
-        Self::from_text_with_callbacks(
-            state,
-            |_state| Ok(()),
-            |_state| Ok(()),
-            |block, _state| {
-                retval = Some(block);
-                Ok(())
-            },
-        )?;
-        Ok(retval.expect("known to be Some"))
+        let kind_location = state.peek_token()?.span;
+        if Self::KIND != InstructionKind::from_text(state)? {
+            state.error_at(
+                kind_location,
+                format!("expected {} instruction", Self::KIND.text()),
+            )?;
+        }
+        let name = ParsedBlockNameDefinition::from_text(state)?;
+        state.parse_punct_token_or_error(Punctuation::Arrow, "missing arrow: '->'")?;
+        let initial_scope = state.scope_stack_top;
+        let result_definitions = Inhabitable::<Vec<ValueDefinition>>::from_text(state)?;
+        let results_scope = state.scope_stack_top;
+        state.scope_stack_top = initial_scope;
+        let block = Block::without_body(name.name, result_definitions, state.global_state());
+        Block::parse_body(block.value(), name, state)?;
+        state.scope_stack_top = results_scope;
+        Ok(block)
     }
 }
 
 impl<'g> ToText<'g> for Block<'g> {
     fn to_text(&self, state: &mut ToTextState<'g, '_>) -> fmt::Result {
         write!(state, "{} ", Self::KIND.text())?;
-        match state.get_block_named_id(self.value()) {
-            NewOrOld::Old(_) => unreachable!("block instruction must be written first"),
-            NewOrOld::New(name) => name.to_text(state)?,
-        }
+        Block::name_definition_to_text(self.value(), state)?;
         write!(state, " -> ")?;
-        let BlockData {
-            name: _name,
-            body,
-            result_definitions,
-        } = &***self;
-        result_definitions.to_text(state)?;
-        writeln!(state, " {{")?;
-        state.indent(|state| -> fmt::Result {
-            for instruction in body.get().expect("block body not set") {
-                instruction.to_text(state)?;
-                writeln!(state, ";")?;
-            }
-            Ok(())
-        })?;
-        write!(state, "}}")
+        self.result_definitions.to_text(state)?;
+        write!(state, " ")?;
+        self.body_to_text(state)
     }
 }
 
@@ -508,6 +619,11 @@ impl<'g> FromText<'g> for Loop<'g> {
         let name_location = state.peek_token()?.span;
         let name = NamedId::from_text(state)?;
         let arguments = Vec::<ValueUse>::from_text(state)?;
+        state.parse_punct_token_or_error(Punctuation::Arrow, "missing arrow: '->'")?;
+        let initial_scope = state.scope_stack_top;
+        let result_definitions = Inhabitable::<Vec<ValueDefinition>>::from_text(state)?;
+        let results_scope = state.scope_stack_top;
+        state.scope_stack_top = initial_scope;
         let missing_closing_brace = "missing closing curly brace: '}'";
         state.parse_parenthesized(
             Punctuation::LCurlyBrace,
@@ -515,7 +631,6 @@ impl<'g> FromText<'g> for Loop<'g> {
             Punctuation::RCurlyBrace,
             missing_closing_brace,
             |state| -> Result<_, _> {
-                let initial_scope = state.scope_stack_top;
                 let scope = state.push_new_nested_scope();
                 state.parse_punct_token_or_error(Punctuation::Arrow, "missing arrow: '->'")?;
                 let argument_definitions = Vec::<ValueDefinition>::from_text(state)?;
@@ -523,44 +638,32 @@ impl<'g> FromText<'g> for Loop<'g> {
                     Punctuation::Semicolon,
                     "missing terminating semicolon: ';'",
                 )?;
-                let mut retval = None;
-                let mut results_scope = None;
-                Block::from_text_with_callbacks(
-                    state,
-                    |state| {
-                        state.scope_stack_top = initial_scope;
-                        Ok(())
-                    },
-                    |state| {
-                        results_scope = Some(state.scope_stack_top);
-                        Ok(())
-                    },
-                    |block, state| {
-                        let loop_ = Loop::new(
-                            name.name,
-                            arguments,
-                            argument_definitions,
-                            block,
-                            state.global_state(),
-                        );
-                        if state
-                            .insert_symbol(
-                                name,
-                                FromTextSymbol {
-                                    value: loop_.value(),
-                                    scope,
-                                },
-                            )
-                            .is_err()
-                        {
-                            state.error_at(name_location, "duplicate loop name")?;
-                        }
-                        retval = Some(loop_);
-                        Ok(())
-                    },
-                )?;
-                state.scope_stack_top = results_scope.expect("known to be Some");
-                Ok(retval.expect("known to be Some"))
+                let block_name = ParsedBlockNameDefinition::from_text(state)?;
+                let block =
+                    Block::without_body(block_name.name, result_definitions, state.global_state());
+                let block_value = block.value();
+                let loop_ = Loop::new(
+                    name.name,
+                    arguments,
+                    argument_definitions,
+                    block,
+                    state.global_state(),
+                );
+                if state
+                    .insert_symbol(
+                        name,
+                        FromTextSymbol {
+                            value: loop_.value(),
+                            scope,
+                        },
+                    )
+                    .is_err()
+                {
+                    state.error_at(name_location, "duplicate loop name")?;
+                }
+                Block::parse_body(block_value, block_name, state)?;
+                state.scope_stack_top = results_scope;
+                Ok(loop_)
             },
         )
     }
@@ -581,14 +684,17 @@ impl<'g> ToText<'g> for Loop<'g> {
             },
             body,
         } = &***self;
-        write!(state, " ")?;
         arguments.to_text(state)?;
+        write!(state, " -> ")?;
+        body.result_definitions.to_text(state)?;
         writeln!(state, " {{")?;
         state.indent(|state| {
             write!(state, "-> ")?;
             argument_definitions.to_text(state)?;
             writeln!(state, ";")?;
-            body.to_text(state)?;
+            Block::name_definition_to_text(body.value(), state)?;
+            write!(state, " ")?;
+            body.body_to_text(state)?;
             writeln!(state)
         })?;
         write!(state, "}}")
@@ -728,9 +834,9 @@ mod tests {
             global_state,
             concat!(
                 "block block1 -> ! {\n",
-                "    loop loop1 [] {\n",
+                "    loop loop1[] -> ! {\n",
                 "        -> [];\n",
-                "        block block2 -> ! {\n",
+                "        block2 {\n",
                 "            continue loop1[];\n",
                 "        }\n",
                 "    };\n",
