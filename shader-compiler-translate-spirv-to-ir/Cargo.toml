@@ -1,0 +1,14 @@
+# SPDX-License-Identifier: LGPL-2.1-or-later
+# See Notices.txt for copyright information
+[package]
+name = "shader-compiler-translate-spirv-to-ir"
+version = "0.1.0"
+authors = ["Jacob Lifshay <programmerjake@gmail.com>"]
+license = "LGPL-2.1-or-later"
+edition = "2018"
+
+[dependencies.shader-compiler-ir]
+path = "../shader-compiler-ir"
+
+[dependencies.spirv-parser]
+path = "../spirv-parser"
