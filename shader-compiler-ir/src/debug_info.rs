@@ -34,6 +34,8 @@ impl<'g> Location<'g> {
     }
 }
 
+impl_display_as_to_text!(<'g> Location<'g>);
+
 impl<'g> ToText<'g> for Location<'g> {
     fn to_text(&self, state: &mut ToTextState<'g, '_>) -> fmt::Result {
         let Self { file, line, column } = self;

@@ -8,7 +8,6 @@ use crate::text::FromTextSymbol;
 use crate::text::FromTextSymbolsState;
 use crate::text::FromTextSymbolsStateBase;
 use crate::text::NamedId;
-use crate::text::NewOrOld;
 use crate::text::Punctuation;
 use crate::text::TextSpan;
 use crate::text::ToTextState;
@@ -29,6 +28,8 @@ pub struct BreakBlock<'g> {
     /// the values the block will return
     pub block_results: Vec<ValueUse<'g>>,
 }
+
+impl_display_as_to_text!(<'g> BreakBlock<'g>);
 
 impl<'g> ToText<'g> for BreakBlock<'g> {
     fn to_text(&self, state: &mut ToTextState<'g, '_>) -> fmt::Result {
@@ -236,10 +237,9 @@ impl<'g> Block<'g> {
         block: IdRef<'g, BlockData<'g>>,
         state: &mut ToTextState<'g, '_>,
     ) -> fmt::Result {
-        match state.get_block_named_id(block) {
-            NewOrOld::Old(_) => unreachable!("block definition must be written first"),
-            NewOrOld::New(name) => name.to_text(state),
-        }
+        let name = state.get_block_named_id(block);
+        let name = state.check_name_definition(name, "block definition must be written first");
+        name.to_text(state)
     }
     /// parse the block body.
     /// The block body extends from the opening curly brace (`{`) up to and
@@ -439,12 +439,13 @@ impl<'g> FromText<'g> for BlockRef<'g> {
     }
 }
 
+impl_display_as_to_text!(<'g> BlockRef<'g>);
+
 impl<'g> ToText<'g> for BlockRef<'g> {
     fn to_text(&self, state: &mut ToTextState<'g, '_>) -> fmt::Result {
-        match state.get_block_named_id(self.value()) {
-            NewOrOld::New(_) => unreachable!("block instruction must be written first"),
-            NewOrOld::Old(name) => name.to_text(state),
-        }
+        let name = state.get_block_named_id(self.value());
+        let name = state.check_name_use(name, "block definition must be written first");
+        name.to_text(state)
     }
 }
 
@@ -470,6 +471,8 @@ impl<'g> FromText<'g> for Block<'g> {
         Ok(block)
     }
 }
+
+impl_display_as_to_text!(<'g> Block<'g>);
 
 impl<'g> ToText<'g> for Block<'g> {
     fn to_text(&self, state: &mut ToTextState<'g, '_>) -> fmt::Result {
@@ -597,12 +600,13 @@ impl<'g> FromText<'g> for LoopRef<'g> {
     }
 }
 
+impl_display_as_to_text!(<'g> LoopRef<'g>);
+
 impl<'g> ToText<'g> for LoopRef<'g> {
     fn to_text(&self, state: &mut ToTextState<'g, '_>) -> fmt::Result {
-        match state.get_loop_named_id(self.value()) {
-            NewOrOld::New(_) => unreachable!("loop instruction must be written first"),
-            NewOrOld::Old(name) => name.to_text(state),
-        }
+        let name = state.get_loop_named_id(self.value());
+        let name = state.check_name_use(name, "loop definition must be written first");
+        name.to_text(state)
     }
 }
 
@@ -669,13 +673,14 @@ impl<'g> FromText<'g> for Loop<'g> {
     }
 }
 
+impl_display_as_to_text!(<'g> Loop<'g>);
+
 impl<'g> ToText<'g> for Loop<'g> {
     fn to_text(&self, state: &mut ToTextState<'g, '_>) -> fmt::Result {
         write!(state, "{} ", Self::KIND.text())?;
-        match state.get_loop_named_id(self.value()) {
-            NewOrOld::Old(_) => unreachable!("loop instruction must be written first"),
-            NewOrOld::New(name) => name.to_text(state)?,
-        }
+        let name = state.get_loop_named_id(self.value());
+        let name = state.check_name_definition(name, "loop definition must be written first");
+        name.to_text(state)?;
         let LoopData {
             name: _name,
             arguments,
@@ -711,6 +716,8 @@ pub struct ContinueLoop<'g> {
     /// the values assigned to the loop header's `ValueDefinition`s: `self.target_loop.header.argument_definitions`.
     pub loop_arguments: Vec<ValueUse<'g>>,
 }
+
+impl_display_as_to_text!(<'g> ContinueLoop<'g>);
 
 impl<'g> ToText<'g> for ContinueLoop<'g> {
     fn to_text(&self, state: &mut ToTextState<'g, '_>) -> fmt::Result {

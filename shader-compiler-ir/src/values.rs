@@ -199,31 +199,30 @@ impl<'g> FromText<'g> for ValueUse<'g> {
     }
 }
 
+impl_display_as_to_text!(<'g> ValueDefinition<'g>);
+
 impl<'g> ToText<'g> for ValueDefinition<'g> {
     fn to_text(&self, state: &mut ToTextState<'g, '_>) -> fmt::Result {
-        if let NewOrOld::New(name) = state.get_value_named_id(self.value()) {
-            name.to_text(state)?;
-            write!(state, " : ")?;
-            self.value().value_type.to_text(state)
-        } else {
-            panic!("value definition must be written first");
-        }
+        let name = state.get_value_named_id(self.value());
+        let name = state.check_name_definition(name, "value definition must be written first");
+        name.to_text(state)?;
+        write!(state, " : ")?;
+        self.value().value_type.to_text(state)
     }
 }
 
+impl_display_as_to_text!(<'g> ValueUse<'g>);
+
 impl<'g> ToText<'g> for ValueUse<'g> {
     fn to_text(&self, state: &mut ToTextState<'g, '_>) -> fmt::Result {
-        match state.get_value_named_id(self.value()) {
-            NewOrOld::New(name) => {
-                name.to_text(state)?;
-                write!(state, " : ")?;
-                self.value()
-                    .const_value
-                    .get()
-                    .expect("value definition must be written first")
-                    .to_text(state)
-            }
-            NewOrOld::Old(name) => name.to_text(state),
+        let name = state.get_value_named_id(self.value());
+        if let (Some(const_value), NewOrOld::New(name)) = (self.value().const_value.get(), &name) {
+            name.to_text(state)?;
+            write!(state, " : ")?;
+            const_value.to_text(state)
+        } else {
+            let name = state.check_name_use(name, "value definition must be written first");
+            name.to_text(state)
         }
     }
 }

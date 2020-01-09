@@ -87,6 +87,8 @@ macro_rules! impl_instructions {
             }
         }
 
+        impl_display_as_to_text!(<$g> $instruction_kind);
+
         impl<$g> ToText<$g> for $instruction_kind {
             fn to_text(&self, state: &mut ToTextState<$g, '_>) -> fmt::Result {
                 write!(state, "{}", self.text())
@@ -123,6 +125,8 @@ macro_rules! impl_instructions {
                 }
             }
         }
+
+        impl_display_as_to_text!(<$g> $instruction_data<$g>);
 
         impl<$g> ToText<$g> for $instruction_data<$g> {
             fn to_text(&self, state: &mut ToTextState<'g, '_>) -> fmt::Result {
@@ -244,6 +248,8 @@ macro_rules! instructions {
                     }
                 }
 
+                impl_display_as_to_text!(<$g> $instruction<$g>);
+
                 impl<$g> ToText<$g> for $instruction<$g> {
                     fn to_text(&self, state: &mut ToTextState<$g, '_>) -> fmt::Result {
                         write!(state, "{} ", $instruction::KIND.text())?;
@@ -284,6 +290,8 @@ macro_rules! instructions {
                 }
             }
 
+            impl_display_as_to_text!(<'g> BranchTarget<'g>);
+
             impl<'g> ToText<'g> for BranchTarget<'g> {
                 fn to_text(&self, state: &mut ToTextState<'g, '_>) -> fmt::Result {
                     let Self {value,break_block} = self;
@@ -313,6 +321,8 @@ macro_rules! instructions {
                     std::slice::from_ref(&self.variable)
                 }
             }
+
+            impl_display_as_to_text!(<'g> $branch_instruction<'g>);
 
             impl<'g> ToText<'g> for $branch_instruction<'g> {
                 fn to_text(&self, state: &mut ToTextState<'g, '_>) -> fmt::Result {
@@ -445,6 +455,8 @@ impl<'g> CodeIO<'g> for Instruction<'g> {
         self.data.arguments()
     }
 }
+
+impl_display_as_to_text!(<'g> Instruction<'g>);
 
 impl<'g> ToText<'g> for Instruction<'g> {
     fn to_text(&self, state: &mut ToTextState<'g, '_>) -> fmt::Result {

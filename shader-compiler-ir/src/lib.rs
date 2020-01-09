@@ -4,6 +4,10 @@
 
 //! Shader Compiler Intermediate Representation
 
+#[macro_use]
+pub mod text;
+pub mod prelude;
+
 mod block;
 mod consts;
 mod debug_info;
@@ -12,9 +16,6 @@ mod global_state;
 mod instructions_impl;
 mod types;
 mod values;
-
-pub mod prelude;
-pub mod text;
 
 pub use crate::block::*;
 pub use crate::consts::*;

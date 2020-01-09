@@ -235,6 +235,8 @@ pub enum Const<'g> {
     Undef(Interned<'g, Type<'g>>),
     /// a null pointer constant
     Null(PointerType<'g>),
+    /// a function
+    Function(FunctionRef<'g>),
 }
 
 impl<'g> From<bool> for Const<'g> {
@@ -250,6 +252,19 @@ impl<'g> Internable<'g> for bool {
     }
 }
 
+impl<'g> Internable<'g> for FunctionRef<'g> {
+    type Interned = Const<'g>;
+    fn intern(&self, global_state: &'g GlobalState<'g>) -> Interned<'g, Const<'g>> {
+        Const::from(self.clone()).intern(global_state)
+    }
+}
+
+impl<'g> From<FunctionRef<'g>> for Const<'g> {
+    fn from(v: FunctionRef<'g>) -> Self {
+        Const::Function(v)
+    }
+}
+
 impl<'g> Const<'g> {
     /// get `self`'s type
     pub fn get_type(&self, global_state: &'g GlobalState<'g>) -> Interned<'g, Type> {
@@ -260,6 +275,7 @@ impl<'g> Const<'g> {
             Const::Vector(ref const_vector) => const_vector.get_type(global_state),
             Const::Undef(retval) => retval,
             Const::Null(ref pointer_type) => pointer_type.intern(global_state),
+            Const::Function(ref function) => function.function_type.intern(global_state),
         }
     }
 }
@@ -294,6 +310,8 @@ impl<'g> FromText<'g> for ConstInteger {
         Ok(retval)
     }
 }
+
+impl_display_as_to_text!(ConstInteger);
 
 impl<'g> ToText<'g> for ConstInteger {
     fn to_text(&self, state: &mut ToTextState<'g, '_>) -> fmt::Result {
@@ -334,6 +352,8 @@ impl<'g> FromText<'g> for ConstFloat {
         Ok(retval)
     }
 }
+
+impl_display_as_to_text!(ConstFloat);
 
 impl<'g> ToText<'g> for ConstFloat {
     fn to_text(&self, state: &mut ToTextState<'g, '_>) -> fmt::Result {
@@ -395,6 +415,8 @@ impl<'g> FromText<'g> for ConstVector<'g> {
     }
 }
 
+impl_display_as_to_text!(<'g> ConstVector<'g>);
+
 impl<'g> ToText<'g> for ConstVector<'g> {
     fn to_text(&self, state: &mut ToTextState<'g, '_>) -> fmt::Result {
         let mut iter = self.elements.iter().copied();
@@ -433,12 +455,18 @@ impl<'g> FromText<'g> for Const<'g> {
                 state.parse_token()?;
                 Const::Null(PointerType::from_text(state)?)
             }
+            TokenKind::Keyword(Keyword::Fn) => {
+                state.parse_token()?;
+                Const::Function(FunctionRef::from_text(state)?)
+            }
             // FIXME: add scalable vectors
             _ => state.error_at_peek_token("missing constant")?.into(),
         };
         Ok(retval.intern(state.global_state()))
     }
 }
+
+impl_display_as_to_text!(<'g> Const<'g>);
 
 impl<'g> ToText<'g> for Const<'g> {
     fn to_text(&self, state: &mut ToTextState<'g, '_>) -> fmt::Result {
@@ -454,6 +482,10 @@ impl<'g> ToText<'g> for Const<'g> {
             Const::Null(pointer_type) => {
                 write!(state, "null ")?;
                 pointer_type.to_text(state)
+            }
+            Const::Function(function) => {
+                write!(state, "fn ")?;
+                function.to_text(state)
             }
         }
     }
@@ -550,5 +582,6 @@ mod tests {
             }
             .null()
         );
+        // TODO: test Const::Function
     }
 }

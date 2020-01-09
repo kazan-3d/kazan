@@ -10,7 +10,6 @@ use crate::text::FromTextSymbolsState;
 use crate::text::FromTextSymbolsStateBase;
 use crate::text::Keyword;
 use crate::text::NamedId;
-use crate::text::NewOrOld;
 use crate::text::Punctuation;
 use crate::text::ToTextState;
 use crate::Allocate;
@@ -140,12 +139,13 @@ impl<'g> FromText<'g> for FunctionRef<'g> {
     }
 }
 
+impl_display_as_to_text!(<'g> FunctionRef<'g>);
+
 impl<'g> ToText<'g> for FunctionRef<'g> {
     fn to_text(&self, state: &mut ToTextState<'g, '_>) -> fmt::Result {
-        match state.get_function_named_id(self.value()) {
-            NewOrOld::New(_) => unreachable!("function definition must be written first"),
-            NewOrOld::Old(name) => name.to_text(state),
-        }
+        let name = state.get_function_named_id(self.value());
+        let name = state.check_name_use(name, "function definition must be written first");
+        name.to_text(state)
     }
 }
 
@@ -200,10 +200,9 @@ impl<'g> FromText<'g> for Function<'g> {
 impl<'g> ToText<'g> for Function<'g> {
     fn to_text(&self, state: &mut ToTextState<'g, '_>) -> fmt::Result {
         write!(state, "fn ")?;
-        match state.get_function_named_id(self.value()) {
-            NewOrOld::Old(_) => unreachable!("function definition must be written first"),
-            NewOrOld::New(name) => name.to_text(state)?,
-        }
+        let name = state.get_function_named_id(self.value());
+        let name = state.check_name_definition(name, "function definition must be written first");
+        name.to_text(state)?;
         let FunctionData {
             name: _name,
             function_type,
@@ -270,6 +269,49 @@ mod tests {
                 "            -> [];\n",
                 "            block2 {\n",
                 "                continue loop1[];\n",
+                "            }\n",
+                "        };\n",
+                "    }\n",
+                "}"
+            ),
+            Function,
+            function1
+        );
+
+        let block1 = Block::without_body("block1", Uninhabited, global_state);
+        let function1 = Function::new("function1", vec![], block1, global_state);
+        let mut block1_body = Vec::new();
+        let block2 = Block::without_body("block2", Uninhabited, global_state);
+        let mut block2_body = Vec::new();
+        let loop_var_def = ValueDefinition::new(&function1.function_type, "loop_var", global_state);
+        let loop_var = loop_var_def.value();
+        let loop1 = Loop::new(
+            "loop1",
+            vec![ValueUse::from_const(
+                FunctionRef::new(function1.value()),
+                "",
+                global_state,
+            )],
+            vec![loop_var_def],
+            block2,
+            global_state,
+        );
+        block2_body.push(Instruction::without_location(ContinueLoop {
+            target_loop: LoopRef::new(loop1.value()),
+            loop_arguments: vec![ValueUse::new(loop_var)],
+        }));
+        loop1.body.set_body(block2_body);
+        block1_body.push(Instruction::without_location(loop1));
+        function1.body.set_body(block1_body);
+        test_from_to_text!(
+            global_state,
+            concat!(
+                "fn function1[] -> ! {\n",
+                "    block1 {\n",
+                "        loop loop1[\"\"0 : fn function1] -> ! {\n",
+                "            -> [loop_var : *fn[] -> !];\n",
+                "            block2 {\n",
+                "                continue loop1[loop_var];\n",
                 "            }\n",
                 "        };\n",
                 "    }\n",

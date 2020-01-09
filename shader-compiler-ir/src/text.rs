@@ -17,6 +17,19 @@ use std::ops::Range;
 use std::str::FromStr;
 use unicode_width::UnicodeWidthChar;
 
+macro_rules! impl_display_as_to_text {
+    (<$g:lifetime> $ty:ty) => {
+        impl<$g> std::fmt::Display for $ty {
+            fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+                std::fmt::Display::fmt(&<Self as $crate::text::ToText<$g>>::display(self), f)
+            }
+        }
+    };
+    ($ty:ty) => {
+        impl_display_as_to_text!(<'g> $ty);
+    };
+}
+
 /// the struct managing the source code for `FromText`.
 #[derive(Debug)]
 pub struct FromTextSourceCode<'a> {
@@ -1338,6 +1351,8 @@ impl<'g> FromText<'g> for NamedId<'g> {
     }
 }
 
+impl_display_as_to_text!(<'g> NamedId<'g>);
+
 impl<'g> ToText<'g> for NamedId<'g> {
     fn to_text(&self, state: &mut ToTextState<'g, '_>) -> fmt::Result {
         if self.needs_quoted_form() {
@@ -1424,11 +1439,56 @@ pub struct ToTextState<'g, 'w> {
     blocks: NameMap<'g, BlockData<'g>>,
     loops: NameMap<'g, LoopData<'g>>,
     functions: NameMap<'g, FunctionData<'g>>,
+    is_fragment: bool,
 }
 
-impl<'g> ToTextState<'g, '_> {
+impl<'g, 'w> ToTextState<'g, 'w> {
     /// the number of spaces used as an indentation unit.
     pub const INDENT_MULTIPLE: usize = 4;
+    /// true if `ToText` is being used on only a piece of IR rather than the whole IR.
+    /// Used to turn off assertions that names are defined first.
+    pub fn is_fragment(&self) -> bool {
+        self.is_fragment
+    }
+    pub(crate) fn check_name_definition<T>(&self, value: NewOrOld<T>, error_message: &str) -> T {
+        match value {
+            NewOrOld::New(v) => v,
+            NewOrOld::Old(v) => {
+                if !self.is_fragment() {
+                    panic!("{}", error_message);
+                } else {
+                    v
+                }
+            }
+        }
+    }
+    pub(crate) fn check_name_use<T>(&self, value: NewOrOld<T>, error_message: &str) -> T {
+        match value {
+            NewOrOld::Old(v) => v,
+            NewOrOld::New(v) => {
+                if !self.is_fragment() {
+                    panic!("{}", error_message);
+                } else {
+                    v
+                }
+            }
+        }
+    }
+    pub(crate) fn new(
+        base_writer: &'w mut dyn FnMut(&str) -> fmt::Result,
+        is_fragment: bool,
+    ) -> Self {
+        ToTextState {
+            indent: 0,
+            at_start_of_line: true,
+            base_writer,
+            values: NameMap::new(),
+            blocks: NameMap::new(),
+            loops: NameMap::new(),
+            functions: NameMap::new(),
+            is_fragment,
+        }
+    }
     pub(crate) fn get_value_named_id(
         &mut self,
         value: IdRef<'g, Value<'g>>,
@@ -1552,15 +1612,10 @@ pub struct ToTextDisplay<'g, 'a, T: ToText<'g> + ?Sized>(&'a T, PhantomData<&'g 
 
 impl<'g, T: ToText<'g> + ?Sized> fmt::Display for ToTextDisplay<'g, '_, T> {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        self.0.to_text(&mut ToTextState {
-            indent: 0,
-            at_start_of_line: true,
-            base_writer: &mut |text: &str| formatter.write_str(text),
-            values: NameMap::new(),
-            blocks: NameMap::new(),
-            loops: NameMap::new(),
-            functions: NameMap::new(),
-        })
+        self.0.to_text(&mut ToTextState::new(
+            &mut |text: &str| formatter.write_str(text),
+            true,
+        ))
     }
 }
 

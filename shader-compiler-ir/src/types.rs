@@ -390,6 +390,8 @@ macro_rules! impl_from_to_text_for_keyword_type {
             }
         }
 
+        impl_display_as_to_text!(<'g> $type);
+
         impl<'g> ToText<'g> for $type {
             fn to_text(&self, state: &mut ToTextState<'g, '_>) -> fmt::Result {
                 match self {
@@ -476,6 +478,8 @@ impl<'g> FromText<'g> for VectorType<'g> {
     }
 }
 
+impl_display_as_to_text!(<'g> VectorType<'g>);
+
 impl<'g> ToText<'g> for VectorType<'g> {
     fn to_text(&self, state: &mut ToTextState<'g, '_>) -> fmt::Result {
         let VectorType {
@@ -518,12 +522,16 @@ impl<'g> FromText<'g> for PointerType<'g> {
     }
 }
 
+impl_display_as_to_text!(<'g> DataPointerType<'g>);
+
 impl<'g> ToText<'g> for DataPointerType<'g> {
     fn to_text(&self, state: &mut ToTextState<'g, '_>) -> fmt::Result {
         write!(state, "*")?;
         self.pointee.to_text(state)
     }
 }
+
+impl_display_as_to_text!(<'g> PointerType<'g>);
 
 impl<'g> ToText<'g> for PointerType<'g> {
     fn to_text(&self, state: &mut ToTextState<'g, '_>) -> fmt::Result {
@@ -543,6 +551,8 @@ impl<'g> FromText<'g> for OpaqueType<'g> {
             .into()
     }
 }
+
+impl_display_as_to_text!(<'g> OpaqueType<'g>);
 
 impl<'g> ToText<'g> for OpaqueType<'g> {
     fn to_text(&self, _state: &mut ToTextState<'g, '_>) -> fmt::Result {
@@ -567,6 +577,8 @@ impl<'g> FromText<'g> for FunctionPointerType<'g> {
         Ok(FunctionPointerType { arguments, returns })
     }
 }
+
+impl_display_as_to_text!(<'g> FunctionPointerType<'g>);
 
 impl<'g> ToText<'g> for FunctionPointerType<'g> {
     fn to_text(&self, state: &mut ToTextState<'g, '_>) -> fmt::Result {
@@ -622,6 +634,8 @@ impl<'g> FromText<'g> for Type<'g> {
         Ok(retval)
     }
 }
+
+impl_display_as_to_text!(<'g> Type<'g>);
 
 impl<'g> ToText<'g> for Type<'g> {
     fn to_text(&self, state: &mut ToTextState<'g, '_>) -> fmt::Result {
