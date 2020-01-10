@@ -8,10 +8,25 @@ license = "LGPL-2.1-or-later"
 edition = "2018"
 
 [dependencies.typed-arena]
-version = "2"
+# switch to next version once #46 is in released version
+# https://github.com/SimonSapin/rust-typed-arena/pull/46
+#version = "2"
+git = "https://github.com/programmerjake/rust-typed-arena.git"
+rev = "166db86af6c1054e1b6361d5c00a904e75d7ebcf"
+default-features = false
+features = []
 
 [dependencies.once_cell]
 version = "1.2"
+default-features = false
+features = []
 
 [dependencies.unicode-width]
 version = "0.1.7"
+features = ["no_std"]
+
+[dependencies.hashbrown]
+version = "0.6"
+
+[dependencies.ahash]
+version = "0.2"

@@ -5,23 +5,30 @@
 
 use crate::prelude::*;
 use crate::OnceCell;
-use std::borrow::Borrow;
-use std::borrow::BorrowMut;
-use std::collections::hash_map::Entry;
-use std::collections::HashMap;
-use std::error::Error;
-use std::fmt;
-use std::marker::PhantomData;
-use std::mem;
-use std::ops::Range;
-use std::str::FromStr;
+use alloc::string::String;
+use alloc::string::ToString;
+use alloc::vec::Vec;
+use core::borrow::Borrow;
+use core::borrow::BorrowMut;
+use core::fmt;
+use core::marker::PhantomData;
+use core::mem;
+use core::ops::Range;
+use core::str::FromStr;
+use hashbrown::hash_map::Entry;
+use hashbrown::HashMap;
 use unicode_width::UnicodeWidthChar;
 
 macro_rules! impl_display_as_to_text {
     (<$g:lifetime> $ty:ty) => {
-        impl<$g> std::fmt::Display for $ty {
-            fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-                std::fmt::Display::fmt(&<Self as $crate::text::ToText<$g>>::display(self), f)
+        impl<$g> core::fmt::Display for $ty {
+            fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
+                core::fmt::Display::fmt(&<Self as $crate::text::ToText<$g>>::display(self), f)
+            }
+        }
+        impl<$g> core::fmt::Debug for $ty {
+            fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
+                core::fmt::Debug::fmt(&<Self as $crate::text::ToText<$g>>::display(self), f)
             }
         }
     };
@@ -111,8 +118,6 @@ impl fmt::Display for FromTextError {
         write!(f, "{}: error: {}", self.location, self.message)
     }
 }
-
-impl Error for FromTextError {}
 
 /// a location in the source code for `FromText`
 #[derive(Copy, Clone, Debug)]
@@ -599,10 +604,10 @@ impl StringToken<'_> {
             Some('}') => {
                 let value = u32::from_str_radix(digits, 0x10)
                     .map_err(|_| "unicode escape value too big")?;
-                if value > std::char::MAX as u32 {
+                if value > core::char::MAX as u32 {
                     return Err("unicode escape value too big");
                 }
-                std::char::from_u32(value).ok_or("invalid unicode escape value")
+                core::char::from_u32(value).ok_or("invalid unicode escape value")
             }
             _ => Err("invalid escape sequence; unicode escapes must be of the form \\u{1234}"),
         }
@@ -753,8 +758,6 @@ impl fmt::Display for Void {
     }
 }
 
-impl Error for Void {}
-
 impl Void {
     /// convert to `!`, allowing Rust to coerce to any type
     pub fn into(self) -> ! {
@@ -777,7 +780,6 @@ impl FromTextScopeId {
 }
 
 /// the combination of a value and a scope id. Used as the value a name maps to.
-#[derive(Debug)]
 pub struct FromTextSymbol<'g, T: Id<'g>> {
     /// the value that `self` represents.
     pub value: IdRef<'g, T>,
@@ -1280,7 +1282,7 @@ pub trait FromText<'g> {
 }
 
 /// a name plus the integer suffix
-#[derive(Copy, Clone, Hash, Eq, PartialEq, Debug)]
+#[derive(Copy, Clone, Hash, Eq, PartialEq)]
 pub struct NamedId<'g> {
     /// the name
     pub name: Interned<'g, str>,
@@ -1533,7 +1535,7 @@ impl<'g, 'w> ToTextState<'g, 'w> {
         self.indent -= 1;
         Ok(retval)
     }
-    /// rebind `std::fmt::Write::write_fmt` to make it easily visible for use with the `write!` and `writeln!` macros
+    /// rebind `core::fmt::Write::write_fmt` to make it easily visible for use with the `write!` and `writeln!` macros
     #[inline]
     pub fn write_fmt(&mut self, args: fmt::Arguments) -> fmt::Result {
         fmt::Write::write_fmt(self, args)
@@ -1595,7 +1597,7 @@ impl fmt::Write for ToTextState<'_, '_> {
 ///
 /// To convert to a `String` or print or write, use `ToText::display`
 pub trait ToText<'g> {
-    /// produce a value that can be used with `std::fmt`.
+    /// produce a value that can be used with `core::fmt`.
     ///
     /// should not be used from `ToText` implementations, `ToText::to_text` should instead be called.
     fn display(&self) -> ToTextDisplay<'g, '_, Self> {
@@ -1607,7 +1609,7 @@ pub trait ToText<'g> {
     fn to_text(&self, state: &mut ToTextState<'g, '_>) -> fmt::Result;
 }
 
-/// helper struct to allow a type implementing `ToText` to be used with `std::fmt`.
+/// helper struct to allow a type implementing `ToText` to be used with `core::fmt`.
 pub struct ToTextDisplay<'g, 'a, T: ToText<'g> + ?Sized>(&'a T, PhantomData<&'g ()>);
 
 impl<'g, T: ToText<'g> + ?Sized> fmt::Display for ToTextDisplay<'g, '_, T> {

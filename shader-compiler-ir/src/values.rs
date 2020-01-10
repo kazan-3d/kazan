@@ -15,11 +15,11 @@ use crate::text::ToTextState;
 use crate::text::TokenKind;
 use crate::Allocate;
 use crate::OnceCell;
-use std::fmt;
-use std::ops::Deref;
+use core::fmt;
+use core::ops::Deref;
 
 /// the definition of a SSA value -- the point at which the value is assigned to
-#[derive(Eq, PartialEq, Hash, Debug)]
+#[derive(Eq, PartialEq, Hash)]
 pub struct ValueDefinition<'g> {
     value: IdRef<'g, Value<'g>>,
 }
@@ -56,6 +56,7 @@ impl<'g> ValueDefinition<'g> {
         value
             .const_value
             .set(const_value)
+            .ok()
             .expect("invalid Value state");
         value
     }
@@ -73,7 +74,6 @@ impl<'g> Deref for ValueDefinition<'g> {
 }
 
 /// the data for a IR value
-#[derive(Debug)]
 pub struct Value<'g> {
     /// the IR type
     pub value_type: Interned<'g, Type<'g>>,
@@ -106,7 +106,7 @@ impl<'g> Value<'g> {
 }
 
 /// a use of an IR value
-#[derive(Clone, Eq, PartialEq, Hash, Debug)]
+#[derive(Clone, Eq, PartialEq, Hash)]
 pub struct ValueUse<'g> {
     value: IdRef<'g, Value<'g>>,
 }

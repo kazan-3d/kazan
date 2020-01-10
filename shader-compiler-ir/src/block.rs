@@ -16,12 +16,12 @@ use crate::text::TokenKind;
 use crate::Allocate;
 use crate::InstructionKind;
 use crate::OnceCell;
-use std::fmt;
-use std::ops::Deref;
+use alloc::vec::Vec;
+use core::fmt;
+use core::ops::Deref;
 
 /// break out of a block.
 /// jumps to the first instruction after `self.block`.
-#[derive(Debug)]
 pub struct BreakBlock<'g> {
     /// the block to break out of
     pub block: BlockRef<'g>,
@@ -73,7 +73,7 @@ impl<'g> CodeIO<'g> for BreakBlock<'g> {
 }
 
 /// the header of a loop, holds the `ValueDefinition`s assigned at the beginning of each loop iteration
-#[derive(Eq, PartialEq, Hash, Debug)]
+#[derive(Eq, PartialEq, Hash)]
 pub struct LoopHeader<'g> {
     /// the `ValueDefinition`s assigned at the beginning of each loop iteration
     pub argument_definitions: Vec<ValueDefinition<'g>>,
@@ -89,7 +89,6 @@ impl<'g> CodeIO<'g> for LoopHeader<'g> {
 }
 
 /// a block name definition in parsed form; Used for `BlockData::parse_body`
-#[derive(Debug)]
 pub struct ParsedBlockNameDefinition<'g, 't> {
     named_id: NamedId<'g>,
     name_location: TextSpan<'t>,
@@ -115,7 +114,6 @@ impl<'g, 't> ParsedBlockNameDefinition<'g, 't> {
 }
 
 /// the struct storing the data for a `Block`
-#[derive(Debug)]
 pub struct BlockData<'g> {
     /// the name of the `Block` -- doesn't need to be unique
     pub name: Interned<'g, str>,
@@ -164,7 +162,7 @@ impl<'g> CodeIO<'g> for BlockData<'g> {
 }
 
 /// a reference to a `Block`
-#[derive(Clone, Eq, PartialEq, Hash, Debug)]
+#[derive(Clone, Eq, PartialEq, Hash)]
 pub struct BlockRef<'g> {
     value: IdRef<'g, BlockData<'g>>,
 }
@@ -181,7 +179,7 @@ impl<'g> BlockRef<'g> {
 }
 
 /// a block of code
-#[derive(Eq, PartialEq, Hash, Debug)]
+#[derive(Eq, PartialEq, Hash)]
 pub struct Block<'g> {
     value: IdRef<'g, BlockData<'g>>,
 }
@@ -486,7 +484,6 @@ impl<'g> ToText<'g> for Block<'g> {
 }
 
 /// the struct storing the data for a `Loop`
-#[derive(Debug)]
 pub struct LoopData<'g> {
     /// the name of the `Loop` -- doesn't need to be unique
     pub name: Interned<'g, str>,
@@ -521,7 +518,7 @@ impl<'g> CodeIO<'g> for Loop<'g> {
 }
 
 /// a reference to a `Loop`
-#[derive(Clone, Eq, PartialEq, Hash, Debug)]
+#[derive(Clone, Eq, PartialEq, Hash)]
 pub struct LoopRef<'g> {
     value: IdRef<'g, LoopData<'g>>,
 }
@@ -538,7 +535,7 @@ impl<'g> LoopRef<'g> {
 }
 
 /// a loop
-#[derive(Eq, PartialEq, Hash, Debug)]
+#[derive(Eq, PartialEq, Hash)]
 pub struct Loop<'g> {
     value: IdRef<'g, LoopData<'g>>,
 }
@@ -709,7 +706,6 @@ impl<'g> ToText<'g> for Loop<'g> {
 /// continue a loop.
 /// jumps back to the beginning of `self.target_loop`.
 /// only valid when contained inside of `self.target_loop`.
-#[derive(Debug)]
 pub struct ContinueLoop<'g> {
     /// the loop to continue.
     pub target_loop: LoopRef<'g>,
@@ -765,6 +761,7 @@ mod tests {
     use super::*;
     use crate::instructions;
     use crate::IntegerType;
+    use alloc::string::ToString;
 
     #[test]
     fn test_from_to_text() {

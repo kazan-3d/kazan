@@ -6,7 +6,8 @@ use crate::text::FromTextError;
 use crate::text::FromTextState;
 use crate::text::Punctuation;
 use crate::text::ToTextState;
-use std::fmt;
+use alloc::vec::Vec;
+use core::fmt;
 
 macro_rules! impl_instructions {
     (
@@ -33,7 +34,6 @@ macro_rules! impl_instructions {
         )+
 
         /// instruction data
-        #[derive(Debug)]
         pub enum $instruction_data<$g> {
             $(
                 $(#[doc = $instruction_doc])*
@@ -42,7 +42,7 @@ macro_rules! impl_instructions {
         }
 
         /// instruction kind
-        #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
+        #[derive(Copy, Clone, Eq, PartialEq, Hash)]
         pub enum $instruction_kind {
             $(
                 $(#[doc = $instruction_doc])+
@@ -205,7 +205,6 @@ macro_rules! instructions {
 
             $(
                 $(#[doc = $instruction_doc])+
-                #[derive(Debug)]
                 pub struct $instruction<$g> {
                     /// arguments
                     pub arguments: [ValueUse<$g>; $argument_count],
@@ -272,7 +271,6 @@ macro_rules! instructions {
             pub use crate::$break_instruction;
 
             /// the target of a `Branch` instruction
-            #[derive(Debug)]
             pub struct BranchTarget<'g> {
                 /// the value the `Branch` instruction must match for this target to be executed
                 pub value: Interned<'g, Const<'g>>,
@@ -302,7 +300,6 @@ macro_rules! instructions {
             }
 
             $(#[doc = $branch_instruction_doc])+
-            #[derive(Debug)]
             pub struct $branch_instruction<'g> {
                 /// the value to be matched against the list of `BranchTarget`s.
                 pub variable: ValueUse<'g>,
@@ -318,7 +315,7 @@ macro_rules! instructions {
                     Inhabited(&[])
                 }
                 fn arguments(&self) -> &[ValueUse<'g>] {
-                    std::slice::from_ref(&self.variable)
+                    core::slice::from_ref(&self.variable)
                 }
             }
 
@@ -397,7 +394,6 @@ instructions! {
 }
 
 /// a instruction
-#[derive(Debug)]
 pub struct Instruction<'g> {
     /// the debug location of this instruction
     pub location: Option<Interned<'g, Location<'g>>>,

@@ -15,11 +15,11 @@ use crate::text::ToTextState;
 use crate::Allocate;
 use crate::FunctionPointerType;
 use crate::ParsedBlockNameDefinition;
-use std::fmt;
-use std::ops::Deref;
+use alloc::vec::Vec;
+use core::fmt;
+use core::ops::Deref;
 
 /// the function entry, holds the `ValueDefinition`s for the function's arguments
-#[derive(Debug)]
 pub struct FunctionEntry<'g> {
     /// the `ValueDefinition`s for the function's arguments
     pub argument_definitions: Vec<ValueDefinition<'g>>,
@@ -35,7 +35,6 @@ impl<'g> CodeIO<'g> for FunctionEntry<'g> {
 }
 
 /// the struct storing the data for a `Function`
-#[derive(Debug)]
 pub struct FunctionData<'g> {
     /// the name of the `Function` -- doesn't need to be unique
     pub name: Interned<'g, str>,
@@ -51,7 +50,7 @@ pub struct FunctionData<'g> {
 impl<'g> Id<'g> for FunctionData<'g> {}
 
 /// a reference to a `Function`
-#[derive(Clone, Eq, PartialEq, Hash, Debug)]
+#[derive(Clone, Eq, PartialEq, Hash)]
 pub struct FunctionRef<'g> {
     value: IdRef<'g, FunctionData<'g>>,
 }
@@ -68,7 +67,7 @@ impl<'g> FunctionRef<'g> {
 }
 
 /// a function
-#[derive(Eq, PartialEq, Hash, Debug)]
+#[derive(Eq, PartialEq, Hash)]
 pub struct Function<'g> {
     value: IdRef<'g, FunctionData<'g>>,
 }
@@ -229,6 +228,7 @@ impl<'g> ToText<'g> for Function<'g> {
 mod tests {
     use super::*;
     use crate::ContinueLoop;
+    use alloc::string::ToString;
 
     #[test]
     fn test_from_to_text() {

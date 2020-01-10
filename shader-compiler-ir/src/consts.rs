@@ -15,11 +15,12 @@ use crate::FloatType;
 use crate::IntegerType;
 use crate::PointerType;
 use crate::VectorType;
-use std::convert::TryInto;
-use std::fmt;
+use alloc::vec::Vec;
+use core::convert::TryInto;
+use core::fmt;
 
 /// a constant integer
-#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
+#[derive(Copy, Clone, Eq, PartialEq, Hash)]
 pub enum ConstInteger {
     /// a constant 8-bit signed or unsigned integer
     Int8(u8),
@@ -113,7 +114,7 @@ impl ConstInteger {
 }
 
 /// a constant float.
-#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
+#[derive(Copy, Clone, Eq, PartialEq, Hash)]
 pub enum ConstFloat {
     /// a constant 16-bit float. The bits are stored as a `u16` in `Float16.0`.
     Float16(u16),
@@ -148,7 +149,7 @@ impl From<ConstFloat> for Const<'_> {
 }
 
 /// a constant non-scalable non-empty vector.
-#[derive(Clone, Eq, PartialEq, Hash, Debug)]
+#[derive(Clone, Eq, PartialEq, Hash)]
 pub struct ConstVector<'g> {
     element_type: Interned<'g, Type<'g>>,
     elements: Vec<Interned<'g, Const<'g>>>,
@@ -220,7 +221,7 @@ impl<'g> From<ConstVector<'g>> for Const<'g> {
 }
 
 /// a constant.
-#[derive(Clone, Eq, PartialEq, Hash, Debug)]
+#[derive(Clone, Eq, PartialEq, Hash)]
 pub enum Const<'g> {
     /// a constant integer
     Integer(ConstInteger),
@@ -495,6 +496,7 @@ impl<'g> ToText<'g> for Const<'g> {
 mod tests {
     use super::*;
     use crate::FunctionPointerType;
+    use alloc::string::ToString;
 
     #[test]
     fn test_const_from_to_text() {

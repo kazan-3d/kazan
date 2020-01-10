@@ -9,10 +9,11 @@ use crate::text::Keyword;
 use crate::text::Punctuation;
 use crate::text::ToTextState;
 use crate::text::TokenKind;
-use std::convert::TryInto;
-use std::fmt;
-use std::ops::Deref;
-use std::ops::DerefMut;
+use alloc::vec::Vec;
+use core::convert::TryInto;
+use core::fmt;
+use core::ops::Deref;
+use core::ops::DerefMut;
 
 /// extension trait for types
 pub trait GenericType<'g>: Internable<'g, Interned = Type<'g>> {
@@ -35,7 +36,7 @@ pub trait GenericType<'g>: Internable<'g, Interned = Type<'g>> {
 }
 
 /// an integer type
-#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
+#[derive(Copy, Clone, Eq, PartialEq, Hash)]
 pub enum IntegerType {
     /// 8-bit signed or unsigned integer type
     Int8,
@@ -63,7 +64,7 @@ impl From<IntegerType> for Type<'_> {
 }
 
 /// a float type
-#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
+#[derive(Copy, Clone, Eq, PartialEq, Hash)]
 pub enum FloatType {
     /// 16-bit float type
     Float16,
@@ -97,7 +98,7 @@ mod private {
 /// an opaque type.
 ///
 /// currently there aren't any defined opaque types.
-#[derive(Clone, Eq, PartialEq, Hash, Debug)]
+#[derive(Clone, Eq, PartialEq, Hash)]
 pub enum OpaqueType<'g> {
     // TODO: implement
     #[doc(hidden)]
@@ -116,7 +117,7 @@ impl<'g> Internable<'g> for OpaqueType<'g> {
 impl<'g> GenericType<'g> for OpaqueType<'g> {}
 
 /// the `bool` type
-#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
+#[derive(Copy, Clone, Eq, PartialEq, Hash)]
 pub struct BoolType;
 
 impl<'g> Internable<'g> for BoolType {
@@ -135,7 +136,7 @@ impl From<BoolType> for Type<'_> {
 }
 
 /// a pointer type
-#[derive(Clone, Eq, PartialEq, Hash, Debug)]
+#[derive(Clone, Eq, PartialEq, Hash)]
 pub struct DataPointerType<'g> {
     /// the type that this type points to
     pub pointee: Interned<'g, Type<'g>>,
@@ -170,7 +171,7 @@ impl<'g> From<DataPointerType<'g>> for Type<'g> {
 }
 
 /// either a function pointer or a data pointer type
-#[derive(Clone, Eq, PartialEq, Hash, Debug)]
+#[derive(Clone, Eq, PartialEq, Hash)]
 pub enum PointerType<'g> {
     /// a data pointer type
     Data(DataPointerType<'g>),
@@ -206,7 +207,7 @@ impl<'g> GenericType<'g> for PointerType<'g> {}
 /// * a non-scalable vector where the number of elements is just `self.len`
 /// * a scalable vector where the number of elements is a constant multiple (called
 ///   `vscale`) of `self.len`, where `vscale` may not be known till runtime.
-#[derive(Clone, Eq, PartialEq, Hash, Debug)]
+#[derive(Clone, Eq, PartialEq, Hash)]
 pub struct VectorType<'g> {
     /// the number of elements for non-scalable vectors and the multiplier of the number of elements for scalable vectors
     pub len: usize,
@@ -238,7 +239,7 @@ impl<'g> From<OpaqueType<'g>> for Type<'g> {
 }
 
 /// a function pointer type
-#[derive(Clone, Eq, PartialEq, Hash, Debug)]
+#[derive(Clone, Eq, PartialEq, Hash)]
 pub struct FunctionPointerType<'g> {
     /// the function argument types
     pub arguments: Vec<Interned<'g, Type<'g>>>,
@@ -275,7 +276,7 @@ impl<'g> FunctionPointerType<'g> {
 }
 
 /// an IR type
-#[derive(Clone, Eq, PartialEq, Hash, Debug)]
+#[derive(Clone, Eq, PartialEq, Hash)]
 pub enum Type<'g> {
     /// an integer type
     Integer(IntegerType),
@@ -296,7 +297,7 @@ impl<'g> GenericType<'g> for Type<'g> {}
 impl<'g> GenericType<'g> for Interned<'g, Type<'g>> {}
 
 /// if a type or value `T` is inhabited (is reachable)
-#[derive(Clone, Eq, PartialEq, Hash, Debug)]
+#[derive(Clone, Eq, PartialEq, Hash)]
 pub enum Inhabitable<T> {
     /// type or value `T` is inhabited (is reachable)
     Inhabited(T),
@@ -664,6 +665,7 @@ impl<'g> Interned<'g, Type<'g>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use alloc::string::ToString;
 
     #[test]
     fn test_type_from_to_text() {

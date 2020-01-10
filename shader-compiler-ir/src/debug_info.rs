@@ -7,11 +7,11 @@ use crate::text::FromTextState;
 use crate::text::IntegerToken;
 use crate::text::Punctuation;
 use crate::text::ToTextState;
-use std::convert::TryInto;
-use std::fmt;
+use core::convert::TryInto;
+use core::fmt;
 
 /// a debug location
-#[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
+#[derive(Copy, Clone, Eq, PartialEq, Hash)]
 pub struct Location<'g> {
     /// the source file name
     pub file: Interned<'g, str>,

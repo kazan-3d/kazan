@@ -1,8 +1,15 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 // See Notices.txt for copyright information
 #![warn(missing_docs)]
+#![no_std]
 
 //! Shader Compiler Intermediate Representation
+
+#[cfg(test)]
+#[macro_use]
+extern crate std;
+#[macro_use]
+extern crate alloc;
 
 #[macro_use]
 pub mod text;
