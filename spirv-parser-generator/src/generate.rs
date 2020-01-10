@@ -199,14 +199,15 @@ pub(crate) fn generate(
         &mut out,
         "{}",
         stringify!(
-            use std::borrow::Cow;
-            use std::error;
-            use std::fmt;
-            use std::mem;
-            use std::ops::Deref;
-            use std::result;
-            use std::str::Utf8Error;
-            use std::string::FromUtf8Error;
+            use alloc::borrow::Cow;
+            use core::fmt;
+            use core::mem;
+            use core::ops::Deref;
+            use core::result;
+            use core::str::Utf8Error;
+            use alloc::string::FromUtf8Error;
+            use alloc::string::String;
+            use alloc::vec::Vec;
         )
     )?;
     writeln!(
@@ -1611,8 +1612,6 @@ pub(crate) fn generate(
                         }
                     }
                 }
-
-                impl error::Error for Error {}
 
                 type Result<T> = result::Result<T, Error>;
 

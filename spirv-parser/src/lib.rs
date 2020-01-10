@@ -1,9 +1,12 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 // See Notices.txt for copyright information
-
+#![cfg_attr(not(test), no_std)]
 #![allow(clippy::unreadable_literal)]
 #![allow(clippy::cognitive_complexity)]
 #![allow(clippy::redundant_closure_call)]
+
+#[macro_use]
+extern crate alloc;
 
 include!(concat!(env!("OUT_DIR"), "/generated_parser.rs"));
 
