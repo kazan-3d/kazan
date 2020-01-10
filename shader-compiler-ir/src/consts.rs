@@ -83,6 +83,14 @@ impl_const_types! {
     }
 }
 
+impl_const_types! {
+    ConstFloat {
+        Float16(Float16),
+        Float32(Float32),
+        Float64(Float64),
+    }
+}
+
 impl From<ConstInteger> for Const<'_> {
     fn from(v: ConstInteger) -> Self {
         Const::Integer(v)
@@ -97,9 +105,9 @@ impl ConstInteger {
     pub fn bitcast_to_float(self) -> Result<ConstFloat, InvalidFloatSize> {
         match self {
             ConstInteger::Int8(_) => Err(InvalidFloatSize),
-            ConstInteger::Int16(v) => Ok(ConstFloat::Float16(v)),
-            ConstInteger::Int32(v) => Ok(ConstFloat::Float32(v)),
-            ConstInteger::Int64(v) => Ok(ConstFloat::Float64(v)),
+            ConstInteger::Int16(v) => Ok(ConstFloat::Float16(Float16(v))),
+            ConstInteger::Int32(v) => Ok(ConstFloat::Float32(Float32(v))),
+            ConstInteger::Int64(v) => Ok(ConstFloat::Float64(Float64(v))),
         }
     }
     /// get `self`'s type
@@ -113,15 +121,27 @@ impl ConstInteger {
     }
 }
 
+/// a constant 16-bit float. The bits are stored as a `u16` in `Float16.0`.
+#[derive(Copy, Clone, Eq, PartialEq, Hash)]
+pub struct Float16(pub u16);
+
+/// a constant 32-bit float. The bits are stored as a `u32` in `Float32.0`.
+#[derive(Copy, Clone, Eq, PartialEq, Hash)]
+pub struct Float32(pub u32);
+
+/// a constant 64-bit float. The bits are stored as a `u64` in `Float64.0`.
+#[derive(Copy, Clone, Eq, PartialEq, Hash)]
+pub struct Float64(pub u64);
+
 /// a constant float.
 #[derive(Copy, Clone, Eq, PartialEq, Hash)]
 pub enum ConstFloat {
-    /// a constant 16-bit float. The bits are stored as a `u16` in `Float16.0`.
-    Float16(u16),
-    /// a constant 32-bit float. The bits are stored as a `u32` in `Float32.0`.
-    Float32(u32),
-    /// a constant 64-bit float. The bits are stored as a `u64` in `Float64.0`.
-    Float64(u64),
+    /// a constant 16-bit float.
+    Float16(Float16),
+    /// a constant 32-bit float.
+    Float32(Float32),
+    /// a constant 64-bit float.
+    Float64(Float64),
 }
 
 impl<'g> Internable<'g> for ConstFloat {
@@ -339,9 +359,9 @@ impl<'g> FromText<'g> for ConstFloat {
             state.error_at_peek_token("integer literal must not have suffix")?;
         }
         let retval = match float_type {
-            FloatType::Float16 => value.try_into().map(ConstFloat::Float16),
-            FloatType::Float32 => value.try_into().map(ConstFloat::Float32),
-            FloatType::Float64 => Ok(value).map(ConstFloat::Float64),
+            FloatType::Float16 => value.try_into().map(Float16).map(Into::into),
+            FloatType::Float32 => value.try_into().map(Float32).map(Into::into),
+            FloatType::Float64 => Ok(value).map(Float64).map(Into::into),
         };
         let retval = match retval {
             Ok(retval) => retval,
@@ -356,12 +376,30 @@ impl<'g> FromText<'g> for ConstFloat {
 
 impl_display_as_to_text!(ConstFloat);
 
+impl<'g> ToText<'g> for Float16 {
+    fn to_text(&self, state: &mut ToTextState<'g, '_>) -> fmt::Result {
+        write!(state, "f16 {:#X}", self.0)
+    }
+}
+
+impl<'g> ToText<'g> for Float32 {
+    fn to_text(&self, state: &mut ToTextState<'g, '_>) -> fmt::Result {
+        write!(state, "f32 {:#X}", self.0)
+    }
+}
+
+impl<'g> ToText<'g> for Float64 {
+    fn to_text(&self, state: &mut ToTextState<'g, '_>) -> fmt::Result {
+        write!(state, "f64 {:#X}", self.0)
+    }
+}
+
 impl<'g> ToText<'g> for ConstFloat {
     fn to_text(&self, state: &mut ToTextState<'g, '_>) -> fmt::Result {
-        match *self {
-            ConstFloat::Float16(v) => write!(state, "f16 {:#X}", v),
-            ConstFloat::Float32(v) => write!(state, "f32 {:#X}", v),
-            ConstFloat::Float64(v) => write!(state, "f64 {:#X}", v),
+        match self {
+            ConstFloat::Float16(v) => v.to_text(state),
+            ConstFloat::Float32(v) => v.to_text(state),
+            ConstFloat::Float64(v) => v.to_text(state),
         }
     }
 }
@@ -530,16 +568,12 @@ mod tests {
             "0xFFFFFFFFFFFFFFFFi64",
             0xFFFF_FFFF_FFFF_FFFFu64
         );
-        test_const!(global_state, "f16 0xF000", ConstFloat::Float16(0xF000));
-        test_const!(
-            global_state,
-            "f32 0xFF000000",
-            ConstFloat::Float32(0xFF00_0000)
-        );
+        test_const!(global_state, "f16 0xF000", Float16(0xF000));
+        test_const!(global_state, "f32 0xFF000000", Float32(0xFF00_0000));
         test_const!(
             global_state,
             "f64 0xFF00000000000000",
-            ConstFloat::Float64(0xFF00_0000_0000_0000)
+            Float64(0xFF00_0000_0000_0000)
         );
         test_const!(
             global_state,
