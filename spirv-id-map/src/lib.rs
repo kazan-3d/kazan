@@ -13,8 +13,9 @@ use core::iter;
 use core::marker::PhantomData;
 use core::mem;
 use core::slice;
+use spirv_parser::IdRef;
 
-#[derive(Debug)]
+#[derive(Clone, Eq, PartialEq, Hash, Debug)]
 pub struct IdOutOfBounds;
 
 impl fmt::Display for IdOutOfBounds {
@@ -24,6 +25,7 @@ impl fmt::Display for IdOutOfBounds {
 }
 
 pub trait Id: Copy + Eq + 'static {
+    const ZERO: Self;
     fn map_index(self) -> Result<usize, IdOutOfBounds>;
     fn from_map_index_checked(index: usize) -> Option<Self>;
     fn from_map_index(index: usize) -> Self {
@@ -35,7 +37,8 @@ pub trait Id: Copy + Eq + 'static {
     }
 }
 
-impl Id for spirv_parser::IdRef {
+impl Id for IdRef {
+    const ZERO: Self = IdRef(0);
     fn map_index(self) -> Result<usize, IdOutOfBounds> {
         usize::try_from(self.0)
             .map_err(|_| IdOutOfBounds)?
@@ -50,11 +53,12 @@ impl Id for spirv_parser::IdRef {
 macro_rules! impl_id {
     ($t:ty) => {
         impl Id for $t {
+            const ZERO: Self = Self(IdRef(0));
             fn map_index(self) -> Result<usize, IdOutOfBounds> {
                 self.0.map_index()
             }
             fn from_map_index_checked(index: usize) -> Option<Self> {
-                spirv_parser::IdRef::from_map_index_checked(index).map(Self)
+                IdRef::from_map_index_checked(index).map(Self)
             }
         }
     };
@@ -76,7 +80,7 @@ pub struct IdMap<K: Id, V> {
 
 impl<K: Id, V> IdMap<K, V> {
     pub fn new(id_bound: u32) -> Self {
-        let values = (0..id_bound).map(|_| None).collect();
+        let values = (1..id_bound).map(|_| None).collect();
         Self {
             values,
             len: 0,
@@ -462,5 +466,48 @@ impl<K: Id + fmt::Debug, V: fmt::Debug> fmt::Debug for Entry<'_, K, V> {
             Vacant(v) => f.debug_tuple("Entry").field(v).finish(),
             Occupied(v) => f.debug_tuple("Entry").field(v).finish(),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn check_map<K: Id + fmt::Debug, V: Eq + Copy + fmt::Debug>(
+        map: &mut IdMap<K, V>,
+        expected_map: &[(K, V)],
+    ) {
+        let map_entries: Vec<_> = map.iter().map(|(k, &v)| (k, v)).collect();
+        let map_entries2: Vec<_> = map.iter_mut().map(|(k, v)| (k, *v)).collect();
+        assert_eq!(map_entries.len(), map.len());
+        assert_eq!(map_entries, expected_map);
+        assert_eq!(map_entries2, expected_map);
+    }
+
+    #[test]
+    fn test_map() {
+        const BOUND: u32 = 10;
+        let mut map = IdMap::<spirv_parser::IdRef, i32>::new(BOUND);
+        let map = &mut map;
+        check_map(map, &[]);
+        assert_eq!(map.insert(IdRef(0), 0), Err(IdOutOfBounds));
+        check_map(map, &[]);
+        assert_eq!(map.insert(IdRef(1), 0), Ok(None));
+        check_map(map, &[(IdRef(1), 0)]);
+        assert_eq!(map.insert(IdRef(1), 2), Ok(Some(0)));
+        check_map(map, &[(IdRef(1), 2)]);
+        assert_eq!(map.insert(IdRef(BOUND), 4), Err(IdOutOfBounds));
+        check_map(map, &[(IdRef(1), 2)]);
+        assert_eq!(map.insert(IdRef(BOUND - 1), 4), Ok(None));
+        check_map(map, &[(IdRef(1), 2), (IdRef(BOUND - 1), 4)]);
+        assert_eq!(map.remove(IdRef(BOUND - 1)), Ok(Some(4)));
+        check_map(map, &[(IdRef(1), 2)]);
+        assert_eq!(map.remove(IdRef(BOUND - 1)), Ok(None));
+        check_map(map, &[(IdRef(1), 2)]);
+        assert_eq!(map.remove(IdRef(0)), Err(IdOutOfBounds));
+        check_map(map, &[(IdRef(1), 2)]);
+        assert_eq!(map.remove(IdRef(!0)), Err(IdOutOfBounds));
+        check_map(map, &[(IdRef(1), 2)]);
+        // TODO: add more tests
     }
 }
