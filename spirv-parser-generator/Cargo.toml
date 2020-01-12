@@ -14,6 +14,6 @@ crate-type = ["rlib"]
 serde_json = "1.0"
 serde = "1.0"
 serde_derive = "1.0"
-proc-macro2 = { version = "0.4", default-features = false }
-quote = { version = "0.6", default-features = false }
+proc-macro2 = { version = "1.0", default-features = false }
+quote = { version = "1.0", default-features = false }
 which = "3"
