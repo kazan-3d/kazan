@@ -804,20 +804,30 @@ pub(crate) fn generate(
         }
     }
     {
+        let mut instruction_enumerant_structs = Vec::new();
         let mut instruction_enumerants = Vec::new();
         let mut spec_constant_op_instruction_enumerants = Vec::new();
         let mut instruction_parse_cases = Vec::new();
         let mut instruction_display_cases = Vec::new();
         let mut instruction_spec_constant_parse_cases = Vec::new();
         let mut instruction_spec_constant_display_cases = Vec::new();
+        let mut instruction_extension_enumerant_structs = Vec::new();
         let mut instruction_extension_enumerants = Vec::new();
         let mut instruction_extension_parse_cases = Vec::new();
         let mut instruction_extension_display_cases = Vec::new();
         for parsed_extension_instruction_set in &parsed_extension_instruction_sets {
             let extension_instruction_set = &parsed_extension_instruction_set.enumerant_name;
             for instruction in &parsed_extension_instruction_set.ast.instructions {
-                let instruction_enumerant_name = new_combined_id(
+                let instruction_enumerant_name_without_op = new_combined_id(
                     &[
+                        parsed_extension_instruction_set.spirv_instruction_set_name,
+                        instruction.opname.as_ref(),
+                    ],
+                    CamelCase,
+                );
+                let instruction_enumerant_name_with_op = new_combined_id(
+                    &[
+                        "Op",
                         parsed_extension_instruction_set.spirv_instruction_set_name,
                         instruction.opname.as_ref(),
                     ],
@@ -833,15 +843,20 @@ pub(crate) fn generate(
                         Some(ast::Quantifier::Optional) => quote! {Option<#kind>},
                         Some(ast::Quantifier::Variadic) => quote! {Vec<#kind>},
                     };
-                    fields.push(quote! {#name: #kind});
+                    fields.push(quote! {pub #name: #kind});
                 }
-                let instruction_extension_enumerant = quote! {
-                    #instruction_enumerant_name {
-                        id_result_type: IdResultType,
-                        id_result: IdResult,
-                        set: IdRef,
+                let instruction_extension_enumerant_struct = quote! {
+                    #[derive(Clone, Debug)]
+                    pub struct #instruction_enumerant_name_with_op {
+                        pub id_result_type: IdResultType,
+                        pub id_result: IdResult,
+                        pub set: IdRef,
                         #(#fields,)*
                     }
+                };
+                instruction_extension_enumerant_structs.push(instruction_extension_enumerant_struct);
+                let instruction_extension_enumerant = quote! {
+                    #instruction_enumerant_name_without_op(#instruction_enumerant_name_with_op)
                 };
                 instruction_extension_enumerants.push(instruction_extension_enumerant);
                 let mut parse_operations = Vec::new();
@@ -867,12 +882,14 @@ pub(crate) fn generate(
                 let body = quote! {
                     #(#parse_operations)*
                     if words.is_empty() {
-                        Ok(Instruction::#instruction_enumerant_name {
-                            id_result_type,
-                            id_result,
-                            set,
-                            #(#operand_names,)*
-                        })
+                        Ok(Instruction::#instruction_enumerant_name_without_op(
+                            #instruction_enumerant_name_with_op {
+                                id_result_type,
+                                id_result,
+                                set,
+                                #(#operand_names,)*
+                            }
+                        ))
                     } else {
                         Err(Error::InstructionTooLong)
                     }
@@ -885,12 +902,14 @@ pub(crate) fn generate(
                 instruction_extension_parse_cases.push(instruction_extension_parse_case);
                 let display_opname = &instruction.opname;
                 let instruction_extension_display_case = quote! {
-                    Instruction::#instruction_enumerant_name {
-                        id_result_type,
-                        id_result,
-                        set,
-                        #(#operand_names,)*
-                    } => split_fn!({
+                    Instruction::#instruction_enumerant_name_without_op(
+                        #instruction_enumerant_name_with_op {
+                            id_result_type,
+                            id_result,
+                            set,
+                            #(#operand_names,)*
+                        }
+                    ) => split_fn!({
                         write!(
                             f,
                             "{}OpExtInst {} {} {}",
@@ -909,7 +928,8 @@ pub(crate) fn generate(
         let instruction_extension_parse_cases = &instruction_extension_parse_cases;
         for instruction in core_instructions.iter() {
             let opcode = instruction.opcode;
-            let opname = new_id(remove_initial_op(instruction.opname.as_ref()), CamelCase);
+            let opname_without_op = new_id(remove_initial_op(instruction.opname.as_ref()), CamelCase);
+            let opname_with_op = new_id(instruction.opname.as_ref(), CamelCase);
             let display_opname = instruction.opname.as_ref();
             let display_opname_without_initial_op = remove_initial_op(display_opname);
             let instruction_parse_case;
@@ -922,7 +942,7 @@ pub(crate) fn generate(
                             IdState::ExtensionInstructionSet(ExtensionInstructionSet::from(&*name)),
                         )?;
                         if words.is_empty() {
-                            Ok(Instruction::ExtInstImport { id_result, name })
+                            Ok(Instruction::ExtInstImport(OpExtInstImport { id_result, name }))
                         } else {
                             Err(Error::InstructionTooLong)
                         }
@@ -933,7 +953,7 @@ pub(crate) fn generate(
                         #body
                     }),};
                     instruction_display_case = quote! {
-                        Instruction::ExtInstImport { id_result, name } => split_fn!({
+                        Instruction::ExtInstImport(OpExtInstImport { id_result, name }) => split_fn!({
                             writeln!(f, "{}{} {:?}", InstructionIndentAndResult(Some(*id_result)), #display_opname, name)
                         }),
                     };
@@ -945,13 +965,13 @@ pub(crate) fn generate(
                             IdState::ExtensionInstructionSet(ExtensionInstructionSet::Other(_)) => {
                                 let (operands, words) = Vec::<LiteralInteger32>::spirv_parse(words, parse_state)?;
                                 if words.is_empty() {
-                                    return Ok(Instruction::ExtInst {
+                                    return Ok(Instruction::ExtInst(OpExtInst {
                                         id_result_type,
                                         id_result,
                                         set,
                                         instruction,
                                         operands,
-                                    });
+                                    }));
                                 } else {
                                     return Err(Error::InstructionTooLong);
                                 }
@@ -977,13 +997,13 @@ pub(crate) fn generate(
                         }),
                     };
                     instruction_display_case = quote! {
-                        Instruction::ExtInst {
+                        Instruction::ExtInst(OpExtInst {
                             id_result_type,
                             id_result,
                             set,
                             instruction,
                             operands,
-                        } => split_fn!({
+                        }) => split_fn!({
                             write!(f, "{}{}", InstructionIndentAndResult(Some(*id_result)), #display_opname)?;
                             id_result_type.spirv_display(f)?;
                             set.spirv_display(f)?;
@@ -1003,11 +1023,11 @@ pub(crate) fn generate(
                         };
                         parse_state.define_id(id_result, id_state)?;
                         if words.is_empty() {
-                            Ok(Instruction::TypeInt {
+                            Ok(Instruction::TypeInt(OpTypeInt {
                                 id_result,
                                 width,
                                 signedness,
-                            })
+                            }))
                         } else {
                             Err(Error::InstructionTooLong)
                         }
@@ -1020,11 +1040,11 @@ pub(crate) fn generate(
                         }),
                     };
                     instruction_display_case = quote! {
-                        Instruction::TypeInt {
+                        Instruction::TypeInt(OpTypeInt {
                             id_result,
                             width,
                             signedness,
-                        } => split_fn!({
+                        }) => split_fn!({
                             write!(
                                 f,
                                 "{}{}",
@@ -1049,17 +1069,17 @@ pub(crate) fn generate(
                             };
                             parse_state.define_id(id_result, id_state)?;
                             if words.is_empty() {
-                                Ok(Instruction::TypeFloat {
+                                Ok(Instruction::TypeFloat(OpTypeFloat {
                                     id_result,
                                     width,
-                                })
+                                }))
                             } else {
                                 Err(Error::InstructionTooLong)
                             }
                         }),
                     };
                     instruction_display_case = quote! {
-                        Instruction::TypeFloat { id_result, width } => split_fn!({
+                        Instruction::TypeFloat(OpTypeFloat { id_result, width }) => split_fn!({
                             write!(
                                 f,
                                 "{}{}",
@@ -1076,11 +1096,11 @@ pub(crate) fn generate(
                         IdState::Value(IdStateValue(BitWidth::Width32OrLess)) => {
                             let (target, words) = Vec::<PairLiteralInteger32IdRef>::spirv_parse(words, parse_state)?;
                             if words.is_empty() {
-                                Ok(Instruction::Switch32 {
+                                Ok(Instruction::Switch32(OpSwitch32 {
                                     selector,
                                     default,
                                     target,
-                                })
+                                }))
                             } else {
                                 Err(Error::InstructionTooLong)
                             }
@@ -1090,11 +1110,11 @@ pub(crate) fn generate(
                         IdState::Value(IdStateValue(BitWidth::Width64)) => {
                             let (target, words) = Vec::<PairLiteralInteger64IdRef>::spirv_parse(words, parse_state)?;
                             if words.is_empty() {
-                                Ok(Instruction::Switch64 {
+                                Ok(Instruction::Switch64(OpSwitch64 {
                                     selector,
                                     default,
                                     target,
-                                })
+                                }))
                             } else {
                                 Err(Error::InstructionTooLong)
                             }
@@ -1112,11 +1132,11 @@ pub(crate) fn generate(
                         }),
                     };
                     instruction_display_case = quote! {
-                        Instruction::Switch32 {
+                        Instruction::Switch32(OpSwitch32 {
                             selector,
                             default,
                             target,
-                        } => split_fn!({
+                        }) => split_fn!({
                             write!(
                                 f,
                                 "{}{}",
@@ -1128,11 +1148,11 @@ pub(crate) fn generate(
                             target.spirv_display(f)?;
                             writeln!(f)
                         }),
-                        Instruction::Switch64 {
+                        Instruction::Switch64(OpSwitch64 {
                             selector,
                             default,
                             target,
-                        } => split_fn!({
+                        }) => split_fn!({
                             write!(
                                 f,
                                 "{}{}",
@@ -1155,11 +1175,11 @@ pub(crate) fn generate(
                         IdStateType(BitWidth::Width32OrLess) => {
                             let (value, words) = LiteralContextDependentNumber32::spirv_parse(words, parse_state)?;
                             if words.is_empty() {
-                                Ok(Instruction::Constant32 {
+                                Ok(Instruction::Constant32(OpConstant32 {
                                     id_result_type,
                                     id_result,
                                     value,
-                                })
+                                }))
                             } else {
                                 Err(Error::InstructionTooLong)
                             }
@@ -1169,11 +1189,11 @@ pub(crate) fn generate(
                         IdStateType(BitWidth::Width64) => {
                             let (value, words) = LiteralContextDependentNumber64::spirv_parse(words, parse_state)?;
                             if words.is_empty() {
-                                Ok(Instruction::Constant64 {
+                                Ok(Instruction::Constant64(OpConstant64 {
                                     id_result_type,
                                     id_result,
                                     value,
-                                })
+                                }))
                             } else {
                                 Err(Error::InstructionTooLong)
                             }
@@ -1191,11 +1211,11 @@ pub(crate) fn generate(
                         }),
                     };
                     instruction_display_case = quote! {
-                        Instruction::Constant32 {
+                        Instruction::Constant32(OpConstant32 {
                             id_result_type,
                             id_result,
                             value,
-                        } => split_fn!({
+                        }) => split_fn!({
                             write!(
                                 f,
                                 "{}{}",
@@ -1205,11 +1225,11 @@ pub(crate) fn generate(
                             id_result_type.spirv_display(f)?;
                             writeln!(f, " {:#010X}", value)
                         }),
-                        Instruction::Constant64 {
+                        Instruction::Constant64(OpConstant64 {
                             id_result_type,
                             id_result,
                             value,
-                        } => split_fn!({
+                        }) => split_fn!({
                             write!(
                                 f,
                                 "{}{}",
@@ -1230,11 +1250,11 @@ pub(crate) fn generate(
                         IdStateType(BitWidth::Width32OrLess) => {
                             let (value, words) = LiteralContextDependentNumber32::spirv_parse(words, parse_state)?;
                             if words.is_empty() {
-                                Ok(Instruction::SpecConstant32 {
+                                Ok(Instruction::SpecConstant32(OpSpecConstant32 {
                                     id_result_type,
                                     id_result,
                                     value,
-                                })
+                                }))
                             } else {
                                 Err(Error::InstructionTooLong)
                             }
@@ -1244,11 +1264,11 @@ pub(crate) fn generate(
                         IdStateType(BitWidth::Width64) => {
                             let (value, words) = LiteralContextDependentNumber64::spirv_parse(words, parse_state)?;
                             if words.is_empty() {
-                                Ok(Instruction::SpecConstant64 {
+                                Ok(Instruction::SpecConstant64(OpSpecConstant64 {
                                     id_result_type,
                                     id_result,
                                     value,
-                                })
+                                }))
                             } else {
                                 Err(Error::InstructionTooLong)
                             }
@@ -1266,11 +1286,11 @@ pub(crate) fn generate(
                         }),
                     };
                     instruction_display_case = quote! {
-                        Instruction::SpecConstant32 {
+                        Instruction::SpecConstant32(OpSpecConstant32 {
                             id_result_type,
                             id_result,
                             value,
-                        } => split_fn!({
+                        }) => split_fn!({
                             write!(
                                 f,
                                 "{}{}",
@@ -1280,11 +1300,11 @@ pub(crate) fn generate(
                             id_result_type.spirv_display(f)?;
                             writeln!(f, " {:#010X}", value)
                         }),
-                        Instruction::SpecConstant64 {
+                        Instruction::SpecConstant64(OpSpecConstant64 {
                             id_result_type,
                             id_result,
                             value,
-                        } => split_fn!({
+                        }) => split_fn!({
                             write!(
                                 f,
                                 "{}{}",
@@ -1304,13 +1324,13 @@ pub(crate) fn generate(
                     instruction_parse_case = quote! {#opcode => split_fn!({
                         let (operation, words) = OpSpecConstantOp::spirv_parse(words, parse_state)?;
                         if words.is_empty() {
-                            Ok(Instruction::#opname { operation })
+                            Ok(Instruction::#opname_without_op(operation))
                         } else {
                             Err(Error::InstructionTooLong)
                         }
                     }),};
                     instruction_display_case = quote! {
-                        Instruction::#opname { operation } => fmt::Display::fmt(operation, f),
+                        Instruction::#opname_without_op(operation) => fmt::Display::fmt(operation, f),
                     };
                 }
                 _ => {
@@ -1354,9 +1374,9 @@ pub(crate) fn generate(
                     instruction_parse_case = quote! {#opcode => split_fn!({
                         #(#parse_operations)*
                         if words.is_empty() {
-                            Ok(Instruction::#opname {
+                            Ok(Instruction::#opname_without_op(#opname_with_op {
                                 #(#operand_names,)*
-                            })
+                            }))
                         } else {
                             Err(Error::InstructionTooLong)
                         }
@@ -1366,7 +1386,9 @@ pub(crate) fn generate(
                         Some(result_name) => quote! {Some(*#result_name)},
                     };
                     instruction_display_case = quote! {
-                        Instruction::#opname { #(#operand_names,)* } => split_fn!({
+                        Instruction::#opname_without_op(#opname_with_op {
+                            #(#operand_names,)*
+                        }) => split_fn!({
                             write!(f, "{}{}", InstructionIndentAndResult(#result_value), #display_opname)?;
                             #(#display_operations)*
                             writeln!(f)
@@ -1376,15 +1398,15 @@ pub(crate) fn generate(
             }
             instruction_parse_cases.push(instruction_parse_case);
             instruction_display_cases.push(instruction_display_case);
-            let instruction_enumerant =
+            let instruction_enumerant = quote! {#opname_without_op(#opname_with_op)};
+            let instruction_enumerant_struct =
                 if instruction.opname == ast::InstructionName::OpSpecConstantOp {
-                    quote! {
-                        #opname {
-                            operation: OpSpecConstantOp,
-                        }
-                    }
+                    quote! {}
                 } else if instruction.operands.is_empty() {
-                    quote! {#opname}
+                    quote! {
+                        #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
+                        pub struct #opname_with_op;
+                    }
                 } else {
                     let mut fields = Vec::new();
                     for operand in instruction.operands.iter() {
@@ -1395,10 +1417,11 @@ pub(crate) fn generate(
                             Some(ast::Quantifier::Optional) => quote! {Option<#kind>},
                             Some(ast::Quantifier::Variadic) => quote! {Vec<#kind>},
                         };
-                        fields.push(quote! {#name: #kind});
+                        fields.push(quote! {pub #name: #kind});
                     }
                     quote! {
-                        #opname {
+                        #[derive(Clone, Debug)]
+                        pub struct #opname_with_op {
                             #(#fields,)*
                         }
                     }
@@ -1442,17 +1465,17 @@ pub(crate) fn generate(
                 instruction_spec_constant_parse_cases.push(quote! {#opcode => {
                     #(#parse_operations)*
                     if words.is_empty() {
-                        Ok((OpSpecConstantOp::#opname {
+                        Ok((OpSpecConstantOp::#opname_without_op(#opname_with_op {
                             #(#operand_names,)*
-                        }, words))
+                        }), words))
                     } else {
                         Err(Error::InstructionTooLong)
                     }
                 }});
                 instruction_spec_constant_display_cases.push(quote!{
-                    OpSpecConstantOp::#opname {
+                    OpSpecConstantOp::#opname_without_op(#opname_with_op {
                         #(#operand_names,)*
-                    } => {
+                    }) => {
                         write!(f, "{}{}", InstructionIndentAndResult(Some(*id_result)), "OpSpecConstantOp")?;
                         id_result_type.spirv_display(f)?;
                         write!(f, " {}", #display_opname_without_initial_op)?;
@@ -1461,6 +1484,7 @@ pub(crate) fn generate(
                     }
                 });
             }
+            instruction_enumerant_structs.push(instruction_enumerant_struct);
             instruction_enumerants.push(instruction_enumerant);
         }
         writeln!(
@@ -1490,6 +1514,9 @@ pub(crate) fn generate(
             &mut out,
             "{}",
             quote! {
+                #(#instruction_enumerant_structs)*
+                #(#instruction_extension_enumerant_structs)*
+
                 #[derive(Clone, Debug)]
                 pub enum Instruction {
                     #(#instruction_enumerants,)*
