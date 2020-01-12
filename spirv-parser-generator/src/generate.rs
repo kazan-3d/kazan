@@ -853,8 +853,15 @@ pub(crate) fn generate(
                         pub set: IdRef,
                         #(#fields,)*
                     }
+
+                    impl From<#instruction_enumerant_name_with_op> for Instruction {
+                        fn from(v: #instruction_enumerant_name_with_op) -> Self {
+                            Self::#instruction_enumerant_name_without_op(v)
+                        }
+                    }
                 };
-                instruction_extension_enumerant_structs.push(instruction_extension_enumerant_struct);
+                instruction_extension_enumerant_structs
+                    .push(instruction_extension_enumerant_struct);
                 let instruction_extension_enumerant = quote! {
                     #instruction_enumerant_name_without_op(#instruction_enumerant_name_with_op)
                 };
@@ -928,7 +935,8 @@ pub(crate) fn generate(
         let instruction_extension_parse_cases = &instruction_extension_parse_cases;
         for instruction in core_instructions.iter() {
             let opcode = instruction.opcode;
-            let opname_without_op = new_id(remove_initial_op(instruction.opname.as_ref()), CamelCase);
+            let opname_without_op =
+                new_id(remove_initial_op(instruction.opname.as_ref()), CamelCase);
             let opname_with_op = new_id(instruction.opname.as_ref(), CamelCase);
             let display_opname = instruction.opname.as_ref();
             let display_opname_without_initial_op = remove_initial_op(display_opname);
@@ -1401,11 +1409,22 @@ pub(crate) fn generate(
             let instruction_enumerant = quote! {#opname_without_op(#opname_with_op)};
             let instruction_enumerant_struct =
                 if instruction.opname == ast::InstructionName::OpSpecConstantOp {
-                    quote! {}
+                    quote! {
+                        impl From<#opname_with_op> for Instruction {
+                            fn from(v: #opname_with_op) -> Self {
+                                Self::#opname_without_op(v)
+                            }
+                        }
+                    }
                 } else if instruction.operands.is_empty() {
                     quote! {
                         #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
                         pub struct #opname_with_op;
+                        impl From<#opname_with_op> for Instruction {
+                            fn from(v: #opname_with_op) -> Self {
+                                Self::#opname_without_op(v)
+                            }
+                        }
                     }
                 } else {
                     let mut fields = Vec::new();
@@ -1423,6 +1442,11 @@ pub(crate) fn generate(
                         #[derive(Clone, Debug)]
                         pub struct #opname_with_op {
                             #(#fields,)*
+                        }
+                        impl From<#opname_with_op> for Instruction {
+                            fn from(v: #opname_with_op) -> Self {
+                                Self::#opname_without_op(v)
+                            }
                         }
                     }
                 };
