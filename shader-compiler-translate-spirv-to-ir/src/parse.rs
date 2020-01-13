@@ -5,8 +5,10 @@
 pub(crate) mod instruction_dispatch;
 
 mod capability;
+mod entry_point;
 mod ext_inst_import;
 mod extension;
+mod memory_model;
 mod unimplemented_instructions;
 
 use crate::errors::InvalidSPIRVInstructionInSection;
@@ -16,19 +18,9 @@ use crate::TranslationState;
 use spirv_parser::*;
 
 pub(crate) trait ParseInstruction: Clone + Into<Instruction> {
-    fn parse_in_entry_point_section<'g, 'i>(
-        &'i self,
-        _state: &mut TranslationState<'g, 'i>,
-    ) -> TranslationResult<()> {
-        Err(InvalidSPIRVInstructionInSection {
-            instruction: self.clone().into(),
-            section_name: "OpEntryPoint",
-        }
-        .into())
-    }
     fn parse_in_execution_mode_section<'g, 'i>(
         &'i self,
-        state: &mut TranslationState<'g, 'i>,
+        _state: &mut TranslationState<'g, 'i>,
     ) -> TranslationResult<()> {
         Err(InvalidSPIRVInstructionInSection {
             instruction: self.clone().into(),
@@ -38,7 +30,7 @@ pub(crate) trait ParseInstruction: Clone + Into<Instruction> {
     }
     fn parse_in_debug_strings_sources_section<'g, 'i>(
         &'i self,
-        state: &mut TranslationState<'g, 'i>,
+        _state: &mut TranslationState<'g, 'i>,
     ) -> TranslationResult<()> {
         Err(InvalidSPIRVInstructionInSection {
             instruction: self.clone().into(),
@@ -48,7 +40,7 @@ pub(crate) trait ParseInstruction: Clone + Into<Instruction> {
     }
     fn parse_in_debug_names_section<'g, 'i>(
         &'i self,
-        state: &mut TranslationState<'g, 'i>,
+        _state: &mut TranslationState<'g, 'i>,
     ) -> TranslationResult<()> {
         Err(InvalidSPIRVInstructionInSection {
             instruction: self.clone().into(),
@@ -58,7 +50,7 @@ pub(crate) trait ParseInstruction: Clone + Into<Instruction> {
     }
     fn parse_in_module_processed_section<'g, 'i>(
         &'i self,
-        state: &mut TranslationState<'g, 'i>,
+        _state: &mut TranslationState<'g, 'i>,
     ) -> TranslationResult<()> {
         Err(InvalidSPIRVInstructionInSection {
             instruction: self.clone().into(),
@@ -68,7 +60,7 @@ pub(crate) trait ParseInstruction: Clone + Into<Instruction> {
     }
     fn parse_in_annotations_section<'g, 'i>(
         &'i self,
-        state: &mut TranslationState<'g, 'i>,
+        _state: &mut TranslationState<'g, 'i>,
     ) -> TranslationResult<()> {
         Err(InvalidSPIRVInstructionInSection {
             instruction: self.clone().into(),
@@ -78,7 +70,7 @@ pub(crate) trait ParseInstruction: Clone + Into<Instruction> {
     }
     fn parse_in_types_section<'g, 'i>(
         &'i self,
-        state: &mut TranslationState<'g, 'i>,
+        _state: &mut TranslationState<'g, 'i>,
     ) -> TranslationResult<()> {
         Err(InvalidSPIRVInstructionInSection {
             instruction: self.clone().into(),
@@ -89,12 +81,6 @@ pub(crate) trait ParseInstruction: Clone + Into<Instruction> {
 }
 
 impl ParseInstruction for Instruction {
-    fn parse_in_entry_point_section<'g, 'i>(
-        &'i self,
-        state: &mut TranslationState<'g, 'i>,
-    ) -> TranslationResult<()> {
-        instruction_dispatch!(self, v, v.parse_in_entry_point_section(state))
-    }
     fn parse_in_execution_mode_section<'g, 'i>(
         &'i self,
         state: &mut TranslationState<'g, 'i>,
@@ -149,9 +135,9 @@ impl<'g, 'i> TranslationState<'g, 'i> {
         self.parse_capability_section()?;
         self.parse_extension_section()?;
         self.parse_ext_inst_import_section()?;
+        self.parse_memory_model_section()?;
+        self.parse_entry_point_section()?;
         todo!()
-        // TODO: memory model section
-        // TODO: entry point section
         // TODO: execution mode section
         // TODO: debug strings/sources section
         // TODO: debug names section

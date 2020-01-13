@@ -8,12 +8,6 @@ use crate::TranslationState;
 macro_rules! unimplemented_instruction {
     ($opname:ident) => {
         impl ParseInstruction for spirv_parser::$opname {
-            fn parse_in_entry_point_section<'g, 'i>(
-                &'i self,
-                _state: &mut TranslationState<'g, 'i>,
-            ) -> TranslationResult<()> {
-                todo!(concat!("unimplemented instruction: ", stringify!($opname)))
-            }
             fn parse_in_execution_mode_section<'g, 'i>(
                 &'i self,
                 _state: &mut TranslationState<'g, 'i>,
@@ -64,8 +58,6 @@ unimplemented_instruction!(OpMemberName);
 unimplemented_instruction!(OpString);
 unimplemented_instruction!(OpLine);
 unimplemented_instruction!(OpExtInst);
-unimplemented_instruction!(OpMemoryModel);
-unimplemented_instruction!(OpEntryPoint);
 unimplemented_instruction!(OpExecutionMode);
 unimplemented_instruction!(OpTypeVoid);
 unimplemented_instruction!(OpTypeBool);

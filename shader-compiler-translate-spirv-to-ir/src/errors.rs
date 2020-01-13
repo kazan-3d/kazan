@@ -69,6 +69,61 @@ impl fmt::Display for SPIRVCapabilityNotSupported {
     }
 }
 
+#[derive(Debug)]
+pub struct SPIRVMemoryModelNotSupported {
+    pub memory_model: spirv_parser::MemoryModel,
+}
+
+impl fmt::Display for SPIRVMemoryModelNotSupported {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "SPIR-V memory model \"{:?}\" not supported",
+            self.memory_model
+        )
+    }
+}
+
+#[derive(Debug)]
+pub struct MissingSPIRVOpMemoryModel;
+
+impl fmt::Display for MissingSPIRVOpMemoryModel {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "missing SPIR-V OpMemoryModel instruction")
+    }
+}
+
+#[derive(Debug)]
+pub struct SPIRVAddressingModelNotSupported {
+    pub addressing_model: spirv_parser::AddressingModel,
+}
+
+impl fmt::Display for SPIRVAddressingModelNotSupported {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "SPIR-V addressing model \"{:?}\" not supported",
+            self.addressing_model
+        )
+    }
+}
+
+#[derive(Debug)]
+pub struct DuplicateSPIRVEntryPoint {
+    pub name: String,
+    pub execution_model: spirv_parser::ExecutionModel,
+}
+
+impl fmt::Display for DuplicateSPIRVEntryPoint {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "duplicate SPIR-V entry point with name \"{:?}\" and execution model {:?}",
+            self.name, self.execution_model
+        )
+    }
+}
+
 macro_rules! impl_translation_error {
     ($($error:ident($wrapped_error:ty),)+) => {
         $(
@@ -106,6 +161,10 @@ impl_translation_error! {
     FormattingFailed(fmt::Error),
     SPIRVExtensionNotSupported(SPIRVExtensionNotSupported),
     SPIRVExtensionInstructionSetNotSupported(SPIRVExtensionInstructionSetNotSupported),
+    SPIRVMemoryModelNotSupported(SPIRVMemoryModelNotSupported),
+    MissingSPIRVOpMemoryModel(MissingSPIRVOpMemoryModel),
+    SPIRVAddressingModelNotSupported(SPIRVAddressingModelNotSupported),
+    DuplicateSPIRVEntryPoint(DuplicateSPIRVEntryPoint),
 }
 
 pub(crate) type TranslationResult<T> = Result<T, TranslationError>;

@@ -56,7 +56,11 @@ impl<'g, 'i> TranslationState<'g, 'i> {
                 writeln!(self.debug_output, "added capability: {:?}", capability)?;
                 self.enabled_capabilities
                     .extend(dependencies.iter().copied());
-                writeln!(self.debug_output, "added dependency capabilities: {:?}", dependencies)?;
+                writeln!(
+                    self.debug_output,
+                    "added dependency capabilities: {:?}",
+                    dependencies
+                )?;
                 return Ok(());
             }
         }

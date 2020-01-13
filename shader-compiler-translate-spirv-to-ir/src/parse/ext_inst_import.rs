@@ -14,7 +14,10 @@ impl<'g, 'i> TranslationState<'g, 'i> {
         &mut self,
         instruction: &'i OpExtInstImport,
     ) -> TranslationResult<()> {
-        let OpExtInstImport { id_result, name } = instruction;
+        let OpExtInstImport {
+            id_result: _id_result,
+            name,
+        } = instruction;
         match ExtensionInstructionSet::from(&**name) {
             ExtensionInstructionSet::GLSLStd450 | ExtensionInstructionSet::OpenCLStd => Ok(()),
             ExtensionInstructionSet::Other(name) => {

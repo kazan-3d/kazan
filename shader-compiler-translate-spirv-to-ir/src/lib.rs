@@ -20,6 +20,7 @@ use shader_compiler_ir::prelude::*;
 use spirv_id_map::IdMap;
 use spirv_parser::Capability;
 use spirv_parser::Decoration;
+use spirv_parser::ExecutionModel;
 
 pub struct UnresolvedSpecialization {
     pub constant_id: u32,
@@ -96,17 +97,25 @@ struct MemberDecoration {
 #[derive(Debug, Clone)]
 struct SPIRVInstructionsLocation<'i>(iter::Enumerate<slice::Iter<'i, spirv_parser::Instruction>>);
 
+#[derive(Debug)]
+struct EntryPoint {
+    entry_point_id: spirv_parser::IdRef,
+    interface_variables: HashSet<spirv_parser::IdRef>,
+}
+
 struct TranslationState<'g, 'i> {
     global_state: &'g GlobalState<'g>,
     specialization_resolver: &'i mut dyn SpecializationResolver,
     debug_output: &'i mut dyn fmt::Write,
     entry_point_name: &'i str,
+    entry_point_execution_model: ExecutionModel,
     decorations_map: IdMap<spirv_parser::IdRef, Vec<Decoration>>,
     member_decorations_map: IdMap<spirv_parser::IdRef, Vec<MemberDecoration>>,
     spirv_header: spirv_parser::Header,
     spirv_instructions: &'i [spirv_parser::Instruction],
     spirv_instructions_location: SPIRVInstructionsLocation<'i>,
     enabled_capabilities: HashSet<Capability>,
+    entry_point: Option<EntryPoint>,
 }
 
 impl<'g, 'i> TranslationState<'g, 'i> {
@@ -115,6 +124,7 @@ impl<'g, 'i> TranslationState<'g, 'i> {
         specialization_resolver: &'i mut dyn SpecializationResolver,
         debug_output: &'i mut dyn fmt::Write,
         entry_point_name: &'i str,
+        entry_point_execution_model: ExecutionModel,
         spirv_header: spirv_parser::Header,
         spirv_instructions: &'i [spirv_parser::Instruction],
     ) -> Self {
@@ -123,6 +133,7 @@ impl<'g, 'i> TranslationState<'g, 'i> {
             specialization_resolver,
             debug_output,
             entry_point_name,
+            entry_point_execution_model,
             decorations_map: IdMap::new(spirv_header.bound),
             member_decorations_map: IdMap::new(spirv_header.bound),
             spirv_header,
@@ -131,6 +142,7 @@ impl<'g, 'i> TranslationState<'g, 'i> {
                 spirv_instructions.iter().enumerate(),
             ),
             enabled_capabilities: HashSet::new(),
+            entry_point: None,
         }
     }
     fn translate(&mut self) -> Result<TranslatedSPIRVShader<'g>, TranslationError> {
@@ -150,6 +162,7 @@ impl<'g> TranslatedSPIRVShader<'g> {
         specialization_resolver: &'i mut dyn SpecializationResolver,
         debug_output: &'i mut dyn fmt::Write,
         entry_point_name: &'i str,
+        entry_point_execution_model: ExecutionModel,
         spirv_code: &'i [u32],
     ) -> Result<Self, TranslationError> {
         let spirv_parser = spirv_parser::Parser::start(spirv_code)?;
@@ -160,6 +173,7 @@ impl<'g> TranslatedSPIRVShader<'g> {
             specialization_resolver,
             debug_output,
             entry_point_name,
+            entry_point_execution_model,
             spirv_header,
             &spirv_instructions,
         )
@@ -181,7 +195,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore] // not completely implemented yet
+    #[ignore] // FIXME: parsing not completely implemented yet; remove #[ignore] once implemented
     fn simple_test() {
         let spirv_code = &[
             0x0723_0203,
@@ -420,6 +434,7 @@ mod tests {
             &mut crate::DefaultSpecializationResolver,
             &mut PrintOutput,
             "main",
+            spirv_parser::ExecutionModel::Vertex,
             spirv_code,
         )
         .unwrap();
