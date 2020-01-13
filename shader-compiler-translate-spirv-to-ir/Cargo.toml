@@ -15,3 +15,6 @@ path = "../spirv-parser"
 
 [dependencies.spirv-id-map]
 path = "../spirv-id-map"
+
+[dependencies.hashbrown]
+version = "0.6"
