@@ -1,15 +1,37 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 // See Notices.txt for copyright information
 
+use crate::parse::memory_model::TranslationStateParsedMemoryModel;
 use crate::parse::ParseInstruction;
 use crate::DuplicateSPIRVEntryPoint;
-use crate::EntryPoint;
+use crate::MatchingSPIRVEntryPointNotFound;
 use crate::TranslationResult;
-use crate::TranslationState;
+use alloc::string::ToString;
+use hashbrown::HashSet;
 use spirv_parser::Instruction;
 use spirv_parser::OpEntryPoint;
 
-impl<'g, 'i> TranslationState<'g, 'i> {
+struct EntryPoint {
+    id: spirv_parser::IdRef,
+    interface_variables: HashSet<spirv_parser::IdRef>,
+}
+
+decl_translation_state! {
+    pub(crate) struct TranslationStateParsedEntryPoints<'g, 'i> {
+        base: TranslationStateParsedMemoryModel<'g, 'i>,
+        entry_point_id: spirv_parser::IdRef,
+        entry_point_interface_variables: HashSet<spirv_parser::IdRef>,
+    }
+}
+
+decl_translation_state! {
+    struct TranslationStateParsingEntryPoints<'g, 'i> {
+        base: TranslationStateParsedMemoryModel<'g, 'i>,
+        entry_point: Option<EntryPoint>,
+    }
+}
+
+impl<'g, 'i> TranslationStateParsingEntryPoints<'g, 'i> {
     fn parse_entry_point_instruction(
         &mut self,
         instruction: &'i OpEntryPoint,
@@ -29,23 +51,50 @@ impl<'g, 'i> TranslationState<'g, 'i> {
                 .into());
             }
             self.entry_point = Some(EntryPoint {
-                entry_point_id: entry_point,
+                id: entry_point,
                 interface_variables: interface.iter().copied().collect(),
             });
         }
         Ok(())
     }
-    pub(crate) fn parse_entry_point_section(&mut self) -> TranslationResult<()> {
-        writeln!(self.debug_output, "parsing OpEntryPoint section")?;
-        while let Some((instruction, location)) = self.get_instruction_and_location()? {
+}
+
+impl<'g, 'i> TranslationStateParsedMemoryModel<'g, 'i> {
+    pub(crate) fn parse_entry_point_section(
+        self,
+    ) -> TranslationResult<TranslationStateParsedEntryPoints<'g, 'i>> {
+        let mut state = TranslationStateParsingEntryPoints {
+            base: self,
+            entry_point: None,
+        };
+        writeln!(state.debug_output, "parsing OpEntryPoint section")?;
+        while let Some((instruction, location)) = state.get_instruction_and_location()? {
             if let Instruction::EntryPoint(instruction) = instruction {
-                self.parse_entry_point_instruction(instruction)?;
+                state.parse_entry_point_instruction(instruction)?;
             } else {
-                self.spirv_instructions_location = location;
+                state.spirv_instructions_location = location;
                 break;
             }
         }
-        Ok(())
+        match state {
+            TranslationStateParsingEntryPoints {
+                base,
+                entry_point:
+                    Some(EntryPoint {
+                        id: entry_point_id,
+                        interface_variables: entry_point_interface_variables,
+                    }),
+            } => Ok(TranslationStateParsedEntryPoints {
+                base,
+                entry_point_id,
+                entry_point_interface_variables,
+            }),
+            _ => Err(MatchingSPIRVEntryPointNotFound {
+                name: state.entry_point_name.to_string(),
+                execution_model: state.entry_point_execution_model,
+            }
+            .into()),
+        }
     }
 }
 

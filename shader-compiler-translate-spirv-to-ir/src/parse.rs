@@ -1,11 +1,43 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 // See Notices.txt for copyright information
 
+macro_rules! decl_translation_state {
+    (
+        $vis:vis struct $state_name:ident<$g:lifetime, $i:lifetime> {
+            base: $base_type:ty,
+            $(
+                $member_name:ident: $member_type:ty,
+            )*
+        }
+    ) => {
+        $vis struct $state_name<$g, $i> {
+            $vis base: $base_type,
+            $(
+                $vis $member_name: $member_type,
+            )*
+        }
+
+        impl<$g, $i> core::ops::Deref for $state_name<$g, $i> {
+            type Target = $base_type;
+            fn deref(&self) -> &Self::Target {
+                &self.base
+            }
+        }
+
+        impl<$g, $i> core::ops::DerefMut for $state_name<$g, $i> {
+            fn deref_mut(&mut self) -> &mut Self::Target {
+                &mut self.base
+            }
+        }
+    };
+}
+
 #[macro_use]
 pub(crate) mod instruction_dispatch;
 
 mod capability;
 mod entry_point;
+mod execution_mode;
 mod ext_inst_import;
 mod extension;
 mod memory_model;
@@ -14,23 +46,13 @@ mod unimplemented_instructions;
 use crate::errors::InvalidSPIRVInstructionInSection;
 use crate::SPIRVInstructionsLocation;
 use crate::TranslationResult;
-use crate::TranslationState;
+use crate::TranslationStateBase;
 use spirv_parser::*;
 
 pub(crate) trait ParseInstruction: Clone + Into<Instruction> {
-    fn parse_in_execution_mode_section<'g, 'i>(
-        &'i self,
-        _state: &mut TranslationState<'g, 'i>,
-    ) -> TranslationResult<()> {
-        Err(InvalidSPIRVInstructionInSection {
-            instruction: self.clone().into(),
-            section_name: "OpExecutionMode",
-        }
-        .into())
-    }
     fn parse_in_debug_strings_sources_section<'g, 'i>(
         &'i self,
-        _state: &mut TranslationState<'g, 'i>,
+        _state: &mut TranslationStateBase<'g, 'i>,
     ) -> TranslationResult<()> {
         Err(InvalidSPIRVInstructionInSection {
             instruction: self.clone().into(),
@@ -40,7 +62,7 @@ pub(crate) trait ParseInstruction: Clone + Into<Instruction> {
     }
     fn parse_in_debug_names_section<'g, 'i>(
         &'i self,
-        _state: &mut TranslationState<'g, 'i>,
+        _state: &mut TranslationStateBase<'g, 'i>,
     ) -> TranslationResult<()> {
         Err(InvalidSPIRVInstructionInSection {
             instruction: self.clone().into(),
@@ -50,7 +72,7 @@ pub(crate) trait ParseInstruction: Clone + Into<Instruction> {
     }
     fn parse_in_module_processed_section<'g, 'i>(
         &'i self,
-        _state: &mut TranslationState<'g, 'i>,
+        _state: &mut TranslationStateBase<'g, 'i>,
     ) -> TranslationResult<()> {
         Err(InvalidSPIRVInstructionInSection {
             instruction: self.clone().into(),
@@ -60,7 +82,7 @@ pub(crate) trait ParseInstruction: Clone + Into<Instruction> {
     }
     fn parse_in_annotations_section<'g, 'i>(
         &'i self,
-        _state: &mut TranslationState<'g, 'i>,
+        _state: &mut TranslationStateBase<'g, 'i>,
     ) -> TranslationResult<()> {
         Err(InvalidSPIRVInstructionInSection {
             instruction: self.clone().into(),
@@ -70,7 +92,7 @@ pub(crate) trait ParseInstruction: Clone + Into<Instruction> {
     }
     fn parse_in_types_section<'g, 'i>(
         &'i self,
-        _state: &mut TranslationState<'g, 'i>,
+        _state: &mut TranslationStateBase<'g, 'i>,
     ) -> TranslationResult<()> {
         Err(InvalidSPIRVInstructionInSection {
             instruction: self.clone().into(),
@@ -81,45 +103,39 @@ pub(crate) trait ParseInstruction: Clone + Into<Instruction> {
 }
 
 impl ParseInstruction for Instruction {
-    fn parse_in_execution_mode_section<'g, 'i>(
-        &'i self,
-        state: &mut TranslationState<'g, 'i>,
-    ) -> TranslationResult<()> {
-        instruction_dispatch!(self, v, v.parse_in_execution_mode_section(state))
-    }
     fn parse_in_debug_strings_sources_section<'g, 'i>(
         &'i self,
-        state: &mut TranslationState<'g, 'i>,
+        state: &mut TranslationStateBase<'g, 'i>,
     ) -> TranslationResult<()> {
         instruction_dispatch!(self, v, v.parse_in_debug_strings_sources_section(state))
     }
     fn parse_in_debug_names_section<'g, 'i>(
         &'i self,
-        state: &mut TranslationState<'g, 'i>,
+        state: &mut TranslationStateBase<'g, 'i>,
     ) -> TranslationResult<()> {
         instruction_dispatch!(self, v, v.parse_in_debug_names_section(state))
     }
     fn parse_in_module_processed_section<'g, 'i>(
         &'i self,
-        state: &mut TranslationState<'g, 'i>,
+        state: &mut TranslationStateBase<'g, 'i>,
     ) -> TranslationResult<()> {
         instruction_dispatch!(self, v, v.parse_in_module_processed_section(state))
     }
     fn parse_in_annotations_section<'g, 'i>(
         &'i self,
-        state: &mut TranslationState<'g, 'i>,
+        state: &mut TranslationStateBase<'g, 'i>,
     ) -> TranslationResult<()> {
         instruction_dispatch!(self, v, v.parse_in_annotations_section(state))
     }
     fn parse_in_types_section<'g, 'i>(
         &'i self,
-        state: &mut TranslationState<'g, 'i>,
+        state: &mut TranslationStateBase<'g, 'i>,
     ) -> TranslationResult<()> {
         instruction_dispatch!(self, v, v.parse_in_types_section(state))
     }
 }
 
-impl<'g, 'i> TranslationState<'g, 'i> {
+impl<'g, 'i> TranslationStateBase<'g, 'i> {
     fn get_instruction_and_location(
         &mut self,
     ) -> TranslationResult<Option<(&'i Instruction, SPIRVInstructionsLocation<'i>)>> {
@@ -131,14 +147,14 @@ impl<'g, 'i> TranslationState<'g, 'i> {
             Ok(None)
         }
     }
-    pub(crate) fn parse(&mut self) -> TranslationResult<()> {
-        self.parse_capability_section()?;
-        self.parse_extension_section()?;
-        self.parse_ext_inst_import_section()?;
-        self.parse_memory_model_section()?;
-        self.parse_entry_point_section()?;
+    pub(crate) fn parse(self) -> TranslationResult<()> {
+        self.parse_capability_section()?
+            .parse_extension_section()?
+            .parse_ext_inst_import_section()?
+            .parse_memory_model_section()?
+            .parse_entry_point_section()?
+            .parse_execution_mode_section()?;
         todo!()
-        // TODO: execution mode section
         // TODO: debug strings/sources section
         // TODO: debug names section
         // TODO: module processed section

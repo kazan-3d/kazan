@@ -1,18 +1,24 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 // See Notices.txt for copyright information
 
+use crate::parse::ext_inst_import::TranslationStateParsedExtInstImports;
 use crate::parse::ParseInstruction;
 use crate::MissingSPIRVOpMemoryModel;
 use crate::SPIRVAddressingModelNotSupported;
 use crate::SPIRVMemoryModelNotSupported;
 use crate::TranslationResult;
-use crate::TranslationState;
 use spirv_parser::AddressingModel;
 use spirv_parser::Instruction;
 use spirv_parser::MemoryModel;
 use spirv_parser::OpMemoryModel;
 
-impl<'g, 'i> TranslationState<'g, 'i> {
+decl_translation_state! {
+    pub(crate) struct TranslationStateParsedMemoryModel<'g, 'i> {
+        base: TranslationStateParsedExtInstImports<'g, 'i>,
+    }
+}
+
+impl<'g, 'i> TranslationStateParsedMemoryModel<'g, 'i> {
     fn parse_memory_model_instruction(
         &mut self,
         instruction: &'i OpMemoryModel,
@@ -30,12 +36,19 @@ impl<'g, 'i> TranslationState<'g, 'i> {
             _ => Err(SPIRVAddressingModelNotSupported { addressing_model }.into()),
         }
     }
-    pub(crate) fn parse_memory_model_section(&mut self) -> TranslationResult<()> {
-        writeln!(self.debug_output, "parsing OpMemoryModel section")?;
+}
+
+impl<'g, 'i> TranslationStateParsedExtInstImports<'g, 'i> {
+    pub(crate) fn parse_memory_model_section(
+        self,
+    ) -> TranslationResult<TranslationStateParsedMemoryModel<'g, 'i>> {
+        let mut state = TranslationStateParsedMemoryModel { base: self };
+        writeln!(state.debug_output, "parsing OpMemoryModel section")?;
         if let Some((Instruction::MemoryModel(instruction), _)) =
-            self.get_instruction_and_location()?
+            state.get_instruction_and_location()?
         {
-            self.parse_memory_model_instruction(instruction)
+            state.parse_memory_model_instruction(instruction)?;
+            Ok(state)
         } else {
             Err(MissingSPIRVOpMemoryModel.into())
         }

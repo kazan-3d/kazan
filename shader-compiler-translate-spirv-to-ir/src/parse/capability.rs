@@ -4,10 +4,18 @@
 use crate::parse::ParseInstruction;
 use crate::SPIRVCapabilityNotSupported;
 use crate::TranslationResult;
-use crate::TranslationState;
+use crate::TranslationStateBase;
+use hashbrown::HashSet;
 use spirv_parser::Capability;
 use spirv_parser::Instruction;
 use spirv_parser::OpCapability;
+
+decl_translation_state! {
+    pub(crate) struct TranslationStateParsedCapabilities<'g, 'i> {
+        base: TranslationStateBase<'g, 'i>,
+        enabled_capabilities: HashSet<Capability>,
+    }
+}
 
 #[derive(Copy, Clone, Debug)]
 struct CapabilityAndDependencies<'a> {
@@ -40,7 +48,7 @@ supported_capabilities_and_dependencies! {
     Int8 => [],
 }
 
-impl<'g, 'i> TranslationState<'g, 'i> {
+impl<'g, 'i> TranslationStateParsedCapabilities<'g, 'i> {
     fn parse_capability_instruction(
         &mut self,
         instruction: &'i OpCapability,
@@ -66,17 +74,26 @@ impl<'g, 'i> TranslationState<'g, 'i> {
         }
         Err(SPIRVCapabilityNotSupported { capability }.into())
     }
-    pub(crate) fn parse_capability_section(&mut self) -> TranslationResult<()> {
-        writeln!(self.debug_output, "parsing OpCapability section")?;
-        while let Some((instruction, location)) = self.get_instruction_and_location()? {
+}
+
+impl<'g, 'i> TranslationStateBase<'g, 'i> {
+    pub(crate) fn parse_capability_section(
+        self,
+    ) -> TranslationResult<TranslationStateParsedCapabilities<'g, 'i>> {
+        let mut state = TranslationStateParsedCapabilities {
+            base: self,
+            enabled_capabilities: HashSet::new(),
+        };
+        writeln!(state.debug_output, "parsing OpCapability section")?;
+        while let Some((instruction, location)) = state.get_instruction_and_location()? {
             if let Instruction::Capability(instruction) = instruction {
-                self.parse_capability_instruction(instruction)?;
+                state.parse_capability_instruction(instruction)?;
             } else {
-                self.spirv_instructions_location = location;
+                state.spirv_instructions_location = location;
                 break;
             }
         }
-        Ok(())
+        Ok(state)
     }
 }
 

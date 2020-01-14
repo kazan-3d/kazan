@@ -18,3 +18,8 @@ path = "../spirv-id-map"
 
 [dependencies.hashbrown]
 version = "0.6"
+
+[dependencies.once_cell]
+version = "1.2"
+default-features = false
+features = []

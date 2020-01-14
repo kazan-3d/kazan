@@ -15,10 +15,7 @@ use alloc::vec::Vec;
 use core::fmt;
 use core::iter;
 use core::slice;
-use hashbrown::HashSet;
-use shader_compiler_ir::prelude::*;
-use spirv_id_map::IdMap;
-use spirv_parser::Capability;
+use shader_compiler_ir::GlobalState;
 use spirv_parser::Decoration;
 use spirv_parser::ExecutionModel;
 
@@ -97,28 +94,18 @@ struct MemberDecoration {
 #[derive(Debug, Clone)]
 struct SPIRVInstructionsLocation<'i>(iter::Enumerate<slice::Iter<'i, spirv_parser::Instruction>>);
 
-#[derive(Debug)]
-struct EntryPoint {
-    entry_point_id: spirv_parser::IdRef,
-    interface_variables: HashSet<spirv_parser::IdRef>,
-}
-
-struct TranslationState<'g, 'i> {
+struct TranslationStateBase<'g, 'i> {
     global_state: &'g GlobalState<'g>,
     specialization_resolver: &'i mut dyn SpecializationResolver,
     debug_output: &'i mut dyn fmt::Write,
     entry_point_name: &'i str,
     entry_point_execution_model: ExecutionModel,
-    decorations_map: IdMap<spirv_parser::IdRef, Vec<Decoration>>,
-    member_decorations_map: IdMap<spirv_parser::IdRef, Vec<MemberDecoration>>,
     spirv_header: spirv_parser::Header,
     spirv_instructions: &'i [spirv_parser::Instruction],
     spirv_instructions_location: SPIRVInstructionsLocation<'i>,
-    enabled_capabilities: HashSet<Capability>,
-    entry_point: Option<EntryPoint>,
 }
 
-impl<'g, 'i> TranslationState<'g, 'i> {
+impl<'g, 'i> TranslationStateBase<'g, 'i> {
     fn new(
         global_state: &'g GlobalState<'g>,
         specialization_resolver: &'i mut dyn SpecializationResolver,
@@ -134,18 +121,14 @@ impl<'g, 'i> TranslationState<'g, 'i> {
             debug_output,
             entry_point_name,
             entry_point_execution_model,
-            decorations_map: IdMap::new(spirv_header.bound),
-            member_decorations_map: IdMap::new(spirv_header.bound),
             spirv_header,
             spirv_instructions,
             spirv_instructions_location: SPIRVInstructionsLocation(
                 spirv_instructions.iter().enumerate(),
             ),
-            enabled_capabilities: HashSet::new(),
-            entry_point: None,
         }
     }
-    fn translate(&mut self) -> Result<TranslatedSPIRVShader<'g>, TranslationError> {
+    fn translate(self) -> Result<TranslatedSPIRVShader<'g>, TranslationError> {
         self.parse()?;
         todo!()
     }
@@ -168,7 +151,7 @@ impl<'g> TranslatedSPIRVShader<'g> {
         let spirv_parser = spirv_parser::Parser::start(spirv_code)?;
         let spirv_header = *spirv_parser.header();
         let spirv_instructions = spirv_parser.collect::<Result<Vec<_>, spirv_parser::Error>>()?;
-        TranslationState::new(
+        TranslationStateBase::new(
             global_state,
             specialization_resolver,
             debug_output,

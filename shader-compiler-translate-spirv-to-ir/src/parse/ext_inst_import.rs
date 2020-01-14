@@ -1,15 +1,21 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 // See Notices.txt for copyright information
 
+use crate::parse::extension::TranslationStateParsedExtensions;
 use crate::parse::ParseInstruction;
 use crate::SPIRVExtensionInstructionSetNotSupported;
 use crate::TranslationResult;
-use crate::TranslationState;
 use spirv_parser::ExtensionInstructionSet;
 use spirv_parser::Instruction;
 use spirv_parser::OpExtInstImport;
 
-impl<'g, 'i> TranslationState<'g, 'i> {
+decl_translation_state! {
+    pub(crate) struct TranslationStateParsedExtInstImports<'g, 'i> {
+        base: TranslationStateParsedExtensions<'g, 'i>,
+    }
+}
+
+impl<'g, 'i> TranslationStateParsedExtInstImports<'g, 'i> {
     fn parse_ext_inst_import_instruction(
         &mut self,
         instruction: &'i OpExtInstImport,
@@ -25,17 +31,23 @@ impl<'g, 'i> TranslationState<'g, 'i> {
             }
         }
     }
-    pub(crate) fn parse_ext_inst_import_section(&mut self) -> TranslationResult<()> {
-        writeln!(self.debug_output, "parsing OpExtInstImport section")?;
-        while let Some((instruction, location)) = self.get_instruction_and_location()? {
+}
+
+impl<'g, 'i> TranslationStateParsedExtensions<'g, 'i> {
+    pub(crate) fn parse_ext_inst_import_section(
+        self,
+    ) -> TranslationResult<TranslationStateParsedExtInstImports<'g, 'i>> {
+        let mut state = TranslationStateParsedExtInstImports { base: self };
+        writeln!(state.debug_output, "parsing OpExtInstImport section")?;
+        while let Some((instruction, location)) = state.get_instruction_and_location()? {
             if let Instruction::ExtInstImport(instruction) = instruction {
-                self.parse_ext_inst_import_instruction(instruction)?;
+                state.parse_ext_inst_import_instruction(instruction)?;
             } else {
-                self.spirv_instructions_location = location;
+                state.spirv_instructions_location = location;
                 break;
             }
         }
-        Ok(())
+        Ok(state)
     }
 }
 

@@ -124,6 +124,46 @@ impl fmt::Display for DuplicateSPIRVEntryPoint {
     }
 }
 
+#[derive(Debug)]
+pub struct MatchingSPIRVEntryPointNotFound {
+    pub name: String,
+    pub execution_model: spirv_parser::ExecutionModel,
+}
+
+impl fmt::Display for MatchingSPIRVEntryPointNotFound {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "matching SPIR-V entry point with name \"{:?}\" and execution model {:?} not found",
+            self.name, self.execution_model
+        )
+    }
+}
+
+#[derive(Debug)]
+pub struct UnsupportedSPIRVExecutionMode {
+    pub execution_mode: spirv_parser::ExecutionMode,
+}
+
+impl fmt::Display for UnsupportedSPIRVExecutionMode {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "unsupported SPIR-V execution mode: {:?}",
+            self.execution_mode
+        )
+    }
+}
+
+#[derive(Debug)]
+pub struct DuplicateSPIRVLocalSize;
+
+impl fmt::Display for DuplicateSPIRVLocalSize {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "duplicate SPIR-V LocalSize annotation for entry point")
+    }
+}
+
 macro_rules! impl_translation_error {
     ($($error:ident($wrapped_error:ty),)+) => {
         $(
@@ -165,6 +205,9 @@ impl_translation_error! {
     MissingSPIRVOpMemoryModel(MissingSPIRVOpMemoryModel),
     SPIRVAddressingModelNotSupported(SPIRVAddressingModelNotSupported),
     DuplicateSPIRVEntryPoint(DuplicateSPIRVEntryPoint),
+    MatchingSPIRVEntryPointNotFound(MatchingSPIRVEntryPointNotFound),
+    UnsupportedSPIRVExecutionMode(UnsupportedSPIRVExecutionMode),
+    DuplicateSPIRVLocalSize(DuplicateSPIRVLocalSize),
 }
 
 pub(crate) type TranslationResult<T> = Result<T, TranslationError>;
