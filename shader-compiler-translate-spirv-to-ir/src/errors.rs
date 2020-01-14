@@ -2,6 +2,7 @@
 // See Notices.txt for copyright information
 use alloc::string::String;
 use core::fmt;
+use spirv_parser::IdResult;
 
 #[derive(Debug)]
 pub struct InvalidSPIRVInstructionInSection {
@@ -164,6 +165,17 @@ impl fmt::Display for DuplicateSPIRVLocalSize {
     }
 }
 
+#[derive(Debug)]
+pub struct SPIRVIdAlreadyDefined {
+    pub id_result: IdResult,
+}
+
+impl fmt::Display for SPIRVIdAlreadyDefined {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "SPIR-V Result <id> ({}) already defined", self.id_result)
+    }
+}
+
 macro_rules! impl_translation_error {
     ($($error:ident($wrapped_error:ty),)+) => {
         $(
@@ -208,6 +220,8 @@ impl_translation_error! {
     MatchingSPIRVEntryPointNotFound(MatchingSPIRVEntryPointNotFound),
     UnsupportedSPIRVExecutionMode(UnsupportedSPIRVExecutionMode),
     DuplicateSPIRVLocalSize(DuplicateSPIRVLocalSize),
+    SPIRVIdAlreadyDefined(SPIRVIdAlreadyDefined),
+    SPIRVIdOutOfBounds(spirv_id_map::IdOutOfBounds),
 }
 
 pub(crate) type TranslationResult<T> = Result<T, TranslationError>;

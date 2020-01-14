@@ -36,6 +36,9 @@ macro_rules! decl_translation_state {
 pub(crate) mod instruction_dispatch;
 
 mod capability;
+mod debug_module_processed;
+mod debug_names;
+mod debug_strings_sources;
 mod entry_point;
 mod execution_mode;
 mod ext_inst_import;
@@ -50,46 +53,6 @@ use crate::TranslationStateBase;
 use spirv_parser::*;
 
 pub(crate) trait ParseInstruction: Clone + Into<Instruction> {
-    fn parse_in_debug_strings_sources_section<'g, 'i>(
-        &'i self,
-        _state: &mut TranslationStateBase<'g, 'i>,
-    ) -> TranslationResult<()> {
-        Err(InvalidSPIRVInstructionInSection {
-            instruction: self.clone().into(),
-            section_name: "debug strings/sources",
-        }
-        .into())
-    }
-    fn parse_in_debug_names_section<'g, 'i>(
-        &'i self,
-        _state: &mut TranslationStateBase<'g, 'i>,
-    ) -> TranslationResult<()> {
-        Err(InvalidSPIRVInstructionInSection {
-            instruction: self.clone().into(),
-            section_name: "debug names",
-        }
-        .into())
-    }
-    fn parse_in_module_processed_section<'g, 'i>(
-        &'i self,
-        _state: &mut TranslationStateBase<'g, 'i>,
-    ) -> TranslationResult<()> {
-        Err(InvalidSPIRVInstructionInSection {
-            instruction: self.clone().into(),
-            section_name: "OpModuleProcessed",
-        }
-        .into())
-    }
-    fn parse_in_annotations_section<'g, 'i>(
-        &'i self,
-        _state: &mut TranslationStateBase<'g, 'i>,
-    ) -> TranslationResult<()> {
-        Err(InvalidSPIRVInstructionInSection {
-            instruction: self.clone().into(),
-            section_name: "annotations",
-        }
-        .into())
-    }
     fn parse_in_types_section<'g, 'i>(
         &'i self,
         _state: &mut TranslationStateBase<'g, 'i>,
@@ -103,30 +66,6 @@ pub(crate) trait ParseInstruction: Clone + Into<Instruction> {
 }
 
 impl ParseInstruction for Instruction {
-    fn parse_in_debug_strings_sources_section<'g, 'i>(
-        &'i self,
-        state: &mut TranslationStateBase<'g, 'i>,
-    ) -> TranslationResult<()> {
-        instruction_dispatch!(self, v, v.parse_in_debug_strings_sources_section(state))
-    }
-    fn parse_in_debug_names_section<'g, 'i>(
-        &'i self,
-        state: &mut TranslationStateBase<'g, 'i>,
-    ) -> TranslationResult<()> {
-        instruction_dispatch!(self, v, v.parse_in_debug_names_section(state))
-    }
-    fn parse_in_module_processed_section<'g, 'i>(
-        &'i self,
-        state: &mut TranslationStateBase<'g, 'i>,
-    ) -> TranslationResult<()> {
-        instruction_dispatch!(self, v, v.parse_in_module_processed_section(state))
-    }
-    fn parse_in_annotations_section<'g, 'i>(
-        &'i self,
-        state: &mut TranslationStateBase<'g, 'i>,
-    ) -> TranslationResult<()> {
-        instruction_dispatch!(self, v, v.parse_in_annotations_section(state))
-    }
     fn parse_in_types_section<'g, 'i>(
         &'i self,
         state: &mut TranslationStateBase<'g, 'i>,
@@ -153,11 +92,11 @@ impl<'g, 'i> TranslationStateBase<'g, 'i> {
             .parse_ext_inst_import_section()?
             .parse_memory_model_section()?
             .parse_entry_point_section()?
-            .parse_execution_mode_section()?;
+            .parse_execution_mode_section()?
+            .parse_debug_strings_sources_section()?
+            .parse_debug_names_section()?
+            .parse_debug_module_processed_section()?;
         todo!()
-        // TODO: debug strings/sources section
-        // TODO: debug names section
-        // TODO: module processed section
         // TODO: annotations section
         // TODO: types section
         // TODO: function declarations section

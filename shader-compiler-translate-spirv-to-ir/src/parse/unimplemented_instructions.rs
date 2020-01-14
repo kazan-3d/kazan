@@ -8,30 +8,6 @@ use crate::TranslationStateBase;
 macro_rules! unimplemented_instruction {
     ($opname:ident) => {
         impl ParseInstruction for spirv_parser::$opname {
-            fn parse_in_debug_strings_sources_section<'g, 'i>(
-                &'i self,
-                _state: &mut TranslationStateBase<'g, 'i>,
-            ) -> TranslationResult<()> {
-                todo!(concat!("unimplemented instruction: ", stringify!($opname)))
-            }
-            fn parse_in_debug_names_section<'g, 'i>(
-                &'i self,
-                _state: &mut TranslationStateBase<'g, 'i>,
-            ) -> TranslationResult<()> {
-                todo!(concat!("unimplemented instruction: ", stringify!($opname)))
-            }
-            fn parse_in_module_processed_section<'g, 'i>(
-                &'i self,
-                _state: &mut TranslationStateBase<'g, 'i>,
-            ) -> TranslationResult<()> {
-                todo!(concat!("unimplemented instruction: ", stringify!($opname)))
-            }
-            fn parse_in_annotations_section<'g, 'i>(
-                &'i self,
-                _state: &mut TranslationStateBase<'g, 'i>,
-            ) -> TranslationResult<()> {
-                todo!(concat!("unimplemented instruction: ", stringify!($opname)))
-            }
             fn parse_in_types_section<'g, 'i>(
                 &'i self,
                 _state: &mut TranslationStateBase<'g, 'i>,
@@ -44,12 +20,6 @@ macro_rules! unimplemented_instruction {
 
 unimplemented_instruction!(OpNop);
 unimplemented_instruction!(OpUndef);
-unimplemented_instruction!(OpSourceContinued);
-unimplemented_instruction!(OpSource);
-unimplemented_instruction!(OpSourceExtension);
-unimplemented_instruction!(OpName);
-unimplemented_instruction!(OpMemberName);
-unimplemented_instruction!(OpString);
 unimplemented_instruction!(OpLine);
 unimplemented_instruction!(OpExtInst);
 unimplemented_instruction!(OpTypeVoid);
@@ -338,7 +308,6 @@ unimplemented_instruction!(OpGetKernelMaxNumSubgroups);
 unimplemented_instruction!(OpTypeNamedBarrier);
 unimplemented_instruction!(OpNamedBarrierInitialize);
 unimplemented_instruction!(OpMemoryNamedBarrier);
-unimplemented_instruction!(OpModuleProcessed);
 unimplemented_instruction!(OpDecorateId);
 unimplemented_instruction!(OpGroupNonUniformElect);
 unimplemented_instruction!(OpGroupNonUniformAll);
