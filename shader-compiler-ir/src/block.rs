@@ -14,6 +14,7 @@ use crate::text::ToTextState;
 use crate::text::Token;
 use crate::text::TokenKind;
 use crate::Allocate;
+use crate::IdRef;
 use crate::InstructionKind;
 use crate::OnceCell;
 use alloc::vec::Vec;

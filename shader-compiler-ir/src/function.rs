@@ -14,6 +14,7 @@ use crate::text::Punctuation;
 use crate::text::ToTextState;
 use crate::Allocate;
 use crate::FunctionPointerType;
+use crate::IdRef;
 use crate::ParsedBlockNameDefinition;
 use alloc::vec::Vec;
 use core::fmt;

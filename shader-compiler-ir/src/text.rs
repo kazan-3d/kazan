@@ -4,6 +4,7 @@
 //! conversion from/to text
 
 use crate::prelude::*;
+use crate::IdRef;
 use crate::OnceCell;
 use alloc::string::String;
 use alloc::string::ToString;

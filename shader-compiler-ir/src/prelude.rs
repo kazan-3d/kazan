@@ -18,7 +18,6 @@ pub use crate::GenericType;
 pub use crate::GlobalState;
 pub use crate::Id;
 pub use crate::IdMethod;
-pub use crate::IdRef;
 pub use crate::Inhabitable;
 pub use crate::Inhabited;
 pub use crate::Instruction;

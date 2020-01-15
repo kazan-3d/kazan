@@ -14,6 +14,7 @@ use crate::text::Punctuation;
 use crate::text::ToTextState;
 use crate::text::TokenKind;
 use crate::Allocate;
+use crate::IdRef;
 use crate::OnceCell;
 use core::fmt;
 use core::ops::Deref;
