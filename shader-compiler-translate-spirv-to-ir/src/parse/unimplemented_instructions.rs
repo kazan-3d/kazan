@@ -8,7 +8,7 @@ use crate::TranslationStateBase;
 macro_rules! unimplemented_instruction {
     ($opname:ident) => {
         impl ParseInstruction for spirv_parser::$opname {
-            fn parse_in_types_section<'g, 'i>(
+            fn parse_in_types_constants_globals_section<'g, 'i>(
                 &'i self,
                 _state: &mut TranslationStateBase<'g, 'i>,
             ) -> TranslationResult<()> {
@@ -72,11 +72,6 @@ unimplemented_instruction!(OpPtrAccessChain);
 unimplemented_instruction!(OpArrayLength);
 unimplemented_instruction!(OpGenericPtrMemSemantics);
 unimplemented_instruction!(OpInBoundsPtrAccessChain);
-unimplemented_instruction!(OpDecorate);
-unimplemented_instruction!(OpMemberDecorate);
-unimplemented_instruction!(OpDecorationGroup);
-unimplemented_instruction!(OpGroupDecorate);
-unimplemented_instruction!(OpGroupMemberDecorate);
 unimplemented_instruction!(OpVectorExtractDynamic);
 unimplemented_instruction!(OpVectorInsertDynamic);
 unimplemented_instruction!(OpVectorShuffle);
@@ -308,7 +303,6 @@ unimplemented_instruction!(OpGetKernelMaxNumSubgroups);
 unimplemented_instruction!(OpTypeNamedBarrier);
 unimplemented_instruction!(OpNamedBarrierInitialize);
 unimplemented_instruction!(OpMemoryNamedBarrier);
-unimplemented_instruction!(OpDecorateId);
 unimplemented_instruction!(OpGroupNonUniformElect);
 unimplemented_instruction!(OpGroupNonUniformAll);
 unimplemented_instruction!(OpGroupNonUniformAny);
@@ -347,8 +341,6 @@ unimplemented_instruction!(OpCopyLogical);
 unimplemented_instruction!(OpPtrEqual);
 unimplemented_instruction!(OpPtrNotEqual);
 unimplemented_instruction!(OpPtrDiff);
-unimplemented_instruction!(OpDecorateString);
-unimplemented_instruction!(OpMemberDecorateString);
 unimplemented_instruction!(OpGLSLStd450Round);
 unimplemented_instruction!(OpGLSLStd450RoundEven);
 unimplemented_instruction!(OpGLSLStd450Trunc);

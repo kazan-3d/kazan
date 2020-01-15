@@ -44,7 +44,7 @@ impl<'g, 'i> TranslationStateParsedExecutionModes<'g, 'i> {
         self,
     ) -> TranslationResult<TranslationStateParsedDebugStringsSources<'g, 'i>> {
         let mut state = TranslationStateParsedDebugStringsSources {
-            debug_strings: IdMap::new(self.spirv_header.bound),
+            debug_strings: IdMap::new(&self.spirv_header),
             base: self,
         };
         writeln!(state.debug_output, "parsing debug strings/sources section")?;

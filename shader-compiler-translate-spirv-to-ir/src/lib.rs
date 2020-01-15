@@ -16,7 +16,6 @@ use core::fmt;
 use core::iter;
 use core::slice;
 use shader_compiler_ir::GlobalState;
-use spirv_parser::Decoration;
 use spirv_parser::ExecutionModel;
 
 pub struct UnresolvedSpecialization {
@@ -84,12 +83,6 @@ decl_specialization_resolver! {
 
 #[derive(Default)]
 pub struct DefaultSpecializationResolver;
-
-#[derive(Debug, Clone)]
-struct MemberDecoration {
-    member: u32,
-    decoration: Decoration,
-}
 
 #[derive(Debug, Clone)]
 struct SPIRVInstructionsLocation<'i>(iter::Enumerate<slice::Iter<'i, spirv_parser::Instruction>>);

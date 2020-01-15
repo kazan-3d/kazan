@@ -7,12 +7,14 @@ extern crate alloc;
 
 use alloc::boxed::Box;
 use alloc::vec;
+use core::borrow::Borrow;
 use core::convert::TryFrom;
 use core::fmt;
 use core::iter;
 use core::marker::PhantomData;
 use core::mem;
 use core::slice;
+use spirv_parser::Header;
 use spirv_parser::IdRef;
 
 #[derive(Clone, Eq, PartialEq, Hash, Debug)]
@@ -79,13 +81,16 @@ pub struct IdMap<K: Id, V> {
 }
 
 impl<K: Id, V> IdMap<K, V> {
-    pub fn new(id_bound: u32) -> Self {
+    pub fn with_bound(id_bound: u32) -> Self {
         let values = (1..id_bound).map(|_| None).collect();
         Self {
             values,
             len: 0,
             _phantom: PhantomData,
         }
+    }
+    pub fn new<T: Borrow<Header>>(header: T) -> Self {
+        Self::with_bound(header.borrow().bound)
     }
     pub fn capacity(&self) -> usize {
         self.values.len()
@@ -487,7 +492,7 @@ mod tests {
     #[test]
     fn test_map() {
         const BOUND: u32 = 10;
-        let mut map = IdMap::<spirv_parser::IdRef, i32>::new(BOUND);
+        let mut map = IdMap::<spirv_parser::IdRef, i32>::with_bound(BOUND);
         let map = &mut map;
         check_map(map, &[]);
         assert_eq!(map.insert(IdRef(0), 0), Err(IdOutOfBounds));

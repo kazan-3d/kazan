@@ -2,6 +2,7 @@
 // See Notices.txt for copyright information
 use alloc::string::String;
 use core::fmt;
+use spirv_parser::IdRef;
 use spirv_parser::IdResult;
 
 #[derive(Debug)]
@@ -176,6 +177,28 @@ impl fmt::Display for SPIRVIdAlreadyDefined {
     }
 }
 
+#[derive(Debug)]
+pub struct SPIRVIdNotDefined {
+    pub id: IdRef,
+}
+
+impl fmt::Display for SPIRVIdNotDefined {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "SPIR-V <id> ({}) not defined", self.id)
+    }
+}
+
+#[derive(Debug)]
+pub struct MemberDecorationsAreOnlyAllowedOnStructTypes {
+    pub target: IdRef,
+}
+
+impl fmt::Display for MemberDecorationsAreOnlyAllowedOnStructTypes {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "SPIR-V member decorations are only allowed on struct types: target <id> ({}) is not a struct type", self.target)
+    }
+}
+
 macro_rules! impl_translation_error {
     ($($error:ident($wrapped_error:ty),)+) => {
         $(
@@ -222,6 +245,8 @@ impl_translation_error! {
     DuplicateSPIRVLocalSize(DuplicateSPIRVLocalSize),
     SPIRVIdAlreadyDefined(SPIRVIdAlreadyDefined),
     SPIRVIdOutOfBounds(spirv_id_map::IdOutOfBounds),
+    SPIRVIdNotDefined(SPIRVIdNotDefined),
+    MemberDecorationsAreOnlyAllowedOnStructTypes(MemberDecorationsAreOnlyAllowedOnStructTypes),
 }
 
 pub(crate) type TranslationResult<T> = Result<T, TranslationError>;

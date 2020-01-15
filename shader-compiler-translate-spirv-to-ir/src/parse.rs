@@ -35,6 +35,7 @@ macro_rules! decl_translation_state {
 #[macro_use]
 pub(crate) mod instruction_dispatch;
 
+mod annotations;
 mod capability;
 mod debug_module_processed;
 mod debug_names;
@@ -53,24 +54,24 @@ use crate::TranslationStateBase;
 use spirv_parser::*;
 
 pub(crate) trait ParseInstruction: Clone + Into<Instruction> {
-    fn parse_in_types_section<'g, 'i>(
+    fn parse_in_types_constants_globals_section<'g, 'i>(
         &'i self,
         _state: &mut TranslationStateBase<'g, 'i>,
     ) -> TranslationResult<()> {
         Err(InvalidSPIRVInstructionInSection {
             instruction: self.clone().into(),
-            section_name: "types",
+            section_name: "types/constants/globals",
         }
         .into())
     }
 }
 
 impl ParseInstruction for Instruction {
-    fn parse_in_types_section<'g, 'i>(
+    fn parse_in_types_constants_globals_section<'g, 'i>(
         &'i self,
         state: &mut TranslationStateBase<'g, 'i>,
     ) -> TranslationResult<()> {
-        instruction_dispatch!(self, v, v.parse_in_types_section(state))
+        instruction_dispatch!(self, v, v.parse_in_types_constants_globals_section(state))
     }
 }
 
@@ -95,10 +96,10 @@ impl<'g, 'i> TranslationStateBase<'g, 'i> {
             .parse_execution_mode_section()?
             .parse_debug_strings_sources_section()?
             .parse_debug_names_section()?
-            .parse_debug_module_processed_section()?;
+            .parse_debug_module_processed_section()?
+            .parse_annotations_section()?;
         todo!()
-        // TODO: annotations section
-        // TODO: types section
+        // TODO: types/constants/globals section
         // TODO: function declarations section
         // TODO: function definitions section
     }
