@@ -178,6 +178,7 @@ macro_rules! unsupported_type_instruction {
     };
 }
 
+unsupported_type_instruction!(OpTypeOpaque);
 unsupported_type_instruction!(OpTypeEvent);
 unsupported_type_instruction!(OpTypeDeviceEvent);
 unsupported_type_instruction!(OpTypeReserveId);
@@ -210,6 +211,5 @@ unimplemented_type_instruction!(OpTypeSampledImage);
 unimplemented_type_instruction!(OpTypeArray);
 unimplemented_type_instruction!(OpTypeRuntimeArray);
 unimplemented_type_instruction!(OpTypeStruct);
-unimplemented_type_instruction!(OpTypeOpaque);
 unimplemented_type_instruction!(OpTypePointer);
 unimplemented_type_instruction!(OpTypeForwardPointer);
