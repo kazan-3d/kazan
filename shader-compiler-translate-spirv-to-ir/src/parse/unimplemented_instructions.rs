@@ -2,6 +2,7 @@
 // See Notices.txt for copyright information
 
 use super::ParseInstruction;
+use super::TranslationStateParsingTypesConstantsAndGlobals;
 use crate::TranslationResult;
 use crate::TranslationStateBase;
 
@@ -9,6 +10,12 @@ macro_rules! unimplemented_instruction {
     ($opname:ident) => {
         impl ParseInstruction for spirv_parser::$opname {
             fn parse_in_types_constants_globals_section<'g, 'i>(
+                &'i self,
+                _state: &mut TranslationStateParsingTypesConstantsAndGlobals<'g, 'i>,
+            ) -> TranslationResult<()> {
+                todo!(concat!("unimplemented instruction: ", stringify!($opname)))
+            }
+            fn parse_in_function_body<'g, 'i>(
                 &'i self,
                 _state: &mut TranslationStateBase<'g, 'i>,
             ) -> TranslationResult<()> {
@@ -22,27 +29,6 @@ unimplemented_instruction!(OpNop);
 unimplemented_instruction!(OpUndef);
 unimplemented_instruction!(OpLine);
 unimplemented_instruction!(OpExtInst);
-unimplemented_instruction!(OpTypeVoid);
-unimplemented_instruction!(OpTypeBool);
-unimplemented_instruction!(OpTypeInt);
-unimplemented_instruction!(OpTypeFloat);
-unimplemented_instruction!(OpTypeVector);
-unimplemented_instruction!(OpTypeMatrix);
-unimplemented_instruction!(OpTypeImage);
-unimplemented_instruction!(OpTypeSampler);
-unimplemented_instruction!(OpTypeSampledImage);
-unimplemented_instruction!(OpTypeArray);
-unimplemented_instruction!(OpTypeRuntimeArray);
-unimplemented_instruction!(OpTypeStruct);
-unimplemented_instruction!(OpTypeOpaque);
-unimplemented_instruction!(OpTypePointer);
-unimplemented_instruction!(OpTypeFunction);
-unimplemented_instruction!(OpTypeEvent);
-unimplemented_instruction!(OpTypeDeviceEvent);
-unimplemented_instruction!(OpTypeReserveId);
-unimplemented_instruction!(OpTypeQueue);
-unimplemented_instruction!(OpTypePipe);
-unimplemented_instruction!(OpTypeForwardPointer);
 unimplemented_instruction!(OpConstantTrue);
 unimplemented_instruction!(OpConstantFalse);
 unimplemented_instruction!(OpConstant32);
@@ -295,12 +281,10 @@ unimplemented_instruction!(OpAtomicFlagTestAndSet);
 unimplemented_instruction!(OpAtomicFlagClear);
 unimplemented_instruction!(OpImageSparseRead);
 unimplemented_instruction!(OpSizeOf);
-unimplemented_instruction!(OpTypePipeStorage);
 unimplemented_instruction!(OpConstantPipeStorage);
 unimplemented_instruction!(OpCreatePipeFromPipeStorage);
 unimplemented_instruction!(OpGetKernelLocalSizeForSubgroupCount);
 unimplemented_instruction!(OpGetKernelMaxNumSubgroups);
-unimplemented_instruction!(OpTypeNamedBarrier);
 unimplemented_instruction!(OpNamedBarrierInitialize);
 unimplemented_instruction!(OpMemoryNamedBarrier);
 unimplemented_instruction!(OpGroupNonUniformElect);

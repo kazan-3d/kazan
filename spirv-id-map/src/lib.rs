@@ -492,7 +492,7 @@ mod tests {
     #[test]
     fn test_map() {
         const BOUND: u32 = 10;
-        let mut map = IdMap::<spirv_parser::IdRef, i32>::with_bound(BOUND);
+        let mut map = IdMap::<IdRef, i32>::with_bound(BOUND);
         let map = &mut map;
         check_map(map, &[]);
         assert_eq!(map.insert(IdRef(0), 0), Err(IdOutOfBounds));

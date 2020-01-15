@@ -8,6 +8,7 @@ extern crate alloc;
 
 mod errors;
 mod parse;
+mod types;
 
 pub use crate::errors::*;
 

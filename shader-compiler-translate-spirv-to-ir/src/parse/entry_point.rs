@@ -8,19 +8,20 @@ use crate::MatchingSPIRVEntryPointNotFound;
 use crate::TranslationResult;
 use alloc::string::ToString;
 use hashbrown::HashSet;
+use spirv_parser::IdRef;
 use spirv_parser::Instruction;
 use spirv_parser::OpEntryPoint;
 
 struct EntryPoint {
-    id: spirv_parser::IdRef,
-    interface_variables: HashSet<spirv_parser::IdRef>,
+    id: IdRef,
+    interface_variables: HashSet<IdRef>,
 }
 
 decl_translation_state! {
     pub(crate) struct TranslationStateParsedEntryPoints<'g, 'i> {
         base: TranslationStateParsedMemoryModel<'g, 'i>,
-        entry_point_id: spirv_parser::IdRef,
-        entry_point_interface_variables: HashSet<spirv_parser::IdRef>,
+        entry_point_id: IdRef,
+        entry_point_interface_variables: HashSet<IdRef>,
     }
 }
 

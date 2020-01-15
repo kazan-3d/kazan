@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 // See Notices.txt for copyright information
 
+use crate::errors::DecorationNotAllowedOnInstruction;
 use crate::errors::MemberDecorationsAreOnlyAllowedOnStructTypes;
 use crate::errors::SPIRVIdAlreadyDefined;
 use crate::errors::SPIRVIdNotDefined;
@@ -13,6 +14,7 @@ use spirv_id_map::Entry::Vacant;
 use spirv_id_map::IdMap;
 use spirv_parser::Decoration;
 use spirv_parser::IdRef;
+use spirv_parser::IdResult;
 use spirv_parser::Instruction;
 use spirv_parser::OpDecorate;
 use spirv_parser::OpDecorateId;
@@ -38,23 +40,42 @@ decl_translation_state! {
 
 impl<'g, 'i> TranslationStateParsedAnnotations<'g, 'i> {
     /// only for Ids that aren't struct types
-    pub(crate) fn take_decorations(&mut self, target: IdRef) -> TranslationResult<Vec<Decoration>> {
+    pub(crate) fn take_decorations(
+        &mut self,
+        target: IdResult,
+    ) -> TranslationResult<Vec<Decoration>> {
         let DecorationsAndMemberDecorations {
             decorations,
             member_decorations,
-        } = self.decorations.remove(target)?.unwrap_or_default();
+        } = self.decorations.remove(target.0)?.unwrap_or_default();
         for (_, member_decorations) in member_decorations {
             if !member_decorations.is_empty() {
-                return Err(MemberDecorationsAreOnlyAllowedOnStructTypes { target }.into());
+                return Err(
+                    MemberDecorationsAreOnlyAllowedOnStructTypes { target: target.0 }.into(),
+                );
             }
         }
         Ok(decorations)
     }
+    pub(crate) fn error_if_any_decorations<I: FnOnce() -> Instruction>(
+        &mut self,
+        target: IdResult,
+        instruction: I,
+    ) -> TranslationResult<()> {
+        for decoration in self.take_decorations(target)? {
+            return Err(DecorationNotAllowedOnInstruction {
+                decoration,
+                instruction: instruction(),
+            }
+            .into());
+        }
+        Ok(())
+    }
     pub(crate) fn take_decorations_for_struct_type(
         &mut self,
-        target: IdRef,
+        target: IdResult,
     ) -> TranslationResult<DecorationsAndMemberDecorations> {
-        Ok(self.decorations.remove(target)?.unwrap_or_default())
+        Ok(self.decorations.remove(target.0)?.unwrap_or_default())
     }
 }
 
@@ -98,7 +119,7 @@ impl<'g, 'i> TranslationStateParsingAnnotations<'g, 'i> {
         instruction: &'i OpDecorationGroup,
     ) -> TranslationResult<()> {
         let OpDecorationGroup { id_result } = *instruction;
-        let decorations = self.take_decorations(id_result.0)?;
+        let decorations = self.take_decorations(id_result)?;
         if let Vacant(entry) = self.decoration_groups.entry(id_result.0)? {
             entry.insert(decorations);
             Ok(())

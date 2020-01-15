@@ -37,6 +37,7 @@ pub(crate) mod instruction_dispatch;
 
 mod annotations;
 mod capability;
+mod constants;
 mod debug_module_processed;
 mod debug_names;
 mod debug_strings_sources;
@@ -45,22 +46,83 @@ mod execution_mode;
 mod ext_inst_import;
 mod extension;
 mod memory_model;
+mod types;
 mod unimplemented_instructions;
+mod variables;
 
 use crate::errors::InvalidSPIRVInstructionInSection;
+use crate::parse::annotations::TranslationStateParsedAnnotations;
+use crate::types::SPIRVType;
 use crate::SPIRVInstructionsLocation;
 use crate::TranslationResult;
 use crate::TranslationStateBase;
-use spirv_parser::*;
+use spirv_id_map::IdMap;
+use spirv_parser::IdRef;
+use spirv_parser::Instruction;
+
+decl_translation_state! {
+    pub(crate) struct TranslationStateParseBaseTypesConstantsAndGlobals<'g, 'i> {
+        base: annotations::TranslationStateParsedAnnotations<'g, 'i>,
+        types: IdMap<IdRef, SPIRVType<'g>>,
+    }
+}
+
+decl_translation_state! {
+    pub(crate) struct TranslationStateParsingTypesConstantsAndGlobals<'g, 'i> {
+        base: TranslationStateParseBaseTypesConstantsAndGlobals<'g, 'i>,
+    }
+}
+
+decl_translation_state! {
+    pub(crate) struct TranslationStateParsedTypesConstantsAndGlobals<'g, 'i> {
+        base: TranslationStateParseBaseTypesConstantsAndGlobals<'g, 'i>,
+    }
+}
+
+impl<'g, 'i> TranslationStateParsedAnnotations<'g, 'i> {
+    pub(crate) fn parse_types_constants_globals_section(
+        self,
+    ) -> TranslationResult<TranslationStateParsedTypesConstantsAndGlobals<'g, 'i>> {
+        let mut state = TranslationStateParsingTypesConstantsAndGlobals {
+            base: TranslationStateParseBaseTypesConstantsAndGlobals {
+                types: IdMap::new(&self.spirv_header),
+                base: self,
+            },
+        };
+        writeln!(
+            state.debug_output,
+            "parsing types/constants/globals section"
+        )?;
+        while let Some((instruction, location)) = state.get_instruction_and_location()? {
+            if let Instruction::Function(_) = instruction {
+                state.spirv_instructions_location = location;
+                break;
+            }
+            instruction.parse_in_types_constants_globals_section(&mut state)?;
+        }
+        let TranslationStateParsingTypesConstantsAndGlobals { base } = state;
+        Ok(TranslationStateParsedTypesConstantsAndGlobals { base })
+    }
+}
 
 pub(crate) trait ParseInstruction: Clone + Into<Instruction> {
     fn parse_in_types_constants_globals_section<'g, 'i>(
+        &'i self,
+        _state: &mut TranslationStateParsingTypesConstantsAndGlobals<'g, 'i>,
+    ) -> TranslationResult<()> {
+        Err(InvalidSPIRVInstructionInSection {
+            instruction: self.clone().into(),
+            section_name: "types/constants/globals",
+        }
+        .into())
+    }
+    fn parse_in_function_body<'g, 'i>(
         &'i self,
         _state: &mut TranslationStateBase<'g, 'i>,
     ) -> TranslationResult<()> {
         Err(InvalidSPIRVInstructionInSection {
             instruction: self.clone().into(),
-            section_name: "types/constants/globals",
+            section_name: "function body",
         }
         .into())
     }
@@ -69,9 +131,15 @@ pub(crate) trait ParseInstruction: Clone + Into<Instruction> {
 impl ParseInstruction for Instruction {
     fn parse_in_types_constants_globals_section<'g, 'i>(
         &'i self,
-        state: &mut TranslationStateBase<'g, 'i>,
+        state: &mut TranslationStateParsingTypesConstantsAndGlobals<'g, 'i>,
     ) -> TranslationResult<()> {
         instruction_dispatch!(self, v, v.parse_in_types_constants_globals_section(state))
+    }
+    fn parse_in_function_body<'g, 'i>(
+        &'i self,
+        state: &mut TranslationStateBase<'g, 'i>,
+    ) -> TranslationResult<()> {
+        instruction_dispatch!(self, v, v.parse_in_function_body(state))
     }
 }
 
@@ -97,9 +165,9 @@ impl<'g, 'i> TranslationStateBase<'g, 'i> {
             .parse_debug_strings_sources_section()?
             .parse_debug_names_section()?
             .parse_debug_module_processed_section()?
-            .parse_annotations_section()?;
+            .parse_annotations_section()?
+            .parse_types_constants_globals_section()?;
         todo!()
-        // TODO: types/constants/globals section
         // TODO: function declarations section
         // TODO: function definitions section
     }
