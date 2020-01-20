@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 // See Notices.txt for copyright information
 
+mod structs;
+
+use crate::errors::DecorationNotAllowedOnInstruction;
 use crate::errors::InvalidFloatTypeBitWidth;
 use crate::errors::InvalidIntegerType;
 use crate::errors::InvalidVectorComponentCount;
@@ -16,19 +19,24 @@ use crate::parse::TranslationStateParsingTypesConstantsAndGlobals;
 use crate::types::FunctionType;
 use crate::types::FunctionTypeData;
 use crate::types::IntegerType;
+use crate::types::PointerType;
+use crate::types::PointerTypeData;
 use crate::types::SPIRVType;
 use crate::types::Signedness;
 use crate::types::VectorType;
 use crate::types::VoidType;
+use once_cell::unsync::OnceCell;
 use shader_compiler_ir::BoolType;
 use shader_compiler_ir::FloatType;
+use spirv_id_map::Entry::Occupied;
 use spirv_id_map::Entry::Vacant;
+use spirv_parser::Decoration;
 use spirv_parser::IdRef;
 use spirv_parser::IdResult;
 use spirv_parser::{
     OpTypeArray, OpTypeBool, OpTypeFloat, OpTypeForwardPointer, OpTypeFunction, OpTypeImage,
     OpTypeInt, OpTypeMatrix, OpTypePointer, OpTypeRuntimeArray, OpTypeSampledImage, OpTypeSampler,
-    OpTypeStruct, OpTypeVector, OpTypeVoid,
+    OpTypeVector, OpTypeVoid,
 };
 
 impl<'g, 'i> TranslationStateParseBaseTypesConstantsAndGlobals<'g, 'i> {
@@ -204,6 +212,66 @@ impl ParseInstruction for OpTypeVector {
     }
 }
 
+impl ParseInstruction for OpTypeForwardPointer {
+    fn parse_in_types_constants_globals_section<'g, 'i>(
+        &'i self,
+        state: &mut TranslationStateParsingTypesConstantsAndGlobals<'g, 'i>,
+    ) -> TranslationResult<()> {
+        let OpTypeForwardPointer {
+            pointer_type,
+            storage_class: _storage_class,
+        } = *self;
+        state.define_type(
+            IdResult(pointer_type),
+            PointerType::new_forward_declaration(),
+        )
+    }
+}
+
+impl ParseInstruction for OpTypePointer {
+    fn parse_in_types_constants_globals_section<'g, 'i>(
+        &'i self,
+        state: &mut TranslationStateParsingTypesConstantsAndGlobals<'g, 'i>,
+    ) -> TranslationResult<()> {
+        let OpTypePointer {
+            id_result,
+            storage_class,
+            type_: pointee_type,
+        } = *self;
+        let decorations = state.take_decorations(id_result)?;
+        let mut array_stride = None;
+        for decoration in decorations {
+            match decoration {
+                Decoration::ArrayStride { array_stride: v } => array_stride = Some(v),
+                _ => {
+                    return Err(DecorationNotAllowedOnInstruction {
+                        decoration,
+                        instruction: self.clone().into(),
+                    }
+                    .into());
+                }
+            }
+        }
+        let pointee_type = state.get_type(pointee_type)?.clone();
+        let pointer_type = state
+            .types
+            .entry(id_result.0)?
+            .or_insert_with(|| PointerType::new_forward_declaration().into());
+        if let Some(pointer_type) = pointer_type.pointer() {
+            pointer_type
+                .resolve_forward_declaration(PointerTypeData {
+                    pointee_type,
+                    storage_class,
+                    array_stride,
+                })
+                .map_err(|_| SPIRVIdAlreadyDefined { id_result })?;
+            Ok(())
+        } else {
+            Err(SPIRVIdAlreadyDefined { id_result }.into())
+        }
+    }
+}
+
 macro_rules! unsupported_type_instruction {
     ($opname:ident) => {
         impl ParseInstruction for spirv_parser::$opname {
@@ -251,6 +319,3 @@ unimplemented_type_instruction!(OpTypeSampler);
 unimplemented_type_instruction!(OpTypeSampledImage);
 unimplemented_type_instruction!(OpTypeArray);
 unimplemented_type_instruction!(OpTypeRuntimeArray);
-unimplemented_type_instruction!(OpTypeStruct);
-unimplemented_type_instruction!(OpTypePointer);
-unimplemented_type_instruction!(OpTypeForwardPointer);

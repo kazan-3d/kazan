@@ -209,6 +209,32 @@ impl_error! {
     }
 }
 
+impl_error! {
+    #[display = "member decoration's member index ({member_index}) out of bounds: Decoration: {decoration:?}\n{instruction}"]
+    pub struct MemberDecorationIndexOutOfBounds {
+        pub member_index: u32,
+        pub decoration: Decoration,
+        pub instruction: spirv_parser::Instruction,
+    }
+}
+
+impl_error! {
+    #[display = "SPIR-V member decoration is not allowed: member index {member_index}: {decoration:?}\n{instruction}"]
+    pub struct MemberDecorationNotAllowed {
+        pub member_index: u32,
+        pub decoration: Decoration,
+        pub instruction: spirv_parser::Instruction,
+    }
+}
+
+impl_error! {
+    #[display = "BuiltIn and non-BuiltIn struct members are not allowed in the same struct: member index {member_index}:\n{instruction}"]
+    pub struct BuiltInAndNonBuiltInNotAllowedInSameStruct {
+        pub member_index: u32,
+        pub instruction: spirv_parser::Instruction,
+    }
+}
+
 macro_rules! impl_translation_error {
     ($($error:ident($wrapped_error:ty),)+) => {
         $(
@@ -264,6 +290,9 @@ impl_translation_error! {
     InvalidIntegerType(InvalidIntegerType),
     InvalidVectorComponentType(InvalidVectorComponentType),
     InvalidVectorComponentCount(InvalidVectorComponentCount),
+    MemberDecorationIndexOutOfBounds(MemberDecorationIndexOutOfBounds),
+    MemberDecorationNotAllowed(MemberDecorationNotAllowed),
+    BuiltInAndNonBuiltInNotAllowedInSameStruct(BuiltInAndNonBuiltInNotAllowedInSameStruct),
 }
 
 pub(crate) type TranslationResult<T> = Result<T, TranslationError>;

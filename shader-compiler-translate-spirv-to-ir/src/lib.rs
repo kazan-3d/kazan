@@ -414,6 +414,7 @@ mod tests {
             spirv_parser::ExecutionModel::Vertex,
             spirv_code,
         )
+        .map_err(|e| e.to_string())
         .unwrap();
     }
 }

@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 // See Notices.txt for copyright information
 
+pub(crate) mod structs;
+
 use crate::errors::TranslationResult;
 use crate::errors::VoidNotAllowedHere;
 use alloc::rc::Rc;
@@ -8,10 +10,13 @@ use alloc::vec::Vec;
 use core::borrow::Borrow;
 use core::marker::PhantomData;
 use core::ops::Deref;
+use once_cell::unsync::OnceCell;
 use shader_compiler_ir::prelude::*;
 use shader_compiler_ir::BoolType;
 use shader_compiler_ir::FloatType;
 use spirv_parser::IdRef;
+use spirv_parser::StorageClass;
+use structs::StructType;
 
 pub(crate) struct GetIrTypeState<'g> {
     global_state: &'g GlobalState<'g>,
@@ -246,7 +251,7 @@ impl<'g> GenericSPIRVType<'g> for FunctionType<'g> {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
 pub(crate) struct VectorType {
     pub(crate) component_type: ScalarType,
     pub(crate) component_count: usize,
@@ -278,12 +283,67 @@ impl<'g> GenericSPIRVType<'g> for VectorType {
     }
 }
 
+#[derive(Debug)]
+pub(crate) struct PointerTypeData<'g> {
+    pub(crate) pointee_type: SPIRVType<'g>,
+    pub(crate) storage_class: StorageClass,
+    pub(crate) array_stride: Option<u32>,
+}
+
+#[derive(Clone, Debug)]
+pub(crate) struct PointerType<'g>(Rc<OnceCell<PointerTypeData<'g>>>);
+
+impl<'g> PointerType<'g> {
+    pub(crate) fn new(v: PointerTypeData<'g>) -> Self {
+        Self(Rc::new(OnceCell::from(v)))
+    }
+    pub(crate) fn new_forward_declaration() -> Self {
+        Self(Rc::new(OnceCell::new()))
+    }
+    pub(crate) fn try_get(&self) -> Option<&PointerTypeData<'g>> {
+        self.0.get()
+    }
+    pub(crate) fn get(&self) -> &PointerTypeData<'g> {
+        self.try_get().expect("pointer has no definition")
+    }
+    pub(crate) fn resolve_forward_declaration(
+        &self,
+        v: PointerTypeData<'g>,
+    ) -> Result<(), PointerTypeData<'g>> {
+        self.0.set(v)
+    }
+}
+
+impl<'g> Deref for PointerType<'g> {
+    type Target = PointerTypeData<'g>;
+    fn deref(&self) -> &PointerTypeData<'g> {
+        self.get()
+    }
+}
+
+impl<'g> From<PointerType<'g>> for SPIRVType<'g> {
+    fn from(v: PointerType<'g>) -> Self {
+        Self::Pointer(v)
+    }
+}
+
+impl<'g> GenericSPIRVType<'g> for PointerType<'g> {
+    fn get_ir_type_with_state(
+        &self,
+        state: &mut GetIrTypeState<'g>,
+    ) -> TranslationResult<Option<Interned<'g, shader_compiler_ir::Type<'g>>>> {
+        todo!()
+    }
+}
+
 #[derive(Clone, Debug)]
 pub(crate) enum SPIRVType<'g> {
     Scalar(ScalarType),
     Void(VoidType),
     Function(FunctionType<'g>),
     Vector(VectorType),
+    Struct(StructType<'g>),
+    Pointer(PointerType<'g>),
     _Uninhabited(Uninhabited<'g>),
 }
 
@@ -300,6 +360,30 @@ impl<'g> SPIRVType<'g> {
             _ => None,
         }
     }
+    pub(crate) fn function(&self) -> Option<&FunctionType<'g>> {
+        match self {
+            Self::Function(retval) => Some(retval),
+            _ => None,
+        }
+    }
+    pub(crate) fn vector(&self) -> Option<VectorType> {
+        match *self {
+            Self::Vector(retval) => Some(retval),
+            _ => None,
+        }
+    }
+    pub(crate) fn struct_type(&self) -> Option<&StructType<'g>> {
+        match self {
+            Self::Struct(retval) => Some(retval),
+            _ => None,
+        }
+    }
+    pub(crate) fn pointer(&self) -> Option<&PointerType<'g>> {
+        match self {
+            Self::Pointer(retval) => Some(retval),
+            _ => None,
+        }
+    }
 }
 
 impl<'g> GenericSPIRVType<'g> for SPIRVType<'g> {
@@ -312,6 +396,8 @@ impl<'g> GenericSPIRVType<'g> for SPIRVType<'g> {
             SPIRVType::Void(ty) => ty.get_ir_type_with_state(state),
             SPIRVType::Function(ty) => ty.get_ir_type_with_state(state),
             SPIRVType::Vector(ty) => ty.get_ir_type_with_state(state),
+            SPIRVType::Struct(ty) => ty.get_ir_type_with_state(state),
+            SPIRVType::Pointer(ty) => ty.get_ir_type_with_state(state),
             SPIRVType::_Uninhabited(v) => v.into(),
         }
     }
