@@ -3,6 +3,8 @@
 
 use crate::errors::InvalidFloatTypeBitWidth;
 use crate::errors::InvalidIntegerType;
+use crate::errors::InvalidVectorComponentCount;
+use crate::errors::InvalidVectorComponentType;
 use crate::errors::SPIRVIdAlreadyDefined;
 use crate::errors::SPIRVIdNotDefined;
 use crate::errors::TranslationResult;
@@ -13,18 +15,20 @@ use crate::parse::TranslationStateParseBaseTypesConstantsAndGlobals;
 use crate::parse::TranslationStateParsingTypesConstantsAndGlobals;
 use crate::types::FunctionType;
 use crate::types::FunctionTypeData;
+use crate::types::IntegerType;
 use crate::types::SPIRVType;
+use crate::types::Signedness;
+use crate::types::VectorType;
 use crate::types::VoidType;
 use shader_compiler_ir::BoolType;
 use shader_compiler_ir::FloatType;
-use shader_compiler_ir::IntegerType;
 use spirv_id_map::Entry::Vacant;
 use spirv_parser::IdRef;
 use spirv_parser::IdResult;
 use spirv_parser::{
     OpTypeArray, OpTypeBool, OpTypeFloat, OpTypeForwardPointer, OpTypeFunction, OpTypeImage,
-    OpTypeInt, OpTypeMatrix, OpTypeOpaque, OpTypePointer, OpTypeRuntimeArray, OpTypeSampledImage,
-    OpTypeSampler, OpTypeStruct, OpTypeVector, OpTypeVoid,
+    OpTypeInt, OpTypeMatrix, OpTypePointer, OpTypeRuntimeArray, OpTypeSampledImage, OpTypeSampler,
+    OpTypeStruct, OpTypeVector, OpTypeVoid,
 };
 
 impl<'g, 'i> TranslationStateParseBaseTypesConstantsAndGlobals<'g, 'i> {
@@ -109,24 +113,30 @@ impl ParseInstruction for OpTypeInt {
         &'i self,
         state: &mut TranslationStateParsingTypesConstantsAndGlobals<'g, 'i>,
     ) -> TranslationResult<()> {
+        use shader_compiler_ir::IntegerType::*;
         let OpTypeInt {
             id_result,
             width,
             signedness,
         } = *self;
         state.error_if_any_decorations(id_result, || self.clone().into())?;
-        match signedness {
-            0 | 1 => {}
+        let ir_type = match width {
+            8 => Int8.into(),
+            16 => Int16.into(),
+            32 => Int32.into(),
+            64 => Int64.into(),
             _ => return Err(InvalidIntegerType { width, signedness }.into()),
-        }
+        };
+        let signedness = match signedness {
+            0 => Signedness::UnsignedOrUnspecified,
+            1 => Signedness::Signed,
+            _ => return Err(InvalidIntegerType { width, signedness }.into()),
+        };
         state.define_type(
             id_result,
-            match width {
-                8 => IntegerType::Int8,
-                16 => IntegerType::Int16,
-                32 => IntegerType::Int32,
-                64 => IntegerType::Int64,
-                _ => return Err(InvalidIntegerType { width, signedness }.into()),
+            IntegerType {
+                ir_type,
+                signedness,
             },
         )
     }
@@ -158,6 +168,38 @@ impl ParseInstruction for OpTypeFunction {
                 parameter_types,
                 return_type,
             }),
+        )
+    }
+}
+
+impl ParseInstruction for OpTypeVector {
+    fn parse_in_types_constants_globals_section<'g, 'i>(
+        &'i self,
+        state: &mut TranslationStateParsingTypesConstantsAndGlobals<'g, 'i>,
+    ) -> TranslationResult<()> {
+        let OpTypeVector {
+            id_result,
+            component_type,
+            component_count,
+        } = *self;
+        state.error_if_any_decorations(id_result, || self.clone().into())?;
+        let component_type =
+            state
+                .get_type(component_type)?
+                .scalar()
+                .ok_or(InvalidVectorComponentType {
+                    component_type_id: component_type,
+                })?;
+        let component_count = match component_count {
+            2..=4 => component_count as usize,
+            _ => return Err(InvalidVectorComponentCount { component_count }.into()),
+        };
+        state.define_type(
+            id_result,
+            VectorType {
+                component_type,
+                component_count: component_count as usize,
+            },
         )
     }
 }
@@ -203,7 +245,6 @@ macro_rules! unimplemented_type_instruction {
     };
 }
 
-unimplemented_type_instruction!(OpTypeVector);
 unimplemented_type_instruction!(OpTypeMatrix);
 unimplemented_type_instruction!(OpTypeImage);
 unimplemented_type_instruction!(OpTypeSampler);

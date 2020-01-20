@@ -194,6 +194,21 @@ impl_error! {
     }
 }
 
+impl_error! {
+    #[display = "invalid vector component type ({component_type_id}): \
+        must be a SPIR-V scalar type (a floating-point type, an integer type, or a boolean type)"]
+    pub struct InvalidVectorComponentType {
+        pub component_type_id: IdRef,
+    }
+}
+
+impl_error! {
+    #[display = "invalid vector component count ({component_count}): Vulkan requires vectors to have 2 through 4 components"]
+    pub struct InvalidVectorComponentCount {
+        pub component_count: u32,
+    }
+}
+
 macro_rules! impl_translation_error {
     ($($error:ident($wrapped_error:ty),)+) => {
         $(
@@ -247,6 +262,8 @@ impl_translation_error! {
     DecorationNotAllowedOnInstruction(DecorationNotAllowedOnInstruction),
     InvalidFloatTypeBitWidth(InvalidFloatTypeBitWidth),
     InvalidIntegerType(InvalidIntegerType),
+    InvalidVectorComponentType(InvalidVectorComponentType),
+    InvalidVectorComponentCount(InvalidVectorComponentCount),
 }
 
 pub(crate) type TranslationResult<T> = Result<T, TranslationError>;

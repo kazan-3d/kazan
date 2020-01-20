@@ -11,7 +11,6 @@ use core::ops::Deref;
 use shader_compiler_ir::prelude::*;
 use shader_compiler_ir::BoolType;
 use shader_compiler_ir::FloatType;
-use shader_compiler_ir::IntegerType;
 use spirv_parser::IdRef;
 
 pub(crate) struct GetIrTypeState<'g> {
@@ -45,7 +44,61 @@ pub(crate) trait GenericSPIRVType<'g>: Clone + Into<SPIRVType<'g>> {
     }
 }
 
-macro_rules! impl_simple_scalar_type {
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
+pub(crate) enum Signedness {
+    Signed,
+    UnsignedOrUnspecified,
+}
+
+impl Signedness {
+    pub(crate) fn is_signed(self) -> bool {
+        match self {
+            Signedness::Signed => true,
+            Signedness::UnsignedOrUnspecified => false,
+        }
+    }
+    pub(crate) fn is_unsigned_or_unspecified(self) -> bool {
+        match self {
+            Signedness::UnsignedOrUnspecified => true,
+            Signedness::Signed => false,
+        }
+    }
+}
+
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
+pub(crate) struct IntegerType {
+    pub(crate) ir_type: shader_compiler_ir::IntegerType,
+    pub(crate) signedness: Signedness,
+}
+
+impl<'g> GenericSPIRVType<'g> for IntegerType {
+    fn get_ir_type_with_state(
+        &self,
+        state: &mut GetIrTypeState<'g>,
+    ) -> TranslationResult<Option<Interned<'g, shader_compiler_ir::Type<'g>>>> {
+        Ok(Some(self.ir_type.intern(state.global_state)))
+    }
+}
+
+impl<'g> GenericSPIRVType<'g> for FloatType {
+    fn get_ir_type_with_state(
+        &self,
+        state: &mut GetIrTypeState<'g>,
+    ) -> TranslationResult<Option<Interned<'g, shader_compiler_ir::Type<'g>>>> {
+        Ok(Some(self.intern(state.global_state)))
+    }
+}
+
+impl<'g> GenericSPIRVType<'g> for BoolType {
+    fn get_ir_type_with_state(
+        &self,
+        state: &mut GetIrTypeState<'g>,
+    ) -> TranslationResult<Option<Interned<'g, shader_compiler_ir::Type<'g>>>> {
+        Ok(Some(self.intern(state.global_state)))
+    }
+}
+
+macro_rules! impl_scalar_type {
     (
         $vis:vis enum $name:ident {
             $($member_name:ident($member_type:ty),)+
@@ -70,15 +123,6 @@ macro_rules! impl_simple_scalar_type {
                     $name::from(v).into()
                 }
             }
-
-            impl<'g> GenericSPIRVType<'g> for $member_type {
-                fn get_ir_type_with_state(
-                    &self,
-                    state: &mut GetIrTypeState<'g>,
-                ) -> TranslationResult<Option<Interned<'g, shader_compiler_ir::Type<'g>>>> {
-                    Ok(Some(self.intern(state.global_state)))
-                }
-            }
         )+
 
         impl<'g> GenericSPIRVType<'g> for $name {
@@ -96,17 +140,17 @@ macro_rules! impl_simple_scalar_type {
     };
 }
 
-impl_simple_scalar_type! {
-    pub(crate) enum SimpleScalarType {
+impl_scalar_type! {
+    pub(crate) enum ScalarType {
         Integer(IntegerType),
         Float(FloatType),
         Bool(BoolType),
     }
 }
 
-impl From<SimpleScalarType> for SPIRVType<'_> {
-    fn from(v: SimpleScalarType) -> Self {
-        Self::SimpleScalar(v)
+impl From<ScalarType> for SPIRVType<'_> {
+    fn from(v: ScalarType) -> Self {
+        Self::Scalar(v)
     }
 }
 
@@ -203,10 +247,43 @@ impl<'g> GenericSPIRVType<'g> for FunctionType<'g> {
 }
 
 #[derive(Clone, Debug)]
+pub(crate) struct VectorType {
+    pub(crate) component_type: ScalarType,
+    pub(crate) component_count: usize,
+}
+
+impl From<VectorType> for SPIRVType<'_> {
+    fn from(v: VectorType) -> Self {
+        Self::Vector(v)
+    }
+}
+
+impl<'g> GenericSPIRVType<'g> for VectorType {
+    fn get_ir_type_with_state(
+        &self,
+        state: &mut GetIrTypeState<'g>,
+    ) -> TranslationResult<Option<Interned<'g, shader_compiler_ir::Type<'g>>>> {
+        let element = self
+            .component_type
+            .get_ir_type_with_state(state)?
+            .expect("known to be non-void");
+        Ok(Some(
+            shader_compiler_ir::VectorType {
+                element,
+                len: self.component_count,
+                scalable: false,
+            }
+            .intern(state.global_state),
+        ))
+    }
+}
+
+#[derive(Clone, Debug)]
 pub(crate) enum SPIRVType<'g> {
-    SimpleScalar(SimpleScalarType),
+    Scalar(ScalarType),
     Void(VoidType),
     Function(FunctionType<'g>),
+    Vector(VectorType),
     _Uninhabited(Uninhabited<'g>),
 }
 
@@ -217,9 +294,9 @@ impl<'g> SPIRVType<'g> {
             _ => false,
         }
     }
-    pub(crate) fn simple_scalar(&self) -> Option<SimpleScalarType> {
+    pub(crate) fn scalar(&self) -> Option<ScalarType> {
         match *self {
-            Self::SimpleScalar(retval) => Some(retval),
+            Self::Scalar(retval) => Some(retval),
             _ => None,
         }
     }
@@ -231,9 +308,10 @@ impl<'g> GenericSPIRVType<'g> for SPIRVType<'g> {
         state: &mut GetIrTypeState<'g>,
     ) -> TranslationResult<Option<Interned<'g, shader_compiler_ir::Type<'g>>>> {
         match self {
-            SPIRVType::SimpleScalar(ty) => ty.get_ir_type_with_state(state),
+            SPIRVType::Scalar(ty) => ty.get_ir_type_with_state(state),
             SPIRVType::Void(ty) => ty.get_ir_type_with_state(state),
             SPIRVType::Function(ty) => ty.get_ir_type_with_state(state),
+            SPIRVType::Vector(ty) => ty.get_ir_type_with_state(state),
             SPIRVType::_Uninhabited(v) => v.into(),
         }
     }
