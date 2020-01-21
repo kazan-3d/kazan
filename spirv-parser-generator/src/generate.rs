@@ -4,9 +4,12 @@
 use crate::ast;
 use crate::util::{self, NameFormat::*};
 use crate::Error;
+use crate::InputFile;
+use crate::InputFileTracker;
 use crate::Options;
 use proc_macro2;
 use quote::quote;
+use sha2::{Digest, Sha256};
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::collections::HashSet;
@@ -145,6 +148,7 @@ pub(crate) fn generate(
         ast::ExtensionInstructionSet,
     >,
     options: &Options,
+    input_files: InputFileTracker,
 ) -> Result<String, Error> {
     let mut out = Vec::new();
     let ast::CoreGrammar {
@@ -1952,6 +1956,49 @@ pub(crate) fn generate(
                     }
                 }
             )
+        )?;
+    }
+    {
+        let mut input_file_tests = Vec::new();
+        for InputFile {
+            contents,
+            output_path,
+        } in input_files.input_files
+        {
+            let digest = proc_macro2::Literal::byte_string(&Sha256::digest(&contents));
+            input_file_tests.push(quote! {
+                input_file_test(#output_path, #digest);
+            });
+        }
+        writeln!(
+            &mut out,
+            "{}",
+            quote! {
+                #[cfg(test)]
+                mod input_file_tests {
+                    use std::fs;
+                    use std::io;
+                    use sha2::{Sha256, Digest};
+                    use std::path::Path;
+
+                    fn input_file_test(path: &str, digest: &[u8; 32]) {
+                        let path = Path::new(env!("CARGO_MANIFEST_DIR")).join(path);
+                        println!("checking input file: {}", path.display());
+                        println!("expected hash: {}", digest.iter().flat_map(|byte| format!("{:02X}", byte)).collect::<String>());
+                        let mut file = fs::File::open(&path).map_err(|err| format!("can't open file {}: {}", path.display(), err)).unwrap();
+                        let mut hasher = Sha256::new();
+                        io::copy(&mut file, &mut hasher).unwrap();
+                        assert_eq(digest, hasher.result(), "hash doesn't match");
+                    }
+
+                    #[test]
+                    fn input_file_tests() {
+                        println!("checking that generated code is up to date -- update by running:");
+                        println!("cargo build --features=spirv-parser-generator");
+                        #(#input_file_tests)*
+                    }
+                }
+            }
         )?;
     }
     let source = String::from_utf8(out).unwrap();

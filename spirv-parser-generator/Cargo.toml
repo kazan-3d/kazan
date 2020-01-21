@@ -17,3 +17,4 @@ serde_derive = "1.0"
 proc-macro2 = { version = "1.0", default-features = false }
 quote = { version = "1.0", default-features = false }
 which = "3"
+sha2 = "0.8"

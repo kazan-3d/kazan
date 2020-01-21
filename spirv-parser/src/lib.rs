@@ -8,7 +8,9 @@
 #[macro_use]
 extern crate alloc;
 
-include!(concat!(env!("OUT_DIR"), "/generated_parser.rs"));
+mod generated_parser;
+
+pub use generated_parser::*;
 
 #[cfg(test)]
 mod tests {

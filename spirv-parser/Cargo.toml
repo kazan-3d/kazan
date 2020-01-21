@@ -10,7 +10,11 @@ edition = "2018"
 [lib]
 crate-type = ["rlib"]
 
+[features]
+generate-parser = ["spirv-parser-generator"]
+
 [dependencies]
 
-[build-dependencies]
-spirv-parser-generator = {path = "../spirv-parser-generator"}
+[build-dependencies.spirv-parser-generator]
+path = "../spirv-parser-generator"
+optional = true

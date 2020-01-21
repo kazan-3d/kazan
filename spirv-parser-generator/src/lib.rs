@@ -7,10 +7,12 @@
 use std::collections::HashMap;
 use std::error;
 use std::fmt;
+use std::fs;
 use std::fs::File;
 use std::io;
 use std::path::Path;
 use std::path::PathBuf;
+use std::rc::Rc;
 
 mod ast;
 mod generate;
@@ -121,25 +123,43 @@ impl Default for Options {
 }
 
 pub struct Input {
-    spirv_core_grammar_json_path: PathBuf,
-    extension_instruction_sets: HashMap<ExtensionInstructionSet, PathBuf>,
+    spirv_core_grammar_json_path: (PathBuf, String),
+    extension_instruction_sets: HashMap<ExtensionInstructionSet, (PathBuf, String)>,
     options: Options,
 }
 
-fn get_spirv_grammar_path<T: AsRef<Path>>(name: T) -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../external/SPIRV-Headers/include/spirv/unified1")
-        .join(name)
+fn get_spirv_grammar_path(name: &str) -> (PathBuf, String) {
+    let output_path = String::from("../external/SPIRV-Headers/include/spirv/unified1/") + name;
+    (
+        Path::new(env!("CARGO_MANIFEST_DIR")).join(&output_path),
+        output_path,
+    )
 }
 
-fn file_open_helper<T: AsRef<Path>>(name: T) -> Result<File, io::Error> {
-    let name = name.as_ref();
-    File::open(name).map_err(|err| {
-        io::Error::new(
-            err.kind(),
-            format!("failed to open file: {}", name.display()),
-        )
-    })
+struct InputFile {
+    output_path: String,
+    contents: Rc<Vec<u8>>,
+}
+
+#[derive(Default)]
+struct InputFileTracker {
+    input_files: Vec<InputFile>,
+}
+
+impl InputFileTracker {
+    fn open(&mut self, path: (PathBuf, String)) -> Result<Rc<Vec<u8>>, io::Error> {
+        let contents = Rc::new(fs::read(&path.0).map_err(|err| {
+            io::Error::new(
+                err.kind(),
+                format!("failed to read file: {}: {}", path.0.display(), err),
+            )
+        })?);
+        self.input_files.push(InputFile {
+            output_path: path.1,
+            contents: contents.clone(),
+        });
+        Ok(contents)
+    }
 }
 
 fn file_create_helper<T: AsRef<Path>>(name: T) -> Result<File, io::Error> {
@@ -163,22 +183,21 @@ impl Input {
         }
         retval
     }
-    pub fn new<T: AsRef<Path>>(spirv_core_grammar_json_path: T) -> Input {
+    pub fn new(spirv_core_grammar_json_path: (PathBuf, String)) -> Input {
         Input {
-            spirv_core_grammar_json_path: spirv_core_grammar_json_path.as_ref().into(),
+            spirv_core_grammar_json_path,
             extension_instruction_sets: HashMap::new(),
             options: Options::default(),
         }
     }
-
-    pub fn add_extension_instruction_set<T: AsRef<Path>>(
+    pub fn add_extension_instruction_set(
         mut self,
         extension_instruction_set: ExtensionInstructionSet,
-        path: T,
+        path: (PathBuf, String),
     ) -> Self {
         assert!(
             self.extension_instruction_sets
-                .insert(extension_instruction_set, path.as_ref().into())
+                .insert(extension_instruction_set, path)
                 .is_none(),
             "duplicate extension instruction set: {:?}",
             extension_instruction_set
@@ -191,8 +210,9 @@ impl Input {
             extension_instruction_sets,
             options,
         } = self;
+        let mut input_files = InputFileTracker::default();
         let mut core_grammar: ast::CoreGrammar =
-            serde_json::from_reader(file_open_helper(spirv_core_grammar_json_path)?)?;
+            serde_json::from_reader(&**input_files.open(spirv_core_grammar_json_path)?)?;
         core_grammar.fixup()?;
         let mut parsed_extension_instruction_sets: HashMap<
             ExtensionInstructionSet,
@@ -200,14 +220,19 @@ impl Input {
         > = Default::default();
         for (extension_instruction_set, path) in extension_instruction_sets {
             let mut parsed_extension_instruction_set: ast::ExtensionInstructionSet =
-                serde_json::from_reader(file_open_helper(path)?)?;
+                serde_json::from_reader(&**input_files.open(path)?)?;
             parsed_extension_instruction_set.fixup()?;
             assert!(parsed_extension_instruction_sets
                 .insert(extension_instruction_set, parsed_extension_instruction_set)
                 .is_none());
         }
         Ok(Output {
-            text: generate::generate(core_grammar, parsed_extension_instruction_sets, &options)?,
+            text: generate::generate(
+                core_grammar,
+                parsed_extension_instruction_sets,
+                &options,
+                input_files,
+            )?,
         })
     }
 }
