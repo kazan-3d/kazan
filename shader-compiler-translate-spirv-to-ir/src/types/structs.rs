@@ -18,13 +18,6 @@ pub(crate) enum StructKind {
     BuiltIns,
 }
 
-#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
-pub(crate) enum StructLayout {
-    Generic,
-    Block { is_buffer_block: bool },
-    BuiltIns,
-}
-
 #[derive(Debug)]
 pub(crate) struct StructMember<'g> {
     pub(crate) built_in: Option<BuiltIn>,
