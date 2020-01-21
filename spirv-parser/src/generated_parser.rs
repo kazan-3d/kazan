@@ -1,4 +1,5 @@
-// automatically generated file
+// automatically generated file -- update by running:
+// cargo build --features=spirv-parser-generator
 //
 // Copyright (c) 2014-2016 The Khronos Group Inc.
 //
@@ -12942,7 +12943,7 @@ impl fmt::Display for Error {
         }
     }
 }
-type Result<T> = result::Result<T, Error>;
+pub(crate) type Result<T> = result::Result<T, Error>;
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
 enum BitWidth {
     Width32OrLess,
@@ -33470,34 +33471,43 @@ impl fmt::Display for ExtensionInstructionSet {
 mod input_file_tests {
     use sha2::{Digest, Sha256};
     use std::fs;
-    use std::io;
+    use std::io::{BufRead, BufReader};
     use std::path::Path;
-    fn input_file_test(path: &str, digest: &[u8; 32]) {
+    #[doc = r" note: using lines() to prevent line-endings from affecting hash when checked out on windows vs. unix"]
+    fn input_file_test(path: &str, digest: &[u8]) {
         let path = Path::new(env!("CARGO_MANIFEST_DIR")).join(path);
         println!("checking input file: {}", path.display());
         println!(
             "expected hash: {}",
             digest
                 .iter()
-                .flat_map(|byte| format!("{:02X}", byte))
+                .map(|byte| format!("{:02X}", byte))
                 .collect::<String>()
         );
-        let mut file = fs::File::open(&path)
+        let file = fs::File::open(&path)
             .map_err(|err| format!("can't open file {}: {}", path.display(), err))
             .unwrap();
         let mut hasher = Sha256::new();
-        io::copy(&mut file, &mut hasher).unwrap();
-        assert_eq(digest, hasher.result(), "hash doesn't match");
+        for line in BufReader::new(file).lines() {
+            hasher.input(line.unwrap());
+            hasher.input(b"\n");
+        }
+        assert_eq!(digest, hasher.result().as_ref(), "hash doesn't match");
     }
     #[test]
     fn input_file_tests() {
         println!("checking that generated code is up to date -- update by running:");
         println!("cargo build --features=spirv-parser-generator");
+        input_file_test ( "../spirv-parser-generator/src/ast.rs" , b"A\xDF\x03\xF41\xF3\xD2\xCB)\xF0\xB3\xB8t\xF9N\x1B\xDB\xAB\xE3\xAFq\x0BDu\x8E\xE1\xEF\xEARf\xEC\xF7" ) ;
+        input_file_test ( "../spirv-parser-generator/src/generate.rs" , b"\xF7\xD9$;C\xA6\xE8m\xA9(\x93x\xDFa\xE1.\xDF\xE7\xCF\xED;j\xDAC3H\xC9\xBD\xF7\xF4%\xB3" ) ;
+        input_file_test ( "../spirv-parser-generator/src/lib.rs" , b"\xEC\xF6`\xB8\x8C\x90\xE8/\r1\xE3\xE2\xC9\xD8\xBF\x8B?6b\x99{\x9D\xB2Y\xE8H\xF1g\xE9B\xA7\xF2" ) ;
+        input_file_test ( "../spirv-parser-generator/src/util.rs" , b"\xB6\x92f\xB0*\x8D\xB4\xA7\xA0\x194\x12\xCC\xCDg\x8B\xDB\xB3\xCA\xF4\xE2)\xDE\xE3\x03Hw]\x13\xB1w\xEB" ) ;
+        input_file_test ( "../spirv-parser-generator/Cargo.toml" , b"\xB2\xBB?\xE5\xB5\xB3\xED\x96]\x8Cj\xDDM+\xB0\xFB\xC9\xBB\xAB\xF8\tH\x02\xFF\xA7\x05\xD3\x0E\xDE\x98\r\x02" ) ;
         input_file_test ( "../external/SPIRV-Headers/include/spirv/unified1/spirv.core.grammar.json" , b"\xA0\xE8!\x91\xFBV\x81\x041Ra\xCB\xCE\r6\xBC\xCCD\xAE34\xECT\x82\xC0\x150S\x97\xEF\x06\xA5" ) ;
-        input_file_test ( "../external/SPIRV-Headers/include/spirv/unified1/extinst.glsl.std.450.grammar.json" , b";\xCFx\xC1;q\xA9\xEB\xBAQ\xE8\x90\xC5_A\xA5\xE0\xF4{\xA2\x83\xBC|\x08\xFD~\x13D\xEA_G\xA6" ) ;
         input_file_test(
             "../external/SPIRV-Headers/include/spirv/unified1/extinst.opencl.std.100.grammar.json",
             b"\xB6\xBE2H\xAF\x8EaP3.\xC5\xD9\xDF.W\x8B6MX\x8Cv%3\x83\x1BuP\xF6\x07\xA7?\xF8",
         );
+        input_file_test ( "../external/SPIRV-Headers/include/spirv/unified1/extinst.glsl.std.450.grammar.json" , b";\xCFx\xC1;q\xA9\xEB\xBAQ\xE8\x90\xC5_A\xA5\xE0\xF4{\xA2\x83\xBC|\x08\xFD~\x13D\xEA_G\xA6" ) ;
     }
 }

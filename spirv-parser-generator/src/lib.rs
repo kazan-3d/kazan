@@ -128,12 +128,15 @@ pub struct Input {
     options: Options,
 }
 
-fn get_spirv_grammar_path(name: &str) -> (PathBuf, String) {
-    let output_path = String::from("../external/SPIRV-Headers/include/spirv/unified1/") + name;
+fn get_source_path(output_path: String) -> (PathBuf, String) {
     (
         Path::new(env!("CARGO_MANIFEST_DIR")).join(&output_path),
         output_path,
     )
+}
+
+fn get_spirv_grammar_path(name: &str) -> (PathBuf, String) {
+    get_source_path(String::from("../external/SPIRV-Headers/include/spirv/unified1/") + name)
 }
 
 struct InputFile {
@@ -141,12 +144,28 @@ struct InputFile {
     contents: Rc<Vec<u8>>,
 }
 
-#[derive(Default)]
 struct InputFileTracker {
     input_files: Vec<InputFile>,
 }
 
 impl InputFileTracker {
+    fn new() -> Result<Self, io::Error> {
+        let mut retval = InputFileTracker {
+            input_files: Vec::new(),
+        };
+        for &source_file in &[
+            "src/ast.rs",
+            "src/generate.rs",
+            "src/lib.rs",
+            "src/util.rs",
+            "Cargo.toml",
+        ] {
+            retval.open(get_source_path(
+                String::from("../spirv-parser-generator/") + source_file,
+            ))?;
+        }
+        Ok(retval)
+    }
     fn open(&mut self, path: (PathBuf, String)) -> Result<Rc<Vec<u8>>, io::Error> {
         let contents = Rc::new(fs::read(&path.0).map_err(|err| {
             io::Error::new(
@@ -210,7 +229,7 @@ impl Input {
             extension_instruction_sets,
             options,
         } = self;
-        let mut input_files = InputFileTracker::default();
+        let mut input_files = InputFileTracker::new()?;
         let mut core_grammar: ast::CoreGrammar =
             serde_json::from_reader(&**input_files.open(spirv_core_grammar_json_path)?)?;
         core_grammar.fixup()?;

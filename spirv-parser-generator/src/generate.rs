@@ -14,7 +14,7 @@ use std::borrow::Cow;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::fmt;
-use std::io::{self, Read, Write};
+use std::io::{self, BufRead, Cursor, Read, Write};
 use std::iter;
 use std::process::{Child, Command, ExitStatus, Stdio};
 use std::thread;
@@ -176,7 +176,11 @@ pub(crate) fn generate(
             },
         })
         .collect();
-    writeln!(&mut out, "// automatically generated file")?;
+    writeln!(
+        &mut out,
+        "// automatically generated file -- update by running:"
+    )?;
+    writeln!(&mut out, "// cargo build --features=spirv-parser-generator")?;
     {
         let mut copyright_set = HashSet::new();
         for copyright in iter::once(&core_grammar_copyright).chain(
@@ -1668,7 +1672,7 @@ pub(crate) fn generate(
                     }
                 }
 
-                type Result<T> = result::Result<T, Error>;
+                pub(crate) type Result<T> = result::Result<T, Error>;
 
                 #[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
                 enum BitWidth {
@@ -1965,7 +1969,13 @@ pub(crate) fn generate(
             output_path,
         } in input_files.input_files
         {
-            let digest = proc_macro2::Literal::byte_string(&Sha256::digest(&contents));
+            let mut hasher = Sha256::new();
+            let contents = Cursor::new(&**contents);
+            for line in contents.lines() {
+                hasher.input(line?);
+                hasher.input(b"\n");
+            }
+            let digest = proc_macro2::Literal::byte_string(&hasher.result());
             input_file_tests.push(quote! {
                 input_file_test(#output_path, #digest);
             });
@@ -1977,18 +1987,30 @@ pub(crate) fn generate(
                 #[cfg(test)]
                 mod input_file_tests {
                     use std::fs;
-                    use std::io;
+                    use std::io::{BufRead, BufReader};
                     use sha2::{Sha256, Digest};
                     use std::path::Path;
 
-                    fn input_file_test(path: &str, digest: &[u8; 32]) {
+                    /// note: using lines() to prevent line-endings from affecting hash when checked out on windows vs. unix
+                    fn input_file_test(path: &str, digest: &[u8]) {
                         let path = Path::new(env!("CARGO_MANIFEST_DIR")).join(path);
                         println!("checking input file: {}", path.display());
-                        println!("expected hash: {}", digest.iter().flat_map(|byte| format!("{:02X}", byte)).collect::<String>());
-                        let mut file = fs::File::open(&path).map_err(|err| format!("can't open file {}: {}", path.display(), err)).unwrap();
+                        println!(
+                            "expected hash: {}",
+                            digest
+                                .iter()
+                                .map(|byte| format!("{:02X}", byte))
+                                .collect::<String>()
+                        );
+                        let file = fs::File::open(&path)
+                            .map_err(|err| format!("can't open file {}: {}", path.display(), err))
+                            .unwrap();
                         let mut hasher = Sha256::new();
-                        io::copy(&mut file, &mut hasher).unwrap();
-                        assert_eq(digest, hasher.result(), "hash doesn't match");
+                        for line in BufReader::new(file).lines() {
+                            hasher.input(line.unwrap());
+                            hasher.input(b"\n");
+                        }
+                        assert_eq!(digest, hasher.result().as_ref(), "hash doesn't match");
                     }
 
                     #[test]
