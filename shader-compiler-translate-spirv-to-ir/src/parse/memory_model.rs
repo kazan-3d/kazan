@@ -28,11 +28,11 @@ impl<'g, 'i> TranslationStateParsedMemoryModel<'g, 'i> {
             memory_model,
         } = *instruction;
         match memory_model {
-            MemoryModel::Simple | MemoryModel::GLSL450 | MemoryModel::Vulkan => {}
+            MemoryModel::Simple(_) | MemoryModel::GLSL450(_) | MemoryModel::Vulkan(_) => {}
             _ => return Err(SPIRVMemoryModelNotSupported { memory_model }.into()),
         }
         match addressing_model {
-            AddressingModel::Logical => Ok(()),
+            AddressingModel::Logical(_) => Ok(()),
             _ => Err(SPIRVAddressingModelNotSupported { addressing_model }.into()),
         }
     }

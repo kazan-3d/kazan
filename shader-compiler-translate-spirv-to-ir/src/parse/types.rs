@@ -29,6 +29,7 @@ use shader_compiler_ir::BoolType;
 use shader_compiler_ir::FloatType;
 use spirv_id_map::Entry::Vacant;
 use spirv_parser::Decoration;
+use spirv_parser::DecorationArrayStride;
 use spirv_parser::IdRef;
 use spirv_parser::IdResult;
 use spirv_parser::{
@@ -240,7 +241,9 @@ impl ParseInstruction for OpTypePointer {
         let mut array_stride = None;
         for decoration in decorations {
             match decoration {
-                Decoration::ArrayStride { array_stride: v } => array_stride = Some(v),
+                Decoration::ArrayStride(DecorationArrayStride { array_stride: v }) => {
+                    array_stride = Some(v)
+                }
                 _ => {
                     return Err(DecorationNotAllowedOnInstruction {
                         decoration,

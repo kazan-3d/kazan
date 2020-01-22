@@ -612,20 +612,33 @@ pub(crate) fn generate(
                     }
                 }
                 let kind_id = new_id(&kind, CamelCase);
+                let mut generated_enumerant_structs = Vec::new();
                 let mut generated_enumerants = Vec::new();
                 let mut enumerant_parse_cases = Vec::new();
                 let mut enumerant_display_cases = Vec::new();
                 for enumerant in enumerants {
                     let name = new_enumerant_id(&kind, &enumerant.enumerant);
+                    let type_name =
+                        new_combined_id(&[kind.as_ref(), &enumerant.enumerant], CamelCase);
                     let enumerant_value = enumerant.value;
                     let display_name = &enumerant.enumerant;
                     if enumerant.parameters.is_empty() {
-                        generated_enumerants.push(quote! {#name});
+                        generated_enumerant_structs.push(quote! {
+                            #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+                            pub struct #type_name;
+
+                            impl From<#type_name> for #kind_id {
+                                fn from(v: #type_name) -> Self {
+                                    Self::#name(v)
+                                }
+                            }
+                        });
+                        generated_enumerants.push(quote! {#name(#type_name)});
                         enumerant_parse_cases.push(quote! {
-                            #enumerant_value => Ok((#kind_id::#name, words)),
+                            #enumerant_value => Ok((#kind_id::#name(#type_name), words)),
                         });
                         enumerant_display_cases.push(quote! {
-                            #kind_id::#name => write!(f, " {}", #display_name),
+                            #kind_id::#name(_) => write!(f, " {}", #display_name),
                         });
                     } else {
                         let mut enumerant_member_declarations = Vec::new();
@@ -636,7 +649,7 @@ pub(crate) fn generate(
                             let name = new_id(parameter.name.as_ref().unwrap(), SnakeCase);
                             let kind = new_id(&parameter.kind, CamelCase);
                             enumerant_member_declarations.push(quote! {
-                                #name: #kind,
+                                pub #name: #kind,
                             });
                             enumerant_member_names.push(quote! {
                                 #name,
@@ -648,24 +661,32 @@ pub(crate) fn generate(
                                 #name.spirv_display(f)?;
                             });
                         }
-                        generated_enumerants.push(quote! {
-                            #name {
+                        generated_enumerant_structs.push(quote! {
+                            #[derive(Clone, Eq, PartialEq, Hash, Debug)]
+                            pub struct #type_name {
                                 #(#enumerant_member_declarations)*
                             }
+
+                            impl From<#type_name> for #kind_id {
+                                fn from(v: #type_name) -> Self {
+                                    Self::#name(v)
+                                }
+                            }
                         });
+                        generated_enumerants.push(quote! {#name(#type_name)});
                         let enumerant_member_names = &enumerant_member_names;
                         enumerant_parse_cases.push(quote! {
                             #enumerant_value => {
                                 #(#parse_enumerant_members)*
-                                Ok((#kind_id::#name {
+                                Ok((#kind_id::#name(#type_name {
                                     #(#enumerant_member_names)*
-                                }, words))
+                                }), words))
                             },
                         });
                         enumerant_display_cases.push(quote! {
-                            #kind_id::#name {
+                            #kind_id::#name(#type_name {
                                 #(#enumerant_member_names)*
-                            } => {
+                            }) => {
                                 write!(f, " {}", #display_name)?;
                                 #(#display_enumerant_members)*
                                 Ok(())
@@ -687,6 +708,7 @@ pub(crate) fn generate(
                     &mut out,
                     "{}",
                     quote! {
+                        #(#generated_enumerant_structs)*
                         #[derive(#(#derives),*)]
                         pub enum #kind_id {
                             #(#generated_enumerants,)*
@@ -1426,7 +1448,7 @@ pub(crate) fn generate(
                     }
                 } else if instruction.operands.is_empty() {
                     quote! {
-                        #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
+                        #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
                         pub struct #opname_with_op;
                         impl From<#opname_with_op> for Instruction {
                             fn from(v: #opname_with_op) -> Self {

@@ -1728,14 +1728,56 @@ impl SPIRVDisplay for KernelProfilingInfo {
         Ok(())
     }
 }
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct SourceLanguageUnknown;
+impl From<SourceLanguageUnknown> for SourceLanguage {
+    fn from(v: SourceLanguageUnknown) -> Self {
+        Self::Unknown(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct SourceLanguageESSL;
+impl From<SourceLanguageESSL> for SourceLanguage {
+    fn from(v: SourceLanguageESSL) -> Self {
+        Self::ESSL(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct SourceLanguageGLSL;
+impl From<SourceLanguageGLSL> for SourceLanguage {
+    fn from(v: SourceLanguageGLSL) -> Self {
+        Self::GLSL(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct SourceLanguageOpenCLC;
+impl From<SourceLanguageOpenCLC> for SourceLanguage {
+    fn from(v: SourceLanguageOpenCLC) -> Self {
+        Self::OpenCLC(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct SourceLanguageOpenCLCPP;
+impl From<SourceLanguageOpenCLCPP> for SourceLanguage {
+    fn from(v: SourceLanguageOpenCLCPP) -> Self {
+        Self::OpenCLCPP(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct SourceLanguageHLSL;
+impl From<SourceLanguageHLSL> for SourceLanguage {
+    fn from(v: SourceLanguageHLSL) -> Self {
+        Self::HLSL(v)
+    }
+}
 #[derive(Clone, Debug, Eq, PartialEq, Hash, Copy)]
 pub enum SourceLanguage {
-    Unknown,
-    ESSL,
-    GLSL,
-    OpenCLC,
-    OpenCLCPP,
-    HLSL,
+    Unknown(SourceLanguageUnknown),
+    ESSL(SourceLanguageESSL),
+    GLSL(SourceLanguageGLSL),
+    OpenCLC(SourceLanguageOpenCLC),
+    OpenCLCPP(SourceLanguageOpenCLCPP),
+    HLSL(SourceLanguageHLSL),
 }
 impl SPIRVParse for SourceLanguage {
     fn spirv_parse<'a>(
@@ -1744,12 +1786,12 @@ impl SPIRVParse for SourceLanguage {
     ) -> Result<(Self, &'a [u32])> {
         let (enumerant, words) = u32::spirv_parse(words, parse_state)?;
         match enumerant {
-            0u32 => Ok((SourceLanguage::Unknown, words)),
-            1u32 => Ok((SourceLanguage::ESSL, words)),
-            2u32 => Ok((SourceLanguage::GLSL, words)),
-            3u32 => Ok((SourceLanguage::OpenCLC, words)),
-            4u32 => Ok((SourceLanguage::OpenCLCPP, words)),
-            5u32 => Ok((SourceLanguage::HLSL, words)),
+            0u32 => Ok((SourceLanguage::Unknown(SourceLanguageUnknown), words)),
+            1u32 => Ok((SourceLanguage::ESSL(SourceLanguageESSL), words)),
+            2u32 => Ok((SourceLanguage::GLSL(SourceLanguageGLSL), words)),
+            3u32 => Ok((SourceLanguage::OpenCLC(SourceLanguageOpenCLC), words)),
+            4u32 => Ok((SourceLanguage::OpenCLCPP(SourceLanguageOpenCLCPP), words)),
+            5u32 => Ok((SourceLanguage::HLSL(SourceLanguageHLSL), words)),
             _ => Err(Error::InvalidEnumValue),
         }
     }
@@ -1757,24 +1799,73 @@ impl SPIRVParse for SourceLanguage {
 impl SPIRVDisplay for SourceLanguage {
     fn spirv_display(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            SourceLanguage::Unknown => write!(f, " {}", "Unknown"),
-            SourceLanguage::ESSL => write!(f, " {}", "ESSL"),
-            SourceLanguage::GLSL => write!(f, " {}", "GLSL"),
-            SourceLanguage::OpenCLC => write!(f, " {}", "OpenCL_C"),
-            SourceLanguage::OpenCLCPP => write!(f, " {}", "OpenCL_CPP"),
-            SourceLanguage::HLSL => write!(f, " {}", "HLSL"),
+            SourceLanguage::Unknown(_) => write!(f, " {}", "Unknown"),
+            SourceLanguage::ESSL(_) => write!(f, " {}", "ESSL"),
+            SourceLanguage::GLSL(_) => write!(f, " {}", "GLSL"),
+            SourceLanguage::OpenCLC(_) => write!(f, " {}", "OpenCL_C"),
+            SourceLanguage::OpenCLCPP(_) => write!(f, " {}", "OpenCL_CPP"),
+            SourceLanguage::HLSL(_) => write!(f, " {}", "HLSL"),
         }
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct ExecutionModelVertex;
+impl From<ExecutionModelVertex> for ExecutionModel {
+    fn from(v: ExecutionModelVertex) -> Self {
+        Self::Vertex(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct ExecutionModelTessellationControl;
+impl From<ExecutionModelTessellationControl> for ExecutionModel {
+    fn from(v: ExecutionModelTessellationControl) -> Self {
+        Self::TessellationControl(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct ExecutionModelTessellationEvaluation;
+impl From<ExecutionModelTessellationEvaluation> for ExecutionModel {
+    fn from(v: ExecutionModelTessellationEvaluation) -> Self {
+        Self::TessellationEvaluation(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct ExecutionModelGeometry;
+impl From<ExecutionModelGeometry> for ExecutionModel {
+    fn from(v: ExecutionModelGeometry) -> Self {
+        Self::Geometry(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct ExecutionModelFragment;
+impl From<ExecutionModelFragment> for ExecutionModel {
+    fn from(v: ExecutionModelFragment) -> Self {
+        Self::Fragment(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct ExecutionModelGLCompute;
+impl From<ExecutionModelGLCompute> for ExecutionModel {
+    fn from(v: ExecutionModelGLCompute) -> Self {
+        Self::GLCompute(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct ExecutionModelKernel;
+impl From<ExecutionModelKernel> for ExecutionModel {
+    fn from(v: ExecutionModelKernel) -> Self {
+        Self::Kernel(v)
     }
 }
 #[derive(Clone, Debug, Eq, PartialEq, Hash, Copy)]
 pub enum ExecutionModel {
-    Vertex,
-    TessellationControl,
-    TessellationEvaluation,
-    Geometry,
-    Fragment,
-    GLCompute,
-    Kernel,
+    Vertex(ExecutionModelVertex),
+    TessellationControl(ExecutionModelTessellationControl),
+    TessellationEvaluation(ExecutionModelTessellationEvaluation),
+    Geometry(ExecutionModelGeometry),
+    Fragment(ExecutionModelFragment),
+    GLCompute(ExecutionModelGLCompute),
+    Kernel(ExecutionModelKernel),
 }
 impl SPIRVParse for ExecutionModel {
     fn spirv_parse<'a>(
@@ -1783,13 +1874,19 @@ impl SPIRVParse for ExecutionModel {
     ) -> Result<(Self, &'a [u32])> {
         let (enumerant, words) = u32::spirv_parse(words, parse_state)?;
         match enumerant {
-            0u32 => Ok((ExecutionModel::Vertex, words)),
-            1u32 => Ok((ExecutionModel::TessellationControl, words)),
-            2u32 => Ok((ExecutionModel::TessellationEvaluation, words)),
-            3u32 => Ok((ExecutionModel::Geometry, words)),
-            4u32 => Ok((ExecutionModel::Fragment, words)),
-            5u32 => Ok((ExecutionModel::GLCompute, words)),
-            6u32 => Ok((ExecutionModel::Kernel, words)),
+            0u32 => Ok((ExecutionModel::Vertex(ExecutionModelVertex), words)),
+            1u32 => Ok((
+                ExecutionModel::TessellationControl(ExecutionModelTessellationControl),
+                words,
+            )),
+            2u32 => Ok((
+                ExecutionModel::TessellationEvaluation(ExecutionModelTessellationEvaluation),
+                words,
+            )),
+            3u32 => Ok((ExecutionModel::Geometry(ExecutionModelGeometry), words)),
+            4u32 => Ok((ExecutionModel::Fragment(ExecutionModelFragment), words)),
+            5u32 => Ok((ExecutionModel::GLCompute(ExecutionModelGLCompute), words)),
+            6u32 => Ok((ExecutionModel::Kernel(ExecutionModelKernel), words)),
             _ => Err(Error::InvalidEnumValue),
         }
     }
@@ -1797,22 +1894,50 @@ impl SPIRVParse for ExecutionModel {
 impl SPIRVDisplay for ExecutionModel {
     fn spirv_display(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            ExecutionModel::Vertex => write!(f, " {}", "Vertex"),
-            ExecutionModel::TessellationControl => write!(f, " {}", "TessellationControl"),
-            ExecutionModel::TessellationEvaluation => write!(f, " {}", "TessellationEvaluation"),
-            ExecutionModel::Geometry => write!(f, " {}", "Geometry"),
-            ExecutionModel::Fragment => write!(f, " {}", "Fragment"),
-            ExecutionModel::GLCompute => write!(f, " {}", "GLCompute"),
-            ExecutionModel::Kernel => write!(f, " {}", "Kernel"),
+            ExecutionModel::Vertex(_) => write!(f, " {}", "Vertex"),
+            ExecutionModel::TessellationControl(_) => write!(f, " {}", "TessellationControl"),
+            ExecutionModel::TessellationEvaluation(_) => write!(f, " {}", "TessellationEvaluation"),
+            ExecutionModel::Geometry(_) => write!(f, " {}", "Geometry"),
+            ExecutionModel::Fragment(_) => write!(f, " {}", "Fragment"),
+            ExecutionModel::GLCompute(_) => write!(f, " {}", "GLCompute"),
+            ExecutionModel::Kernel(_) => write!(f, " {}", "Kernel"),
         }
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct AddressingModelLogical;
+impl From<AddressingModelLogical> for AddressingModel {
+    fn from(v: AddressingModelLogical) -> Self {
+        Self::Logical(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct AddressingModelPhysical32;
+impl From<AddressingModelPhysical32> for AddressingModel {
+    fn from(v: AddressingModelPhysical32) -> Self {
+        Self::Physical32(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct AddressingModelPhysical64;
+impl From<AddressingModelPhysical64> for AddressingModel {
+    fn from(v: AddressingModelPhysical64) -> Self {
+        Self::Physical64(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct AddressingModelPhysicalStorageBuffer64;
+impl From<AddressingModelPhysicalStorageBuffer64> for AddressingModel {
+    fn from(v: AddressingModelPhysicalStorageBuffer64) -> Self {
+        Self::PhysicalStorageBuffer64(v)
     }
 }
 #[derive(Clone, Debug, Eq, PartialEq, Hash, Copy)]
 pub enum AddressingModel {
-    Logical,
-    Physical32,
-    Physical64,
-    PhysicalStorageBuffer64,
+    Logical(AddressingModelLogical),
+    Physical32(AddressingModelPhysical32),
+    Physical64(AddressingModelPhysical64),
+    PhysicalStorageBuffer64(AddressingModelPhysicalStorageBuffer64),
 }
 impl SPIRVParse for AddressingModel {
     fn spirv_parse<'a>(
@@ -1821,10 +1946,19 @@ impl SPIRVParse for AddressingModel {
     ) -> Result<(Self, &'a [u32])> {
         let (enumerant, words) = u32::spirv_parse(words, parse_state)?;
         match enumerant {
-            0u32 => Ok((AddressingModel::Logical, words)),
-            1u32 => Ok((AddressingModel::Physical32, words)),
-            2u32 => Ok((AddressingModel::Physical64, words)),
-            5348u32 => Ok((AddressingModel::PhysicalStorageBuffer64, words)),
+            0u32 => Ok((AddressingModel::Logical(AddressingModelLogical), words)),
+            1u32 => Ok((
+                AddressingModel::Physical32(AddressingModelPhysical32),
+                words,
+            )),
+            2u32 => Ok((
+                AddressingModel::Physical64(AddressingModelPhysical64),
+                words,
+            )),
+            5348u32 => Ok((
+                AddressingModel::PhysicalStorageBuffer64(AddressingModelPhysicalStorageBuffer64),
+                words,
+            )),
             _ => Err(Error::InvalidEnumValue),
         }
     }
@@ -1832,19 +1966,49 @@ impl SPIRVParse for AddressingModel {
 impl SPIRVDisplay for AddressingModel {
     fn spirv_display(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            AddressingModel::Logical => write!(f, " {}", "Logical"),
-            AddressingModel::Physical32 => write!(f, " {}", "Physical32"),
-            AddressingModel::Physical64 => write!(f, " {}", "Physical64"),
-            AddressingModel::PhysicalStorageBuffer64 => write!(f, " {}", "PhysicalStorageBuffer64"),
+            AddressingModel::Logical(_) => write!(f, " {}", "Logical"),
+            AddressingModel::Physical32(_) => write!(f, " {}", "Physical32"),
+            AddressingModel::Physical64(_) => write!(f, " {}", "Physical64"),
+            AddressingModel::PhysicalStorageBuffer64(_) => {
+                write!(f, " {}", "PhysicalStorageBuffer64")
+            }
         }
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct MemoryModelSimple;
+impl From<MemoryModelSimple> for MemoryModel {
+    fn from(v: MemoryModelSimple) -> Self {
+        Self::Simple(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct MemoryModelGLSL450;
+impl From<MemoryModelGLSL450> for MemoryModel {
+    fn from(v: MemoryModelGLSL450) -> Self {
+        Self::GLSL450(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct MemoryModelOpenCL;
+impl From<MemoryModelOpenCL> for MemoryModel {
+    fn from(v: MemoryModelOpenCL) -> Self {
+        Self::OpenCL(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct MemoryModelVulkan;
+impl From<MemoryModelVulkan> for MemoryModel {
+    fn from(v: MemoryModelVulkan) -> Self {
+        Self::Vulkan(v)
     }
 }
 #[derive(Clone, Debug, Eq, PartialEq, Hash, Copy)]
 pub enum MemoryModel {
-    Simple,
-    GLSL450,
-    OpenCL,
-    Vulkan,
+    Simple(MemoryModelSimple),
+    GLSL450(MemoryModelGLSL450),
+    OpenCL(MemoryModelOpenCL),
+    Vulkan(MemoryModelVulkan),
 }
 impl SPIRVParse for MemoryModel {
     fn spirv_parse<'a>(
@@ -1853,10 +2017,10 @@ impl SPIRVParse for MemoryModel {
     ) -> Result<(Self, &'a [u32])> {
         let (enumerant, words) = u32::spirv_parse(words, parse_state)?;
         match enumerant {
-            0u32 => Ok((MemoryModel::Simple, words)),
-            1u32 => Ok((MemoryModel::GLSL450, words)),
-            2u32 => Ok((MemoryModel::OpenCL, words)),
-            3u32 => Ok((MemoryModel::Vulkan, words)),
+            0u32 => Ok((MemoryModel::Simple(MemoryModelSimple), words)),
+            1u32 => Ok((MemoryModel::GLSL450(MemoryModelGLSL450), words)),
+            2u32 => Ok((MemoryModel::OpenCL(MemoryModelOpenCL), words)),
+            3u32 => Ok((MemoryModel::Vulkan(MemoryModelVulkan), words)),
             _ => Err(Error::InvalidEnumValue),
         }
     }
@@ -1864,94 +2028,395 @@ impl SPIRVParse for MemoryModel {
 impl SPIRVDisplay for MemoryModel {
     fn spirv_display(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            MemoryModel::Simple => write!(f, " {}", "Simple"),
-            MemoryModel::GLSL450 => write!(f, " {}", "GLSL450"),
-            MemoryModel::OpenCL => write!(f, " {}", "OpenCL"),
-            MemoryModel::Vulkan => write!(f, " {}", "Vulkan"),
+            MemoryModel::Simple(_) => write!(f, " {}", "Simple"),
+            MemoryModel::GLSL450(_) => write!(f, " {}", "GLSL450"),
+            MemoryModel::OpenCL(_) => write!(f, " {}", "OpenCL"),
+            MemoryModel::Vulkan(_) => write!(f, " {}", "Vulkan"),
         }
+    }
+}
+#[derive(Clone, Eq, PartialEq, Hash, Debug)]
+pub struct ExecutionModeInvocations {
+    pub number_of_invocation_invocations: LiteralInteger32,
+}
+impl From<ExecutionModeInvocations> for ExecutionMode {
+    fn from(v: ExecutionModeInvocations) -> Self {
+        Self::Invocations(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct ExecutionModeSpacingEqual;
+impl From<ExecutionModeSpacingEqual> for ExecutionMode {
+    fn from(v: ExecutionModeSpacingEqual) -> Self {
+        Self::SpacingEqual(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct ExecutionModeSpacingFractionalEven;
+impl From<ExecutionModeSpacingFractionalEven> for ExecutionMode {
+    fn from(v: ExecutionModeSpacingFractionalEven) -> Self {
+        Self::SpacingFractionalEven(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct ExecutionModeSpacingFractionalOdd;
+impl From<ExecutionModeSpacingFractionalOdd> for ExecutionMode {
+    fn from(v: ExecutionModeSpacingFractionalOdd) -> Self {
+        Self::SpacingFractionalOdd(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct ExecutionModeVertexOrderCw;
+impl From<ExecutionModeVertexOrderCw> for ExecutionMode {
+    fn from(v: ExecutionModeVertexOrderCw) -> Self {
+        Self::VertexOrderCw(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct ExecutionModeVertexOrderCcw;
+impl From<ExecutionModeVertexOrderCcw> for ExecutionMode {
+    fn from(v: ExecutionModeVertexOrderCcw) -> Self {
+        Self::VertexOrderCcw(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct ExecutionModePixelCenterInteger;
+impl From<ExecutionModePixelCenterInteger> for ExecutionMode {
+    fn from(v: ExecutionModePixelCenterInteger) -> Self {
+        Self::PixelCenterInteger(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct ExecutionModeOriginUpperLeft;
+impl From<ExecutionModeOriginUpperLeft> for ExecutionMode {
+    fn from(v: ExecutionModeOriginUpperLeft) -> Self {
+        Self::OriginUpperLeft(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct ExecutionModeOriginLowerLeft;
+impl From<ExecutionModeOriginLowerLeft> for ExecutionMode {
+    fn from(v: ExecutionModeOriginLowerLeft) -> Self {
+        Self::OriginLowerLeft(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct ExecutionModeEarlyFragmentTests;
+impl From<ExecutionModeEarlyFragmentTests> for ExecutionMode {
+    fn from(v: ExecutionModeEarlyFragmentTests) -> Self {
+        Self::EarlyFragmentTests(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct ExecutionModePointMode;
+impl From<ExecutionModePointMode> for ExecutionMode {
+    fn from(v: ExecutionModePointMode) -> Self {
+        Self::PointMode(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct ExecutionModeXfb;
+impl From<ExecutionModeXfb> for ExecutionMode {
+    fn from(v: ExecutionModeXfb) -> Self {
+        Self::Xfb(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct ExecutionModeDepthReplacing;
+impl From<ExecutionModeDepthReplacing> for ExecutionMode {
+    fn from(v: ExecutionModeDepthReplacing) -> Self {
+        Self::DepthReplacing(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct ExecutionModeDepthGreater;
+impl From<ExecutionModeDepthGreater> for ExecutionMode {
+    fn from(v: ExecutionModeDepthGreater) -> Self {
+        Self::DepthGreater(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct ExecutionModeDepthLess;
+impl From<ExecutionModeDepthLess> for ExecutionMode {
+    fn from(v: ExecutionModeDepthLess) -> Self {
+        Self::DepthLess(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct ExecutionModeDepthUnchanged;
+impl From<ExecutionModeDepthUnchanged> for ExecutionMode {
+    fn from(v: ExecutionModeDepthUnchanged) -> Self {
+        Self::DepthUnchanged(v)
+    }
+}
+#[derive(Clone, Eq, PartialEq, Hash, Debug)]
+pub struct ExecutionModeLocalSize {
+    pub x_size: LiteralInteger32,
+    pub y_size: LiteralInteger32,
+    pub z_size: LiteralInteger32,
+}
+impl From<ExecutionModeLocalSize> for ExecutionMode {
+    fn from(v: ExecutionModeLocalSize) -> Self {
+        Self::LocalSize(v)
+    }
+}
+#[derive(Clone, Eq, PartialEq, Hash, Debug)]
+pub struct ExecutionModeLocalSizeHint {
+    pub x_size: LiteralInteger32,
+    pub y_size: LiteralInteger32,
+    pub z_size: LiteralInteger32,
+}
+impl From<ExecutionModeLocalSizeHint> for ExecutionMode {
+    fn from(v: ExecutionModeLocalSizeHint) -> Self {
+        Self::LocalSizeHint(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct ExecutionModeInputPoints;
+impl From<ExecutionModeInputPoints> for ExecutionMode {
+    fn from(v: ExecutionModeInputPoints) -> Self {
+        Self::InputPoints(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct ExecutionModeInputLines;
+impl From<ExecutionModeInputLines> for ExecutionMode {
+    fn from(v: ExecutionModeInputLines) -> Self {
+        Self::InputLines(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct ExecutionModeInputLinesAdjacency;
+impl From<ExecutionModeInputLinesAdjacency> for ExecutionMode {
+    fn from(v: ExecutionModeInputLinesAdjacency) -> Self {
+        Self::InputLinesAdjacency(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct ExecutionModeTriangles;
+impl From<ExecutionModeTriangles> for ExecutionMode {
+    fn from(v: ExecutionModeTriangles) -> Self {
+        Self::Triangles(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct ExecutionModeInputTrianglesAdjacency;
+impl From<ExecutionModeInputTrianglesAdjacency> for ExecutionMode {
+    fn from(v: ExecutionModeInputTrianglesAdjacency) -> Self {
+        Self::InputTrianglesAdjacency(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct ExecutionModeQuads;
+impl From<ExecutionModeQuads> for ExecutionMode {
+    fn from(v: ExecutionModeQuads) -> Self {
+        Self::Quads(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct ExecutionModeIsolines;
+impl From<ExecutionModeIsolines> for ExecutionMode {
+    fn from(v: ExecutionModeIsolines) -> Self {
+        Self::Isolines(v)
+    }
+}
+#[derive(Clone, Eq, PartialEq, Hash, Debug)]
+pub struct ExecutionModeOutputVertices {
+    pub vertex_count: LiteralInteger32,
+}
+impl From<ExecutionModeOutputVertices> for ExecutionMode {
+    fn from(v: ExecutionModeOutputVertices) -> Self {
+        Self::OutputVertices(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct ExecutionModeOutputPoints;
+impl From<ExecutionModeOutputPoints> for ExecutionMode {
+    fn from(v: ExecutionModeOutputPoints) -> Self {
+        Self::OutputPoints(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct ExecutionModeOutputLineStrip;
+impl From<ExecutionModeOutputLineStrip> for ExecutionMode {
+    fn from(v: ExecutionModeOutputLineStrip) -> Self {
+        Self::OutputLineStrip(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct ExecutionModeOutputTriangleStrip;
+impl From<ExecutionModeOutputTriangleStrip> for ExecutionMode {
+    fn from(v: ExecutionModeOutputTriangleStrip) -> Self {
+        Self::OutputTriangleStrip(v)
+    }
+}
+#[derive(Clone, Eq, PartialEq, Hash, Debug)]
+pub struct ExecutionModeVecTypeHint {
+    pub vector_type: LiteralInteger32,
+}
+impl From<ExecutionModeVecTypeHint> for ExecutionMode {
+    fn from(v: ExecutionModeVecTypeHint) -> Self {
+        Self::VecTypeHint(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct ExecutionModeContractionOff;
+impl From<ExecutionModeContractionOff> for ExecutionMode {
+    fn from(v: ExecutionModeContractionOff) -> Self {
+        Self::ContractionOff(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct ExecutionModeInitializer;
+impl From<ExecutionModeInitializer> for ExecutionMode {
+    fn from(v: ExecutionModeInitializer) -> Self {
+        Self::Initializer(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct ExecutionModeFinalizer;
+impl From<ExecutionModeFinalizer> for ExecutionMode {
+    fn from(v: ExecutionModeFinalizer) -> Self {
+        Self::Finalizer(v)
+    }
+}
+#[derive(Clone, Eq, PartialEq, Hash, Debug)]
+pub struct ExecutionModeSubgroupSize {
+    pub subgroup_size: LiteralInteger32,
+}
+impl From<ExecutionModeSubgroupSize> for ExecutionMode {
+    fn from(v: ExecutionModeSubgroupSize) -> Self {
+        Self::SubgroupSize(v)
+    }
+}
+#[derive(Clone, Eq, PartialEq, Hash, Debug)]
+pub struct ExecutionModeSubgroupsPerWorkgroup {
+    pub subgroups_per_workgroup: LiteralInteger32,
+}
+impl From<ExecutionModeSubgroupsPerWorkgroup> for ExecutionMode {
+    fn from(v: ExecutionModeSubgroupsPerWorkgroup) -> Self {
+        Self::SubgroupsPerWorkgroup(v)
+    }
+}
+#[derive(Clone, Eq, PartialEq, Hash, Debug)]
+pub struct ExecutionModeSubgroupsPerWorkgroupId {
+    pub subgroups_per_workgroup: IdRef,
+}
+impl From<ExecutionModeSubgroupsPerWorkgroupId> for ExecutionMode {
+    fn from(v: ExecutionModeSubgroupsPerWorkgroupId) -> Self {
+        Self::SubgroupsPerWorkgroupId(v)
+    }
+}
+#[derive(Clone, Eq, PartialEq, Hash, Debug)]
+pub struct ExecutionModeLocalSizeId {
+    pub x_size: IdRef,
+    pub y_size: IdRef,
+    pub z_size: IdRef,
+}
+impl From<ExecutionModeLocalSizeId> for ExecutionMode {
+    fn from(v: ExecutionModeLocalSizeId) -> Self {
+        Self::LocalSizeId(v)
+    }
+}
+#[derive(Clone, Eq, PartialEq, Hash, Debug)]
+pub struct ExecutionModeLocalSizeHintId {
+    pub local_size_hint: IdRef,
+}
+impl From<ExecutionModeLocalSizeHintId> for ExecutionMode {
+    fn from(v: ExecutionModeLocalSizeHintId) -> Self {
+        Self::LocalSizeHintId(v)
+    }
+}
+#[derive(Clone, Eq, PartialEq, Hash, Debug)]
+pub struct ExecutionModeDenormPreserve {
+    pub target_width: LiteralInteger32,
+}
+impl From<ExecutionModeDenormPreserve> for ExecutionMode {
+    fn from(v: ExecutionModeDenormPreserve) -> Self {
+        Self::DenormPreserve(v)
+    }
+}
+#[derive(Clone, Eq, PartialEq, Hash, Debug)]
+pub struct ExecutionModeDenormFlushToZero {
+    pub target_width: LiteralInteger32,
+}
+impl From<ExecutionModeDenormFlushToZero> for ExecutionMode {
+    fn from(v: ExecutionModeDenormFlushToZero) -> Self {
+        Self::DenormFlushToZero(v)
+    }
+}
+#[derive(Clone, Eq, PartialEq, Hash, Debug)]
+pub struct ExecutionModeSignedZeroInfNanPreserve {
+    pub target_width: LiteralInteger32,
+}
+impl From<ExecutionModeSignedZeroInfNanPreserve> for ExecutionMode {
+    fn from(v: ExecutionModeSignedZeroInfNanPreserve) -> Self {
+        Self::SignedZeroInfNanPreserve(v)
+    }
+}
+#[derive(Clone, Eq, PartialEq, Hash, Debug)]
+pub struct ExecutionModeRoundingModeRTE {
+    pub target_width: LiteralInteger32,
+}
+impl From<ExecutionModeRoundingModeRTE> for ExecutionMode {
+    fn from(v: ExecutionModeRoundingModeRTE) -> Self {
+        Self::RoundingModeRTE(v)
+    }
+}
+#[derive(Clone, Eq, PartialEq, Hash, Debug)]
+pub struct ExecutionModeRoundingModeRTZ {
+    pub target_width: LiteralInteger32,
+}
+impl From<ExecutionModeRoundingModeRTZ> for ExecutionMode {
+    fn from(v: ExecutionModeRoundingModeRTZ) -> Self {
+        Self::RoundingModeRTZ(v)
     }
 }
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub enum ExecutionMode {
-    Invocations {
-        number_of_invocation_invocations: LiteralInteger32,
-    },
-    SpacingEqual,
-    SpacingFractionalEven,
-    SpacingFractionalOdd,
-    VertexOrderCw,
-    VertexOrderCcw,
-    PixelCenterInteger,
-    OriginUpperLeft,
-    OriginLowerLeft,
-    EarlyFragmentTests,
-    PointMode,
-    Xfb,
-    DepthReplacing,
-    DepthGreater,
-    DepthLess,
-    DepthUnchanged,
-    LocalSize {
-        x_size: LiteralInteger32,
-        y_size: LiteralInteger32,
-        z_size: LiteralInteger32,
-    },
-    LocalSizeHint {
-        x_size: LiteralInteger32,
-        y_size: LiteralInteger32,
-        z_size: LiteralInteger32,
-    },
-    InputPoints,
-    InputLines,
-    InputLinesAdjacency,
-    Triangles,
-    InputTrianglesAdjacency,
-    Quads,
-    Isolines,
-    OutputVertices {
-        vertex_count: LiteralInteger32,
-    },
-    OutputPoints,
-    OutputLineStrip,
-    OutputTriangleStrip,
-    VecTypeHint {
-        vector_type: LiteralInteger32,
-    },
-    ContractionOff,
-    Initializer,
-    Finalizer,
-    SubgroupSize {
-        subgroup_size: LiteralInteger32,
-    },
-    SubgroupsPerWorkgroup {
-        subgroups_per_workgroup: LiteralInteger32,
-    },
-    SubgroupsPerWorkgroupId {
-        subgroups_per_workgroup: IdRef,
-    },
-    LocalSizeId {
-        x_size: IdRef,
-        y_size: IdRef,
-        z_size: IdRef,
-    },
-    LocalSizeHintId {
-        local_size_hint: IdRef,
-    },
-    DenormPreserve {
-        target_width: LiteralInteger32,
-    },
-    DenormFlushToZero {
-        target_width: LiteralInteger32,
-    },
-    SignedZeroInfNanPreserve {
-        target_width: LiteralInteger32,
-    },
-    RoundingModeRTE {
-        target_width: LiteralInteger32,
-    },
-    RoundingModeRTZ {
-        target_width: LiteralInteger32,
-    },
+    Invocations(ExecutionModeInvocations),
+    SpacingEqual(ExecutionModeSpacingEqual),
+    SpacingFractionalEven(ExecutionModeSpacingFractionalEven),
+    SpacingFractionalOdd(ExecutionModeSpacingFractionalOdd),
+    VertexOrderCw(ExecutionModeVertexOrderCw),
+    VertexOrderCcw(ExecutionModeVertexOrderCcw),
+    PixelCenterInteger(ExecutionModePixelCenterInteger),
+    OriginUpperLeft(ExecutionModeOriginUpperLeft),
+    OriginLowerLeft(ExecutionModeOriginLowerLeft),
+    EarlyFragmentTests(ExecutionModeEarlyFragmentTests),
+    PointMode(ExecutionModePointMode),
+    Xfb(ExecutionModeXfb),
+    DepthReplacing(ExecutionModeDepthReplacing),
+    DepthGreater(ExecutionModeDepthGreater),
+    DepthLess(ExecutionModeDepthLess),
+    DepthUnchanged(ExecutionModeDepthUnchanged),
+    LocalSize(ExecutionModeLocalSize),
+    LocalSizeHint(ExecutionModeLocalSizeHint),
+    InputPoints(ExecutionModeInputPoints),
+    InputLines(ExecutionModeInputLines),
+    InputLinesAdjacency(ExecutionModeInputLinesAdjacency),
+    Triangles(ExecutionModeTriangles),
+    InputTrianglesAdjacency(ExecutionModeInputTrianglesAdjacency),
+    Quads(ExecutionModeQuads),
+    Isolines(ExecutionModeIsolines),
+    OutputVertices(ExecutionModeOutputVertices),
+    OutputPoints(ExecutionModeOutputPoints),
+    OutputLineStrip(ExecutionModeOutputLineStrip),
+    OutputTriangleStrip(ExecutionModeOutputTriangleStrip),
+    VecTypeHint(ExecutionModeVecTypeHint),
+    ContractionOff(ExecutionModeContractionOff),
+    Initializer(ExecutionModeInitializer),
+    Finalizer(ExecutionModeFinalizer),
+    SubgroupSize(ExecutionModeSubgroupSize),
+    SubgroupsPerWorkgroup(ExecutionModeSubgroupsPerWorkgroup),
+    SubgroupsPerWorkgroupId(ExecutionModeSubgroupsPerWorkgroupId),
+    LocalSizeId(ExecutionModeLocalSizeId),
+    LocalSizeHintId(ExecutionModeLocalSizeHintId),
+    DenormPreserve(ExecutionModeDenormPreserve),
+    DenormFlushToZero(ExecutionModeDenormFlushToZero),
+    SignedZeroInfNanPreserve(ExecutionModeSignedZeroInfNanPreserve),
+    RoundingModeRTE(ExecutionModeRoundingModeRTE),
+    RoundingModeRTZ(ExecutionModeRoundingModeRTZ),
 }
 impl SPIRVParse for ExecutionMode {
     fn spirv_parse<'a>(
@@ -1964,37 +2429,73 @@ impl SPIRVParse for ExecutionMode {
                 let (number_of_invocation_invocations, words) =
                     LiteralInteger32::spirv_parse(words, parse_state)?;
                 Ok((
-                    ExecutionMode::Invocations {
+                    ExecutionMode::Invocations(ExecutionModeInvocations {
                         number_of_invocation_invocations,
-                    },
+                    }),
                     words,
                 ))
             }
-            1u32 => Ok((ExecutionMode::SpacingEqual, words)),
-            2u32 => Ok((ExecutionMode::SpacingFractionalEven, words)),
-            3u32 => Ok((ExecutionMode::SpacingFractionalOdd, words)),
-            4u32 => Ok((ExecutionMode::VertexOrderCw, words)),
-            5u32 => Ok((ExecutionMode::VertexOrderCcw, words)),
-            6u32 => Ok((ExecutionMode::PixelCenterInteger, words)),
-            7u32 => Ok((ExecutionMode::OriginUpperLeft, words)),
-            8u32 => Ok((ExecutionMode::OriginLowerLeft, words)),
-            9u32 => Ok((ExecutionMode::EarlyFragmentTests, words)),
-            10u32 => Ok((ExecutionMode::PointMode, words)),
-            11u32 => Ok((ExecutionMode::Xfb, words)),
-            12u32 => Ok((ExecutionMode::DepthReplacing, words)),
-            14u32 => Ok((ExecutionMode::DepthGreater, words)),
-            15u32 => Ok((ExecutionMode::DepthLess, words)),
-            16u32 => Ok((ExecutionMode::DepthUnchanged, words)),
+            1u32 => Ok((
+                ExecutionMode::SpacingEqual(ExecutionModeSpacingEqual),
+                words,
+            )),
+            2u32 => Ok((
+                ExecutionMode::SpacingFractionalEven(ExecutionModeSpacingFractionalEven),
+                words,
+            )),
+            3u32 => Ok((
+                ExecutionMode::SpacingFractionalOdd(ExecutionModeSpacingFractionalOdd),
+                words,
+            )),
+            4u32 => Ok((
+                ExecutionMode::VertexOrderCw(ExecutionModeVertexOrderCw),
+                words,
+            )),
+            5u32 => Ok((
+                ExecutionMode::VertexOrderCcw(ExecutionModeVertexOrderCcw),
+                words,
+            )),
+            6u32 => Ok((
+                ExecutionMode::PixelCenterInteger(ExecutionModePixelCenterInteger),
+                words,
+            )),
+            7u32 => Ok((
+                ExecutionMode::OriginUpperLeft(ExecutionModeOriginUpperLeft),
+                words,
+            )),
+            8u32 => Ok((
+                ExecutionMode::OriginLowerLeft(ExecutionModeOriginLowerLeft),
+                words,
+            )),
+            9u32 => Ok((
+                ExecutionMode::EarlyFragmentTests(ExecutionModeEarlyFragmentTests),
+                words,
+            )),
+            10u32 => Ok((ExecutionMode::PointMode(ExecutionModePointMode), words)),
+            11u32 => Ok((ExecutionMode::Xfb(ExecutionModeXfb), words)),
+            12u32 => Ok((
+                ExecutionMode::DepthReplacing(ExecutionModeDepthReplacing),
+                words,
+            )),
+            14u32 => Ok((
+                ExecutionMode::DepthGreater(ExecutionModeDepthGreater),
+                words,
+            )),
+            15u32 => Ok((ExecutionMode::DepthLess(ExecutionModeDepthLess), words)),
+            16u32 => Ok((
+                ExecutionMode::DepthUnchanged(ExecutionModeDepthUnchanged),
+                words,
+            )),
             17u32 => {
                 let (x_size, words) = LiteralInteger32::spirv_parse(words, parse_state)?;
                 let (y_size, words) = LiteralInteger32::spirv_parse(words, parse_state)?;
                 let (z_size, words) = LiteralInteger32::spirv_parse(words, parse_state)?;
                 Ok((
-                    ExecutionMode::LocalSize {
+                    ExecutionMode::LocalSize(ExecutionModeLocalSize {
                         x_size,
                         y_size,
                         z_size,
-                    },
+                    }),
                     words,
                 ))
             }
@@ -2003,55 +2504,82 @@ impl SPIRVParse for ExecutionMode {
                 let (y_size, words) = LiteralInteger32::spirv_parse(words, parse_state)?;
                 let (z_size, words) = LiteralInteger32::spirv_parse(words, parse_state)?;
                 Ok((
-                    ExecutionMode::LocalSizeHint {
+                    ExecutionMode::LocalSizeHint(ExecutionModeLocalSizeHint {
                         x_size,
                         y_size,
                         z_size,
-                    },
+                    }),
                     words,
                 ))
             }
-            19u32 => Ok((ExecutionMode::InputPoints, words)),
-            20u32 => Ok((ExecutionMode::InputLines, words)),
-            21u32 => Ok((ExecutionMode::InputLinesAdjacency, words)),
-            22u32 => Ok((ExecutionMode::Triangles, words)),
-            23u32 => Ok((ExecutionMode::InputTrianglesAdjacency, words)),
-            24u32 => Ok((ExecutionMode::Quads, words)),
-            25u32 => Ok((ExecutionMode::Isolines, words)),
+            19u32 => Ok((ExecutionMode::InputPoints(ExecutionModeInputPoints), words)),
+            20u32 => Ok((ExecutionMode::InputLines(ExecutionModeInputLines), words)),
+            21u32 => Ok((
+                ExecutionMode::InputLinesAdjacency(ExecutionModeInputLinesAdjacency),
+                words,
+            )),
+            22u32 => Ok((ExecutionMode::Triangles(ExecutionModeTriangles), words)),
+            23u32 => Ok((
+                ExecutionMode::InputTrianglesAdjacency(ExecutionModeInputTrianglesAdjacency),
+                words,
+            )),
+            24u32 => Ok((ExecutionMode::Quads(ExecutionModeQuads), words)),
+            25u32 => Ok((ExecutionMode::Isolines(ExecutionModeIsolines), words)),
             26u32 => {
                 let (vertex_count, words) = LiteralInteger32::spirv_parse(words, parse_state)?;
-                Ok((ExecutionMode::OutputVertices { vertex_count }, words))
+                Ok((
+                    ExecutionMode::OutputVertices(ExecutionModeOutputVertices { vertex_count }),
+                    words,
+                ))
             }
-            27u32 => Ok((ExecutionMode::OutputPoints, words)),
-            28u32 => Ok((ExecutionMode::OutputLineStrip, words)),
-            29u32 => Ok((ExecutionMode::OutputTriangleStrip, words)),
+            27u32 => Ok((
+                ExecutionMode::OutputPoints(ExecutionModeOutputPoints),
+                words,
+            )),
+            28u32 => Ok((
+                ExecutionMode::OutputLineStrip(ExecutionModeOutputLineStrip),
+                words,
+            )),
+            29u32 => Ok((
+                ExecutionMode::OutputTriangleStrip(ExecutionModeOutputTriangleStrip),
+                words,
+            )),
             30u32 => {
                 let (vector_type, words) = LiteralInteger32::spirv_parse(words, parse_state)?;
-                Ok((ExecutionMode::VecTypeHint { vector_type }, words))
+                Ok((
+                    ExecutionMode::VecTypeHint(ExecutionModeVecTypeHint { vector_type }),
+                    words,
+                ))
             }
-            31u32 => Ok((ExecutionMode::ContractionOff, words)),
-            33u32 => Ok((ExecutionMode::Initializer, words)),
-            34u32 => Ok((ExecutionMode::Finalizer, words)),
+            31u32 => Ok((
+                ExecutionMode::ContractionOff(ExecutionModeContractionOff),
+                words,
+            )),
+            33u32 => Ok((ExecutionMode::Initializer(ExecutionModeInitializer), words)),
+            34u32 => Ok((ExecutionMode::Finalizer(ExecutionModeFinalizer), words)),
             35u32 => {
                 let (subgroup_size, words) = LiteralInteger32::spirv_parse(words, parse_state)?;
-                Ok((ExecutionMode::SubgroupSize { subgroup_size }, words))
+                Ok((
+                    ExecutionMode::SubgroupSize(ExecutionModeSubgroupSize { subgroup_size }),
+                    words,
+                ))
             }
             36u32 => {
                 let (subgroups_per_workgroup, words) =
                     LiteralInteger32::spirv_parse(words, parse_state)?;
                 Ok((
-                    ExecutionMode::SubgroupsPerWorkgroup {
+                    ExecutionMode::SubgroupsPerWorkgroup(ExecutionModeSubgroupsPerWorkgroup {
                         subgroups_per_workgroup,
-                    },
+                    }),
                     words,
                 ))
             }
             37u32 => {
                 let (subgroups_per_workgroup, words) = IdRef::spirv_parse(words, parse_state)?;
                 Ok((
-                    ExecutionMode::SubgroupsPerWorkgroupId {
+                    ExecutionMode::SubgroupsPerWorkgroupId(ExecutionModeSubgroupsPerWorkgroupId {
                         subgroups_per_workgroup,
-                    },
+                    }),
                     words,
                 ))
             }
@@ -2060,40 +2588,61 @@ impl SPIRVParse for ExecutionMode {
                 let (y_size, words) = IdRef::spirv_parse(words, parse_state)?;
                 let (z_size, words) = IdRef::spirv_parse(words, parse_state)?;
                 Ok((
-                    ExecutionMode::LocalSizeId {
+                    ExecutionMode::LocalSizeId(ExecutionModeLocalSizeId {
                         x_size,
                         y_size,
                         z_size,
-                    },
+                    }),
                     words,
                 ))
             }
             39u32 => {
                 let (local_size_hint, words) = IdRef::spirv_parse(words, parse_state)?;
-                Ok((ExecutionMode::LocalSizeHintId { local_size_hint }, words))
+                Ok((
+                    ExecutionMode::LocalSizeHintId(ExecutionModeLocalSizeHintId {
+                        local_size_hint,
+                    }),
+                    words,
+                ))
             }
             4459u32 => {
                 let (target_width, words) = LiteralInteger32::spirv_parse(words, parse_state)?;
-                Ok((ExecutionMode::DenormPreserve { target_width }, words))
+                Ok((
+                    ExecutionMode::DenormPreserve(ExecutionModeDenormPreserve { target_width }),
+                    words,
+                ))
             }
             4460u32 => {
                 let (target_width, words) = LiteralInteger32::spirv_parse(words, parse_state)?;
-                Ok((ExecutionMode::DenormFlushToZero { target_width }, words))
+                Ok((
+                    ExecutionMode::DenormFlushToZero(ExecutionModeDenormFlushToZero {
+                        target_width,
+                    }),
+                    words,
+                ))
             }
             4461u32 => {
                 let (target_width, words) = LiteralInteger32::spirv_parse(words, parse_state)?;
                 Ok((
-                    ExecutionMode::SignedZeroInfNanPreserve { target_width },
+                    ExecutionMode::SignedZeroInfNanPreserve(
+                        ExecutionModeSignedZeroInfNanPreserve { target_width },
+                    ),
                     words,
                 ))
             }
             4462u32 => {
                 let (target_width, words) = LiteralInteger32::spirv_parse(words, parse_state)?;
-                Ok((ExecutionMode::RoundingModeRTE { target_width }, words))
+                Ok((
+                    ExecutionMode::RoundingModeRTE(ExecutionModeRoundingModeRTE { target_width }),
+                    words,
+                ))
             }
             4463u32 => {
                 let (target_width, words) = LiteralInteger32::spirv_parse(words, parse_state)?;
-                Ok((ExecutionMode::RoundingModeRTZ { target_width }, words))
+                Ok((
+                    ExecutionMode::RoundingModeRTZ(ExecutionModeRoundingModeRTZ { target_width }),
+                    words,
+                ))
             }
             _ => Err(Error::InvalidEnumValue),
         }
@@ -2102,129 +2651,133 @@ impl SPIRVParse for ExecutionMode {
 impl SPIRVDisplay for ExecutionMode {
     fn spirv_display(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            ExecutionMode::Invocations {
+            ExecutionMode::Invocations(ExecutionModeInvocations {
                 number_of_invocation_invocations,
-            } => {
+            }) => {
                 write!(f, " {}", "Invocations")?;
                 number_of_invocation_invocations.spirv_display(f)?;
                 Ok(())
             }
-            ExecutionMode::SpacingEqual => write!(f, " {}", "SpacingEqual"),
-            ExecutionMode::SpacingFractionalEven => write!(f, " {}", "SpacingFractionalEven"),
-            ExecutionMode::SpacingFractionalOdd => write!(f, " {}", "SpacingFractionalOdd"),
-            ExecutionMode::VertexOrderCw => write!(f, " {}", "VertexOrderCw"),
-            ExecutionMode::VertexOrderCcw => write!(f, " {}", "VertexOrderCcw"),
-            ExecutionMode::PixelCenterInteger => write!(f, " {}", "PixelCenterInteger"),
-            ExecutionMode::OriginUpperLeft => write!(f, " {}", "OriginUpperLeft"),
-            ExecutionMode::OriginLowerLeft => write!(f, " {}", "OriginLowerLeft"),
-            ExecutionMode::EarlyFragmentTests => write!(f, " {}", "EarlyFragmentTests"),
-            ExecutionMode::PointMode => write!(f, " {}", "PointMode"),
-            ExecutionMode::Xfb => write!(f, " {}", "Xfb"),
-            ExecutionMode::DepthReplacing => write!(f, " {}", "DepthReplacing"),
-            ExecutionMode::DepthGreater => write!(f, " {}", "DepthGreater"),
-            ExecutionMode::DepthLess => write!(f, " {}", "DepthLess"),
-            ExecutionMode::DepthUnchanged => write!(f, " {}", "DepthUnchanged"),
-            ExecutionMode::LocalSize {
+            ExecutionMode::SpacingEqual(_) => write!(f, " {}", "SpacingEqual"),
+            ExecutionMode::SpacingFractionalEven(_) => write!(f, " {}", "SpacingFractionalEven"),
+            ExecutionMode::SpacingFractionalOdd(_) => write!(f, " {}", "SpacingFractionalOdd"),
+            ExecutionMode::VertexOrderCw(_) => write!(f, " {}", "VertexOrderCw"),
+            ExecutionMode::VertexOrderCcw(_) => write!(f, " {}", "VertexOrderCcw"),
+            ExecutionMode::PixelCenterInteger(_) => write!(f, " {}", "PixelCenterInteger"),
+            ExecutionMode::OriginUpperLeft(_) => write!(f, " {}", "OriginUpperLeft"),
+            ExecutionMode::OriginLowerLeft(_) => write!(f, " {}", "OriginLowerLeft"),
+            ExecutionMode::EarlyFragmentTests(_) => write!(f, " {}", "EarlyFragmentTests"),
+            ExecutionMode::PointMode(_) => write!(f, " {}", "PointMode"),
+            ExecutionMode::Xfb(_) => write!(f, " {}", "Xfb"),
+            ExecutionMode::DepthReplacing(_) => write!(f, " {}", "DepthReplacing"),
+            ExecutionMode::DepthGreater(_) => write!(f, " {}", "DepthGreater"),
+            ExecutionMode::DepthLess(_) => write!(f, " {}", "DepthLess"),
+            ExecutionMode::DepthUnchanged(_) => write!(f, " {}", "DepthUnchanged"),
+            ExecutionMode::LocalSize(ExecutionModeLocalSize {
                 x_size,
                 y_size,
                 z_size,
-            } => {
+            }) => {
                 write!(f, " {}", "LocalSize")?;
                 x_size.spirv_display(f)?;
                 y_size.spirv_display(f)?;
                 z_size.spirv_display(f)?;
                 Ok(())
             }
-            ExecutionMode::LocalSizeHint {
+            ExecutionMode::LocalSizeHint(ExecutionModeLocalSizeHint {
                 x_size,
                 y_size,
                 z_size,
-            } => {
+            }) => {
                 write!(f, " {}", "LocalSizeHint")?;
                 x_size.spirv_display(f)?;
                 y_size.spirv_display(f)?;
                 z_size.spirv_display(f)?;
                 Ok(())
             }
-            ExecutionMode::InputPoints => write!(f, " {}", "InputPoints"),
-            ExecutionMode::InputLines => write!(f, " {}", "InputLines"),
-            ExecutionMode::InputLinesAdjacency => write!(f, " {}", "InputLinesAdjacency"),
-            ExecutionMode::Triangles => write!(f, " {}", "Triangles"),
-            ExecutionMode::InputTrianglesAdjacency => write!(f, " {}", "InputTrianglesAdjacency"),
-            ExecutionMode::Quads => write!(f, " {}", "Quads"),
-            ExecutionMode::Isolines => write!(f, " {}", "Isolines"),
-            ExecutionMode::OutputVertices { vertex_count } => {
+            ExecutionMode::InputPoints(_) => write!(f, " {}", "InputPoints"),
+            ExecutionMode::InputLines(_) => write!(f, " {}", "InputLines"),
+            ExecutionMode::InputLinesAdjacency(_) => write!(f, " {}", "InputLinesAdjacency"),
+            ExecutionMode::Triangles(_) => write!(f, " {}", "Triangles"),
+            ExecutionMode::InputTrianglesAdjacency(_) => {
+                write!(f, " {}", "InputTrianglesAdjacency")
+            }
+            ExecutionMode::Quads(_) => write!(f, " {}", "Quads"),
+            ExecutionMode::Isolines(_) => write!(f, " {}", "Isolines"),
+            ExecutionMode::OutputVertices(ExecutionModeOutputVertices { vertex_count }) => {
                 write!(f, " {}", "OutputVertices")?;
                 vertex_count.spirv_display(f)?;
                 Ok(())
             }
-            ExecutionMode::OutputPoints => write!(f, " {}", "OutputPoints"),
-            ExecutionMode::OutputLineStrip => write!(f, " {}", "OutputLineStrip"),
-            ExecutionMode::OutputTriangleStrip => write!(f, " {}", "OutputTriangleStrip"),
-            ExecutionMode::VecTypeHint { vector_type } => {
+            ExecutionMode::OutputPoints(_) => write!(f, " {}", "OutputPoints"),
+            ExecutionMode::OutputLineStrip(_) => write!(f, " {}", "OutputLineStrip"),
+            ExecutionMode::OutputTriangleStrip(_) => write!(f, " {}", "OutputTriangleStrip"),
+            ExecutionMode::VecTypeHint(ExecutionModeVecTypeHint { vector_type }) => {
                 write!(f, " {}", "VecTypeHint")?;
                 vector_type.spirv_display(f)?;
                 Ok(())
             }
-            ExecutionMode::ContractionOff => write!(f, " {}", "ContractionOff"),
-            ExecutionMode::Initializer => write!(f, " {}", "Initializer"),
-            ExecutionMode::Finalizer => write!(f, " {}", "Finalizer"),
-            ExecutionMode::SubgroupSize { subgroup_size } => {
+            ExecutionMode::ContractionOff(_) => write!(f, " {}", "ContractionOff"),
+            ExecutionMode::Initializer(_) => write!(f, " {}", "Initializer"),
+            ExecutionMode::Finalizer(_) => write!(f, " {}", "Finalizer"),
+            ExecutionMode::SubgroupSize(ExecutionModeSubgroupSize { subgroup_size }) => {
                 write!(f, " {}", "SubgroupSize")?;
                 subgroup_size.spirv_display(f)?;
                 Ok(())
             }
-            ExecutionMode::SubgroupsPerWorkgroup {
+            ExecutionMode::SubgroupsPerWorkgroup(ExecutionModeSubgroupsPerWorkgroup {
                 subgroups_per_workgroup,
-            } => {
+            }) => {
                 write!(f, " {}", "SubgroupsPerWorkgroup")?;
                 subgroups_per_workgroup.spirv_display(f)?;
                 Ok(())
             }
-            ExecutionMode::SubgroupsPerWorkgroupId {
+            ExecutionMode::SubgroupsPerWorkgroupId(ExecutionModeSubgroupsPerWorkgroupId {
                 subgroups_per_workgroup,
-            } => {
+            }) => {
                 write!(f, " {}", "SubgroupsPerWorkgroupId")?;
                 subgroups_per_workgroup.spirv_display(f)?;
                 Ok(())
             }
-            ExecutionMode::LocalSizeId {
+            ExecutionMode::LocalSizeId(ExecutionModeLocalSizeId {
                 x_size,
                 y_size,
                 z_size,
-            } => {
+            }) => {
                 write!(f, " {}", "LocalSizeId")?;
                 x_size.spirv_display(f)?;
                 y_size.spirv_display(f)?;
                 z_size.spirv_display(f)?;
                 Ok(())
             }
-            ExecutionMode::LocalSizeHintId { local_size_hint } => {
+            ExecutionMode::LocalSizeHintId(ExecutionModeLocalSizeHintId { local_size_hint }) => {
                 write!(f, " {}", "LocalSizeHintId")?;
                 local_size_hint.spirv_display(f)?;
                 Ok(())
             }
-            ExecutionMode::DenormPreserve { target_width } => {
+            ExecutionMode::DenormPreserve(ExecutionModeDenormPreserve { target_width }) => {
                 write!(f, " {}", "DenormPreserve")?;
                 target_width.spirv_display(f)?;
                 Ok(())
             }
-            ExecutionMode::DenormFlushToZero { target_width } => {
+            ExecutionMode::DenormFlushToZero(ExecutionModeDenormFlushToZero { target_width }) => {
                 write!(f, " {}", "DenormFlushToZero")?;
                 target_width.spirv_display(f)?;
                 Ok(())
             }
-            ExecutionMode::SignedZeroInfNanPreserve { target_width } => {
+            ExecutionMode::SignedZeroInfNanPreserve(ExecutionModeSignedZeroInfNanPreserve {
+                target_width,
+            }) => {
                 write!(f, " {}", "SignedZeroInfNanPreserve")?;
                 target_width.spirv_display(f)?;
                 Ok(())
             }
-            ExecutionMode::RoundingModeRTE { target_width } => {
+            ExecutionMode::RoundingModeRTE(ExecutionModeRoundingModeRTE { target_width }) => {
                 write!(f, " {}", "RoundingModeRTE")?;
                 target_width.spirv_display(f)?;
                 Ok(())
             }
-            ExecutionMode::RoundingModeRTZ { target_width } => {
+            ExecutionMode::RoundingModeRTZ(ExecutionModeRoundingModeRTZ { target_width }) => {
                 write!(f, " {}", "RoundingModeRTZ")?;
                 target_width.spirv_display(f)?;
                 Ok(())
@@ -2232,22 +2785,120 @@ impl SPIRVDisplay for ExecutionMode {
         }
     }
 }
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct StorageClassUniformConstant;
+impl From<StorageClassUniformConstant> for StorageClass {
+    fn from(v: StorageClassUniformConstant) -> Self {
+        Self::UniformConstant(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct StorageClassInput;
+impl From<StorageClassInput> for StorageClass {
+    fn from(v: StorageClassInput) -> Self {
+        Self::Input(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct StorageClassUniform;
+impl From<StorageClassUniform> for StorageClass {
+    fn from(v: StorageClassUniform) -> Self {
+        Self::Uniform(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct StorageClassOutput;
+impl From<StorageClassOutput> for StorageClass {
+    fn from(v: StorageClassOutput) -> Self {
+        Self::Output(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct StorageClassWorkgroup;
+impl From<StorageClassWorkgroup> for StorageClass {
+    fn from(v: StorageClassWorkgroup) -> Self {
+        Self::Workgroup(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct StorageClassCrossWorkgroup;
+impl From<StorageClassCrossWorkgroup> for StorageClass {
+    fn from(v: StorageClassCrossWorkgroup) -> Self {
+        Self::CrossWorkgroup(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct StorageClassPrivate;
+impl From<StorageClassPrivate> for StorageClass {
+    fn from(v: StorageClassPrivate) -> Self {
+        Self::Private(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct StorageClassFunction;
+impl From<StorageClassFunction> for StorageClass {
+    fn from(v: StorageClassFunction) -> Self {
+        Self::Function(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct StorageClassGeneric;
+impl From<StorageClassGeneric> for StorageClass {
+    fn from(v: StorageClassGeneric) -> Self {
+        Self::Generic(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct StorageClassPushConstant;
+impl From<StorageClassPushConstant> for StorageClass {
+    fn from(v: StorageClassPushConstant) -> Self {
+        Self::PushConstant(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct StorageClassAtomicCounter;
+impl From<StorageClassAtomicCounter> for StorageClass {
+    fn from(v: StorageClassAtomicCounter) -> Self {
+        Self::AtomicCounter(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct StorageClassImage;
+impl From<StorageClassImage> for StorageClass {
+    fn from(v: StorageClassImage) -> Self {
+        Self::Image(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct StorageClassStorageBuffer;
+impl From<StorageClassStorageBuffer> for StorageClass {
+    fn from(v: StorageClassStorageBuffer) -> Self {
+        Self::StorageBuffer(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct StorageClassPhysicalStorageBuffer;
+impl From<StorageClassPhysicalStorageBuffer> for StorageClass {
+    fn from(v: StorageClassPhysicalStorageBuffer) -> Self {
+        Self::PhysicalStorageBuffer(v)
+    }
+}
 #[derive(Clone, Debug, Eq, PartialEq, Hash, Copy)]
 pub enum StorageClass {
-    UniformConstant,
-    Input,
-    Uniform,
-    Output,
-    Workgroup,
-    CrossWorkgroup,
-    Private,
-    Function,
-    Generic,
-    PushConstant,
-    AtomicCounter,
-    Image,
-    StorageBuffer,
-    PhysicalStorageBuffer,
+    UniformConstant(StorageClassUniformConstant),
+    Input(StorageClassInput),
+    Uniform(StorageClassUniform),
+    Output(StorageClassOutput),
+    Workgroup(StorageClassWorkgroup),
+    CrossWorkgroup(StorageClassCrossWorkgroup),
+    Private(StorageClassPrivate),
+    Function(StorageClassFunction),
+    Generic(StorageClassGeneric),
+    PushConstant(StorageClassPushConstant),
+    AtomicCounter(StorageClassAtomicCounter),
+    Image(StorageClassImage),
+    StorageBuffer(StorageClassStorageBuffer),
+    PhysicalStorageBuffer(StorageClassPhysicalStorageBuffer),
 }
 impl SPIRVParse for StorageClass {
     fn spirv_parse<'a>(
@@ -2256,20 +2907,35 @@ impl SPIRVParse for StorageClass {
     ) -> Result<(Self, &'a [u32])> {
         let (enumerant, words) = u32::spirv_parse(words, parse_state)?;
         match enumerant {
-            0u32 => Ok((StorageClass::UniformConstant, words)),
-            1u32 => Ok((StorageClass::Input, words)),
-            2u32 => Ok((StorageClass::Uniform, words)),
-            3u32 => Ok((StorageClass::Output, words)),
-            4u32 => Ok((StorageClass::Workgroup, words)),
-            5u32 => Ok((StorageClass::CrossWorkgroup, words)),
-            6u32 => Ok((StorageClass::Private, words)),
-            7u32 => Ok((StorageClass::Function, words)),
-            8u32 => Ok((StorageClass::Generic, words)),
-            9u32 => Ok((StorageClass::PushConstant, words)),
-            10u32 => Ok((StorageClass::AtomicCounter, words)),
-            11u32 => Ok((StorageClass::Image, words)),
-            12u32 => Ok((StorageClass::StorageBuffer, words)),
-            5349u32 => Ok((StorageClass::PhysicalStorageBuffer, words)),
+            0u32 => Ok((
+                StorageClass::UniformConstant(StorageClassUniformConstant),
+                words,
+            )),
+            1u32 => Ok((StorageClass::Input(StorageClassInput), words)),
+            2u32 => Ok((StorageClass::Uniform(StorageClassUniform), words)),
+            3u32 => Ok((StorageClass::Output(StorageClassOutput), words)),
+            4u32 => Ok((StorageClass::Workgroup(StorageClassWorkgroup), words)),
+            5u32 => Ok((
+                StorageClass::CrossWorkgroup(StorageClassCrossWorkgroup),
+                words,
+            )),
+            6u32 => Ok((StorageClass::Private(StorageClassPrivate), words)),
+            7u32 => Ok((StorageClass::Function(StorageClassFunction), words)),
+            8u32 => Ok((StorageClass::Generic(StorageClassGeneric), words)),
+            9u32 => Ok((StorageClass::PushConstant(StorageClassPushConstant), words)),
+            10u32 => Ok((
+                StorageClass::AtomicCounter(StorageClassAtomicCounter),
+                words,
+            )),
+            11u32 => Ok((StorageClass::Image(StorageClassImage), words)),
+            12u32 => Ok((
+                StorageClass::StorageBuffer(StorageClassStorageBuffer),
+                words,
+            )),
+            5349u32 => Ok((
+                StorageClass::PhysicalStorageBuffer(StorageClassPhysicalStorageBuffer),
+                words,
+            )),
             _ => Err(Error::InvalidEnumValue),
         }
     }
@@ -2277,32 +2943,81 @@ impl SPIRVParse for StorageClass {
 impl SPIRVDisplay for StorageClass {
     fn spirv_display(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            StorageClass::UniformConstant => write!(f, " {}", "UniformConstant"),
-            StorageClass::Input => write!(f, " {}", "Input"),
-            StorageClass::Uniform => write!(f, " {}", "Uniform"),
-            StorageClass::Output => write!(f, " {}", "Output"),
-            StorageClass::Workgroup => write!(f, " {}", "Workgroup"),
-            StorageClass::CrossWorkgroup => write!(f, " {}", "CrossWorkgroup"),
-            StorageClass::Private => write!(f, " {}", "Private"),
-            StorageClass::Function => write!(f, " {}", "Function"),
-            StorageClass::Generic => write!(f, " {}", "Generic"),
-            StorageClass::PushConstant => write!(f, " {}", "PushConstant"),
-            StorageClass::AtomicCounter => write!(f, " {}", "AtomicCounter"),
-            StorageClass::Image => write!(f, " {}", "Image"),
-            StorageClass::StorageBuffer => write!(f, " {}", "StorageBuffer"),
-            StorageClass::PhysicalStorageBuffer => write!(f, " {}", "PhysicalStorageBuffer"),
+            StorageClass::UniformConstant(_) => write!(f, " {}", "UniformConstant"),
+            StorageClass::Input(_) => write!(f, " {}", "Input"),
+            StorageClass::Uniform(_) => write!(f, " {}", "Uniform"),
+            StorageClass::Output(_) => write!(f, " {}", "Output"),
+            StorageClass::Workgroup(_) => write!(f, " {}", "Workgroup"),
+            StorageClass::CrossWorkgroup(_) => write!(f, " {}", "CrossWorkgroup"),
+            StorageClass::Private(_) => write!(f, " {}", "Private"),
+            StorageClass::Function(_) => write!(f, " {}", "Function"),
+            StorageClass::Generic(_) => write!(f, " {}", "Generic"),
+            StorageClass::PushConstant(_) => write!(f, " {}", "PushConstant"),
+            StorageClass::AtomicCounter(_) => write!(f, " {}", "AtomicCounter"),
+            StorageClass::Image(_) => write!(f, " {}", "Image"),
+            StorageClass::StorageBuffer(_) => write!(f, " {}", "StorageBuffer"),
+            StorageClass::PhysicalStorageBuffer(_) => write!(f, " {}", "PhysicalStorageBuffer"),
         }
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct Dim1D;
+impl From<Dim1D> for Dim {
+    fn from(v: Dim1D) -> Self {
+        Self::Dim1D(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct Dim2D;
+impl From<Dim2D> for Dim {
+    fn from(v: Dim2D) -> Self {
+        Self::Dim2D(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct Dim3D;
+impl From<Dim3D> for Dim {
+    fn from(v: Dim3D) -> Self {
+        Self::Dim3D(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct DimCube;
+impl From<DimCube> for Dim {
+    fn from(v: DimCube) -> Self {
+        Self::Cube(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct DimRect;
+impl From<DimRect> for Dim {
+    fn from(v: DimRect) -> Self {
+        Self::Rect(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct DimBuffer;
+impl From<DimBuffer> for Dim {
+    fn from(v: DimBuffer) -> Self {
+        Self::Buffer(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct DimSubpassData;
+impl From<DimSubpassData> for Dim {
+    fn from(v: DimSubpassData) -> Self {
+        Self::SubpassData(v)
     }
 }
 #[derive(Clone, Debug, Eq, PartialEq, Hash, Copy)]
 pub enum Dim {
-    Dim1D,
-    Dim2D,
-    Dim3D,
-    Cube,
-    Rect,
-    Buffer,
-    SubpassData,
+    Dim1D(Dim1D),
+    Dim2D(Dim2D),
+    Dim3D(Dim3D),
+    Cube(DimCube),
+    Rect(DimRect),
+    Buffer(DimBuffer),
+    SubpassData(DimSubpassData),
 }
 impl SPIRVParse for Dim {
     fn spirv_parse<'a>(
@@ -2311,13 +3026,13 @@ impl SPIRVParse for Dim {
     ) -> Result<(Self, &'a [u32])> {
         let (enumerant, words) = u32::spirv_parse(words, parse_state)?;
         match enumerant {
-            0u32 => Ok((Dim::Dim1D, words)),
-            1u32 => Ok((Dim::Dim2D, words)),
-            2u32 => Ok((Dim::Dim3D, words)),
-            3u32 => Ok((Dim::Cube, words)),
-            4u32 => Ok((Dim::Rect, words)),
-            5u32 => Ok((Dim::Buffer, words)),
-            6u32 => Ok((Dim::SubpassData, words)),
+            0u32 => Ok((Dim::Dim1D(Dim1D), words)),
+            1u32 => Ok((Dim::Dim2D(Dim2D), words)),
+            2u32 => Ok((Dim::Dim3D(Dim3D), words)),
+            3u32 => Ok((Dim::Cube(DimCube), words)),
+            4u32 => Ok((Dim::Rect(DimRect), words)),
+            5u32 => Ok((Dim::Buffer(DimBuffer), words)),
+            6u32 => Ok((Dim::SubpassData(DimSubpassData), words)),
             _ => Err(Error::InvalidEnumValue),
         }
     }
@@ -2325,23 +3040,58 @@ impl SPIRVParse for Dim {
 impl SPIRVDisplay for Dim {
     fn spirv_display(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Dim::Dim1D => write!(f, " {}", "1D"),
-            Dim::Dim2D => write!(f, " {}", "2D"),
-            Dim::Dim3D => write!(f, " {}", "3D"),
-            Dim::Cube => write!(f, " {}", "Cube"),
-            Dim::Rect => write!(f, " {}", "Rect"),
-            Dim::Buffer => write!(f, " {}", "Buffer"),
-            Dim::SubpassData => write!(f, " {}", "SubpassData"),
+            Dim::Dim1D(_) => write!(f, " {}", "1D"),
+            Dim::Dim2D(_) => write!(f, " {}", "2D"),
+            Dim::Dim3D(_) => write!(f, " {}", "3D"),
+            Dim::Cube(_) => write!(f, " {}", "Cube"),
+            Dim::Rect(_) => write!(f, " {}", "Rect"),
+            Dim::Buffer(_) => write!(f, " {}", "Buffer"),
+            Dim::SubpassData(_) => write!(f, " {}", "SubpassData"),
         }
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct SamplerAddressingModeNone;
+impl From<SamplerAddressingModeNone> for SamplerAddressingMode {
+    fn from(v: SamplerAddressingModeNone) -> Self {
+        Self::None(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct SamplerAddressingModeClampToEdge;
+impl From<SamplerAddressingModeClampToEdge> for SamplerAddressingMode {
+    fn from(v: SamplerAddressingModeClampToEdge) -> Self {
+        Self::ClampToEdge(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct SamplerAddressingModeClamp;
+impl From<SamplerAddressingModeClamp> for SamplerAddressingMode {
+    fn from(v: SamplerAddressingModeClamp) -> Self {
+        Self::Clamp(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct SamplerAddressingModeRepeat;
+impl From<SamplerAddressingModeRepeat> for SamplerAddressingMode {
+    fn from(v: SamplerAddressingModeRepeat) -> Self {
+        Self::Repeat(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct SamplerAddressingModeRepeatMirrored;
+impl From<SamplerAddressingModeRepeatMirrored> for SamplerAddressingMode {
+    fn from(v: SamplerAddressingModeRepeatMirrored) -> Self {
+        Self::RepeatMirrored(v)
     }
 }
 #[derive(Clone, Debug, Eq, PartialEq, Hash, Copy)]
 pub enum SamplerAddressingMode {
-    None,
-    ClampToEdge,
-    Clamp,
-    Repeat,
-    RepeatMirrored,
+    None(SamplerAddressingModeNone),
+    ClampToEdge(SamplerAddressingModeClampToEdge),
+    Clamp(SamplerAddressingModeClamp),
+    Repeat(SamplerAddressingModeRepeat),
+    RepeatMirrored(SamplerAddressingModeRepeatMirrored),
 }
 impl SPIRVParse for SamplerAddressingMode {
     fn spirv_parse<'a>(
@@ -2350,11 +3100,26 @@ impl SPIRVParse for SamplerAddressingMode {
     ) -> Result<(Self, &'a [u32])> {
         let (enumerant, words) = u32::spirv_parse(words, parse_state)?;
         match enumerant {
-            0u32 => Ok((SamplerAddressingMode::None, words)),
-            1u32 => Ok((SamplerAddressingMode::ClampToEdge, words)),
-            2u32 => Ok((SamplerAddressingMode::Clamp, words)),
-            3u32 => Ok((SamplerAddressingMode::Repeat, words)),
-            4u32 => Ok((SamplerAddressingMode::RepeatMirrored, words)),
+            0u32 => Ok((
+                SamplerAddressingMode::None(SamplerAddressingModeNone),
+                words,
+            )),
+            1u32 => Ok((
+                SamplerAddressingMode::ClampToEdge(SamplerAddressingModeClampToEdge),
+                words,
+            )),
+            2u32 => Ok((
+                SamplerAddressingMode::Clamp(SamplerAddressingModeClamp),
+                words,
+            )),
+            3u32 => Ok((
+                SamplerAddressingMode::Repeat(SamplerAddressingModeRepeat),
+                words,
+            )),
+            4u32 => Ok((
+                SamplerAddressingMode::RepeatMirrored(SamplerAddressingModeRepeatMirrored),
+                words,
+            )),
             _ => Err(Error::InvalidEnumValue),
         }
     }
@@ -2362,18 +3127,32 @@ impl SPIRVParse for SamplerAddressingMode {
 impl SPIRVDisplay for SamplerAddressingMode {
     fn spirv_display(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            SamplerAddressingMode::None => write!(f, " {}", "None"),
-            SamplerAddressingMode::ClampToEdge => write!(f, " {}", "ClampToEdge"),
-            SamplerAddressingMode::Clamp => write!(f, " {}", "Clamp"),
-            SamplerAddressingMode::Repeat => write!(f, " {}", "Repeat"),
-            SamplerAddressingMode::RepeatMirrored => write!(f, " {}", "RepeatMirrored"),
+            SamplerAddressingMode::None(_) => write!(f, " {}", "None"),
+            SamplerAddressingMode::ClampToEdge(_) => write!(f, " {}", "ClampToEdge"),
+            SamplerAddressingMode::Clamp(_) => write!(f, " {}", "Clamp"),
+            SamplerAddressingMode::Repeat(_) => write!(f, " {}", "Repeat"),
+            SamplerAddressingMode::RepeatMirrored(_) => write!(f, " {}", "RepeatMirrored"),
         }
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct SamplerFilterModeNearest;
+impl From<SamplerFilterModeNearest> for SamplerFilterMode {
+    fn from(v: SamplerFilterModeNearest) -> Self {
+        Self::Nearest(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct SamplerFilterModeLinear;
+impl From<SamplerFilterModeLinear> for SamplerFilterMode {
+    fn from(v: SamplerFilterModeLinear) -> Self {
+        Self::Linear(v)
     }
 }
 #[derive(Clone, Debug, Eq, PartialEq, Hash, Copy)]
 pub enum SamplerFilterMode {
-    Nearest,
-    Linear,
+    Nearest(SamplerFilterModeNearest),
+    Linear(SamplerFilterModeLinear),
 }
 impl SPIRVParse for SamplerFilterMode {
     fn spirv_parse<'a>(
@@ -2382,8 +3161,8 @@ impl SPIRVParse for SamplerFilterMode {
     ) -> Result<(Self, &'a [u32])> {
         let (enumerant, words) = u32::spirv_parse(words, parse_state)?;
         match enumerant {
-            0u32 => Ok((SamplerFilterMode::Nearest, words)),
-            1u32 => Ok((SamplerFilterMode::Linear, words)),
+            0u32 => Ok((SamplerFilterMode::Nearest(SamplerFilterModeNearest), words)),
+            1u32 => Ok((SamplerFilterMode::Linear(SamplerFilterModeLinear), words)),
             _ => Err(Error::InvalidEnumValue),
         }
     }
@@ -2391,53 +3170,333 @@ impl SPIRVParse for SamplerFilterMode {
 impl SPIRVDisplay for SamplerFilterMode {
     fn spirv_display(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            SamplerFilterMode::Nearest => write!(f, " {}", "Nearest"),
-            SamplerFilterMode::Linear => write!(f, " {}", "Linear"),
+            SamplerFilterMode::Nearest(_) => write!(f, " {}", "Nearest"),
+            SamplerFilterMode::Linear(_) => write!(f, " {}", "Linear"),
         }
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct ImageFormatUnknown;
+impl From<ImageFormatUnknown> for ImageFormat {
+    fn from(v: ImageFormatUnknown) -> Self {
+        Self::Unknown(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct ImageFormatRgba32f;
+impl From<ImageFormatRgba32f> for ImageFormat {
+    fn from(v: ImageFormatRgba32f) -> Self {
+        Self::Rgba32f(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct ImageFormatRgba16f;
+impl From<ImageFormatRgba16f> for ImageFormat {
+    fn from(v: ImageFormatRgba16f) -> Self {
+        Self::Rgba16f(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct ImageFormatR32f;
+impl From<ImageFormatR32f> for ImageFormat {
+    fn from(v: ImageFormatR32f) -> Self {
+        Self::R32f(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct ImageFormatRgba8;
+impl From<ImageFormatRgba8> for ImageFormat {
+    fn from(v: ImageFormatRgba8) -> Self {
+        Self::Rgba8(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct ImageFormatRgba8Snorm;
+impl From<ImageFormatRgba8Snorm> for ImageFormat {
+    fn from(v: ImageFormatRgba8Snorm) -> Self {
+        Self::Rgba8Snorm(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct ImageFormatRg32f;
+impl From<ImageFormatRg32f> for ImageFormat {
+    fn from(v: ImageFormatRg32f) -> Self {
+        Self::Rg32f(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct ImageFormatRg16f;
+impl From<ImageFormatRg16f> for ImageFormat {
+    fn from(v: ImageFormatRg16f) -> Self {
+        Self::Rg16f(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct ImageFormatR11fG11fB10f;
+impl From<ImageFormatR11fG11fB10f> for ImageFormat {
+    fn from(v: ImageFormatR11fG11fB10f) -> Self {
+        Self::R11fG11fB10f(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct ImageFormatR16f;
+impl From<ImageFormatR16f> for ImageFormat {
+    fn from(v: ImageFormatR16f) -> Self {
+        Self::R16f(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct ImageFormatRgba16;
+impl From<ImageFormatRgba16> for ImageFormat {
+    fn from(v: ImageFormatRgba16) -> Self {
+        Self::Rgba16(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct ImageFormatRgb10A2;
+impl From<ImageFormatRgb10A2> for ImageFormat {
+    fn from(v: ImageFormatRgb10A2) -> Self {
+        Self::Rgb10A2(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct ImageFormatRg16;
+impl From<ImageFormatRg16> for ImageFormat {
+    fn from(v: ImageFormatRg16) -> Self {
+        Self::Rg16(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct ImageFormatRg8;
+impl From<ImageFormatRg8> for ImageFormat {
+    fn from(v: ImageFormatRg8) -> Self {
+        Self::Rg8(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct ImageFormatR16;
+impl From<ImageFormatR16> for ImageFormat {
+    fn from(v: ImageFormatR16) -> Self {
+        Self::R16(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct ImageFormatR8;
+impl From<ImageFormatR8> for ImageFormat {
+    fn from(v: ImageFormatR8) -> Self {
+        Self::R8(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct ImageFormatRgba16Snorm;
+impl From<ImageFormatRgba16Snorm> for ImageFormat {
+    fn from(v: ImageFormatRgba16Snorm) -> Self {
+        Self::Rgba16Snorm(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct ImageFormatRg16Snorm;
+impl From<ImageFormatRg16Snorm> for ImageFormat {
+    fn from(v: ImageFormatRg16Snorm) -> Self {
+        Self::Rg16Snorm(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct ImageFormatRg8Snorm;
+impl From<ImageFormatRg8Snorm> for ImageFormat {
+    fn from(v: ImageFormatRg8Snorm) -> Self {
+        Self::Rg8Snorm(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct ImageFormatR16Snorm;
+impl From<ImageFormatR16Snorm> for ImageFormat {
+    fn from(v: ImageFormatR16Snorm) -> Self {
+        Self::R16Snorm(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct ImageFormatR8Snorm;
+impl From<ImageFormatR8Snorm> for ImageFormat {
+    fn from(v: ImageFormatR8Snorm) -> Self {
+        Self::R8Snorm(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct ImageFormatRgba32i;
+impl From<ImageFormatRgba32i> for ImageFormat {
+    fn from(v: ImageFormatRgba32i) -> Self {
+        Self::Rgba32i(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct ImageFormatRgba16i;
+impl From<ImageFormatRgba16i> for ImageFormat {
+    fn from(v: ImageFormatRgba16i) -> Self {
+        Self::Rgba16i(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct ImageFormatRgba8i;
+impl From<ImageFormatRgba8i> for ImageFormat {
+    fn from(v: ImageFormatRgba8i) -> Self {
+        Self::Rgba8i(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct ImageFormatR32i;
+impl From<ImageFormatR32i> for ImageFormat {
+    fn from(v: ImageFormatR32i) -> Self {
+        Self::R32i(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct ImageFormatRg32i;
+impl From<ImageFormatRg32i> for ImageFormat {
+    fn from(v: ImageFormatRg32i) -> Self {
+        Self::Rg32i(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct ImageFormatRg16i;
+impl From<ImageFormatRg16i> for ImageFormat {
+    fn from(v: ImageFormatRg16i) -> Self {
+        Self::Rg16i(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct ImageFormatRg8i;
+impl From<ImageFormatRg8i> for ImageFormat {
+    fn from(v: ImageFormatRg8i) -> Self {
+        Self::Rg8i(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct ImageFormatR16i;
+impl From<ImageFormatR16i> for ImageFormat {
+    fn from(v: ImageFormatR16i) -> Self {
+        Self::R16i(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct ImageFormatR8i;
+impl From<ImageFormatR8i> for ImageFormat {
+    fn from(v: ImageFormatR8i) -> Self {
+        Self::R8i(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct ImageFormatRgba32ui;
+impl From<ImageFormatRgba32ui> for ImageFormat {
+    fn from(v: ImageFormatRgba32ui) -> Self {
+        Self::Rgba32ui(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct ImageFormatRgba16ui;
+impl From<ImageFormatRgba16ui> for ImageFormat {
+    fn from(v: ImageFormatRgba16ui) -> Self {
+        Self::Rgba16ui(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct ImageFormatRgba8ui;
+impl From<ImageFormatRgba8ui> for ImageFormat {
+    fn from(v: ImageFormatRgba8ui) -> Self {
+        Self::Rgba8ui(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct ImageFormatR32ui;
+impl From<ImageFormatR32ui> for ImageFormat {
+    fn from(v: ImageFormatR32ui) -> Self {
+        Self::R32ui(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct ImageFormatRgb10a2ui;
+impl From<ImageFormatRgb10a2ui> for ImageFormat {
+    fn from(v: ImageFormatRgb10a2ui) -> Self {
+        Self::Rgb10a2ui(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct ImageFormatRg32ui;
+impl From<ImageFormatRg32ui> for ImageFormat {
+    fn from(v: ImageFormatRg32ui) -> Self {
+        Self::Rg32ui(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct ImageFormatRg16ui;
+impl From<ImageFormatRg16ui> for ImageFormat {
+    fn from(v: ImageFormatRg16ui) -> Self {
+        Self::Rg16ui(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct ImageFormatRg8ui;
+impl From<ImageFormatRg8ui> for ImageFormat {
+    fn from(v: ImageFormatRg8ui) -> Self {
+        Self::Rg8ui(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct ImageFormatR16ui;
+impl From<ImageFormatR16ui> for ImageFormat {
+    fn from(v: ImageFormatR16ui) -> Self {
+        Self::R16ui(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct ImageFormatR8ui;
+impl From<ImageFormatR8ui> for ImageFormat {
+    fn from(v: ImageFormatR8ui) -> Self {
+        Self::R8ui(v)
     }
 }
 #[derive(Clone, Debug, Eq, PartialEq, Hash, Copy)]
 pub enum ImageFormat {
-    Unknown,
-    Rgba32f,
-    Rgba16f,
-    R32f,
-    Rgba8,
-    Rgba8Snorm,
-    Rg32f,
-    Rg16f,
-    R11fG11fB10f,
-    R16f,
-    Rgba16,
-    Rgb10A2,
-    Rg16,
-    Rg8,
-    R16,
-    R8,
-    Rgba16Snorm,
-    Rg16Snorm,
-    Rg8Snorm,
-    R16Snorm,
-    R8Snorm,
-    Rgba32i,
-    Rgba16i,
-    Rgba8i,
-    R32i,
-    Rg32i,
-    Rg16i,
-    Rg8i,
-    R16i,
-    R8i,
-    Rgba32ui,
-    Rgba16ui,
-    Rgba8ui,
-    R32ui,
-    Rgb10a2ui,
-    Rg32ui,
-    Rg16ui,
-    Rg8ui,
-    R16ui,
-    R8ui,
+    Unknown(ImageFormatUnknown),
+    Rgba32f(ImageFormatRgba32f),
+    Rgba16f(ImageFormatRgba16f),
+    R32f(ImageFormatR32f),
+    Rgba8(ImageFormatRgba8),
+    Rgba8Snorm(ImageFormatRgba8Snorm),
+    Rg32f(ImageFormatRg32f),
+    Rg16f(ImageFormatRg16f),
+    R11fG11fB10f(ImageFormatR11fG11fB10f),
+    R16f(ImageFormatR16f),
+    Rgba16(ImageFormatRgba16),
+    Rgb10A2(ImageFormatRgb10A2),
+    Rg16(ImageFormatRg16),
+    Rg8(ImageFormatRg8),
+    R16(ImageFormatR16),
+    R8(ImageFormatR8),
+    Rgba16Snorm(ImageFormatRgba16Snorm),
+    Rg16Snorm(ImageFormatRg16Snorm),
+    Rg8Snorm(ImageFormatRg8Snorm),
+    R16Snorm(ImageFormatR16Snorm),
+    R8Snorm(ImageFormatR8Snorm),
+    Rgba32i(ImageFormatRgba32i),
+    Rgba16i(ImageFormatRgba16i),
+    Rgba8i(ImageFormatRgba8i),
+    R32i(ImageFormatR32i),
+    Rg32i(ImageFormatRg32i),
+    Rg16i(ImageFormatRg16i),
+    Rg8i(ImageFormatRg8i),
+    R16i(ImageFormatR16i),
+    R8i(ImageFormatR8i),
+    Rgba32ui(ImageFormatRgba32ui),
+    Rgba16ui(ImageFormatRgba16ui),
+    Rgba8ui(ImageFormatRgba8ui),
+    R32ui(ImageFormatR32ui),
+    Rgb10a2ui(ImageFormatRgb10a2ui),
+    Rg32ui(ImageFormatRg32ui),
+    Rg16ui(ImageFormatRg16ui),
+    Rg8ui(ImageFormatRg8ui),
+    R16ui(ImageFormatR16ui),
+    R8ui(ImageFormatR8ui),
 }
 impl SPIRVParse for ImageFormat {
     fn spirv_parse<'a>(
@@ -2446,46 +3505,46 @@ impl SPIRVParse for ImageFormat {
     ) -> Result<(Self, &'a [u32])> {
         let (enumerant, words) = u32::spirv_parse(words, parse_state)?;
         match enumerant {
-            0u32 => Ok((ImageFormat::Unknown, words)),
-            1u32 => Ok((ImageFormat::Rgba32f, words)),
-            2u32 => Ok((ImageFormat::Rgba16f, words)),
-            3u32 => Ok((ImageFormat::R32f, words)),
-            4u32 => Ok((ImageFormat::Rgba8, words)),
-            5u32 => Ok((ImageFormat::Rgba8Snorm, words)),
-            6u32 => Ok((ImageFormat::Rg32f, words)),
-            7u32 => Ok((ImageFormat::Rg16f, words)),
-            8u32 => Ok((ImageFormat::R11fG11fB10f, words)),
-            9u32 => Ok((ImageFormat::R16f, words)),
-            10u32 => Ok((ImageFormat::Rgba16, words)),
-            11u32 => Ok((ImageFormat::Rgb10A2, words)),
-            12u32 => Ok((ImageFormat::Rg16, words)),
-            13u32 => Ok((ImageFormat::Rg8, words)),
-            14u32 => Ok((ImageFormat::R16, words)),
-            15u32 => Ok((ImageFormat::R8, words)),
-            16u32 => Ok((ImageFormat::Rgba16Snorm, words)),
-            17u32 => Ok((ImageFormat::Rg16Snorm, words)),
-            18u32 => Ok((ImageFormat::Rg8Snorm, words)),
-            19u32 => Ok((ImageFormat::R16Snorm, words)),
-            20u32 => Ok((ImageFormat::R8Snorm, words)),
-            21u32 => Ok((ImageFormat::Rgba32i, words)),
-            22u32 => Ok((ImageFormat::Rgba16i, words)),
-            23u32 => Ok((ImageFormat::Rgba8i, words)),
-            24u32 => Ok((ImageFormat::R32i, words)),
-            25u32 => Ok((ImageFormat::Rg32i, words)),
-            26u32 => Ok((ImageFormat::Rg16i, words)),
-            27u32 => Ok((ImageFormat::Rg8i, words)),
-            28u32 => Ok((ImageFormat::R16i, words)),
-            29u32 => Ok((ImageFormat::R8i, words)),
-            30u32 => Ok((ImageFormat::Rgba32ui, words)),
-            31u32 => Ok((ImageFormat::Rgba16ui, words)),
-            32u32 => Ok((ImageFormat::Rgba8ui, words)),
-            33u32 => Ok((ImageFormat::R32ui, words)),
-            34u32 => Ok((ImageFormat::Rgb10a2ui, words)),
-            35u32 => Ok((ImageFormat::Rg32ui, words)),
-            36u32 => Ok((ImageFormat::Rg16ui, words)),
-            37u32 => Ok((ImageFormat::Rg8ui, words)),
-            38u32 => Ok((ImageFormat::R16ui, words)),
-            39u32 => Ok((ImageFormat::R8ui, words)),
+            0u32 => Ok((ImageFormat::Unknown(ImageFormatUnknown), words)),
+            1u32 => Ok((ImageFormat::Rgba32f(ImageFormatRgba32f), words)),
+            2u32 => Ok((ImageFormat::Rgba16f(ImageFormatRgba16f), words)),
+            3u32 => Ok((ImageFormat::R32f(ImageFormatR32f), words)),
+            4u32 => Ok((ImageFormat::Rgba8(ImageFormatRgba8), words)),
+            5u32 => Ok((ImageFormat::Rgba8Snorm(ImageFormatRgba8Snorm), words)),
+            6u32 => Ok((ImageFormat::Rg32f(ImageFormatRg32f), words)),
+            7u32 => Ok((ImageFormat::Rg16f(ImageFormatRg16f), words)),
+            8u32 => Ok((ImageFormat::R11fG11fB10f(ImageFormatR11fG11fB10f), words)),
+            9u32 => Ok((ImageFormat::R16f(ImageFormatR16f), words)),
+            10u32 => Ok((ImageFormat::Rgba16(ImageFormatRgba16), words)),
+            11u32 => Ok((ImageFormat::Rgb10A2(ImageFormatRgb10A2), words)),
+            12u32 => Ok((ImageFormat::Rg16(ImageFormatRg16), words)),
+            13u32 => Ok((ImageFormat::Rg8(ImageFormatRg8), words)),
+            14u32 => Ok((ImageFormat::R16(ImageFormatR16), words)),
+            15u32 => Ok((ImageFormat::R8(ImageFormatR8), words)),
+            16u32 => Ok((ImageFormat::Rgba16Snorm(ImageFormatRgba16Snorm), words)),
+            17u32 => Ok((ImageFormat::Rg16Snorm(ImageFormatRg16Snorm), words)),
+            18u32 => Ok((ImageFormat::Rg8Snorm(ImageFormatRg8Snorm), words)),
+            19u32 => Ok((ImageFormat::R16Snorm(ImageFormatR16Snorm), words)),
+            20u32 => Ok((ImageFormat::R8Snorm(ImageFormatR8Snorm), words)),
+            21u32 => Ok((ImageFormat::Rgba32i(ImageFormatRgba32i), words)),
+            22u32 => Ok((ImageFormat::Rgba16i(ImageFormatRgba16i), words)),
+            23u32 => Ok((ImageFormat::Rgba8i(ImageFormatRgba8i), words)),
+            24u32 => Ok((ImageFormat::R32i(ImageFormatR32i), words)),
+            25u32 => Ok((ImageFormat::Rg32i(ImageFormatRg32i), words)),
+            26u32 => Ok((ImageFormat::Rg16i(ImageFormatRg16i), words)),
+            27u32 => Ok((ImageFormat::Rg8i(ImageFormatRg8i), words)),
+            28u32 => Ok((ImageFormat::R16i(ImageFormatR16i), words)),
+            29u32 => Ok((ImageFormat::R8i(ImageFormatR8i), words)),
+            30u32 => Ok((ImageFormat::Rgba32ui(ImageFormatRgba32ui), words)),
+            31u32 => Ok((ImageFormat::Rgba16ui(ImageFormatRgba16ui), words)),
+            32u32 => Ok((ImageFormat::Rgba8ui(ImageFormatRgba8ui), words)),
+            33u32 => Ok((ImageFormat::R32ui(ImageFormatR32ui), words)),
+            34u32 => Ok((ImageFormat::Rgb10a2ui(ImageFormatRgb10a2ui), words)),
+            35u32 => Ok((ImageFormat::Rg32ui(ImageFormatRg32ui), words)),
+            36u32 => Ok((ImageFormat::Rg16ui(ImageFormatRg16ui), words)),
+            37u32 => Ok((ImageFormat::Rg8ui(ImageFormatRg8ui), words)),
+            38u32 => Ok((ImageFormat::R16ui(ImageFormatR16ui), words)),
+            39u32 => Ok((ImageFormat::R8ui(ImageFormatR8ui), words)),
             _ => Err(Error::InvalidEnumValue),
         }
     }
@@ -2493,71 +3552,211 @@ impl SPIRVParse for ImageFormat {
 impl SPIRVDisplay for ImageFormat {
     fn spirv_display(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            ImageFormat::Unknown => write!(f, " {}", "Unknown"),
-            ImageFormat::Rgba32f => write!(f, " {}", "Rgba32f"),
-            ImageFormat::Rgba16f => write!(f, " {}", "Rgba16f"),
-            ImageFormat::R32f => write!(f, " {}", "R32f"),
-            ImageFormat::Rgba8 => write!(f, " {}", "Rgba8"),
-            ImageFormat::Rgba8Snorm => write!(f, " {}", "Rgba8Snorm"),
-            ImageFormat::Rg32f => write!(f, " {}", "Rg32f"),
-            ImageFormat::Rg16f => write!(f, " {}", "Rg16f"),
-            ImageFormat::R11fG11fB10f => write!(f, " {}", "R11fG11fB10f"),
-            ImageFormat::R16f => write!(f, " {}", "R16f"),
-            ImageFormat::Rgba16 => write!(f, " {}", "Rgba16"),
-            ImageFormat::Rgb10A2 => write!(f, " {}", "Rgb10A2"),
-            ImageFormat::Rg16 => write!(f, " {}", "Rg16"),
-            ImageFormat::Rg8 => write!(f, " {}", "Rg8"),
-            ImageFormat::R16 => write!(f, " {}", "R16"),
-            ImageFormat::R8 => write!(f, " {}", "R8"),
-            ImageFormat::Rgba16Snorm => write!(f, " {}", "Rgba16Snorm"),
-            ImageFormat::Rg16Snorm => write!(f, " {}", "Rg16Snorm"),
-            ImageFormat::Rg8Snorm => write!(f, " {}", "Rg8Snorm"),
-            ImageFormat::R16Snorm => write!(f, " {}", "R16Snorm"),
-            ImageFormat::R8Snorm => write!(f, " {}", "R8Snorm"),
-            ImageFormat::Rgba32i => write!(f, " {}", "Rgba32i"),
-            ImageFormat::Rgba16i => write!(f, " {}", "Rgba16i"),
-            ImageFormat::Rgba8i => write!(f, " {}", "Rgba8i"),
-            ImageFormat::R32i => write!(f, " {}", "R32i"),
-            ImageFormat::Rg32i => write!(f, " {}", "Rg32i"),
-            ImageFormat::Rg16i => write!(f, " {}", "Rg16i"),
-            ImageFormat::Rg8i => write!(f, " {}", "Rg8i"),
-            ImageFormat::R16i => write!(f, " {}", "R16i"),
-            ImageFormat::R8i => write!(f, " {}", "R8i"),
-            ImageFormat::Rgba32ui => write!(f, " {}", "Rgba32ui"),
-            ImageFormat::Rgba16ui => write!(f, " {}", "Rgba16ui"),
-            ImageFormat::Rgba8ui => write!(f, " {}", "Rgba8ui"),
-            ImageFormat::R32ui => write!(f, " {}", "R32ui"),
-            ImageFormat::Rgb10a2ui => write!(f, " {}", "Rgb10a2ui"),
-            ImageFormat::Rg32ui => write!(f, " {}", "Rg32ui"),
-            ImageFormat::Rg16ui => write!(f, " {}", "Rg16ui"),
-            ImageFormat::Rg8ui => write!(f, " {}", "Rg8ui"),
-            ImageFormat::R16ui => write!(f, " {}", "R16ui"),
-            ImageFormat::R8ui => write!(f, " {}", "R8ui"),
+            ImageFormat::Unknown(_) => write!(f, " {}", "Unknown"),
+            ImageFormat::Rgba32f(_) => write!(f, " {}", "Rgba32f"),
+            ImageFormat::Rgba16f(_) => write!(f, " {}", "Rgba16f"),
+            ImageFormat::R32f(_) => write!(f, " {}", "R32f"),
+            ImageFormat::Rgba8(_) => write!(f, " {}", "Rgba8"),
+            ImageFormat::Rgba8Snorm(_) => write!(f, " {}", "Rgba8Snorm"),
+            ImageFormat::Rg32f(_) => write!(f, " {}", "Rg32f"),
+            ImageFormat::Rg16f(_) => write!(f, " {}", "Rg16f"),
+            ImageFormat::R11fG11fB10f(_) => write!(f, " {}", "R11fG11fB10f"),
+            ImageFormat::R16f(_) => write!(f, " {}", "R16f"),
+            ImageFormat::Rgba16(_) => write!(f, " {}", "Rgba16"),
+            ImageFormat::Rgb10A2(_) => write!(f, " {}", "Rgb10A2"),
+            ImageFormat::Rg16(_) => write!(f, " {}", "Rg16"),
+            ImageFormat::Rg8(_) => write!(f, " {}", "Rg8"),
+            ImageFormat::R16(_) => write!(f, " {}", "R16"),
+            ImageFormat::R8(_) => write!(f, " {}", "R8"),
+            ImageFormat::Rgba16Snorm(_) => write!(f, " {}", "Rgba16Snorm"),
+            ImageFormat::Rg16Snorm(_) => write!(f, " {}", "Rg16Snorm"),
+            ImageFormat::Rg8Snorm(_) => write!(f, " {}", "Rg8Snorm"),
+            ImageFormat::R16Snorm(_) => write!(f, " {}", "R16Snorm"),
+            ImageFormat::R8Snorm(_) => write!(f, " {}", "R8Snorm"),
+            ImageFormat::Rgba32i(_) => write!(f, " {}", "Rgba32i"),
+            ImageFormat::Rgba16i(_) => write!(f, " {}", "Rgba16i"),
+            ImageFormat::Rgba8i(_) => write!(f, " {}", "Rgba8i"),
+            ImageFormat::R32i(_) => write!(f, " {}", "R32i"),
+            ImageFormat::Rg32i(_) => write!(f, " {}", "Rg32i"),
+            ImageFormat::Rg16i(_) => write!(f, " {}", "Rg16i"),
+            ImageFormat::Rg8i(_) => write!(f, " {}", "Rg8i"),
+            ImageFormat::R16i(_) => write!(f, " {}", "R16i"),
+            ImageFormat::R8i(_) => write!(f, " {}", "R8i"),
+            ImageFormat::Rgba32ui(_) => write!(f, " {}", "Rgba32ui"),
+            ImageFormat::Rgba16ui(_) => write!(f, " {}", "Rgba16ui"),
+            ImageFormat::Rgba8ui(_) => write!(f, " {}", "Rgba8ui"),
+            ImageFormat::R32ui(_) => write!(f, " {}", "R32ui"),
+            ImageFormat::Rgb10a2ui(_) => write!(f, " {}", "Rgb10a2ui"),
+            ImageFormat::Rg32ui(_) => write!(f, " {}", "Rg32ui"),
+            ImageFormat::Rg16ui(_) => write!(f, " {}", "Rg16ui"),
+            ImageFormat::Rg8ui(_) => write!(f, " {}", "Rg8ui"),
+            ImageFormat::R16ui(_) => write!(f, " {}", "R16ui"),
+            ImageFormat::R8ui(_) => write!(f, " {}", "R8ui"),
         }
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct ImageChannelOrderR;
+impl From<ImageChannelOrderR> for ImageChannelOrder {
+    fn from(v: ImageChannelOrderR) -> Self {
+        Self::R(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct ImageChannelOrderA;
+impl From<ImageChannelOrderA> for ImageChannelOrder {
+    fn from(v: ImageChannelOrderA) -> Self {
+        Self::A(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct ImageChannelOrderRG;
+impl From<ImageChannelOrderRG> for ImageChannelOrder {
+    fn from(v: ImageChannelOrderRG) -> Self {
+        Self::RG(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct ImageChannelOrderRA;
+impl From<ImageChannelOrderRA> for ImageChannelOrder {
+    fn from(v: ImageChannelOrderRA) -> Self {
+        Self::RA(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct ImageChannelOrderRGB;
+impl From<ImageChannelOrderRGB> for ImageChannelOrder {
+    fn from(v: ImageChannelOrderRGB) -> Self {
+        Self::RGB(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct ImageChannelOrderRGBA;
+impl From<ImageChannelOrderRGBA> for ImageChannelOrder {
+    fn from(v: ImageChannelOrderRGBA) -> Self {
+        Self::RGBA(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct ImageChannelOrderBGRA;
+impl From<ImageChannelOrderBGRA> for ImageChannelOrder {
+    fn from(v: ImageChannelOrderBGRA) -> Self {
+        Self::BGRA(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct ImageChannelOrderARGB;
+impl From<ImageChannelOrderARGB> for ImageChannelOrder {
+    fn from(v: ImageChannelOrderARGB) -> Self {
+        Self::ARGB(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct ImageChannelOrderIntensity;
+impl From<ImageChannelOrderIntensity> for ImageChannelOrder {
+    fn from(v: ImageChannelOrderIntensity) -> Self {
+        Self::Intensity(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct ImageChannelOrderLuminance;
+impl From<ImageChannelOrderLuminance> for ImageChannelOrder {
+    fn from(v: ImageChannelOrderLuminance) -> Self {
+        Self::Luminance(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct ImageChannelOrderRx;
+impl From<ImageChannelOrderRx> for ImageChannelOrder {
+    fn from(v: ImageChannelOrderRx) -> Self {
+        Self::Rx(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct ImageChannelOrderRGx;
+impl From<ImageChannelOrderRGx> for ImageChannelOrder {
+    fn from(v: ImageChannelOrderRGx) -> Self {
+        Self::RGx(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct ImageChannelOrderRGBx;
+impl From<ImageChannelOrderRGBx> for ImageChannelOrder {
+    fn from(v: ImageChannelOrderRGBx) -> Self {
+        Self::RGBx(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct ImageChannelOrderDepth;
+impl From<ImageChannelOrderDepth> for ImageChannelOrder {
+    fn from(v: ImageChannelOrderDepth) -> Self {
+        Self::Depth(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct ImageChannelOrderDepthStencil;
+impl From<ImageChannelOrderDepthStencil> for ImageChannelOrder {
+    fn from(v: ImageChannelOrderDepthStencil) -> Self {
+        Self::DepthStencil(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct ImageChannelOrderSRGB;
+impl From<ImageChannelOrderSRGB> for ImageChannelOrder {
+    fn from(v: ImageChannelOrderSRGB) -> Self {
+        Self::SRGB(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct ImageChannelOrderSRGBx;
+impl From<ImageChannelOrderSRGBx> for ImageChannelOrder {
+    fn from(v: ImageChannelOrderSRGBx) -> Self {
+        Self::SRGBx(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct ImageChannelOrderSRGBA;
+impl From<ImageChannelOrderSRGBA> for ImageChannelOrder {
+    fn from(v: ImageChannelOrderSRGBA) -> Self {
+        Self::SRGBA(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct ImageChannelOrderSBGRA;
+impl From<ImageChannelOrderSBGRA> for ImageChannelOrder {
+    fn from(v: ImageChannelOrderSBGRA) -> Self {
+        Self::SBGRA(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct ImageChannelOrderABGR;
+impl From<ImageChannelOrderABGR> for ImageChannelOrder {
+    fn from(v: ImageChannelOrderABGR) -> Self {
+        Self::ABGR(v)
     }
 }
 #[derive(Clone, Debug, Eq, PartialEq, Hash, Copy)]
 pub enum ImageChannelOrder {
-    R,
-    A,
-    RG,
-    RA,
-    RGB,
-    RGBA,
-    BGRA,
-    ARGB,
-    Intensity,
-    Luminance,
-    Rx,
-    RGx,
-    RGBx,
-    Depth,
-    DepthStencil,
-    SRGB,
-    SRGBx,
-    SRGBA,
-    SBGRA,
-    ABGR,
+    R(ImageChannelOrderR),
+    A(ImageChannelOrderA),
+    RG(ImageChannelOrderRG),
+    RA(ImageChannelOrderRA),
+    RGB(ImageChannelOrderRGB),
+    RGBA(ImageChannelOrderRGBA),
+    BGRA(ImageChannelOrderBGRA),
+    ARGB(ImageChannelOrderARGB),
+    Intensity(ImageChannelOrderIntensity),
+    Luminance(ImageChannelOrderLuminance),
+    Rx(ImageChannelOrderRx),
+    RGx(ImageChannelOrderRGx),
+    RGBx(ImageChannelOrderRGBx),
+    Depth(ImageChannelOrderDepth),
+    DepthStencil(ImageChannelOrderDepthStencil),
+    SRGB(ImageChannelOrderSRGB),
+    SRGBx(ImageChannelOrderSRGBx),
+    SRGBA(ImageChannelOrderSRGBA),
+    SBGRA(ImageChannelOrderSBGRA),
+    ABGR(ImageChannelOrderABGR),
 }
 impl SPIRVParse for ImageChannelOrder {
     fn spirv_parse<'a>(
@@ -2566,26 +3765,35 @@ impl SPIRVParse for ImageChannelOrder {
     ) -> Result<(Self, &'a [u32])> {
         let (enumerant, words) = u32::spirv_parse(words, parse_state)?;
         match enumerant {
-            0u32 => Ok((ImageChannelOrder::R, words)),
-            1u32 => Ok((ImageChannelOrder::A, words)),
-            2u32 => Ok((ImageChannelOrder::RG, words)),
-            3u32 => Ok((ImageChannelOrder::RA, words)),
-            4u32 => Ok((ImageChannelOrder::RGB, words)),
-            5u32 => Ok((ImageChannelOrder::RGBA, words)),
-            6u32 => Ok((ImageChannelOrder::BGRA, words)),
-            7u32 => Ok((ImageChannelOrder::ARGB, words)),
-            8u32 => Ok((ImageChannelOrder::Intensity, words)),
-            9u32 => Ok((ImageChannelOrder::Luminance, words)),
-            10u32 => Ok((ImageChannelOrder::Rx, words)),
-            11u32 => Ok((ImageChannelOrder::RGx, words)),
-            12u32 => Ok((ImageChannelOrder::RGBx, words)),
-            13u32 => Ok((ImageChannelOrder::Depth, words)),
-            14u32 => Ok((ImageChannelOrder::DepthStencil, words)),
-            15u32 => Ok((ImageChannelOrder::SRGB, words)),
-            16u32 => Ok((ImageChannelOrder::SRGBx, words)),
-            17u32 => Ok((ImageChannelOrder::SRGBA, words)),
-            18u32 => Ok((ImageChannelOrder::SBGRA, words)),
-            19u32 => Ok((ImageChannelOrder::ABGR, words)),
+            0u32 => Ok((ImageChannelOrder::R(ImageChannelOrderR), words)),
+            1u32 => Ok((ImageChannelOrder::A(ImageChannelOrderA), words)),
+            2u32 => Ok((ImageChannelOrder::RG(ImageChannelOrderRG), words)),
+            3u32 => Ok((ImageChannelOrder::RA(ImageChannelOrderRA), words)),
+            4u32 => Ok((ImageChannelOrder::RGB(ImageChannelOrderRGB), words)),
+            5u32 => Ok((ImageChannelOrder::RGBA(ImageChannelOrderRGBA), words)),
+            6u32 => Ok((ImageChannelOrder::BGRA(ImageChannelOrderBGRA), words)),
+            7u32 => Ok((ImageChannelOrder::ARGB(ImageChannelOrderARGB), words)),
+            8u32 => Ok((
+                ImageChannelOrder::Intensity(ImageChannelOrderIntensity),
+                words,
+            )),
+            9u32 => Ok((
+                ImageChannelOrder::Luminance(ImageChannelOrderLuminance),
+                words,
+            )),
+            10u32 => Ok((ImageChannelOrder::Rx(ImageChannelOrderRx), words)),
+            11u32 => Ok((ImageChannelOrder::RGx(ImageChannelOrderRGx), words)),
+            12u32 => Ok((ImageChannelOrder::RGBx(ImageChannelOrderRGBx), words)),
+            13u32 => Ok((ImageChannelOrder::Depth(ImageChannelOrderDepth), words)),
+            14u32 => Ok((
+                ImageChannelOrder::DepthStencil(ImageChannelOrderDepthStencil),
+                words,
+            )),
+            15u32 => Ok((ImageChannelOrder::SRGB(ImageChannelOrderSRGB), words)),
+            16u32 => Ok((ImageChannelOrder::SRGBx(ImageChannelOrderSRGBx), words)),
+            17u32 => Ok((ImageChannelOrder::SRGBA(ImageChannelOrderSRGBA), words)),
+            18u32 => Ok((ImageChannelOrder::SBGRA(ImageChannelOrderSBGRA), words)),
+            19u32 => Ok((ImageChannelOrder::ABGR(ImageChannelOrderABGR), words)),
             _ => Err(Error::InvalidEnumValue),
         }
     }
@@ -2593,48 +3801,167 @@ impl SPIRVParse for ImageChannelOrder {
 impl SPIRVDisplay for ImageChannelOrder {
     fn spirv_display(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            ImageChannelOrder::R => write!(f, " {}", "R"),
-            ImageChannelOrder::A => write!(f, " {}", "A"),
-            ImageChannelOrder::RG => write!(f, " {}", "RG"),
-            ImageChannelOrder::RA => write!(f, " {}", "RA"),
-            ImageChannelOrder::RGB => write!(f, " {}", "RGB"),
-            ImageChannelOrder::RGBA => write!(f, " {}", "RGBA"),
-            ImageChannelOrder::BGRA => write!(f, " {}", "BGRA"),
-            ImageChannelOrder::ARGB => write!(f, " {}", "ARGB"),
-            ImageChannelOrder::Intensity => write!(f, " {}", "Intensity"),
-            ImageChannelOrder::Luminance => write!(f, " {}", "Luminance"),
-            ImageChannelOrder::Rx => write!(f, " {}", "Rx"),
-            ImageChannelOrder::RGx => write!(f, " {}", "RGx"),
-            ImageChannelOrder::RGBx => write!(f, " {}", "RGBx"),
-            ImageChannelOrder::Depth => write!(f, " {}", "Depth"),
-            ImageChannelOrder::DepthStencil => write!(f, " {}", "DepthStencil"),
-            ImageChannelOrder::SRGB => write!(f, " {}", "sRGB"),
-            ImageChannelOrder::SRGBx => write!(f, " {}", "sRGBx"),
-            ImageChannelOrder::SRGBA => write!(f, " {}", "sRGBA"),
-            ImageChannelOrder::SBGRA => write!(f, " {}", "sBGRA"),
-            ImageChannelOrder::ABGR => write!(f, " {}", "ABGR"),
+            ImageChannelOrder::R(_) => write!(f, " {}", "R"),
+            ImageChannelOrder::A(_) => write!(f, " {}", "A"),
+            ImageChannelOrder::RG(_) => write!(f, " {}", "RG"),
+            ImageChannelOrder::RA(_) => write!(f, " {}", "RA"),
+            ImageChannelOrder::RGB(_) => write!(f, " {}", "RGB"),
+            ImageChannelOrder::RGBA(_) => write!(f, " {}", "RGBA"),
+            ImageChannelOrder::BGRA(_) => write!(f, " {}", "BGRA"),
+            ImageChannelOrder::ARGB(_) => write!(f, " {}", "ARGB"),
+            ImageChannelOrder::Intensity(_) => write!(f, " {}", "Intensity"),
+            ImageChannelOrder::Luminance(_) => write!(f, " {}", "Luminance"),
+            ImageChannelOrder::Rx(_) => write!(f, " {}", "Rx"),
+            ImageChannelOrder::RGx(_) => write!(f, " {}", "RGx"),
+            ImageChannelOrder::RGBx(_) => write!(f, " {}", "RGBx"),
+            ImageChannelOrder::Depth(_) => write!(f, " {}", "Depth"),
+            ImageChannelOrder::DepthStencil(_) => write!(f, " {}", "DepthStencil"),
+            ImageChannelOrder::SRGB(_) => write!(f, " {}", "sRGB"),
+            ImageChannelOrder::SRGBx(_) => write!(f, " {}", "sRGBx"),
+            ImageChannelOrder::SRGBA(_) => write!(f, " {}", "sRGBA"),
+            ImageChannelOrder::SBGRA(_) => write!(f, " {}", "sBGRA"),
+            ImageChannelOrder::ABGR(_) => write!(f, " {}", "ABGR"),
         }
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct ImageChannelDataTypeSnormInt8;
+impl From<ImageChannelDataTypeSnormInt8> for ImageChannelDataType {
+    fn from(v: ImageChannelDataTypeSnormInt8) -> Self {
+        Self::SnormInt8(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct ImageChannelDataTypeSnormInt16;
+impl From<ImageChannelDataTypeSnormInt16> for ImageChannelDataType {
+    fn from(v: ImageChannelDataTypeSnormInt16) -> Self {
+        Self::SnormInt16(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct ImageChannelDataTypeUnormInt8;
+impl From<ImageChannelDataTypeUnormInt8> for ImageChannelDataType {
+    fn from(v: ImageChannelDataTypeUnormInt8) -> Self {
+        Self::UnormInt8(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct ImageChannelDataTypeUnormInt16;
+impl From<ImageChannelDataTypeUnormInt16> for ImageChannelDataType {
+    fn from(v: ImageChannelDataTypeUnormInt16) -> Self {
+        Self::UnormInt16(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct ImageChannelDataTypeUnormShort565;
+impl From<ImageChannelDataTypeUnormShort565> for ImageChannelDataType {
+    fn from(v: ImageChannelDataTypeUnormShort565) -> Self {
+        Self::UnormShort565(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct ImageChannelDataTypeUnormShort555;
+impl From<ImageChannelDataTypeUnormShort555> for ImageChannelDataType {
+    fn from(v: ImageChannelDataTypeUnormShort555) -> Self {
+        Self::UnormShort555(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct ImageChannelDataTypeUnormInt101010;
+impl From<ImageChannelDataTypeUnormInt101010> for ImageChannelDataType {
+    fn from(v: ImageChannelDataTypeUnormInt101010) -> Self {
+        Self::UnormInt101010(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct ImageChannelDataTypeSignedInt8;
+impl From<ImageChannelDataTypeSignedInt8> for ImageChannelDataType {
+    fn from(v: ImageChannelDataTypeSignedInt8) -> Self {
+        Self::SignedInt8(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct ImageChannelDataTypeSignedInt16;
+impl From<ImageChannelDataTypeSignedInt16> for ImageChannelDataType {
+    fn from(v: ImageChannelDataTypeSignedInt16) -> Self {
+        Self::SignedInt16(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct ImageChannelDataTypeSignedInt32;
+impl From<ImageChannelDataTypeSignedInt32> for ImageChannelDataType {
+    fn from(v: ImageChannelDataTypeSignedInt32) -> Self {
+        Self::SignedInt32(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct ImageChannelDataTypeUnsignedInt8;
+impl From<ImageChannelDataTypeUnsignedInt8> for ImageChannelDataType {
+    fn from(v: ImageChannelDataTypeUnsignedInt8) -> Self {
+        Self::UnsignedInt8(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct ImageChannelDataTypeUnsignedInt16;
+impl From<ImageChannelDataTypeUnsignedInt16> for ImageChannelDataType {
+    fn from(v: ImageChannelDataTypeUnsignedInt16) -> Self {
+        Self::UnsignedInt16(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct ImageChannelDataTypeUnsignedInt32;
+impl From<ImageChannelDataTypeUnsignedInt32> for ImageChannelDataType {
+    fn from(v: ImageChannelDataTypeUnsignedInt32) -> Self {
+        Self::UnsignedInt32(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct ImageChannelDataTypeHalfFloat;
+impl From<ImageChannelDataTypeHalfFloat> for ImageChannelDataType {
+    fn from(v: ImageChannelDataTypeHalfFloat) -> Self {
+        Self::HalfFloat(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct ImageChannelDataTypeFloat;
+impl From<ImageChannelDataTypeFloat> for ImageChannelDataType {
+    fn from(v: ImageChannelDataTypeFloat) -> Self {
+        Self::Float(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct ImageChannelDataTypeUnormInt24;
+impl From<ImageChannelDataTypeUnormInt24> for ImageChannelDataType {
+    fn from(v: ImageChannelDataTypeUnormInt24) -> Self {
+        Self::UnormInt24(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct ImageChannelDataTypeUnormInt1010102;
+impl From<ImageChannelDataTypeUnormInt1010102> for ImageChannelDataType {
+    fn from(v: ImageChannelDataTypeUnormInt1010102) -> Self {
+        Self::UnormInt1010102(v)
     }
 }
 #[derive(Clone, Debug, Eq, PartialEq, Hash, Copy)]
 pub enum ImageChannelDataType {
-    SnormInt8,
-    SnormInt16,
-    UnormInt8,
-    UnormInt16,
-    UnormShort565,
-    UnormShort555,
-    UnormInt101010,
-    SignedInt8,
-    SignedInt16,
-    SignedInt32,
-    UnsignedInt8,
-    UnsignedInt16,
-    UnsignedInt32,
-    HalfFloat,
-    Float,
-    UnormInt24,
-    UnormInt1010102,
+    SnormInt8(ImageChannelDataTypeSnormInt8),
+    SnormInt16(ImageChannelDataTypeSnormInt16),
+    UnormInt8(ImageChannelDataTypeUnormInt8),
+    UnormInt16(ImageChannelDataTypeUnormInt16),
+    UnormShort565(ImageChannelDataTypeUnormShort565),
+    UnormShort555(ImageChannelDataTypeUnormShort555),
+    UnormInt101010(ImageChannelDataTypeUnormInt101010),
+    SignedInt8(ImageChannelDataTypeSignedInt8),
+    SignedInt16(ImageChannelDataTypeSignedInt16),
+    SignedInt32(ImageChannelDataTypeSignedInt32),
+    UnsignedInt8(ImageChannelDataTypeUnsignedInt8),
+    UnsignedInt16(ImageChannelDataTypeUnsignedInt16),
+    UnsignedInt32(ImageChannelDataTypeUnsignedInt32),
+    HalfFloat(ImageChannelDataTypeHalfFloat),
+    Float(ImageChannelDataTypeFloat),
+    UnormInt24(ImageChannelDataTypeUnormInt24),
+    UnormInt1010102(ImageChannelDataTypeUnormInt1010102),
 }
 impl SPIRVParse for ImageChannelDataType {
     fn spirv_parse<'a>(
@@ -2643,23 +3970,74 @@ impl SPIRVParse for ImageChannelDataType {
     ) -> Result<(Self, &'a [u32])> {
         let (enumerant, words) = u32::spirv_parse(words, parse_state)?;
         match enumerant {
-            0u32 => Ok((ImageChannelDataType::SnormInt8, words)),
-            1u32 => Ok((ImageChannelDataType::SnormInt16, words)),
-            2u32 => Ok((ImageChannelDataType::UnormInt8, words)),
-            3u32 => Ok((ImageChannelDataType::UnormInt16, words)),
-            4u32 => Ok((ImageChannelDataType::UnormShort565, words)),
-            5u32 => Ok((ImageChannelDataType::UnormShort555, words)),
-            6u32 => Ok((ImageChannelDataType::UnormInt101010, words)),
-            7u32 => Ok((ImageChannelDataType::SignedInt8, words)),
-            8u32 => Ok((ImageChannelDataType::SignedInt16, words)),
-            9u32 => Ok((ImageChannelDataType::SignedInt32, words)),
-            10u32 => Ok((ImageChannelDataType::UnsignedInt8, words)),
-            11u32 => Ok((ImageChannelDataType::UnsignedInt16, words)),
-            12u32 => Ok((ImageChannelDataType::UnsignedInt32, words)),
-            13u32 => Ok((ImageChannelDataType::HalfFloat, words)),
-            14u32 => Ok((ImageChannelDataType::Float, words)),
-            15u32 => Ok((ImageChannelDataType::UnormInt24, words)),
-            16u32 => Ok((ImageChannelDataType::UnormInt1010102, words)),
+            0u32 => Ok((
+                ImageChannelDataType::SnormInt8(ImageChannelDataTypeSnormInt8),
+                words,
+            )),
+            1u32 => Ok((
+                ImageChannelDataType::SnormInt16(ImageChannelDataTypeSnormInt16),
+                words,
+            )),
+            2u32 => Ok((
+                ImageChannelDataType::UnormInt8(ImageChannelDataTypeUnormInt8),
+                words,
+            )),
+            3u32 => Ok((
+                ImageChannelDataType::UnormInt16(ImageChannelDataTypeUnormInt16),
+                words,
+            )),
+            4u32 => Ok((
+                ImageChannelDataType::UnormShort565(ImageChannelDataTypeUnormShort565),
+                words,
+            )),
+            5u32 => Ok((
+                ImageChannelDataType::UnormShort555(ImageChannelDataTypeUnormShort555),
+                words,
+            )),
+            6u32 => Ok((
+                ImageChannelDataType::UnormInt101010(ImageChannelDataTypeUnormInt101010),
+                words,
+            )),
+            7u32 => Ok((
+                ImageChannelDataType::SignedInt8(ImageChannelDataTypeSignedInt8),
+                words,
+            )),
+            8u32 => Ok((
+                ImageChannelDataType::SignedInt16(ImageChannelDataTypeSignedInt16),
+                words,
+            )),
+            9u32 => Ok((
+                ImageChannelDataType::SignedInt32(ImageChannelDataTypeSignedInt32),
+                words,
+            )),
+            10u32 => Ok((
+                ImageChannelDataType::UnsignedInt8(ImageChannelDataTypeUnsignedInt8),
+                words,
+            )),
+            11u32 => Ok((
+                ImageChannelDataType::UnsignedInt16(ImageChannelDataTypeUnsignedInt16),
+                words,
+            )),
+            12u32 => Ok((
+                ImageChannelDataType::UnsignedInt32(ImageChannelDataTypeUnsignedInt32),
+                words,
+            )),
+            13u32 => Ok((
+                ImageChannelDataType::HalfFloat(ImageChannelDataTypeHalfFloat),
+                words,
+            )),
+            14u32 => Ok((
+                ImageChannelDataType::Float(ImageChannelDataTypeFloat),
+                words,
+            )),
+            15u32 => Ok((
+                ImageChannelDataType::UnormInt24(ImageChannelDataTypeUnormInt24),
+                words,
+            )),
+            16u32 => Ok((
+                ImageChannelDataType::UnormInt1010102(ImageChannelDataTypeUnormInt1010102),
+                words,
+            )),
             _ => Err(Error::InvalidEnumValue),
         }
     }
@@ -2667,32 +4045,60 @@ impl SPIRVParse for ImageChannelDataType {
 impl SPIRVDisplay for ImageChannelDataType {
     fn spirv_display(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            ImageChannelDataType::SnormInt8 => write!(f, " {}", "SnormInt8"),
-            ImageChannelDataType::SnormInt16 => write!(f, " {}", "SnormInt16"),
-            ImageChannelDataType::UnormInt8 => write!(f, " {}", "UnormInt8"),
-            ImageChannelDataType::UnormInt16 => write!(f, " {}", "UnormInt16"),
-            ImageChannelDataType::UnormShort565 => write!(f, " {}", "UnormShort565"),
-            ImageChannelDataType::UnormShort555 => write!(f, " {}", "UnormShort555"),
-            ImageChannelDataType::UnormInt101010 => write!(f, " {}", "UnormInt101010"),
-            ImageChannelDataType::SignedInt8 => write!(f, " {}", "SignedInt8"),
-            ImageChannelDataType::SignedInt16 => write!(f, " {}", "SignedInt16"),
-            ImageChannelDataType::SignedInt32 => write!(f, " {}", "SignedInt32"),
-            ImageChannelDataType::UnsignedInt8 => write!(f, " {}", "UnsignedInt8"),
-            ImageChannelDataType::UnsignedInt16 => write!(f, " {}", "UnsignedInt16"),
-            ImageChannelDataType::UnsignedInt32 => write!(f, " {}", "UnsignedInt32"),
-            ImageChannelDataType::HalfFloat => write!(f, " {}", "HalfFloat"),
-            ImageChannelDataType::Float => write!(f, " {}", "Float"),
-            ImageChannelDataType::UnormInt24 => write!(f, " {}", "UnormInt24"),
-            ImageChannelDataType::UnormInt1010102 => write!(f, " {}", "UnormInt101010_2"),
+            ImageChannelDataType::SnormInt8(_) => write!(f, " {}", "SnormInt8"),
+            ImageChannelDataType::SnormInt16(_) => write!(f, " {}", "SnormInt16"),
+            ImageChannelDataType::UnormInt8(_) => write!(f, " {}", "UnormInt8"),
+            ImageChannelDataType::UnormInt16(_) => write!(f, " {}", "UnormInt16"),
+            ImageChannelDataType::UnormShort565(_) => write!(f, " {}", "UnormShort565"),
+            ImageChannelDataType::UnormShort555(_) => write!(f, " {}", "UnormShort555"),
+            ImageChannelDataType::UnormInt101010(_) => write!(f, " {}", "UnormInt101010"),
+            ImageChannelDataType::SignedInt8(_) => write!(f, " {}", "SignedInt8"),
+            ImageChannelDataType::SignedInt16(_) => write!(f, " {}", "SignedInt16"),
+            ImageChannelDataType::SignedInt32(_) => write!(f, " {}", "SignedInt32"),
+            ImageChannelDataType::UnsignedInt8(_) => write!(f, " {}", "UnsignedInt8"),
+            ImageChannelDataType::UnsignedInt16(_) => write!(f, " {}", "UnsignedInt16"),
+            ImageChannelDataType::UnsignedInt32(_) => write!(f, " {}", "UnsignedInt32"),
+            ImageChannelDataType::HalfFloat(_) => write!(f, " {}", "HalfFloat"),
+            ImageChannelDataType::Float(_) => write!(f, " {}", "Float"),
+            ImageChannelDataType::UnormInt24(_) => write!(f, " {}", "UnormInt24"),
+            ImageChannelDataType::UnormInt1010102(_) => write!(f, " {}", "UnormInt101010_2"),
         }
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct FPRoundingModeRTE;
+impl From<FPRoundingModeRTE> for FPRoundingMode {
+    fn from(v: FPRoundingModeRTE) -> Self {
+        Self::RTE(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct FPRoundingModeRTZ;
+impl From<FPRoundingModeRTZ> for FPRoundingMode {
+    fn from(v: FPRoundingModeRTZ) -> Self {
+        Self::RTZ(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct FPRoundingModeRTP;
+impl From<FPRoundingModeRTP> for FPRoundingMode {
+    fn from(v: FPRoundingModeRTP) -> Self {
+        Self::RTP(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct FPRoundingModeRTN;
+impl From<FPRoundingModeRTN> for FPRoundingMode {
+    fn from(v: FPRoundingModeRTN) -> Self {
+        Self::RTN(v)
     }
 }
 #[derive(Clone, Debug, Eq, PartialEq, Hash, Copy)]
 pub enum FPRoundingMode {
-    RTE,
-    RTZ,
-    RTP,
-    RTN,
+    RTE(FPRoundingModeRTE),
+    RTZ(FPRoundingModeRTZ),
+    RTP(FPRoundingModeRTP),
+    RTN(FPRoundingModeRTN),
 }
 impl SPIRVParse for FPRoundingMode {
     fn spirv_parse<'a>(
@@ -2701,10 +4107,10 @@ impl SPIRVParse for FPRoundingMode {
     ) -> Result<(Self, &'a [u32])> {
         let (enumerant, words) = u32::spirv_parse(words, parse_state)?;
         match enumerant {
-            0u32 => Ok((FPRoundingMode::RTE, words)),
-            1u32 => Ok((FPRoundingMode::RTZ, words)),
-            2u32 => Ok((FPRoundingMode::RTP, words)),
-            3u32 => Ok((FPRoundingMode::RTN, words)),
+            0u32 => Ok((FPRoundingMode::RTE(FPRoundingModeRTE), words)),
+            1u32 => Ok((FPRoundingMode::RTZ(FPRoundingModeRTZ), words)),
+            2u32 => Ok((FPRoundingMode::RTP(FPRoundingModeRTP), words)),
+            3u32 => Ok((FPRoundingMode::RTN(FPRoundingModeRTN), words)),
             _ => Err(Error::InvalidEnumValue),
         }
     }
@@ -2712,17 +4118,31 @@ impl SPIRVParse for FPRoundingMode {
 impl SPIRVDisplay for FPRoundingMode {
     fn spirv_display(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            FPRoundingMode::RTE => write!(f, " {}", "RTE"),
-            FPRoundingMode::RTZ => write!(f, " {}", "RTZ"),
-            FPRoundingMode::RTP => write!(f, " {}", "RTP"),
-            FPRoundingMode::RTN => write!(f, " {}", "RTN"),
+            FPRoundingMode::RTE(_) => write!(f, " {}", "RTE"),
+            FPRoundingMode::RTZ(_) => write!(f, " {}", "RTZ"),
+            FPRoundingMode::RTP(_) => write!(f, " {}", "RTP"),
+            FPRoundingMode::RTN(_) => write!(f, " {}", "RTN"),
         }
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct LinkageTypeExport;
+impl From<LinkageTypeExport> for LinkageType {
+    fn from(v: LinkageTypeExport) -> Self {
+        Self::Export(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct LinkageTypeImport;
+impl From<LinkageTypeImport> for LinkageType {
+    fn from(v: LinkageTypeImport) -> Self {
+        Self::Import(v)
     }
 }
 #[derive(Clone, Debug, Eq, PartialEq, Hash, Copy)]
 pub enum LinkageType {
-    Export,
-    Import,
+    Export(LinkageTypeExport),
+    Import(LinkageTypeImport),
 }
 impl SPIRVParse for LinkageType {
     fn spirv_parse<'a>(
@@ -2731,8 +4151,8 @@ impl SPIRVParse for LinkageType {
     ) -> Result<(Self, &'a [u32])> {
         let (enumerant, words) = u32::spirv_parse(words, parse_state)?;
         match enumerant {
-            0u32 => Ok((LinkageType::Export, words)),
-            1u32 => Ok((LinkageType::Import, words)),
+            0u32 => Ok((LinkageType::Export(LinkageTypeExport), words)),
+            1u32 => Ok((LinkageType::Import(LinkageTypeImport), words)),
             _ => Err(Error::InvalidEnumValue),
         }
     }
@@ -2740,16 +4160,37 @@ impl SPIRVParse for LinkageType {
 impl SPIRVDisplay for LinkageType {
     fn spirv_display(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            LinkageType::Export => write!(f, " {}", "Export"),
-            LinkageType::Import => write!(f, " {}", "Import"),
+            LinkageType::Export(_) => write!(f, " {}", "Export"),
+            LinkageType::Import(_) => write!(f, " {}", "Import"),
         }
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct AccessQualifierReadOnly;
+impl From<AccessQualifierReadOnly> for AccessQualifier {
+    fn from(v: AccessQualifierReadOnly) -> Self {
+        Self::ReadOnly(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct AccessQualifierWriteOnly;
+impl From<AccessQualifierWriteOnly> for AccessQualifier {
+    fn from(v: AccessQualifierWriteOnly) -> Self {
+        Self::WriteOnly(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct AccessQualifierReadWrite;
+impl From<AccessQualifierReadWrite> for AccessQualifier {
+    fn from(v: AccessQualifierReadWrite) -> Self {
+        Self::ReadWrite(v)
     }
 }
 #[derive(Clone, Debug, Eq, PartialEq, Hash, Copy)]
 pub enum AccessQualifier {
-    ReadOnly,
-    WriteOnly,
-    ReadWrite,
+    ReadOnly(AccessQualifierReadOnly),
+    WriteOnly(AccessQualifierWriteOnly),
+    ReadWrite(AccessQualifierReadWrite),
 }
 impl SPIRVParse for AccessQualifier {
     fn spirv_parse<'a>(
@@ -2758,9 +4199,9 @@ impl SPIRVParse for AccessQualifier {
     ) -> Result<(Self, &'a [u32])> {
         let (enumerant, words) = u32::spirv_parse(words, parse_state)?;
         match enumerant {
-            0u32 => Ok((AccessQualifier::ReadOnly, words)),
-            1u32 => Ok((AccessQualifier::WriteOnly, words)),
-            2u32 => Ok((AccessQualifier::ReadWrite, words)),
+            0u32 => Ok((AccessQualifier::ReadOnly(AccessQualifierReadOnly), words)),
+            1u32 => Ok((AccessQualifier::WriteOnly(AccessQualifierWriteOnly), words)),
+            2u32 => Ok((AccessQualifier::ReadWrite(AccessQualifierReadWrite), words)),
             _ => Err(Error::InvalidEnumValue),
         }
     }
@@ -2768,22 +4209,78 @@ impl SPIRVParse for AccessQualifier {
 impl SPIRVDisplay for AccessQualifier {
     fn spirv_display(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            AccessQualifier::ReadOnly => write!(f, " {}", "ReadOnly"),
-            AccessQualifier::WriteOnly => write!(f, " {}", "WriteOnly"),
-            AccessQualifier::ReadWrite => write!(f, " {}", "ReadWrite"),
+            AccessQualifier::ReadOnly(_) => write!(f, " {}", "ReadOnly"),
+            AccessQualifier::WriteOnly(_) => write!(f, " {}", "WriteOnly"),
+            AccessQualifier::ReadWrite(_) => write!(f, " {}", "ReadWrite"),
         }
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct FunctionParameterAttributeZext;
+impl From<FunctionParameterAttributeZext> for FunctionParameterAttribute {
+    fn from(v: FunctionParameterAttributeZext) -> Self {
+        Self::Zext(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct FunctionParameterAttributeSext;
+impl From<FunctionParameterAttributeSext> for FunctionParameterAttribute {
+    fn from(v: FunctionParameterAttributeSext) -> Self {
+        Self::Sext(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct FunctionParameterAttributeByVal;
+impl From<FunctionParameterAttributeByVal> for FunctionParameterAttribute {
+    fn from(v: FunctionParameterAttributeByVal) -> Self {
+        Self::ByVal(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct FunctionParameterAttributeSret;
+impl From<FunctionParameterAttributeSret> for FunctionParameterAttribute {
+    fn from(v: FunctionParameterAttributeSret) -> Self {
+        Self::Sret(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct FunctionParameterAttributeNoAlias;
+impl From<FunctionParameterAttributeNoAlias> for FunctionParameterAttribute {
+    fn from(v: FunctionParameterAttributeNoAlias) -> Self {
+        Self::NoAlias(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct FunctionParameterAttributeNoCapture;
+impl From<FunctionParameterAttributeNoCapture> for FunctionParameterAttribute {
+    fn from(v: FunctionParameterAttributeNoCapture) -> Self {
+        Self::NoCapture(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct FunctionParameterAttributeNoWrite;
+impl From<FunctionParameterAttributeNoWrite> for FunctionParameterAttribute {
+    fn from(v: FunctionParameterAttributeNoWrite) -> Self {
+        Self::NoWrite(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct FunctionParameterAttributeNoReadWrite;
+impl From<FunctionParameterAttributeNoReadWrite> for FunctionParameterAttribute {
+    fn from(v: FunctionParameterAttributeNoReadWrite) -> Self {
+        Self::NoReadWrite(v)
     }
 }
 #[derive(Clone, Debug, Eq, PartialEq, Hash, Copy)]
 pub enum FunctionParameterAttribute {
-    Zext,
-    Sext,
-    ByVal,
-    Sret,
-    NoAlias,
-    NoCapture,
-    NoWrite,
-    NoReadWrite,
+    Zext(FunctionParameterAttributeZext),
+    Sext(FunctionParameterAttributeSext),
+    ByVal(FunctionParameterAttributeByVal),
+    Sret(FunctionParameterAttributeSret),
+    NoAlias(FunctionParameterAttributeNoAlias),
+    NoCapture(FunctionParameterAttributeNoCapture),
+    NoWrite(FunctionParameterAttributeNoWrite),
+    NoReadWrite(FunctionParameterAttributeNoReadWrite),
 }
 impl SPIRVParse for FunctionParameterAttribute {
     fn spirv_parse<'a>(
@@ -2792,14 +4289,38 @@ impl SPIRVParse for FunctionParameterAttribute {
     ) -> Result<(Self, &'a [u32])> {
         let (enumerant, words) = u32::spirv_parse(words, parse_state)?;
         match enumerant {
-            0u32 => Ok((FunctionParameterAttribute::Zext, words)),
-            1u32 => Ok((FunctionParameterAttribute::Sext, words)),
-            2u32 => Ok((FunctionParameterAttribute::ByVal, words)),
-            3u32 => Ok((FunctionParameterAttribute::Sret, words)),
-            4u32 => Ok((FunctionParameterAttribute::NoAlias, words)),
-            5u32 => Ok((FunctionParameterAttribute::NoCapture, words)),
-            6u32 => Ok((FunctionParameterAttribute::NoWrite, words)),
-            7u32 => Ok((FunctionParameterAttribute::NoReadWrite, words)),
+            0u32 => Ok((
+                FunctionParameterAttribute::Zext(FunctionParameterAttributeZext),
+                words,
+            )),
+            1u32 => Ok((
+                FunctionParameterAttribute::Sext(FunctionParameterAttributeSext),
+                words,
+            )),
+            2u32 => Ok((
+                FunctionParameterAttribute::ByVal(FunctionParameterAttributeByVal),
+                words,
+            )),
+            3u32 => Ok((
+                FunctionParameterAttribute::Sret(FunctionParameterAttributeSret),
+                words,
+            )),
+            4u32 => Ok((
+                FunctionParameterAttribute::NoAlias(FunctionParameterAttributeNoAlias),
+                words,
+            )),
+            5u32 => Ok((
+                FunctionParameterAttribute::NoCapture(FunctionParameterAttributeNoCapture),
+                words,
+            )),
+            6u32 => Ok((
+                FunctionParameterAttribute::NoWrite(FunctionParameterAttributeNoWrite),
+                words,
+            )),
+            7u32 => Ok((
+                FunctionParameterAttribute::NoReadWrite(FunctionParameterAttributeNoReadWrite),
+                words,
+            )),
             _ => Err(Error::InvalidEnumValue),
         }
     }
@@ -2807,124 +4328,502 @@ impl SPIRVParse for FunctionParameterAttribute {
 impl SPIRVDisplay for FunctionParameterAttribute {
     fn spirv_display(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            FunctionParameterAttribute::Zext => write!(f, " {}", "Zext"),
-            FunctionParameterAttribute::Sext => write!(f, " {}", "Sext"),
-            FunctionParameterAttribute::ByVal => write!(f, " {}", "ByVal"),
-            FunctionParameterAttribute::Sret => write!(f, " {}", "Sret"),
-            FunctionParameterAttribute::NoAlias => write!(f, " {}", "NoAlias"),
-            FunctionParameterAttribute::NoCapture => write!(f, " {}", "NoCapture"),
-            FunctionParameterAttribute::NoWrite => write!(f, " {}", "NoWrite"),
-            FunctionParameterAttribute::NoReadWrite => write!(f, " {}", "NoReadWrite"),
+            FunctionParameterAttribute::Zext(_) => write!(f, " {}", "Zext"),
+            FunctionParameterAttribute::Sext(_) => write!(f, " {}", "Sext"),
+            FunctionParameterAttribute::ByVal(_) => write!(f, " {}", "ByVal"),
+            FunctionParameterAttribute::Sret(_) => write!(f, " {}", "Sret"),
+            FunctionParameterAttribute::NoAlias(_) => write!(f, " {}", "NoAlias"),
+            FunctionParameterAttribute::NoCapture(_) => write!(f, " {}", "NoCapture"),
+            FunctionParameterAttribute::NoWrite(_) => write!(f, " {}", "NoWrite"),
+            FunctionParameterAttribute::NoReadWrite(_) => write!(f, " {}", "NoReadWrite"),
         }
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct DecorationRelaxedPrecision;
+impl From<DecorationRelaxedPrecision> for Decoration {
+    fn from(v: DecorationRelaxedPrecision) -> Self {
+        Self::RelaxedPrecision(v)
+    }
+}
+#[derive(Clone, Eq, PartialEq, Hash, Debug)]
+pub struct DecorationSpecId {
+    pub specialization_constant_id: LiteralInteger32,
+}
+impl From<DecorationSpecId> for Decoration {
+    fn from(v: DecorationSpecId) -> Self {
+        Self::SpecId(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct DecorationBlock;
+impl From<DecorationBlock> for Decoration {
+    fn from(v: DecorationBlock) -> Self {
+        Self::Block(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct DecorationBufferBlock;
+impl From<DecorationBufferBlock> for Decoration {
+    fn from(v: DecorationBufferBlock) -> Self {
+        Self::BufferBlock(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct DecorationRowMajor;
+impl From<DecorationRowMajor> for Decoration {
+    fn from(v: DecorationRowMajor) -> Self {
+        Self::RowMajor(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct DecorationColMajor;
+impl From<DecorationColMajor> for Decoration {
+    fn from(v: DecorationColMajor) -> Self {
+        Self::ColMajor(v)
+    }
+}
+#[derive(Clone, Eq, PartialEq, Hash, Debug)]
+pub struct DecorationArrayStride {
+    pub array_stride: LiteralInteger32,
+}
+impl From<DecorationArrayStride> for Decoration {
+    fn from(v: DecorationArrayStride) -> Self {
+        Self::ArrayStride(v)
+    }
+}
+#[derive(Clone, Eq, PartialEq, Hash, Debug)]
+pub struct DecorationMatrixStride {
+    pub matrix_stride: LiteralInteger32,
+}
+impl From<DecorationMatrixStride> for Decoration {
+    fn from(v: DecorationMatrixStride) -> Self {
+        Self::MatrixStride(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct DecorationGLSLShared;
+impl From<DecorationGLSLShared> for Decoration {
+    fn from(v: DecorationGLSLShared) -> Self {
+        Self::GLSLShared(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct DecorationGLSLPacked;
+impl From<DecorationGLSLPacked> for Decoration {
+    fn from(v: DecorationGLSLPacked) -> Self {
+        Self::GLSLPacked(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct DecorationCPacked;
+impl From<DecorationCPacked> for Decoration {
+    fn from(v: DecorationCPacked) -> Self {
+        Self::CPacked(v)
+    }
+}
+#[derive(Clone, Eq, PartialEq, Hash, Debug)]
+pub struct DecorationBuiltIn {
+    pub built_in: BuiltIn,
+}
+impl From<DecorationBuiltIn> for Decoration {
+    fn from(v: DecorationBuiltIn) -> Self {
+        Self::BuiltIn(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct DecorationNoPerspective;
+impl From<DecorationNoPerspective> for Decoration {
+    fn from(v: DecorationNoPerspective) -> Self {
+        Self::NoPerspective(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct DecorationFlat;
+impl From<DecorationFlat> for Decoration {
+    fn from(v: DecorationFlat) -> Self {
+        Self::Flat(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct DecorationPatch;
+impl From<DecorationPatch> for Decoration {
+    fn from(v: DecorationPatch) -> Self {
+        Self::Patch(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct DecorationCentroid;
+impl From<DecorationCentroid> for Decoration {
+    fn from(v: DecorationCentroid) -> Self {
+        Self::Centroid(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct DecorationSample;
+impl From<DecorationSample> for Decoration {
+    fn from(v: DecorationSample) -> Self {
+        Self::Sample(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct DecorationInvariant;
+impl From<DecorationInvariant> for Decoration {
+    fn from(v: DecorationInvariant) -> Self {
+        Self::Invariant(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct DecorationRestrict;
+impl From<DecorationRestrict> for Decoration {
+    fn from(v: DecorationRestrict) -> Self {
+        Self::Restrict(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct DecorationAliased;
+impl From<DecorationAliased> for Decoration {
+    fn from(v: DecorationAliased) -> Self {
+        Self::Aliased(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct DecorationVolatile;
+impl From<DecorationVolatile> for Decoration {
+    fn from(v: DecorationVolatile) -> Self {
+        Self::Volatile(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct DecorationConstant;
+impl From<DecorationConstant> for Decoration {
+    fn from(v: DecorationConstant) -> Self {
+        Self::Constant(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct DecorationCoherent;
+impl From<DecorationCoherent> for Decoration {
+    fn from(v: DecorationCoherent) -> Self {
+        Self::Coherent(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct DecorationNonWritable;
+impl From<DecorationNonWritable> for Decoration {
+    fn from(v: DecorationNonWritable) -> Self {
+        Self::NonWritable(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct DecorationNonReadable;
+impl From<DecorationNonReadable> for Decoration {
+    fn from(v: DecorationNonReadable) -> Self {
+        Self::NonReadable(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct DecorationUniform;
+impl From<DecorationUniform> for Decoration {
+    fn from(v: DecorationUniform) -> Self {
+        Self::Uniform(v)
+    }
+}
+#[derive(Clone, Eq, PartialEq, Hash, Debug)]
+pub struct DecorationUniformId {
+    pub execution: IdScope,
+}
+impl From<DecorationUniformId> for Decoration {
+    fn from(v: DecorationUniformId) -> Self {
+        Self::UniformId(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct DecorationSaturatedConversion;
+impl From<DecorationSaturatedConversion> for Decoration {
+    fn from(v: DecorationSaturatedConversion) -> Self {
+        Self::SaturatedConversion(v)
+    }
+}
+#[derive(Clone, Eq, PartialEq, Hash, Debug)]
+pub struct DecorationStream {
+    pub stream_number: LiteralInteger32,
+}
+impl From<DecorationStream> for Decoration {
+    fn from(v: DecorationStream) -> Self {
+        Self::Stream(v)
+    }
+}
+#[derive(Clone, Eq, PartialEq, Hash, Debug)]
+pub struct DecorationLocation {
+    pub location: LiteralInteger32,
+}
+impl From<DecorationLocation> for Decoration {
+    fn from(v: DecorationLocation) -> Self {
+        Self::Location(v)
+    }
+}
+#[derive(Clone, Eq, PartialEq, Hash, Debug)]
+pub struct DecorationComponent {
+    pub component: LiteralInteger32,
+}
+impl From<DecorationComponent> for Decoration {
+    fn from(v: DecorationComponent) -> Self {
+        Self::Component(v)
+    }
+}
+#[derive(Clone, Eq, PartialEq, Hash, Debug)]
+pub struct DecorationIndex {
+    pub index: LiteralInteger32,
+}
+impl From<DecorationIndex> for Decoration {
+    fn from(v: DecorationIndex) -> Self {
+        Self::Index(v)
+    }
+}
+#[derive(Clone, Eq, PartialEq, Hash, Debug)]
+pub struct DecorationBinding {
+    pub binding_point: LiteralInteger32,
+}
+impl From<DecorationBinding> for Decoration {
+    fn from(v: DecorationBinding) -> Self {
+        Self::Binding(v)
+    }
+}
+#[derive(Clone, Eq, PartialEq, Hash, Debug)]
+pub struct DecorationDescriptorSet {
+    pub descriptor_set: LiteralInteger32,
+}
+impl From<DecorationDescriptorSet> for Decoration {
+    fn from(v: DecorationDescriptorSet) -> Self {
+        Self::DescriptorSet(v)
+    }
+}
+#[derive(Clone, Eq, PartialEq, Hash, Debug)]
+pub struct DecorationOffset {
+    pub byte_offset: LiteralInteger32,
+}
+impl From<DecorationOffset> for Decoration {
+    fn from(v: DecorationOffset) -> Self {
+        Self::Offset(v)
+    }
+}
+#[derive(Clone, Eq, PartialEq, Hash, Debug)]
+pub struct DecorationXfbBuffer {
+    pub xfb_buffer_number: LiteralInteger32,
+}
+impl From<DecorationXfbBuffer> for Decoration {
+    fn from(v: DecorationXfbBuffer) -> Self {
+        Self::XfbBuffer(v)
+    }
+}
+#[derive(Clone, Eq, PartialEq, Hash, Debug)]
+pub struct DecorationXfbStride {
+    pub xfb_stride: LiteralInteger32,
+}
+impl From<DecorationXfbStride> for Decoration {
+    fn from(v: DecorationXfbStride) -> Self {
+        Self::XfbStride(v)
+    }
+}
+#[derive(Clone, Eq, PartialEq, Hash, Debug)]
+pub struct DecorationFuncParamAttr {
+    pub function_parameter_attribute: FunctionParameterAttribute,
+}
+impl From<DecorationFuncParamAttr> for Decoration {
+    fn from(v: DecorationFuncParamAttr) -> Self {
+        Self::FuncParamAttr(v)
+    }
+}
+#[derive(Clone, Eq, PartialEq, Hash, Debug)]
+pub struct DecorationFPRoundingMode {
+    pub floating_point_rounding_mode: FPRoundingMode,
+}
+impl From<DecorationFPRoundingMode> for Decoration {
+    fn from(v: DecorationFPRoundingMode) -> Self {
+        Self::FPRoundingMode(v)
+    }
+}
+#[derive(Clone, Eq, PartialEq, Hash, Debug)]
+pub struct DecorationFPFastMathMode {
+    pub fast_math_mode: FPFastMathMode,
+}
+impl From<DecorationFPFastMathMode> for Decoration {
+    fn from(v: DecorationFPFastMathMode) -> Self {
+        Self::FPFastMathMode(v)
+    }
+}
+#[derive(Clone, Eq, PartialEq, Hash, Debug)]
+pub struct DecorationLinkageAttributes {
+    pub name: LiteralString,
+    pub linkage_type: LinkageType,
+}
+impl From<DecorationLinkageAttributes> for Decoration {
+    fn from(v: DecorationLinkageAttributes) -> Self {
+        Self::LinkageAttributes(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct DecorationNoContraction;
+impl From<DecorationNoContraction> for Decoration {
+    fn from(v: DecorationNoContraction) -> Self {
+        Self::NoContraction(v)
+    }
+}
+#[derive(Clone, Eq, PartialEq, Hash, Debug)]
+pub struct DecorationInputAttachmentIndex {
+    pub attachment_index: LiteralInteger32,
+}
+impl From<DecorationInputAttachmentIndex> for Decoration {
+    fn from(v: DecorationInputAttachmentIndex) -> Self {
+        Self::InputAttachmentIndex(v)
+    }
+}
+#[derive(Clone, Eq, PartialEq, Hash, Debug)]
+pub struct DecorationAlignment {
+    pub alignment: LiteralInteger32,
+}
+impl From<DecorationAlignment> for Decoration {
+    fn from(v: DecorationAlignment) -> Self {
+        Self::Alignment(v)
+    }
+}
+#[derive(Clone, Eq, PartialEq, Hash, Debug)]
+pub struct DecorationMaxByteOffset {
+    pub max_byte_offset: LiteralInteger32,
+}
+impl From<DecorationMaxByteOffset> for Decoration {
+    fn from(v: DecorationMaxByteOffset) -> Self {
+        Self::MaxByteOffset(v)
+    }
+}
+#[derive(Clone, Eq, PartialEq, Hash, Debug)]
+pub struct DecorationAlignmentId {
+    pub alignment: IdRef,
+}
+impl From<DecorationAlignmentId> for Decoration {
+    fn from(v: DecorationAlignmentId) -> Self {
+        Self::AlignmentId(v)
+    }
+}
+#[derive(Clone, Eq, PartialEq, Hash, Debug)]
+pub struct DecorationMaxByteOffsetId {
+    pub max_byte_offset: IdRef,
+}
+impl From<DecorationMaxByteOffsetId> for Decoration {
+    fn from(v: DecorationMaxByteOffsetId) -> Self {
+        Self::MaxByteOffsetId(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct DecorationNoSignedWrap;
+impl From<DecorationNoSignedWrap> for Decoration {
+    fn from(v: DecorationNoSignedWrap) -> Self {
+        Self::NoSignedWrap(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct DecorationNoUnsignedWrap;
+impl From<DecorationNoUnsignedWrap> for Decoration {
+    fn from(v: DecorationNoUnsignedWrap) -> Self {
+        Self::NoUnsignedWrap(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct DecorationNonUniform;
+impl From<DecorationNonUniform> for Decoration {
+    fn from(v: DecorationNonUniform) -> Self {
+        Self::NonUniform(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct DecorationRestrictPointer;
+impl From<DecorationRestrictPointer> for Decoration {
+    fn from(v: DecorationRestrictPointer) -> Self {
+        Self::RestrictPointer(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct DecorationAliasedPointer;
+impl From<DecorationAliasedPointer> for Decoration {
+    fn from(v: DecorationAliasedPointer) -> Self {
+        Self::AliasedPointer(v)
+    }
+}
+#[derive(Clone, Eq, PartialEq, Hash, Debug)]
+pub struct DecorationCounterBuffer {
+    pub counter_buffer: IdRef,
+}
+impl From<DecorationCounterBuffer> for Decoration {
+    fn from(v: DecorationCounterBuffer) -> Self {
+        Self::CounterBuffer(v)
+    }
+}
+#[derive(Clone, Eq, PartialEq, Hash, Debug)]
+pub struct DecorationUserSemantic {
+    pub semantic: LiteralString,
+}
+impl From<DecorationUserSemantic> for Decoration {
+    fn from(v: DecorationUserSemantic) -> Self {
+        Self::UserSemantic(v)
     }
 }
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub enum Decoration {
-    RelaxedPrecision,
-    SpecId {
-        specialization_constant_id: LiteralInteger32,
-    },
-    Block,
-    BufferBlock,
-    RowMajor,
-    ColMajor,
-    ArrayStride {
-        array_stride: LiteralInteger32,
-    },
-    MatrixStride {
-        matrix_stride: LiteralInteger32,
-    },
-    GLSLShared,
-    GLSLPacked,
-    CPacked,
-    BuiltIn {
-        built_in: BuiltIn,
-    },
-    NoPerspective,
-    Flat,
-    Patch,
-    Centroid,
-    Sample,
-    Invariant,
-    Restrict,
-    Aliased,
-    Volatile,
-    Constant,
-    Coherent,
-    NonWritable,
-    NonReadable,
-    Uniform,
-    UniformId {
-        execution: IdScope,
-    },
-    SaturatedConversion,
-    Stream {
-        stream_number: LiteralInteger32,
-    },
-    Location {
-        location: LiteralInteger32,
-    },
-    Component {
-        component: LiteralInteger32,
-    },
-    Index {
-        index: LiteralInteger32,
-    },
-    Binding {
-        binding_point: LiteralInteger32,
-    },
-    DescriptorSet {
-        descriptor_set: LiteralInteger32,
-    },
-    Offset {
-        byte_offset: LiteralInteger32,
-    },
-    XfbBuffer {
-        xfb_buffer_number: LiteralInteger32,
-    },
-    XfbStride {
-        xfb_stride: LiteralInteger32,
-    },
-    FuncParamAttr {
-        function_parameter_attribute: FunctionParameterAttribute,
-    },
-    FPRoundingMode {
-        floating_point_rounding_mode: FPRoundingMode,
-    },
-    FPFastMathMode {
-        fast_math_mode: FPFastMathMode,
-    },
-    LinkageAttributes {
-        name: LiteralString,
-        linkage_type: LinkageType,
-    },
-    NoContraction,
-    InputAttachmentIndex {
-        attachment_index: LiteralInteger32,
-    },
-    Alignment {
-        alignment: LiteralInteger32,
-    },
-    MaxByteOffset {
-        max_byte_offset: LiteralInteger32,
-    },
-    AlignmentId {
-        alignment: IdRef,
-    },
-    MaxByteOffsetId {
-        max_byte_offset: IdRef,
-    },
-    NoSignedWrap,
-    NoUnsignedWrap,
-    NonUniform,
-    RestrictPointer,
-    AliasedPointer,
-    CounterBuffer {
-        counter_buffer: IdRef,
-    },
-    UserSemantic {
-        semantic: LiteralString,
-    },
+    RelaxedPrecision(DecorationRelaxedPrecision),
+    SpecId(DecorationSpecId),
+    Block(DecorationBlock),
+    BufferBlock(DecorationBufferBlock),
+    RowMajor(DecorationRowMajor),
+    ColMajor(DecorationColMajor),
+    ArrayStride(DecorationArrayStride),
+    MatrixStride(DecorationMatrixStride),
+    GLSLShared(DecorationGLSLShared),
+    GLSLPacked(DecorationGLSLPacked),
+    CPacked(DecorationCPacked),
+    BuiltIn(DecorationBuiltIn),
+    NoPerspective(DecorationNoPerspective),
+    Flat(DecorationFlat),
+    Patch(DecorationPatch),
+    Centroid(DecorationCentroid),
+    Sample(DecorationSample),
+    Invariant(DecorationInvariant),
+    Restrict(DecorationRestrict),
+    Aliased(DecorationAliased),
+    Volatile(DecorationVolatile),
+    Constant(DecorationConstant),
+    Coherent(DecorationCoherent),
+    NonWritable(DecorationNonWritable),
+    NonReadable(DecorationNonReadable),
+    Uniform(DecorationUniform),
+    UniformId(DecorationUniformId),
+    SaturatedConversion(DecorationSaturatedConversion),
+    Stream(DecorationStream),
+    Location(DecorationLocation),
+    Component(DecorationComponent),
+    Index(DecorationIndex),
+    Binding(DecorationBinding),
+    DescriptorSet(DecorationDescriptorSet),
+    Offset(DecorationOffset),
+    XfbBuffer(DecorationXfbBuffer),
+    XfbStride(DecorationXfbStride),
+    FuncParamAttr(DecorationFuncParamAttr),
+    FPRoundingMode(DecorationFPRoundingMode),
+    FPFastMathMode(DecorationFPFastMathMode),
+    LinkageAttributes(DecorationLinkageAttributes),
+    NoContraction(DecorationNoContraction),
+    InputAttachmentIndex(DecorationInputAttachmentIndex),
+    Alignment(DecorationAlignment),
+    MaxByteOffset(DecorationMaxByteOffset),
+    AlignmentId(DecorationAlignmentId),
+    MaxByteOffsetId(DecorationMaxByteOffsetId),
+    NoSignedWrap(DecorationNoSignedWrap),
+    NoUnsignedWrap(DecorationNoUnsignedWrap),
+    NonUniform(DecorationNonUniform),
+    RestrictPointer(DecorationRestrictPointer),
+    AliasedPointer(DecorationAliasedPointer),
+    CounterBuffer(DecorationCounterBuffer),
+    UserSemantic(DecorationUserSemantic),
 }
 impl SPIRVParse for Decoration {
     fn spirv_parse<'a>(
@@ -2933,98 +4832,131 @@ impl SPIRVParse for Decoration {
     ) -> Result<(Self, &'a [u32])> {
         let (enumerant, words) = u32::spirv_parse(words, parse_state)?;
         match enumerant {
-            0u32 => Ok((Decoration::RelaxedPrecision, words)),
+            0u32 => Ok((
+                Decoration::RelaxedPrecision(DecorationRelaxedPrecision),
+                words,
+            )),
             1u32 => {
                 let (specialization_constant_id, words) =
                     LiteralInteger32::spirv_parse(words, parse_state)?;
                 Ok((
-                    Decoration::SpecId {
+                    Decoration::SpecId(DecorationSpecId {
                         specialization_constant_id,
-                    },
+                    }),
                     words,
                 ))
             }
-            2u32 => Ok((Decoration::Block, words)),
-            3u32 => Ok((Decoration::BufferBlock, words)),
-            4u32 => Ok((Decoration::RowMajor, words)),
-            5u32 => Ok((Decoration::ColMajor, words)),
+            2u32 => Ok((Decoration::Block(DecorationBlock), words)),
+            3u32 => Ok((Decoration::BufferBlock(DecorationBufferBlock), words)),
+            4u32 => Ok((Decoration::RowMajor(DecorationRowMajor), words)),
+            5u32 => Ok((Decoration::ColMajor(DecorationColMajor), words)),
             6u32 => {
                 let (array_stride, words) = LiteralInteger32::spirv_parse(words, parse_state)?;
-                Ok((Decoration::ArrayStride { array_stride }, words))
+                Ok((
+                    Decoration::ArrayStride(DecorationArrayStride { array_stride }),
+                    words,
+                ))
             }
             7u32 => {
                 let (matrix_stride, words) = LiteralInteger32::spirv_parse(words, parse_state)?;
-                Ok((Decoration::MatrixStride { matrix_stride }, words))
+                Ok((
+                    Decoration::MatrixStride(DecorationMatrixStride { matrix_stride }),
+                    words,
+                ))
             }
-            8u32 => Ok((Decoration::GLSLShared, words)),
-            9u32 => Ok((Decoration::GLSLPacked, words)),
-            10u32 => Ok((Decoration::CPacked, words)),
+            8u32 => Ok((Decoration::GLSLShared(DecorationGLSLShared), words)),
+            9u32 => Ok((Decoration::GLSLPacked(DecorationGLSLPacked), words)),
+            10u32 => Ok((Decoration::CPacked(DecorationCPacked), words)),
             11u32 => {
                 let (built_in, words) = BuiltIn::spirv_parse(words, parse_state)?;
-                Ok((Decoration::BuiltIn { built_in }, words))
+                Ok((Decoration::BuiltIn(DecorationBuiltIn { built_in }), words))
             }
-            13u32 => Ok((Decoration::NoPerspective, words)),
-            14u32 => Ok((Decoration::Flat, words)),
-            15u32 => Ok((Decoration::Patch, words)),
-            16u32 => Ok((Decoration::Centroid, words)),
-            17u32 => Ok((Decoration::Sample, words)),
-            18u32 => Ok((Decoration::Invariant, words)),
-            19u32 => Ok((Decoration::Restrict, words)),
-            20u32 => Ok((Decoration::Aliased, words)),
-            21u32 => Ok((Decoration::Volatile, words)),
-            22u32 => Ok((Decoration::Constant, words)),
-            23u32 => Ok((Decoration::Coherent, words)),
-            24u32 => Ok((Decoration::NonWritable, words)),
-            25u32 => Ok((Decoration::NonReadable, words)),
-            26u32 => Ok((Decoration::Uniform, words)),
+            13u32 => Ok((Decoration::NoPerspective(DecorationNoPerspective), words)),
+            14u32 => Ok((Decoration::Flat(DecorationFlat), words)),
+            15u32 => Ok((Decoration::Patch(DecorationPatch), words)),
+            16u32 => Ok((Decoration::Centroid(DecorationCentroid), words)),
+            17u32 => Ok((Decoration::Sample(DecorationSample), words)),
+            18u32 => Ok((Decoration::Invariant(DecorationInvariant), words)),
+            19u32 => Ok((Decoration::Restrict(DecorationRestrict), words)),
+            20u32 => Ok((Decoration::Aliased(DecorationAliased), words)),
+            21u32 => Ok((Decoration::Volatile(DecorationVolatile), words)),
+            22u32 => Ok((Decoration::Constant(DecorationConstant), words)),
+            23u32 => Ok((Decoration::Coherent(DecorationCoherent), words)),
+            24u32 => Ok((Decoration::NonWritable(DecorationNonWritable), words)),
+            25u32 => Ok((Decoration::NonReadable(DecorationNonReadable), words)),
+            26u32 => Ok((Decoration::Uniform(DecorationUniform), words)),
             27u32 => {
                 let (execution, words) = IdScope::spirv_parse(words, parse_state)?;
-                Ok((Decoration::UniformId { execution }, words))
+                Ok((
+                    Decoration::UniformId(DecorationUniformId { execution }),
+                    words,
+                ))
             }
-            28u32 => Ok((Decoration::SaturatedConversion, words)),
+            28u32 => Ok((
+                Decoration::SaturatedConversion(DecorationSaturatedConversion),
+                words,
+            )),
             29u32 => {
                 let (stream_number, words) = LiteralInteger32::spirv_parse(words, parse_state)?;
-                Ok((Decoration::Stream { stream_number }, words))
+                Ok((
+                    Decoration::Stream(DecorationStream { stream_number }),
+                    words,
+                ))
             }
             30u32 => {
                 let (location, words) = LiteralInteger32::spirv_parse(words, parse_state)?;
-                Ok((Decoration::Location { location }, words))
+                Ok((Decoration::Location(DecorationLocation { location }), words))
             }
             31u32 => {
                 let (component, words) = LiteralInteger32::spirv_parse(words, parse_state)?;
-                Ok((Decoration::Component { component }, words))
+                Ok((
+                    Decoration::Component(DecorationComponent { component }),
+                    words,
+                ))
             }
             32u32 => {
                 let (index, words) = LiteralInteger32::spirv_parse(words, parse_state)?;
-                Ok((Decoration::Index { index }, words))
+                Ok((Decoration::Index(DecorationIndex { index }), words))
             }
             33u32 => {
                 let (binding_point, words) = LiteralInteger32::spirv_parse(words, parse_state)?;
-                Ok((Decoration::Binding { binding_point }, words))
+                Ok((
+                    Decoration::Binding(DecorationBinding { binding_point }),
+                    words,
+                ))
             }
             34u32 => {
                 let (descriptor_set, words) = LiteralInteger32::spirv_parse(words, parse_state)?;
-                Ok((Decoration::DescriptorSet { descriptor_set }, words))
+                Ok((
+                    Decoration::DescriptorSet(DecorationDescriptorSet { descriptor_set }),
+                    words,
+                ))
             }
             35u32 => {
                 let (byte_offset, words) = LiteralInteger32::spirv_parse(words, parse_state)?;
-                Ok((Decoration::Offset { byte_offset }, words))
+                Ok((Decoration::Offset(DecorationOffset { byte_offset }), words))
             }
             36u32 => {
                 let (xfb_buffer_number, words) = LiteralInteger32::spirv_parse(words, parse_state)?;
-                Ok((Decoration::XfbBuffer { xfb_buffer_number }, words))
+                Ok((
+                    Decoration::XfbBuffer(DecorationXfbBuffer { xfb_buffer_number }),
+                    words,
+                ))
             }
             37u32 => {
                 let (xfb_stride, words) = LiteralInteger32::spirv_parse(words, parse_state)?;
-                Ok((Decoration::XfbStride { xfb_stride }, words))
+                Ok((
+                    Decoration::XfbStride(DecorationXfbStride { xfb_stride }),
+                    words,
+                ))
             }
             38u32 => {
                 let (function_parameter_attribute, words) =
                     FunctionParameterAttribute::spirv_parse(words, parse_state)?;
                 Ok((
-                    Decoration::FuncParamAttr {
+                    Decoration::FuncParamAttr(DecorationFuncParamAttr {
                         function_parameter_attribute,
-                    },
+                    }),
                     words,
                 ))
             }
@@ -3032,54 +4964,89 @@ impl SPIRVParse for Decoration {
                 let (floating_point_rounding_mode, words) =
                     FPRoundingMode::spirv_parse(words, parse_state)?;
                 Ok((
-                    Decoration::FPRoundingMode {
+                    Decoration::FPRoundingMode(DecorationFPRoundingMode {
                         floating_point_rounding_mode,
-                    },
+                    }),
                     words,
                 ))
             }
             40u32 => {
                 let (fast_math_mode, words) = FPFastMathMode::spirv_parse(words, parse_state)?;
-                Ok((Decoration::FPFastMathMode { fast_math_mode }, words))
+                Ok((
+                    Decoration::FPFastMathMode(DecorationFPFastMathMode { fast_math_mode }),
+                    words,
+                ))
             }
             41u32 => {
                 let (name, words) = LiteralString::spirv_parse(words, parse_state)?;
                 let (linkage_type, words) = LinkageType::spirv_parse(words, parse_state)?;
-                Ok((Decoration::LinkageAttributes { name, linkage_type }, words))
+                Ok((
+                    Decoration::LinkageAttributes(DecorationLinkageAttributes {
+                        name,
+                        linkage_type,
+                    }),
+                    words,
+                ))
             }
-            42u32 => Ok((Decoration::NoContraction, words)),
+            42u32 => Ok((Decoration::NoContraction(DecorationNoContraction), words)),
             43u32 => {
                 let (attachment_index, words) = LiteralInteger32::spirv_parse(words, parse_state)?;
-                Ok((Decoration::InputAttachmentIndex { attachment_index }, words))
+                Ok((
+                    Decoration::InputAttachmentIndex(DecorationInputAttachmentIndex {
+                        attachment_index,
+                    }),
+                    words,
+                ))
             }
             44u32 => {
                 let (alignment, words) = LiteralInteger32::spirv_parse(words, parse_state)?;
-                Ok((Decoration::Alignment { alignment }, words))
+                Ok((
+                    Decoration::Alignment(DecorationAlignment { alignment }),
+                    words,
+                ))
             }
             45u32 => {
                 let (max_byte_offset, words) = LiteralInteger32::spirv_parse(words, parse_state)?;
-                Ok((Decoration::MaxByteOffset { max_byte_offset }, words))
+                Ok((
+                    Decoration::MaxByteOffset(DecorationMaxByteOffset { max_byte_offset }),
+                    words,
+                ))
             }
             46u32 => {
                 let (alignment, words) = IdRef::spirv_parse(words, parse_state)?;
-                Ok((Decoration::AlignmentId { alignment }, words))
+                Ok((
+                    Decoration::AlignmentId(DecorationAlignmentId { alignment }),
+                    words,
+                ))
             }
             47u32 => {
                 let (max_byte_offset, words) = IdRef::spirv_parse(words, parse_state)?;
-                Ok((Decoration::MaxByteOffsetId { max_byte_offset }, words))
+                Ok((
+                    Decoration::MaxByteOffsetId(DecorationMaxByteOffsetId { max_byte_offset }),
+                    words,
+                ))
             }
-            4469u32 => Ok((Decoration::NoSignedWrap, words)),
-            4470u32 => Ok((Decoration::NoUnsignedWrap, words)),
-            5300u32 => Ok((Decoration::NonUniform, words)),
-            5355u32 => Ok((Decoration::RestrictPointer, words)),
-            5356u32 => Ok((Decoration::AliasedPointer, words)),
+            4469u32 => Ok((Decoration::NoSignedWrap(DecorationNoSignedWrap), words)),
+            4470u32 => Ok((Decoration::NoUnsignedWrap(DecorationNoUnsignedWrap), words)),
+            5300u32 => Ok((Decoration::NonUniform(DecorationNonUniform), words)),
+            5355u32 => Ok((
+                Decoration::RestrictPointer(DecorationRestrictPointer),
+                words,
+            )),
+            5356u32 => Ok((Decoration::AliasedPointer(DecorationAliasedPointer), words)),
             5634u32 => {
                 let (counter_buffer, words) = IdRef::spirv_parse(words, parse_state)?;
-                Ok((Decoration::CounterBuffer { counter_buffer }, words))
+                Ok((
+                    Decoration::CounterBuffer(DecorationCounterBuffer { counter_buffer }),
+                    words,
+                ))
             }
             5635u32 => {
                 let (semantic, words) = LiteralString::spirv_parse(words, parse_state)?;
-                Ok((Decoration::UserSemantic { semantic }, words))
+                Ok((
+                    Decoration::UserSemantic(DecorationUserSemantic { semantic }),
+                    words,
+                ))
             }
             _ => Err(Error::InvalidEnumValue),
         }
@@ -3088,163 +5055,165 @@ impl SPIRVParse for Decoration {
 impl SPIRVDisplay for Decoration {
     fn spirv_display(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Decoration::RelaxedPrecision => write!(f, " {}", "RelaxedPrecision"),
-            Decoration::SpecId {
+            Decoration::RelaxedPrecision(_) => write!(f, " {}", "RelaxedPrecision"),
+            Decoration::SpecId(DecorationSpecId {
                 specialization_constant_id,
-            } => {
+            }) => {
                 write!(f, " {}", "SpecId")?;
                 specialization_constant_id.spirv_display(f)?;
                 Ok(())
             }
-            Decoration::Block => write!(f, " {}", "Block"),
-            Decoration::BufferBlock => write!(f, " {}", "BufferBlock"),
-            Decoration::RowMajor => write!(f, " {}", "RowMajor"),
-            Decoration::ColMajor => write!(f, " {}", "ColMajor"),
-            Decoration::ArrayStride { array_stride } => {
+            Decoration::Block(_) => write!(f, " {}", "Block"),
+            Decoration::BufferBlock(_) => write!(f, " {}", "BufferBlock"),
+            Decoration::RowMajor(_) => write!(f, " {}", "RowMajor"),
+            Decoration::ColMajor(_) => write!(f, " {}", "ColMajor"),
+            Decoration::ArrayStride(DecorationArrayStride { array_stride }) => {
                 write!(f, " {}", "ArrayStride")?;
                 array_stride.spirv_display(f)?;
                 Ok(())
             }
-            Decoration::MatrixStride { matrix_stride } => {
+            Decoration::MatrixStride(DecorationMatrixStride { matrix_stride }) => {
                 write!(f, " {}", "MatrixStride")?;
                 matrix_stride.spirv_display(f)?;
                 Ok(())
             }
-            Decoration::GLSLShared => write!(f, " {}", "GLSLShared"),
-            Decoration::GLSLPacked => write!(f, " {}", "GLSLPacked"),
-            Decoration::CPacked => write!(f, " {}", "CPacked"),
-            Decoration::BuiltIn { built_in } => {
+            Decoration::GLSLShared(_) => write!(f, " {}", "GLSLShared"),
+            Decoration::GLSLPacked(_) => write!(f, " {}", "GLSLPacked"),
+            Decoration::CPacked(_) => write!(f, " {}", "CPacked"),
+            Decoration::BuiltIn(DecorationBuiltIn { built_in }) => {
                 write!(f, " {}", "BuiltIn")?;
                 built_in.spirv_display(f)?;
                 Ok(())
             }
-            Decoration::NoPerspective => write!(f, " {}", "NoPerspective"),
-            Decoration::Flat => write!(f, " {}", "Flat"),
-            Decoration::Patch => write!(f, " {}", "Patch"),
-            Decoration::Centroid => write!(f, " {}", "Centroid"),
-            Decoration::Sample => write!(f, " {}", "Sample"),
-            Decoration::Invariant => write!(f, " {}", "Invariant"),
-            Decoration::Restrict => write!(f, " {}", "Restrict"),
-            Decoration::Aliased => write!(f, " {}", "Aliased"),
-            Decoration::Volatile => write!(f, " {}", "Volatile"),
-            Decoration::Constant => write!(f, " {}", "Constant"),
-            Decoration::Coherent => write!(f, " {}", "Coherent"),
-            Decoration::NonWritable => write!(f, " {}", "NonWritable"),
-            Decoration::NonReadable => write!(f, " {}", "NonReadable"),
-            Decoration::Uniform => write!(f, " {}", "Uniform"),
-            Decoration::UniformId { execution } => {
+            Decoration::NoPerspective(_) => write!(f, " {}", "NoPerspective"),
+            Decoration::Flat(_) => write!(f, " {}", "Flat"),
+            Decoration::Patch(_) => write!(f, " {}", "Patch"),
+            Decoration::Centroid(_) => write!(f, " {}", "Centroid"),
+            Decoration::Sample(_) => write!(f, " {}", "Sample"),
+            Decoration::Invariant(_) => write!(f, " {}", "Invariant"),
+            Decoration::Restrict(_) => write!(f, " {}", "Restrict"),
+            Decoration::Aliased(_) => write!(f, " {}", "Aliased"),
+            Decoration::Volatile(_) => write!(f, " {}", "Volatile"),
+            Decoration::Constant(_) => write!(f, " {}", "Constant"),
+            Decoration::Coherent(_) => write!(f, " {}", "Coherent"),
+            Decoration::NonWritable(_) => write!(f, " {}", "NonWritable"),
+            Decoration::NonReadable(_) => write!(f, " {}", "NonReadable"),
+            Decoration::Uniform(_) => write!(f, " {}", "Uniform"),
+            Decoration::UniformId(DecorationUniformId { execution }) => {
                 write!(f, " {}", "UniformId")?;
                 execution.spirv_display(f)?;
                 Ok(())
             }
-            Decoration::SaturatedConversion => write!(f, " {}", "SaturatedConversion"),
-            Decoration::Stream { stream_number } => {
+            Decoration::SaturatedConversion(_) => write!(f, " {}", "SaturatedConversion"),
+            Decoration::Stream(DecorationStream { stream_number }) => {
                 write!(f, " {}", "Stream")?;
                 stream_number.spirv_display(f)?;
                 Ok(())
             }
-            Decoration::Location { location } => {
+            Decoration::Location(DecorationLocation { location }) => {
                 write!(f, " {}", "Location")?;
                 location.spirv_display(f)?;
                 Ok(())
             }
-            Decoration::Component { component } => {
+            Decoration::Component(DecorationComponent { component }) => {
                 write!(f, " {}", "Component")?;
                 component.spirv_display(f)?;
                 Ok(())
             }
-            Decoration::Index { index } => {
+            Decoration::Index(DecorationIndex { index }) => {
                 write!(f, " {}", "Index")?;
                 index.spirv_display(f)?;
                 Ok(())
             }
-            Decoration::Binding { binding_point } => {
+            Decoration::Binding(DecorationBinding { binding_point }) => {
                 write!(f, " {}", "Binding")?;
                 binding_point.spirv_display(f)?;
                 Ok(())
             }
-            Decoration::DescriptorSet { descriptor_set } => {
+            Decoration::DescriptorSet(DecorationDescriptorSet { descriptor_set }) => {
                 write!(f, " {}", "DescriptorSet")?;
                 descriptor_set.spirv_display(f)?;
                 Ok(())
             }
-            Decoration::Offset { byte_offset } => {
+            Decoration::Offset(DecorationOffset { byte_offset }) => {
                 write!(f, " {}", "Offset")?;
                 byte_offset.spirv_display(f)?;
                 Ok(())
             }
-            Decoration::XfbBuffer { xfb_buffer_number } => {
+            Decoration::XfbBuffer(DecorationXfbBuffer { xfb_buffer_number }) => {
                 write!(f, " {}", "XfbBuffer")?;
                 xfb_buffer_number.spirv_display(f)?;
                 Ok(())
             }
-            Decoration::XfbStride { xfb_stride } => {
+            Decoration::XfbStride(DecorationXfbStride { xfb_stride }) => {
                 write!(f, " {}", "XfbStride")?;
                 xfb_stride.spirv_display(f)?;
                 Ok(())
             }
-            Decoration::FuncParamAttr {
+            Decoration::FuncParamAttr(DecorationFuncParamAttr {
                 function_parameter_attribute,
-            } => {
+            }) => {
                 write!(f, " {}", "FuncParamAttr")?;
                 function_parameter_attribute.spirv_display(f)?;
                 Ok(())
             }
-            Decoration::FPRoundingMode {
+            Decoration::FPRoundingMode(DecorationFPRoundingMode {
                 floating_point_rounding_mode,
-            } => {
+            }) => {
                 write!(f, " {}", "FPRoundingMode")?;
                 floating_point_rounding_mode.spirv_display(f)?;
                 Ok(())
             }
-            Decoration::FPFastMathMode { fast_math_mode } => {
+            Decoration::FPFastMathMode(DecorationFPFastMathMode { fast_math_mode }) => {
                 write!(f, " {}", "FPFastMathMode")?;
                 fast_math_mode.spirv_display(f)?;
                 Ok(())
             }
-            Decoration::LinkageAttributes { name, linkage_type } => {
+            Decoration::LinkageAttributes(DecorationLinkageAttributes { name, linkage_type }) => {
                 write!(f, " {}", "LinkageAttributes")?;
                 name.spirv_display(f)?;
                 linkage_type.spirv_display(f)?;
                 Ok(())
             }
-            Decoration::NoContraction => write!(f, " {}", "NoContraction"),
-            Decoration::InputAttachmentIndex { attachment_index } => {
+            Decoration::NoContraction(_) => write!(f, " {}", "NoContraction"),
+            Decoration::InputAttachmentIndex(DecorationInputAttachmentIndex {
+                attachment_index,
+            }) => {
                 write!(f, " {}", "InputAttachmentIndex")?;
                 attachment_index.spirv_display(f)?;
                 Ok(())
             }
-            Decoration::Alignment { alignment } => {
+            Decoration::Alignment(DecorationAlignment { alignment }) => {
                 write!(f, " {}", "Alignment")?;
                 alignment.spirv_display(f)?;
                 Ok(())
             }
-            Decoration::MaxByteOffset { max_byte_offset } => {
+            Decoration::MaxByteOffset(DecorationMaxByteOffset { max_byte_offset }) => {
                 write!(f, " {}", "MaxByteOffset")?;
                 max_byte_offset.spirv_display(f)?;
                 Ok(())
             }
-            Decoration::AlignmentId { alignment } => {
+            Decoration::AlignmentId(DecorationAlignmentId { alignment }) => {
                 write!(f, " {}", "AlignmentId")?;
                 alignment.spirv_display(f)?;
                 Ok(())
             }
-            Decoration::MaxByteOffsetId { max_byte_offset } => {
+            Decoration::MaxByteOffsetId(DecorationMaxByteOffsetId { max_byte_offset }) => {
                 write!(f, " {}", "MaxByteOffsetId")?;
                 max_byte_offset.spirv_display(f)?;
                 Ok(())
             }
-            Decoration::NoSignedWrap => write!(f, " {}", "NoSignedWrap"),
-            Decoration::NoUnsignedWrap => write!(f, " {}", "NoUnsignedWrap"),
-            Decoration::NonUniform => write!(f, " {}", "NonUniform"),
-            Decoration::RestrictPointer => write!(f, " {}", "RestrictPointer"),
-            Decoration::AliasedPointer => write!(f, " {}", "AliasedPointer"),
-            Decoration::CounterBuffer { counter_buffer } => {
+            Decoration::NoSignedWrap(_) => write!(f, " {}", "NoSignedWrap"),
+            Decoration::NoUnsignedWrap(_) => write!(f, " {}", "NoUnsignedWrap"),
+            Decoration::NonUniform(_) => write!(f, " {}", "NonUniform"),
+            Decoration::RestrictPointer(_) => write!(f, " {}", "RestrictPointer"),
+            Decoration::AliasedPointer(_) => write!(f, " {}", "AliasedPointer"),
+            Decoration::CounterBuffer(DecorationCounterBuffer { counter_buffer }) => {
                 write!(f, " {}", "CounterBuffer")?;
                 counter_buffer.spirv_display(f)?;
                 Ok(())
             }
-            Decoration::UserSemantic { semantic } => {
+            Decoration::UserSemantic(DecorationUserSemantic { semantic }) => {
                 write!(f, " {}", "UserSemantic")?;
                 semantic.spirv_display(f)?;
                 Ok(())
@@ -3252,59 +5221,416 @@ impl SPIRVDisplay for Decoration {
         }
     }
 }
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct BuiltInPosition;
+impl From<BuiltInPosition> for BuiltIn {
+    fn from(v: BuiltInPosition) -> Self {
+        Self::Position(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct BuiltInPointSize;
+impl From<BuiltInPointSize> for BuiltIn {
+    fn from(v: BuiltInPointSize) -> Self {
+        Self::PointSize(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct BuiltInClipDistance;
+impl From<BuiltInClipDistance> for BuiltIn {
+    fn from(v: BuiltInClipDistance) -> Self {
+        Self::ClipDistance(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct BuiltInCullDistance;
+impl From<BuiltInCullDistance> for BuiltIn {
+    fn from(v: BuiltInCullDistance) -> Self {
+        Self::CullDistance(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct BuiltInVertexId;
+impl From<BuiltInVertexId> for BuiltIn {
+    fn from(v: BuiltInVertexId) -> Self {
+        Self::VertexId(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct BuiltInInstanceId;
+impl From<BuiltInInstanceId> for BuiltIn {
+    fn from(v: BuiltInInstanceId) -> Self {
+        Self::InstanceId(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct BuiltInPrimitiveId;
+impl From<BuiltInPrimitiveId> for BuiltIn {
+    fn from(v: BuiltInPrimitiveId) -> Self {
+        Self::PrimitiveId(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct BuiltInInvocationId;
+impl From<BuiltInInvocationId> for BuiltIn {
+    fn from(v: BuiltInInvocationId) -> Self {
+        Self::InvocationId(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct BuiltInLayer;
+impl From<BuiltInLayer> for BuiltIn {
+    fn from(v: BuiltInLayer) -> Self {
+        Self::Layer(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct BuiltInViewportIndex;
+impl From<BuiltInViewportIndex> for BuiltIn {
+    fn from(v: BuiltInViewportIndex) -> Self {
+        Self::ViewportIndex(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct BuiltInTessLevelOuter;
+impl From<BuiltInTessLevelOuter> for BuiltIn {
+    fn from(v: BuiltInTessLevelOuter) -> Self {
+        Self::TessLevelOuter(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct BuiltInTessLevelInner;
+impl From<BuiltInTessLevelInner> for BuiltIn {
+    fn from(v: BuiltInTessLevelInner) -> Self {
+        Self::TessLevelInner(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct BuiltInTessCoord;
+impl From<BuiltInTessCoord> for BuiltIn {
+    fn from(v: BuiltInTessCoord) -> Self {
+        Self::TessCoord(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct BuiltInPatchVertices;
+impl From<BuiltInPatchVertices> for BuiltIn {
+    fn from(v: BuiltInPatchVertices) -> Self {
+        Self::PatchVertices(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct BuiltInFragCoord;
+impl From<BuiltInFragCoord> for BuiltIn {
+    fn from(v: BuiltInFragCoord) -> Self {
+        Self::FragCoord(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct BuiltInPointCoord;
+impl From<BuiltInPointCoord> for BuiltIn {
+    fn from(v: BuiltInPointCoord) -> Self {
+        Self::PointCoord(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct BuiltInFrontFacing;
+impl From<BuiltInFrontFacing> for BuiltIn {
+    fn from(v: BuiltInFrontFacing) -> Self {
+        Self::FrontFacing(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct BuiltInSampleId;
+impl From<BuiltInSampleId> for BuiltIn {
+    fn from(v: BuiltInSampleId) -> Self {
+        Self::SampleId(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct BuiltInSamplePosition;
+impl From<BuiltInSamplePosition> for BuiltIn {
+    fn from(v: BuiltInSamplePosition) -> Self {
+        Self::SamplePosition(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct BuiltInSampleMask;
+impl From<BuiltInSampleMask> for BuiltIn {
+    fn from(v: BuiltInSampleMask) -> Self {
+        Self::SampleMask(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct BuiltInFragDepth;
+impl From<BuiltInFragDepth> for BuiltIn {
+    fn from(v: BuiltInFragDepth) -> Self {
+        Self::FragDepth(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct BuiltInHelperInvocation;
+impl From<BuiltInHelperInvocation> for BuiltIn {
+    fn from(v: BuiltInHelperInvocation) -> Self {
+        Self::HelperInvocation(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct BuiltInNumWorkgroups;
+impl From<BuiltInNumWorkgroups> for BuiltIn {
+    fn from(v: BuiltInNumWorkgroups) -> Self {
+        Self::NumWorkgroups(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct BuiltInWorkgroupSize;
+impl From<BuiltInWorkgroupSize> for BuiltIn {
+    fn from(v: BuiltInWorkgroupSize) -> Self {
+        Self::WorkgroupSize(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct BuiltInWorkgroupId;
+impl From<BuiltInWorkgroupId> for BuiltIn {
+    fn from(v: BuiltInWorkgroupId) -> Self {
+        Self::WorkgroupId(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct BuiltInLocalInvocationId;
+impl From<BuiltInLocalInvocationId> for BuiltIn {
+    fn from(v: BuiltInLocalInvocationId) -> Self {
+        Self::LocalInvocationId(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct BuiltInGlobalInvocationId;
+impl From<BuiltInGlobalInvocationId> for BuiltIn {
+    fn from(v: BuiltInGlobalInvocationId) -> Self {
+        Self::GlobalInvocationId(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct BuiltInLocalInvocationIndex;
+impl From<BuiltInLocalInvocationIndex> for BuiltIn {
+    fn from(v: BuiltInLocalInvocationIndex) -> Self {
+        Self::LocalInvocationIndex(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct BuiltInWorkDim;
+impl From<BuiltInWorkDim> for BuiltIn {
+    fn from(v: BuiltInWorkDim) -> Self {
+        Self::WorkDim(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct BuiltInGlobalSize;
+impl From<BuiltInGlobalSize> for BuiltIn {
+    fn from(v: BuiltInGlobalSize) -> Self {
+        Self::GlobalSize(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct BuiltInEnqueuedWorkgroupSize;
+impl From<BuiltInEnqueuedWorkgroupSize> for BuiltIn {
+    fn from(v: BuiltInEnqueuedWorkgroupSize) -> Self {
+        Self::EnqueuedWorkgroupSize(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct BuiltInGlobalOffset;
+impl From<BuiltInGlobalOffset> for BuiltIn {
+    fn from(v: BuiltInGlobalOffset) -> Self {
+        Self::GlobalOffset(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct BuiltInGlobalLinearId;
+impl From<BuiltInGlobalLinearId> for BuiltIn {
+    fn from(v: BuiltInGlobalLinearId) -> Self {
+        Self::GlobalLinearId(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct BuiltInSubgroupSize;
+impl From<BuiltInSubgroupSize> for BuiltIn {
+    fn from(v: BuiltInSubgroupSize) -> Self {
+        Self::SubgroupSize(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct BuiltInSubgroupMaxSize;
+impl From<BuiltInSubgroupMaxSize> for BuiltIn {
+    fn from(v: BuiltInSubgroupMaxSize) -> Self {
+        Self::SubgroupMaxSize(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct BuiltInNumSubgroups;
+impl From<BuiltInNumSubgroups> for BuiltIn {
+    fn from(v: BuiltInNumSubgroups) -> Self {
+        Self::NumSubgroups(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct BuiltInNumEnqueuedSubgroups;
+impl From<BuiltInNumEnqueuedSubgroups> for BuiltIn {
+    fn from(v: BuiltInNumEnqueuedSubgroups) -> Self {
+        Self::NumEnqueuedSubgroups(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct BuiltInSubgroupId;
+impl From<BuiltInSubgroupId> for BuiltIn {
+    fn from(v: BuiltInSubgroupId) -> Self {
+        Self::SubgroupId(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct BuiltInSubgroupLocalInvocationId;
+impl From<BuiltInSubgroupLocalInvocationId> for BuiltIn {
+    fn from(v: BuiltInSubgroupLocalInvocationId) -> Self {
+        Self::SubgroupLocalInvocationId(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct BuiltInVertexIndex;
+impl From<BuiltInVertexIndex> for BuiltIn {
+    fn from(v: BuiltInVertexIndex) -> Self {
+        Self::VertexIndex(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct BuiltInInstanceIndex;
+impl From<BuiltInInstanceIndex> for BuiltIn {
+    fn from(v: BuiltInInstanceIndex) -> Self {
+        Self::InstanceIndex(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct BuiltInSubgroupEqMask;
+impl From<BuiltInSubgroupEqMask> for BuiltIn {
+    fn from(v: BuiltInSubgroupEqMask) -> Self {
+        Self::SubgroupEqMask(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct BuiltInSubgroupGeMask;
+impl From<BuiltInSubgroupGeMask> for BuiltIn {
+    fn from(v: BuiltInSubgroupGeMask) -> Self {
+        Self::SubgroupGeMask(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct BuiltInSubgroupGtMask;
+impl From<BuiltInSubgroupGtMask> for BuiltIn {
+    fn from(v: BuiltInSubgroupGtMask) -> Self {
+        Self::SubgroupGtMask(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct BuiltInSubgroupLeMask;
+impl From<BuiltInSubgroupLeMask> for BuiltIn {
+    fn from(v: BuiltInSubgroupLeMask) -> Self {
+        Self::SubgroupLeMask(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct BuiltInSubgroupLtMask;
+impl From<BuiltInSubgroupLtMask> for BuiltIn {
+    fn from(v: BuiltInSubgroupLtMask) -> Self {
+        Self::SubgroupLtMask(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct BuiltInBaseVertex;
+impl From<BuiltInBaseVertex> for BuiltIn {
+    fn from(v: BuiltInBaseVertex) -> Self {
+        Self::BaseVertex(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct BuiltInBaseInstance;
+impl From<BuiltInBaseInstance> for BuiltIn {
+    fn from(v: BuiltInBaseInstance) -> Self {
+        Self::BaseInstance(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct BuiltInDrawIndex;
+impl From<BuiltInDrawIndex> for BuiltIn {
+    fn from(v: BuiltInDrawIndex) -> Self {
+        Self::DrawIndex(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct BuiltInDeviceIndex;
+impl From<BuiltInDeviceIndex> for BuiltIn {
+    fn from(v: BuiltInDeviceIndex) -> Self {
+        Self::DeviceIndex(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct BuiltInViewIndex;
+impl From<BuiltInViewIndex> for BuiltIn {
+    fn from(v: BuiltInViewIndex) -> Self {
+        Self::ViewIndex(v)
+    }
+}
 #[derive(Clone, Debug, Eq, PartialEq, Hash, Copy)]
 pub enum BuiltIn {
-    Position,
-    PointSize,
-    ClipDistance,
-    CullDistance,
-    VertexId,
-    InstanceId,
-    PrimitiveId,
-    InvocationId,
-    Layer,
-    ViewportIndex,
-    TessLevelOuter,
-    TessLevelInner,
-    TessCoord,
-    PatchVertices,
-    FragCoord,
-    PointCoord,
-    FrontFacing,
-    SampleId,
-    SamplePosition,
-    SampleMask,
-    FragDepth,
-    HelperInvocation,
-    NumWorkgroups,
-    WorkgroupSize,
-    WorkgroupId,
-    LocalInvocationId,
-    GlobalInvocationId,
-    LocalInvocationIndex,
-    WorkDim,
-    GlobalSize,
-    EnqueuedWorkgroupSize,
-    GlobalOffset,
-    GlobalLinearId,
-    SubgroupSize,
-    SubgroupMaxSize,
-    NumSubgroups,
-    NumEnqueuedSubgroups,
-    SubgroupId,
-    SubgroupLocalInvocationId,
-    VertexIndex,
-    InstanceIndex,
-    SubgroupEqMask,
-    SubgroupGeMask,
-    SubgroupGtMask,
-    SubgroupLeMask,
-    SubgroupLtMask,
-    BaseVertex,
-    BaseInstance,
-    DrawIndex,
-    DeviceIndex,
-    ViewIndex,
+    Position(BuiltInPosition),
+    PointSize(BuiltInPointSize),
+    ClipDistance(BuiltInClipDistance),
+    CullDistance(BuiltInCullDistance),
+    VertexId(BuiltInVertexId),
+    InstanceId(BuiltInInstanceId),
+    PrimitiveId(BuiltInPrimitiveId),
+    InvocationId(BuiltInInvocationId),
+    Layer(BuiltInLayer),
+    ViewportIndex(BuiltInViewportIndex),
+    TessLevelOuter(BuiltInTessLevelOuter),
+    TessLevelInner(BuiltInTessLevelInner),
+    TessCoord(BuiltInTessCoord),
+    PatchVertices(BuiltInPatchVertices),
+    FragCoord(BuiltInFragCoord),
+    PointCoord(BuiltInPointCoord),
+    FrontFacing(BuiltInFrontFacing),
+    SampleId(BuiltInSampleId),
+    SamplePosition(BuiltInSamplePosition),
+    SampleMask(BuiltInSampleMask),
+    FragDepth(BuiltInFragDepth),
+    HelperInvocation(BuiltInHelperInvocation),
+    NumWorkgroups(BuiltInNumWorkgroups),
+    WorkgroupSize(BuiltInWorkgroupSize),
+    WorkgroupId(BuiltInWorkgroupId),
+    LocalInvocationId(BuiltInLocalInvocationId),
+    GlobalInvocationId(BuiltInGlobalInvocationId),
+    LocalInvocationIndex(BuiltInLocalInvocationIndex),
+    WorkDim(BuiltInWorkDim),
+    GlobalSize(BuiltInGlobalSize),
+    EnqueuedWorkgroupSize(BuiltInEnqueuedWorkgroupSize),
+    GlobalOffset(BuiltInGlobalOffset),
+    GlobalLinearId(BuiltInGlobalLinearId),
+    SubgroupSize(BuiltInSubgroupSize),
+    SubgroupMaxSize(BuiltInSubgroupMaxSize),
+    NumSubgroups(BuiltInNumSubgroups),
+    NumEnqueuedSubgroups(BuiltInNumEnqueuedSubgroups),
+    SubgroupId(BuiltInSubgroupId),
+    SubgroupLocalInvocationId(BuiltInSubgroupLocalInvocationId),
+    VertexIndex(BuiltInVertexIndex),
+    InstanceIndex(BuiltInInstanceIndex),
+    SubgroupEqMask(BuiltInSubgroupEqMask),
+    SubgroupGeMask(BuiltInSubgroupGeMask),
+    SubgroupGtMask(BuiltInSubgroupGtMask),
+    SubgroupLeMask(BuiltInSubgroupLeMask),
+    SubgroupLtMask(BuiltInSubgroupLtMask),
+    BaseVertex(BuiltInBaseVertex),
+    BaseInstance(BuiltInBaseInstance),
+    DrawIndex(BuiltInDrawIndex),
+    DeviceIndex(BuiltInDeviceIndex),
+    ViewIndex(BuiltInViewIndex),
 }
 impl SPIRVParse for BuiltIn {
     fn spirv_parse<'a>(
@@ -3313,57 +5639,72 @@ impl SPIRVParse for BuiltIn {
     ) -> Result<(Self, &'a [u32])> {
         let (enumerant, words) = u32::spirv_parse(words, parse_state)?;
         match enumerant {
-            0u32 => Ok((BuiltIn::Position, words)),
-            1u32 => Ok((BuiltIn::PointSize, words)),
-            3u32 => Ok((BuiltIn::ClipDistance, words)),
-            4u32 => Ok((BuiltIn::CullDistance, words)),
-            5u32 => Ok((BuiltIn::VertexId, words)),
-            6u32 => Ok((BuiltIn::InstanceId, words)),
-            7u32 => Ok((BuiltIn::PrimitiveId, words)),
-            8u32 => Ok((BuiltIn::InvocationId, words)),
-            9u32 => Ok((BuiltIn::Layer, words)),
-            10u32 => Ok((BuiltIn::ViewportIndex, words)),
-            11u32 => Ok((BuiltIn::TessLevelOuter, words)),
-            12u32 => Ok((BuiltIn::TessLevelInner, words)),
-            13u32 => Ok((BuiltIn::TessCoord, words)),
-            14u32 => Ok((BuiltIn::PatchVertices, words)),
-            15u32 => Ok((BuiltIn::FragCoord, words)),
-            16u32 => Ok((BuiltIn::PointCoord, words)),
-            17u32 => Ok((BuiltIn::FrontFacing, words)),
-            18u32 => Ok((BuiltIn::SampleId, words)),
-            19u32 => Ok((BuiltIn::SamplePosition, words)),
-            20u32 => Ok((BuiltIn::SampleMask, words)),
-            22u32 => Ok((BuiltIn::FragDepth, words)),
-            23u32 => Ok((BuiltIn::HelperInvocation, words)),
-            24u32 => Ok((BuiltIn::NumWorkgroups, words)),
-            25u32 => Ok((BuiltIn::WorkgroupSize, words)),
-            26u32 => Ok((BuiltIn::WorkgroupId, words)),
-            27u32 => Ok((BuiltIn::LocalInvocationId, words)),
-            28u32 => Ok((BuiltIn::GlobalInvocationId, words)),
-            29u32 => Ok((BuiltIn::LocalInvocationIndex, words)),
-            30u32 => Ok((BuiltIn::WorkDim, words)),
-            31u32 => Ok((BuiltIn::GlobalSize, words)),
-            32u32 => Ok((BuiltIn::EnqueuedWorkgroupSize, words)),
-            33u32 => Ok((BuiltIn::GlobalOffset, words)),
-            34u32 => Ok((BuiltIn::GlobalLinearId, words)),
-            36u32 => Ok((BuiltIn::SubgroupSize, words)),
-            37u32 => Ok((BuiltIn::SubgroupMaxSize, words)),
-            38u32 => Ok((BuiltIn::NumSubgroups, words)),
-            39u32 => Ok((BuiltIn::NumEnqueuedSubgroups, words)),
-            40u32 => Ok((BuiltIn::SubgroupId, words)),
-            41u32 => Ok((BuiltIn::SubgroupLocalInvocationId, words)),
-            42u32 => Ok((BuiltIn::VertexIndex, words)),
-            43u32 => Ok((BuiltIn::InstanceIndex, words)),
-            4416u32 => Ok((BuiltIn::SubgroupEqMask, words)),
-            4417u32 => Ok((BuiltIn::SubgroupGeMask, words)),
-            4418u32 => Ok((BuiltIn::SubgroupGtMask, words)),
-            4419u32 => Ok((BuiltIn::SubgroupLeMask, words)),
-            4420u32 => Ok((BuiltIn::SubgroupLtMask, words)),
-            4424u32 => Ok((BuiltIn::BaseVertex, words)),
-            4425u32 => Ok((BuiltIn::BaseInstance, words)),
-            4426u32 => Ok((BuiltIn::DrawIndex, words)),
-            4438u32 => Ok((BuiltIn::DeviceIndex, words)),
-            4440u32 => Ok((BuiltIn::ViewIndex, words)),
+            0u32 => Ok((BuiltIn::Position(BuiltInPosition), words)),
+            1u32 => Ok((BuiltIn::PointSize(BuiltInPointSize), words)),
+            3u32 => Ok((BuiltIn::ClipDistance(BuiltInClipDistance), words)),
+            4u32 => Ok((BuiltIn::CullDistance(BuiltInCullDistance), words)),
+            5u32 => Ok((BuiltIn::VertexId(BuiltInVertexId), words)),
+            6u32 => Ok((BuiltIn::InstanceId(BuiltInInstanceId), words)),
+            7u32 => Ok((BuiltIn::PrimitiveId(BuiltInPrimitiveId), words)),
+            8u32 => Ok((BuiltIn::InvocationId(BuiltInInvocationId), words)),
+            9u32 => Ok((BuiltIn::Layer(BuiltInLayer), words)),
+            10u32 => Ok((BuiltIn::ViewportIndex(BuiltInViewportIndex), words)),
+            11u32 => Ok((BuiltIn::TessLevelOuter(BuiltInTessLevelOuter), words)),
+            12u32 => Ok((BuiltIn::TessLevelInner(BuiltInTessLevelInner), words)),
+            13u32 => Ok((BuiltIn::TessCoord(BuiltInTessCoord), words)),
+            14u32 => Ok((BuiltIn::PatchVertices(BuiltInPatchVertices), words)),
+            15u32 => Ok((BuiltIn::FragCoord(BuiltInFragCoord), words)),
+            16u32 => Ok((BuiltIn::PointCoord(BuiltInPointCoord), words)),
+            17u32 => Ok((BuiltIn::FrontFacing(BuiltInFrontFacing), words)),
+            18u32 => Ok((BuiltIn::SampleId(BuiltInSampleId), words)),
+            19u32 => Ok((BuiltIn::SamplePosition(BuiltInSamplePosition), words)),
+            20u32 => Ok((BuiltIn::SampleMask(BuiltInSampleMask), words)),
+            22u32 => Ok((BuiltIn::FragDepth(BuiltInFragDepth), words)),
+            23u32 => Ok((BuiltIn::HelperInvocation(BuiltInHelperInvocation), words)),
+            24u32 => Ok((BuiltIn::NumWorkgroups(BuiltInNumWorkgroups), words)),
+            25u32 => Ok((BuiltIn::WorkgroupSize(BuiltInWorkgroupSize), words)),
+            26u32 => Ok((BuiltIn::WorkgroupId(BuiltInWorkgroupId), words)),
+            27u32 => Ok((BuiltIn::LocalInvocationId(BuiltInLocalInvocationId), words)),
+            28u32 => Ok((
+                BuiltIn::GlobalInvocationId(BuiltInGlobalInvocationId),
+                words,
+            )),
+            29u32 => Ok((
+                BuiltIn::LocalInvocationIndex(BuiltInLocalInvocationIndex),
+                words,
+            )),
+            30u32 => Ok((BuiltIn::WorkDim(BuiltInWorkDim), words)),
+            31u32 => Ok((BuiltIn::GlobalSize(BuiltInGlobalSize), words)),
+            32u32 => Ok((
+                BuiltIn::EnqueuedWorkgroupSize(BuiltInEnqueuedWorkgroupSize),
+                words,
+            )),
+            33u32 => Ok((BuiltIn::GlobalOffset(BuiltInGlobalOffset), words)),
+            34u32 => Ok((BuiltIn::GlobalLinearId(BuiltInGlobalLinearId), words)),
+            36u32 => Ok((BuiltIn::SubgroupSize(BuiltInSubgroupSize), words)),
+            37u32 => Ok((BuiltIn::SubgroupMaxSize(BuiltInSubgroupMaxSize), words)),
+            38u32 => Ok((BuiltIn::NumSubgroups(BuiltInNumSubgroups), words)),
+            39u32 => Ok((
+                BuiltIn::NumEnqueuedSubgroups(BuiltInNumEnqueuedSubgroups),
+                words,
+            )),
+            40u32 => Ok((BuiltIn::SubgroupId(BuiltInSubgroupId), words)),
+            41u32 => Ok((
+                BuiltIn::SubgroupLocalInvocationId(BuiltInSubgroupLocalInvocationId),
+                words,
+            )),
+            42u32 => Ok((BuiltIn::VertexIndex(BuiltInVertexIndex), words)),
+            43u32 => Ok((BuiltIn::InstanceIndex(BuiltInInstanceIndex), words)),
+            4416u32 => Ok((BuiltIn::SubgroupEqMask(BuiltInSubgroupEqMask), words)),
+            4417u32 => Ok((BuiltIn::SubgroupGeMask(BuiltInSubgroupGeMask), words)),
+            4418u32 => Ok((BuiltIn::SubgroupGtMask(BuiltInSubgroupGtMask), words)),
+            4419u32 => Ok((BuiltIn::SubgroupLeMask(BuiltInSubgroupLeMask), words)),
+            4420u32 => Ok((BuiltIn::SubgroupLtMask(BuiltInSubgroupLtMask), words)),
+            4424u32 => Ok((BuiltIn::BaseVertex(BuiltInBaseVertex), words)),
+            4425u32 => Ok((BuiltIn::BaseInstance(BuiltInBaseInstance), words)),
+            4426u32 => Ok((BuiltIn::DrawIndex(BuiltInDrawIndex), words)),
+            4438u32 => Ok((BuiltIn::DeviceIndex(BuiltInDeviceIndex), words)),
+            4440u32 => Ok((BuiltIn::ViewIndex(BuiltInViewIndex), words)),
             _ => Err(Error::InvalidEnumValue),
         }
     }
@@ -3371,68 +5712,110 @@ impl SPIRVParse for BuiltIn {
 impl SPIRVDisplay for BuiltIn {
     fn spirv_display(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            BuiltIn::Position => write!(f, " {}", "Position"),
-            BuiltIn::PointSize => write!(f, " {}", "PointSize"),
-            BuiltIn::ClipDistance => write!(f, " {}", "ClipDistance"),
-            BuiltIn::CullDistance => write!(f, " {}", "CullDistance"),
-            BuiltIn::VertexId => write!(f, " {}", "VertexId"),
-            BuiltIn::InstanceId => write!(f, " {}", "InstanceId"),
-            BuiltIn::PrimitiveId => write!(f, " {}", "PrimitiveId"),
-            BuiltIn::InvocationId => write!(f, " {}", "InvocationId"),
-            BuiltIn::Layer => write!(f, " {}", "Layer"),
-            BuiltIn::ViewportIndex => write!(f, " {}", "ViewportIndex"),
-            BuiltIn::TessLevelOuter => write!(f, " {}", "TessLevelOuter"),
-            BuiltIn::TessLevelInner => write!(f, " {}", "TessLevelInner"),
-            BuiltIn::TessCoord => write!(f, " {}", "TessCoord"),
-            BuiltIn::PatchVertices => write!(f, " {}", "PatchVertices"),
-            BuiltIn::FragCoord => write!(f, " {}", "FragCoord"),
-            BuiltIn::PointCoord => write!(f, " {}", "PointCoord"),
-            BuiltIn::FrontFacing => write!(f, " {}", "FrontFacing"),
-            BuiltIn::SampleId => write!(f, " {}", "SampleId"),
-            BuiltIn::SamplePosition => write!(f, " {}", "SamplePosition"),
-            BuiltIn::SampleMask => write!(f, " {}", "SampleMask"),
-            BuiltIn::FragDepth => write!(f, " {}", "FragDepth"),
-            BuiltIn::HelperInvocation => write!(f, " {}", "HelperInvocation"),
-            BuiltIn::NumWorkgroups => write!(f, " {}", "NumWorkgroups"),
-            BuiltIn::WorkgroupSize => write!(f, " {}", "WorkgroupSize"),
-            BuiltIn::WorkgroupId => write!(f, " {}", "WorkgroupId"),
-            BuiltIn::LocalInvocationId => write!(f, " {}", "LocalInvocationId"),
-            BuiltIn::GlobalInvocationId => write!(f, " {}", "GlobalInvocationId"),
-            BuiltIn::LocalInvocationIndex => write!(f, " {}", "LocalInvocationIndex"),
-            BuiltIn::WorkDim => write!(f, " {}", "WorkDim"),
-            BuiltIn::GlobalSize => write!(f, " {}", "GlobalSize"),
-            BuiltIn::EnqueuedWorkgroupSize => write!(f, " {}", "EnqueuedWorkgroupSize"),
-            BuiltIn::GlobalOffset => write!(f, " {}", "GlobalOffset"),
-            BuiltIn::GlobalLinearId => write!(f, " {}", "GlobalLinearId"),
-            BuiltIn::SubgroupSize => write!(f, " {}", "SubgroupSize"),
-            BuiltIn::SubgroupMaxSize => write!(f, " {}", "SubgroupMaxSize"),
-            BuiltIn::NumSubgroups => write!(f, " {}", "NumSubgroups"),
-            BuiltIn::NumEnqueuedSubgroups => write!(f, " {}", "NumEnqueuedSubgroups"),
-            BuiltIn::SubgroupId => write!(f, " {}", "SubgroupId"),
-            BuiltIn::SubgroupLocalInvocationId => write!(f, " {}", "SubgroupLocalInvocationId"),
-            BuiltIn::VertexIndex => write!(f, " {}", "VertexIndex"),
-            BuiltIn::InstanceIndex => write!(f, " {}", "InstanceIndex"),
-            BuiltIn::SubgroupEqMask => write!(f, " {}", "SubgroupEqMask"),
-            BuiltIn::SubgroupGeMask => write!(f, " {}", "SubgroupGeMask"),
-            BuiltIn::SubgroupGtMask => write!(f, " {}", "SubgroupGtMask"),
-            BuiltIn::SubgroupLeMask => write!(f, " {}", "SubgroupLeMask"),
-            BuiltIn::SubgroupLtMask => write!(f, " {}", "SubgroupLtMask"),
-            BuiltIn::BaseVertex => write!(f, " {}", "BaseVertex"),
-            BuiltIn::BaseInstance => write!(f, " {}", "BaseInstance"),
-            BuiltIn::DrawIndex => write!(f, " {}", "DrawIndex"),
-            BuiltIn::DeviceIndex => write!(f, " {}", "DeviceIndex"),
-            BuiltIn::ViewIndex => write!(f, " {}", "ViewIndex"),
+            BuiltIn::Position(_) => write!(f, " {}", "Position"),
+            BuiltIn::PointSize(_) => write!(f, " {}", "PointSize"),
+            BuiltIn::ClipDistance(_) => write!(f, " {}", "ClipDistance"),
+            BuiltIn::CullDistance(_) => write!(f, " {}", "CullDistance"),
+            BuiltIn::VertexId(_) => write!(f, " {}", "VertexId"),
+            BuiltIn::InstanceId(_) => write!(f, " {}", "InstanceId"),
+            BuiltIn::PrimitiveId(_) => write!(f, " {}", "PrimitiveId"),
+            BuiltIn::InvocationId(_) => write!(f, " {}", "InvocationId"),
+            BuiltIn::Layer(_) => write!(f, " {}", "Layer"),
+            BuiltIn::ViewportIndex(_) => write!(f, " {}", "ViewportIndex"),
+            BuiltIn::TessLevelOuter(_) => write!(f, " {}", "TessLevelOuter"),
+            BuiltIn::TessLevelInner(_) => write!(f, " {}", "TessLevelInner"),
+            BuiltIn::TessCoord(_) => write!(f, " {}", "TessCoord"),
+            BuiltIn::PatchVertices(_) => write!(f, " {}", "PatchVertices"),
+            BuiltIn::FragCoord(_) => write!(f, " {}", "FragCoord"),
+            BuiltIn::PointCoord(_) => write!(f, " {}", "PointCoord"),
+            BuiltIn::FrontFacing(_) => write!(f, " {}", "FrontFacing"),
+            BuiltIn::SampleId(_) => write!(f, " {}", "SampleId"),
+            BuiltIn::SamplePosition(_) => write!(f, " {}", "SamplePosition"),
+            BuiltIn::SampleMask(_) => write!(f, " {}", "SampleMask"),
+            BuiltIn::FragDepth(_) => write!(f, " {}", "FragDepth"),
+            BuiltIn::HelperInvocation(_) => write!(f, " {}", "HelperInvocation"),
+            BuiltIn::NumWorkgroups(_) => write!(f, " {}", "NumWorkgroups"),
+            BuiltIn::WorkgroupSize(_) => write!(f, " {}", "WorkgroupSize"),
+            BuiltIn::WorkgroupId(_) => write!(f, " {}", "WorkgroupId"),
+            BuiltIn::LocalInvocationId(_) => write!(f, " {}", "LocalInvocationId"),
+            BuiltIn::GlobalInvocationId(_) => write!(f, " {}", "GlobalInvocationId"),
+            BuiltIn::LocalInvocationIndex(_) => write!(f, " {}", "LocalInvocationIndex"),
+            BuiltIn::WorkDim(_) => write!(f, " {}", "WorkDim"),
+            BuiltIn::GlobalSize(_) => write!(f, " {}", "GlobalSize"),
+            BuiltIn::EnqueuedWorkgroupSize(_) => write!(f, " {}", "EnqueuedWorkgroupSize"),
+            BuiltIn::GlobalOffset(_) => write!(f, " {}", "GlobalOffset"),
+            BuiltIn::GlobalLinearId(_) => write!(f, " {}", "GlobalLinearId"),
+            BuiltIn::SubgroupSize(_) => write!(f, " {}", "SubgroupSize"),
+            BuiltIn::SubgroupMaxSize(_) => write!(f, " {}", "SubgroupMaxSize"),
+            BuiltIn::NumSubgroups(_) => write!(f, " {}", "NumSubgroups"),
+            BuiltIn::NumEnqueuedSubgroups(_) => write!(f, " {}", "NumEnqueuedSubgroups"),
+            BuiltIn::SubgroupId(_) => write!(f, " {}", "SubgroupId"),
+            BuiltIn::SubgroupLocalInvocationId(_) => write!(f, " {}", "SubgroupLocalInvocationId"),
+            BuiltIn::VertexIndex(_) => write!(f, " {}", "VertexIndex"),
+            BuiltIn::InstanceIndex(_) => write!(f, " {}", "InstanceIndex"),
+            BuiltIn::SubgroupEqMask(_) => write!(f, " {}", "SubgroupEqMask"),
+            BuiltIn::SubgroupGeMask(_) => write!(f, " {}", "SubgroupGeMask"),
+            BuiltIn::SubgroupGtMask(_) => write!(f, " {}", "SubgroupGtMask"),
+            BuiltIn::SubgroupLeMask(_) => write!(f, " {}", "SubgroupLeMask"),
+            BuiltIn::SubgroupLtMask(_) => write!(f, " {}", "SubgroupLtMask"),
+            BuiltIn::BaseVertex(_) => write!(f, " {}", "BaseVertex"),
+            BuiltIn::BaseInstance(_) => write!(f, " {}", "BaseInstance"),
+            BuiltIn::DrawIndex(_) => write!(f, " {}", "DrawIndex"),
+            BuiltIn::DeviceIndex(_) => write!(f, " {}", "DeviceIndex"),
+            BuiltIn::ViewIndex(_) => write!(f, " {}", "ViewIndex"),
         }
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct ScopeCrossDevice;
+impl From<ScopeCrossDevice> for Scope {
+    fn from(v: ScopeCrossDevice) -> Self {
+        Self::CrossDevice(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct ScopeDevice;
+impl From<ScopeDevice> for Scope {
+    fn from(v: ScopeDevice) -> Self {
+        Self::Device(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct ScopeWorkgroup;
+impl From<ScopeWorkgroup> for Scope {
+    fn from(v: ScopeWorkgroup) -> Self {
+        Self::Workgroup(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct ScopeSubgroup;
+impl From<ScopeSubgroup> for Scope {
+    fn from(v: ScopeSubgroup) -> Self {
+        Self::Subgroup(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct ScopeInvocation;
+impl From<ScopeInvocation> for Scope {
+    fn from(v: ScopeInvocation) -> Self {
+        Self::Invocation(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct ScopeQueueFamily;
+impl From<ScopeQueueFamily> for Scope {
+    fn from(v: ScopeQueueFamily) -> Self {
+        Self::QueueFamily(v)
     }
 }
 #[derive(Clone, Debug, Eq, PartialEq, Hash, Copy)]
 pub enum Scope {
-    CrossDevice,
-    Device,
-    Workgroup,
-    Subgroup,
-    Invocation,
-    QueueFamily,
+    CrossDevice(ScopeCrossDevice),
+    Device(ScopeDevice),
+    Workgroup(ScopeWorkgroup),
+    Subgroup(ScopeSubgroup),
+    Invocation(ScopeInvocation),
+    QueueFamily(ScopeQueueFamily),
 }
 impl SPIRVParse for Scope {
     fn spirv_parse<'a>(
@@ -3441,12 +5824,12 @@ impl SPIRVParse for Scope {
     ) -> Result<(Self, &'a [u32])> {
         let (enumerant, words) = u32::spirv_parse(words, parse_state)?;
         match enumerant {
-            0u32 => Ok((Scope::CrossDevice, words)),
-            1u32 => Ok((Scope::Device, words)),
-            2u32 => Ok((Scope::Workgroup, words)),
-            3u32 => Ok((Scope::Subgroup, words)),
-            4u32 => Ok((Scope::Invocation, words)),
-            5u32 => Ok((Scope::QueueFamily, words)),
+            0u32 => Ok((Scope::CrossDevice(ScopeCrossDevice), words)),
+            1u32 => Ok((Scope::Device(ScopeDevice), words)),
+            2u32 => Ok((Scope::Workgroup(ScopeWorkgroup), words)),
+            3u32 => Ok((Scope::Subgroup(ScopeSubgroup), words)),
+            4u32 => Ok((Scope::Invocation(ScopeInvocation), words)),
+            5u32 => Ok((Scope::QueueFamily(ScopeQueueFamily), words)),
             _ => Err(Error::InvalidEnumValue),
         }
     }
@@ -3454,21 +5837,49 @@ impl SPIRVParse for Scope {
 impl SPIRVDisplay for Scope {
     fn spirv_display(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Scope::CrossDevice => write!(f, " {}", "CrossDevice"),
-            Scope::Device => write!(f, " {}", "Device"),
-            Scope::Workgroup => write!(f, " {}", "Workgroup"),
-            Scope::Subgroup => write!(f, " {}", "Subgroup"),
-            Scope::Invocation => write!(f, " {}", "Invocation"),
-            Scope::QueueFamily => write!(f, " {}", "QueueFamily"),
+            Scope::CrossDevice(_) => write!(f, " {}", "CrossDevice"),
+            Scope::Device(_) => write!(f, " {}", "Device"),
+            Scope::Workgroup(_) => write!(f, " {}", "Workgroup"),
+            Scope::Subgroup(_) => write!(f, " {}", "Subgroup"),
+            Scope::Invocation(_) => write!(f, " {}", "Invocation"),
+            Scope::QueueFamily(_) => write!(f, " {}", "QueueFamily"),
         }
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct GroupOperationReduce;
+impl From<GroupOperationReduce> for GroupOperation {
+    fn from(v: GroupOperationReduce) -> Self {
+        Self::Reduce(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct GroupOperationInclusiveScan;
+impl From<GroupOperationInclusiveScan> for GroupOperation {
+    fn from(v: GroupOperationInclusiveScan) -> Self {
+        Self::InclusiveScan(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct GroupOperationExclusiveScan;
+impl From<GroupOperationExclusiveScan> for GroupOperation {
+    fn from(v: GroupOperationExclusiveScan) -> Self {
+        Self::ExclusiveScan(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct GroupOperationClusteredReduce;
+impl From<GroupOperationClusteredReduce> for GroupOperation {
+    fn from(v: GroupOperationClusteredReduce) -> Self {
+        Self::ClusteredReduce(v)
     }
 }
 #[derive(Clone, Debug, Eq, PartialEq, Hash, Copy)]
 pub enum GroupOperation {
-    Reduce,
-    InclusiveScan,
-    ExclusiveScan,
-    ClusteredReduce,
+    Reduce(GroupOperationReduce),
+    InclusiveScan(GroupOperationInclusiveScan),
+    ExclusiveScan(GroupOperationExclusiveScan),
+    ClusteredReduce(GroupOperationClusteredReduce),
 }
 impl SPIRVParse for GroupOperation {
     fn spirv_parse<'a>(
@@ -3477,10 +5888,19 @@ impl SPIRVParse for GroupOperation {
     ) -> Result<(Self, &'a [u32])> {
         let (enumerant, words) = u32::spirv_parse(words, parse_state)?;
         match enumerant {
-            0u32 => Ok((GroupOperation::Reduce, words)),
-            1u32 => Ok((GroupOperation::InclusiveScan, words)),
-            2u32 => Ok((GroupOperation::ExclusiveScan, words)),
-            3u32 => Ok((GroupOperation::ClusteredReduce, words)),
+            0u32 => Ok((GroupOperation::Reduce(GroupOperationReduce), words)),
+            1u32 => Ok((
+                GroupOperation::InclusiveScan(GroupOperationInclusiveScan),
+                words,
+            )),
+            2u32 => Ok((
+                GroupOperation::ExclusiveScan(GroupOperationExclusiveScan),
+                words,
+            )),
+            3u32 => Ok((
+                GroupOperation::ClusteredReduce(GroupOperationClusteredReduce),
+                words,
+            )),
             _ => Err(Error::InvalidEnumValue),
         }
     }
@@ -3488,18 +5908,39 @@ impl SPIRVParse for GroupOperation {
 impl SPIRVDisplay for GroupOperation {
     fn spirv_display(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            GroupOperation::Reduce => write!(f, " {}", "Reduce"),
-            GroupOperation::InclusiveScan => write!(f, " {}", "InclusiveScan"),
-            GroupOperation::ExclusiveScan => write!(f, " {}", "ExclusiveScan"),
-            GroupOperation::ClusteredReduce => write!(f, " {}", "ClusteredReduce"),
+            GroupOperation::Reduce(_) => write!(f, " {}", "Reduce"),
+            GroupOperation::InclusiveScan(_) => write!(f, " {}", "InclusiveScan"),
+            GroupOperation::ExclusiveScan(_) => write!(f, " {}", "ExclusiveScan"),
+            GroupOperation::ClusteredReduce(_) => write!(f, " {}", "ClusteredReduce"),
         }
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct KernelEnqueueFlagsNoWait;
+impl From<KernelEnqueueFlagsNoWait> for KernelEnqueueFlags {
+    fn from(v: KernelEnqueueFlagsNoWait) -> Self {
+        Self::NoWait(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct KernelEnqueueFlagsWaitKernel;
+impl From<KernelEnqueueFlagsWaitKernel> for KernelEnqueueFlags {
+    fn from(v: KernelEnqueueFlagsWaitKernel) -> Self {
+        Self::WaitKernel(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct KernelEnqueueFlagsWaitWorkGroup;
+impl From<KernelEnqueueFlagsWaitWorkGroup> for KernelEnqueueFlags {
+    fn from(v: KernelEnqueueFlagsWaitWorkGroup) -> Self {
+        Self::WaitWorkGroup(v)
     }
 }
 #[derive(Clone, Debug, Eq, PartialEq, Hash, Copy)]
 pub enum KernelEnqueueFlags {
-    NoWait,
-    WaitKernel,
-    WaitWorkGroup,
+    NoWait(KernelEnqueueFlagsNoWait),
+    WaitKernel(KernelEnqueueFlagsWaitKernel),
+    WaitWorkGroup(KernelEnqueueFlagsWaitWorkGroup),
 }
 impl SPIRVParse for KernelEnqueueFlags {
     fn spirv_parse<'a>(
@@ -3508,9 +5949,15 @@ impl SPIRVParse for KernelEnqueueFlags {
     ) -> Result<(Self, &'a [u32])> {
         let (enumerant, words) = u32::spirv_parse(words, parse_state)?;
         match enumerant {
-            0u32 => Ok((KernelEnqueueFlags::NoWait, words)),
-            1u32 => Ok((KernelEnqueueFlags::WaitKernel, words)),
-            2u32 => Ok((KernelEnqueueFlags::WaitWorkGroup, words)),
+            0u32 => Ok((KernelEnqueueFlags::NoWait(KernelEnqueueFlagsNoWait), words)),
+            1u32 => Ok((
+                KernelEnqueueFlags::WaitKernel(KernelEnqueueFlagsWaitKernel),
+                words,
+            )),
+            2u32 => Ok((
+                KernelEnqueueFlags::WaitWorkGroup(KernelEnqueueFlagsWaitWorkGroup),
+                words,
+            )),
             _ => Err(Error::InvalidEnumValue),
         }
     }
@@ -3518,115 +5965,822 @@ impl SPIRVParse for KernelEnqueueFlags {
 impl SPIRVDisplay for KernelEnqueueFlags {
     fn spirv_display(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            KernelEnqueueFlags::NoWait => write!(f, " {}", "NoWait"),
-            KernelEnqueueFlags::WaitKernel => write!(f, " {}", "WaitKernel"),
-            KernelEnqueueFlags::WaitWorkGroup => write!(f, " {}", "WaitWorkGroup"),
+            KernelEnqueueFlags::NoWait(_) => write!(f, " {}", "NoWait"),
+            KernelEnqueueFlags::WaitKernel(_) => write!(f, " {}", "WaitKernel"),
+            KernelEnqueueFlags::WaitWorkGroup(_) => write!(f, " {}", "WaitWorkGroup"),
         }
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct CapabilityMatrix;
+impl From<CapabilityMatrix> for Capability {
+    fn from(v: CapabilityMatrix) -> Self {
+        Self::Matrix(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct CapabilityShader;
+impl From<CapabilityShader> for Capability {
+    fn from(v: CapabilityShader) -> Self {
+        Self::Shader(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct CapabilityGeometry;
+impl From<CapabilityGeometry> for Capability {
+    fn from(v: CapabilityGeometry) -> Self {
+        Self::Geometry(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct CapabilityTessellation;
+impl From<CapabilityTessellation> for Capability {
+    fn from(v: CapabilityTessellation) -> Self {
+        Self::Tessellation(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct CapabilityAddresses;
+impl From<CapabilityAddresses> for Capability {
+    fn from(v: CapabilityAddresses) -> Self {
+        Self::Addresses(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct CapabilityLinkage;
+impl From<CapabilityLinkage> for Capability {
+    fn from(v: CapabilityLinkage) -> Self {
+        Self::Linkage(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct CapabilityKernel;
+impl From<CapabilityKernel> for Capability {
+    fn from(v: CapabilityKernel) -> Self {
+        Self::Kernel(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct CapabilityVector16;
+impl From<CapabilityVector16> for Capability {
+    fn from(v: CapabilityVector16) -> Self {
+        Self::Vector16(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct CapabilityFloat16Buffer;
+impl From<CapabilityFloat16Buffer> for Capability {
+    fn from(v: CapabilityFloat16Buffer) -> Self {
+        Self::Float16Buffer(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct CapabilityFloat16;
+impl From<CapabilityFloat16> for Capability {
+    fn from(v: CapabilityFloat16) -> Self {
+        Self::Float16(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct CapabilityFloat64;
+impl From<CapabilityFloat64> for Capability {
+    fn from(v: CapabilityFloat64) -> Self {
+        Self::Float64(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct CapabilityInt64;
+impl From<CapabilityInt64> for Capability {
+    fn from(v: CapabilityInt64) -> Self {
+        Self::Int64(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct CapabilityInt64Atomics;
+impl From<CapabilityInt64Atomics> for Capability {
+    fn from(v: CapabilityInt64Atomics) -> Self {
+        Self::Int64Atomics(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct CapabilityImageBasic;
+impl From<CapabilityImageBasic> for Capability {
+    fn from(v: CapabilityImageBasic) -> Self {
+        Self::ImageBasic(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct CapabilityImageReadWrite;
+impl From<CapabilityImageReadWrite> for Capability {
+    fn from(v: CapabilityImageReadWrite) -> Self {
+        Self::ImageReadWrite(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct CapabilityImageMipmap;
+impl From<CapabilityImageMipmap> for Capability {
+    fn from(v: CapabilityImageMipmap) -> Self {
+        Self::ImageMipmap(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct CapabilityPipes;
+impl From<CapabilityPipes> for Capability {
+    fn from(v: CapabilityPipes) -> Self {
+        Self::Pipes(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct CapabilityGroups;
+impl From<CapabilityGroups> for Capability {
+    fn from(v: CapabilityGroups) -> Self {
+        Self::Groups(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct CapabilityDeviceEnqueue;
+impl From<CapabilityDeviceEnqueue> for Capability {
+    fn from(v: CapabilityDeviceEnqueue) -> Self {
+        Self::DeviceEnqueue(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct CapabilityLiteralSampler;
+impl From<CapabilityLiteralSampler> for Capability {
+    fn from(v: CapabilityLiteralSampler) -> Self {
+        Self::LiteralSampler(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct CapabilityAtomicStorage;
+impl From<CapabilityAtomicStorage> for Capability {
+    fn from(v: CapabilityAtomicStorage) -> Self {
+        Self::AtomicStorage(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct CapabilityInt16;
+impl From<CapabilityInt16> for Capability {
+    fn from(v: CapabilityInt16) -> Self {
+        Self::Int16(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct CapabilityTessellationPointSize;
+impl From<CapabilityTessellationPointSize> for Capability {
+    fn from(v: CapabilityTessellationPointSize) -> Self {
+        Self::TessellationPointSize(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct CapabilityGeometryPointSize;
+impl From<CapabilityGeometryPointSize> for Capability {
+    fn from(v: CapabilityGeometryPointSize) -> Self {
+        Self::GeometryPointSize(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct CapabilityImageGatherExtended;
+impl From<CapabilityImageGatherExtended> for Capability {
+    fn from(v: CapabilityImageGatherExtended) -> Self {
+        Self::ImageGatherExtended(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct CapabilityStorageImageMultisample;
+impl From<CapabilityStorageImageMultisample> for Capability {
+    fn from(v: CapabilityStorageImageMultisample) -> Self {
+        Self::StorageImageMultisample(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct CapabilityUniformBufferArrayDynamicIndexing;
+impl From<CapabilityUniformBufferArrayDynamicIndexing> for Capability {
+    fn from(v: CapabilityUniformBufferArrayDynamicIndexing) -> Self {
+        Self::UniformBufferArrayDynamicIndexing(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct CapabilitySampledImageArrayDynamicIndexing;
+impl From<CapabilitySampledImageArrayDynamicIndexing> for Capability {
+    fn from(v: CapabilitySampledImageArrayDynamicIndexing) -> Self {
+        Self::SampledImageArrayDynamicIndexing(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct CapabilityStorageBufferArrayDynamicIndexing;
+impl From<CapabilityStorageBufferArrayDynamicIndexing> for Capability {
+    fn from(v: CapabilityStorageBufferArrayDynamicIndexing) -> Self {
+        Self::StorageBufferArrayDynamicIndexing(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct CapabilityStorageImageArrayDynamicIndexing;
+impl From<CapabilityStorageImageArrayDynamicIndexing> for Capability {
+    fn from(v: CapabilityStorageImageArrayDynamicIndexing) -> Self {
+        Self::StorageImageArrayDynamicIndexing(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct CapabilityClipDistance;
+impl From<CapabilityClipDistance> for Capability {
+    fn from(v: CapabilityClipDistance) -> Self {
+        Self::ClipDistance(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct CapabilityCullDistance;
+impl From<CapabilityCullDistance> for Capability {
+    fn from(v: CapabilityCullDistance) -> Self {
+        Self::CullDistance(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct CapabilityImageCubeArray;
+impl From<CapabilityImageCubeArray> for Capability {
+    fn from(v: CapabilityImageCubeArray) -> Self {
+        Self::ImageCubeArray(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct CapabilitySampleRateShading;
+impl From<CapabilitySampleRateShading> for Capability {
+    fn from(v: CapabilitySampleRateShading) -> Self {
+        Self::SampleRateShading(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct CapabilityImageRect;
+impl From<CapabilityImageRect> for Capability {
+    fn from(v: CapabilityImageRect) -> Self {
+        Self::ImageRect(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct CapabilitySampledRect;
+impl From<CapabilitySampledRect> for Capability {
+    fn from(v: CapabilitySampledRect) -> Self {
+        Self::SampledRect(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct CapabilityGenericPointer;
+impl From<CapabilityGenericPointer> for Capability {
+    fn from(v: CapabilityGenericPointer) -> Self {
+        Self::GenericPointer(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct CapabilityInt8;
+impl From<CapabilityInt8> for Capability {
+    fn from(v: CapabilityInt8) -> Self {
+        Self::Int8(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct CapabilityInputAttachment;
+impl From<CapabilityInputAttachment> for Capability {
+    fn from(v: CapabilityInputAttachment) -> Self {
+        Self::InputAttachment(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct CapabilitySparseResidency;
+impl From<CapabilitySparseResidency> for Capability {
+    fn from(v: CapabilitySparseResidency) -> Self {
+        Self::SparseResidency(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct CapabilityMinLod;
+impl From<CapabilityMinLod> for Capability {
+    fn from(v: CapabilityMinLod) -> Self {
+        Self::MinLod(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct CapabilitySampled1D;
+impl From<CapabilitySampled1D> for Capability {
+    fn from(v: CapabilitySampled1D) -> Self {
+        Self::Sampled1D(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct CapabilityImage1D;
+impl From<CapabilityImage1D> for Capability {
+    fn from(v: CapabilityImage1D) -> Self {
+        Self::Image1D(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct CapabilitySampledCubeArray;
+impl From<CapabilitySampledCubeArray> for Capability {
+    fn from(v: CapabilitySampledCubeArray) -> Self {
+        Self::SampledCubeArray(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct CapabilitySampledBuffer;
+impl From<CapabilitySampledBuffer> for Capability {
+    fn from(v: CapabilitySampledBuffer) -> Self {
+        Self::SampledBuffer(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct CapabilityImageBuffer;
+impl From<CapabilityImageBuffer> for Capability {
+    fn from(v: CapabilityImageBuffer) -> Self {
+        Self::ImageBuffer(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct CapabilityImageMSArray;
+impl From<CapabilityImageMSArray> for Capability {
+    fn from(v: CapabilityImageMSArray) -> Self {
+        Self::ImageMSArray(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct CapabilityStorageImageExtendedFormats;
+impl From<CapabilityStorageImageExtendedFormats> for Capability {
+    fn from(v: CapabilityStorageImageExtendedFormats) -> Self {
+        Self::StorageImageExtendedFormats(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct CapabilityImageQuery;
+impl From<CapabilityImageQuery> for Capability {
+    fn from(v: CapabilityImageQuery) -> Self {
+        Self::ImageQuery(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct CapabilityDerivativeControl;
+impl From<CapabilityDerivativeControl> for Capability {
+    fn from(v: CapabilityDerivativeControl) -> Self {
+        Self::DerivativeControl(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct CapabilityInterpolationFunction;
+impl From<CapabilityInterpolationFunction> for Capability {
+    fn from(v: CapabilityInterpolationFunction) -> Self {
+        Self::InterpolationFunction(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct CapabilityTransformFeedback;
+impl From<CapabilityTransformFeedback> for Capability {
+    fn from(v: CapabilityTransformFeedback) -> Self {
+        Self::TransformFeedback(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct CapabilityGeometryStreams;
+impl From<CapabilityGeometryStreams> for Capability {
+    fn from(v: CapabilityGeometryStreams) -> Self {
+        Self::GeometryStreams(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct CapabilityStorageImageReadWithoutFormat;
+impl From<CapabilityStorageImageReadWithoutFormat> for Capability {
+    fn from(v: CapabilityStorageImageReadWithoutFormat) -> Self {
+        Self::StorageImageReadWithoutFormat(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct CapabilityStorageImageWriteWithoutFormat;
+impl From<CapabilityStorageImageWriteWithoutFormat> for Capability {
+    fn from(v: CapabilityStorageImageWriteWithoutFormat) -> Self {
+        Self::StorageImageWriteWithoutFormat(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct CapabilityMultiViewport;
+impl From<CapabilityMultiViewport> for Capability {
+    fn from(v: CapabilityMultiViewport) -> Self {
+        Self::MultiViewport(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct CapabilitySubgroupDispatch;
+impl From<CapabilitySubgroupDispatch> for Capability {
+    fn from(v: CapabilitySubgroupDispatch) -> Self {
+        Self::SubgroupDispatch(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct CapabilityNamedBarrier;
+impl From<CapabilityNamedBarrier> for Capability {
+    fn from(v: CapabilityNamedBarrier) -> Self {
+        Self::NamedBarrier(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct CapabilityPipeStorage;
+impl From<CapabilityPipeStorage> for Capability {
+    fn from(v: CapabilityPipeStorage) -> Self {
+        Self::PipeStorage(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct CapabilityGroupNonUniform;
+impl From<CapabilityGroupNonUniform> for Capability {
+    fn from(v: CapabilityGroupNonUniform) -> Self {
+        Self::GroupNonUniform(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct CapabilityGroupNonUniformVote;
+impl From<CapabilityGroupNonUniformVote> for Capability {
+    fn from(v: CapabilityGroupNonUniformVote) -> Self {
+        Self::GroupNonUniformVote(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct CapabilityGroupNonUniformArithmetic;
+impl From<CapabilityGroupNonUniformArithmetic> for Capability {
+    fn from(v: CapabilityGroupNonUniformArithmetic) -> Self {
+        Self::GroupNonUniformArithmetic(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct CapabilityGroupNonUniformBallot;
+impl From<CapabilityGroupNonUniformBallot> for Capability {
+    fn from(v: CapabilityGroupNonUniformBallot) -> Self {
+        Self::GroupNonUniformBallot(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct CapabilityGroupNonUniformShuffle;
+impl From<CapabilityGroupNonUniformShuffle> for Capability {
+    fn from(v: CapabilityGroupNonUniformShuffle) -> Self {
+        Self::GroupNonUniformShuffle(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct CapabilityGroupNonUniformShuffleRelative;
+impl From<CapabilityGroupNonUniformShuffleRelative> for Capability {
+    fn from(v: CapabilityGroupNonUniformShuffleRelative) -> Self {
+        Self::GroupNonUniformShuffleRelative(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct CapabilityGroupNonUniformClustered;
+impl From<CapabilityGroupNonUniformClustered> for Capability {
+    fn from(v: CapabilityGroupNonUniformClustered) -> Self {
+        Self::GroupNonUniformClustered(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct CapabilityGroupNonUniformQuad;
+impl From<CapabilityGroupNonUniformQuad> for Capability {
+    fn from(v: CapabilityGroupNonUniformQuad) -> Self {
+        Self::GroupNonUniformQuad(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct CapabilityShaderLayer;
+impl From<CapabilityShaderLayer> for Capability {
+    fn from(v: CapabilityShaderLayer) -> Self {
+        Self::ShaderLayer(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct CapabilityShaderViewportIndex;
+impl From<CapabilityShaderViewportIndex> for Capability {
+    fn from(v: CapabilityShaderViewportIndex) -> Self {
+        Self::ShaderViewportIndex(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct CapabilityDrawParameters;
+impl From<CapabilityDrawParameters> for Capability {
+    fn from(v: CapabilityDrawParameters) -> Self {
+        Self::DrawParameters(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct CapabilityStorageBuffer16BitAccess;
+impl From<CapabilityStorageBuffer16BitAccess> for Capability {
+    fn from(v: CapabilityStorageBuffer16BitAccess) -> Self {
+        Self::StorageBuffer16BitAccess(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct CapabilityUniformAndStorageBuffer16BitAccess;
+impl From<CapabilityUniformAndStorageBuffer16BitAccess> for Capability {
+    fn from(v: CapabilityUniformAndStorageBuffer16BitAccess) -> Self {
+        Self::UniformAndStorageBuffer16BitAccess(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct CapabilityStoragePushConstant16;
+impl From<CapabilityStoragePushConstant16> for Capability {
+    fn from(v: CapabilityStoragePushConstant16) -> Self {
+        Self::StoragePushConstant16(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct CapabilityStorageInputOutput16;
+impl From<CapabilityStorageInputOutput16> for Capability {
+    fn from(v: CapabilityStorageInputOutput16) -> Self {
+        Self::StorageInputOutput16(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct CapabilityDeviceGroup;
+impl From<CapabilityDeviceGroup> for Capability {
+    fn from(v: CapabilityDeviceGroup) -> Self {
+        Self::DeviceGroup(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct CapabilityMultiView;
+impl From<CapabilityMultiView> for Capability {
+    fn from(v: CapabilityMultiView) -> Self {
+        Self::MultiView(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct CapabilityVariablePointersStorageBuffer;
+impl From<CapabilityVariablePointersStorageBuffer> for Capability {
+    fn from(v: CapabilityVariablePointersStorageBuffer) -> Self {
+        Self::VariablePointersStorageBuffer(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct CapabilityVariablePointers;
+impl From<CapabilityVariablePointers> for Capability {
+    fn from(v: CapabilityVariablePointers) -> Self {
+        Self::VariablePointers(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct CapabilityStorageBuffer8BitAccess;
+impl From<CapabilityStorageBuffer8BitAccess> for Capability {
+    fn from(v: CapabilityStorageBuffer8BitAccess) -> Self {
+        Self::StorageBuffer8BitAccess(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct CapabilityUniformAndStorageBuffer8BitAccess;
+impl From<CapabilityUniformAndStorageBuffer8BitAccess> for Capability {
+    fn from(v: CapabilityUniformAndStorageBuffer8BitAccess) -> Self {
+        Self::UniformAndStorageBuffer8BitAccess(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct CapabilityStoragePushConstant8;
+impl From<CapabilityStoragePushConstant8> for Capability {
+    fn from(v: CapabilityStoragePushConstant8) -> Self {
+        Self::StoragePushConstant8(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct CapabilityDenormPreserve;
+impl From<CapabilityDenormPreserve> for Capability {
+    fn from(v: CapabilityDenormPreserve) -> Self {
+        Self::DenormPreserve(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct CapabilityDenormFlushToZero;
+impl From<CapabilityDenormFlushToZero> for Capability {
+    fn from(v: CapabilityDenormFlushToZero) -> Self {
+        Self::DenormFlushToZero(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct CapabilitySignedZeroInfNanPreserve;
+impl From<CapabilitySignedZeroInfNanPreserve> for Capability {
+    fn from(v: CapabilitySignedZeroInfNanPreserve) -> Self {
+        Self::SignedZeroInfNanPreserve(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct CapabilityRoundingModeRTE;
+impl From<CapabilityRoundingModeRTE> for Capability {
+    fn from(v: CapabilityRoundingModeRTE) -> Self {
+        Self::RoundingModeRTE(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct CapabilityRoundingModeRTZ;
+impl From<CapabilityRoundingModeRTZ> for Capability {
+    fn from(v: CapabilityRoundingModeRTZ) -> Self {
+        Self::RoundingModeRTZ(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct CapabilityShaderNonUniform;
+impl From<CapabilityShaderNonUniform> for Capability {
+    fn from(v: CapabilityShaderNonUniform) -> Self {
+        Self::ShaderNonUniform(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct CapabilityRuntimeDescriptorArray;
+impl From<CapabilityRuntimeDescriptorArray> for Capability {
+    fn from(v: CapabilityRuntimeDescriptorArray) -> Self {
+        Self::RuntimeDescriptorArray(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct CapabilityInputAttachmentArrayDynamicIndexing;
+impl From<CapabilityInputAttachmentArrayDynamicIndexing> for Capability {
+    fn from(v: CapabilityInputAttachmentArrayDynamicIndexing) -> Self {
+        Self::InputAttachmentArrayDynamicIndexing(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct CapabilityUniformTexelBufferArrayDynamicIndexing;
+impl From<CapabilityUniformTexelBufferArrayDynamicIndexing> for Capability {
+    fn from(v: CapabilityUniformTexelBufferArrayDynamicIndexing) -> Self {
+        Self::UniformTexelBufferArrayDynamicIndexing(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct CapabilityStorageTexelBufferArrayDynamicIndexing;
+impl From<CapabilityStorageTexelBufferArrayDynamicIndexing> for Capability {
+    fn from(v: CapabilityStorageTexelBufferArrayDynamicIndexing) -> Self {
+        Self::StorageTexelBufferArrayDynamicIndexing(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct CapabilityUniformBufferArrayNonUniformIndexing;
+impl From<CapabilityUniformBufferArrayNonUniformIndexing> for Capability {
+    fn from(v: CapabilityUniformBufferArrayNonUniformIndexing) -> Self {
+        Self::UniformBufferArrayNonUniformIndexing(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct CapabilitySampledImageArrayNonUniformIndexing;
+impl From<CapabilitySampledImageArrayNonUniformIndexing> for Capability {
+    fn from(v: CapabilitySampledImageArrayNonUniformIndexing) -> Self {
+        Self::SampledImageArrayNonUniformIndexing(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct CapabilityStorageBufferArrayNonUniformIndexing;
+impl From<CapabilityStorageBufferArrayNonUniformIndexing> for Capability {
+    fn from(v: CapabilityStorageBufferArrayNonUniformIndexing) -> Self {
+        Self::StorageBufferArrayNonUniformIndexing(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct CapabilityStorageImageArrayNonUniformIndexing;
+impl From<CapabilityStorageImageArrayNonUniformIndexing> for Capability {
+    fn from(v: CapabilityStorageImageArrayNonUniformIndexing) -> Self {
+        Self::StorageImageArrayNonUniformIndexing(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct CapabilityInputAttachmentArrayNonUniformIndexing;
+impl From<CapabilityInputAttachmentArrayNonUniformIndexing> for Capability {
+    fn from(v: CapabilityInputAttachmentArrayNonUniformIndexing) -> Self {
+        Self::InputAttachmentArrayNonUniformIndexing(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct CapabilityUniformTexelBufferArrayNonUniformIndexing;
+impl From<CapabilityUniformTexelBufferArrayNonUniformIndexing> for Capability {
+    fn from(v: CapabilityUniformTexelBufferArrayNonUniformIndexing) -> Self {
+        Self::UniformTexelBufferArrayNonUniformIndexing(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct CapabilityStorageTexelBufferArrayNonUniformIndexing;
+impl From<CapabilityStorageTexelBufferArrayNonUniformIndexing> for Capability {
+    fn from(v: CapabilityStorageTexelBufferArrayNonUniformIndexing) -> Self {
+        Self::StorageTexelBufferArrayNonUniformIndexing(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct CapabilityVulkanMemoryModel;
+impl From<CapabilityVulkanMemoryModel> for Capability {
+    fn from(v: CapabilityVulkanMemoryModel) -> Self {
+        Self::VulkanMemoryModel(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct CapabilityVulkanMemoryModelDeviceScope;
+impl From<CapabilityVulkanMemoryModelDeviceScope> for Capability {
+    fn from(v: CapabilityVulkanMemoryModelDeviceScope) -> Self {
+        Self::VulkanMemoryModelDeviceScope(v)
+    }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+pub struct CapabilityPhysicalStorageBufferAddresses;
+impl From<CapabilityPhysicalStorageBufferAddresses> for Capability {
+    fn from(v: CapabilityPhysicalStorageBufferAddresses) -> Self {
+        Self::PhysicalStorageBufferAddresses(v)
     }
 }
 #[derive(Clone, Debug, Eq, PartialEq, Hash, Copy)]
 pub enum Capability {
-    Matrix,
-    Shader,
-    Geometry,
-    Tessellation,
-    Addresses,
-    Linkage,
-    Kernel,
-    Vector16,
-    Float16Buffer,
-    Float16,
-    Float64,
-    Int64,
-    Int64Atomics,
-    ImageBasic,
-    ImageReadWrite,
-    ImageMipmap,
-    Pipes,
-    Groups,
-    DeviceEnqueue,
-    LiteralSampler,
-    AtomicStorage,
-    Int16,
-    TessellationPointSize,
-    GeometryPointSize,
-    ImageGatherExtended,
-    StorageImageMultisample,
-    UniformBufferArrayDynamicIndexing,
-    SampledImageArrayDynamicIndexing,
-    StorageBufferArrayDynamicIndexing,
-    StorageImageArrayDynamicIndexing,
-    ClipDistance,
-    CullDistance,
-    ImageCubeArray,
-    SampleRateShading,
-    ImageRect,
-    SampledRect,
-    GenericPointer,
-    Int8,
-    InputAttachment,
-    SparseResidency,
-    MinLod,
-    Sampled1D,
-    Image1D,
-    SampledCubeArray,
-    SampledBuffer,
-    ImageBuffer,
-    ImageMSArray,
-    StorageImageExtendedFormats,
-    ImageQuery,
-    DerivativeControl,
-    InterpolationFunction,
-    TransformFeedback,
-    GeometryStreams,
-    StorageImageReadWithoutFormat,
-    StorageImageWriteWithoutFormat,
-    MultiViewport,
-    SubgroupDispatch,
-    NamedBarrier,
-    PipeStorage,
-    GroupNonUniform,
-    GroupNonUniformVote,
-    GroupNonUniformArithmetic,
-    GroupNonUniformBallot,
-    GroupNonUniformShuffle,
-    GroupNonUniformShuffleRelative,
-    GroupNonUniformClustered,
-    GroupNonUniformQuad,
-    ShaderLayer,
-    ShaderViewportIndex,
-    DrawParameters,
-    StorageBuffer16BitAccess,
-    UniformAndStorageBuffer16BitAccess,
-    StoragePushConstant16,
-    StorageInputOutput16,
-    DeviceGroup,
-    MultiView,
-    VariablePointersStorageBuffer,
-    VariablePointers,
-    StorageBuffer8BitAccess,
-    UniformAndStorageBuffer8BitAccess,
-    StoragePushConstant8,
-    DenormPreserve,
-    DenormFlushToZero,
-    SignedZeroInfNanPreserve,
-    RoundingModeRTE,
-    RoundingModeRTZ,
-    ShaderNonUniform,
-    RuntimeDescriptorArray,
-    InputAttachmentArrayDynamicIndexing,
-    UniformTexelBufferArrayDynamicIndexing,
-    StorageTexelBufferArrayDynamicIndexing,
-    UniformBufferArrayNonUniformIndexing,
-    SampledImageArrayNonUniformIndexing,
-    StorageBufferArrayNonUniformIndexing,
-    StorageImageArrayNonUniformIndexing,
-    InputAttachmentArrayNonUniformIndexing,
-    UniformTexelBufferArrayNonUniformIndexing,
-    StorageTexelBufferArrayNonUniformIndexing,
-    VulkanMemoryModel,
-    VulkanMemoryModelDeviceScope,
-    PhysicalStorageBufferAddresses,
+    Matrix(CapabilityMatrix),
+    Shader(CapabilityShader),
+    Geometry(CapabilityGeometry),
+    Tessellation(CapabilityTessellation),
+    Addresses(CapabilityAddresses),
+    Linkage(CapabilityLinkage),
+    Kernel(CapabilityKernel),
+    Vector16(CapabilityVector16),
+    Float16Buffer(CapabilityFloat16Buffer),
+    Float16(CapabilityFloat16),
+    Float64(CapabilityFloat64),
+    Int64(CapabilityInt64),
+    Int64Atomics(CapabilityInt64Atomics),
+    ImageBasic(CapabilityImageBasic),
+    ImageReadWrite(CapabilityImageReadWrite),
+    ImageMipmap(CapabilityImageMipmap),
+    Pipes(CapabilityPipes),
+    Groups(CapabilityGroups),
+    DeviceEnqueue(CapabilityDeviceEnqueue),
+    LiteralSampler(CapabilityLiteralSampler),
+    AtomicStorage(CapabilityAtomicStorage),
+    Int16(CapabilityInt16),
+    TessellationPointSize(CapabilityTessellationPointSize),
+    GeometryPointSize(CapabilityGeometryPointSize),
+    ImageGatherExtended(CapabilityImageGatherExtended),
+    StorageImageMultisample(CapabilityStorageImageMultisample),
+    UniformBufferArrayDynamicIndexing(CapabilityUniformBufferArrayDynamicIndexing),
+    SampledImageArrayDynamicIndexing(CapabilitySampledImageArrayDynamicIndexing),
+    StorageBufferArrayDynamicIndexing(CapabilityStorageBufferArrayDynamicIndexing),
+    StorageImageArrayDynamicIndexing(CapabilityStorageImageArrayDynamicIndexing),
+    ClipDistance(CapabilityClipDistance),
+    CullDistance(CapabilityCullDistance),
+    ImageCubeArray(CapabilityImageCubeArray),
+    SampleRateShading(CapabilitySampleRateShading),
+    ImageRect(CapabilityImageRect),
+    SampledRect(CapabilitySampledRect),
+    GenericPointer(CapabilityGenericPointer),
+    Int8(CapabilityInt8),
+    InputAttachment(CapabilityInputAttachment),
+    SparseResidency(CapabilitySparseResidency),
+    MinLod(CapabilityMinLod),
+    Sampled1D(CapabilitySampled1D),
+    Image1D(CapabilityImage1D),
+    SampledCubeArray(CapabilitySampledCubeArray),
+    SampledBuffer(CapabilitySampledBuffer),
+    ImageBuffer(CapabilityImageBuffer),
+    ImageMSArray(CapabilityImageMSArray),
+    StorageImageExtendedFormats(CapabilityStorageImageExtendedFormats),
+    ImageQuery(CapabilityImageQuery),
+    DerivativeControl(CapabilityDerivativeControl),
+    InterpolationFunction(CapabilityInterpolationFunction),
+    TransformFeedback(CapabilityTransformFeedback),
+    GeometryStreams(CapabilityGeometryStreams),
+    StorageImageReadWithoutFormat(CapabilityStorageImageReadWithoutFormat),
+    StorageImageWriteWithoutFormat(CapabilityStorageImageWriteWithoutFormat),
+    MultiViewport(CapabilityMultiViewport),
+    SubgroupDispatch(CapabilitySubgroupDispatch),
+    NamedBarrier(CapabilityNamedBarrier),
+    PipeStorage(CapabilityPipeStorage),
+    GroupNonUniform(CapabilityGroupNonUniform),
+    GroupNonUniformVote(CapabilityGroupNonUniformVote),
+    GroupNonUniformArithmetic(CapabilityGroupNonUniformArithmetic),
+    GroupNonUniformBallot(CapabilityGroupNonUniformBallot),
+    GroupNonUniformShuffle(CapabilityGroupNonUniformShuffle),
+    GroupNonUniformShuffleRelative(CapabilityGroupNonUniformShuffleRelative),
+    GroupNonUniformClustered(CapabilityGroupNonUniformClustered),
+    GroupNonUniformQuad(CapabilityGroupNonUniformQuad),
+    ShaderLayer(CapabilityShaderLayer),
+    ShaderViewportIndex(CapabilityShaderViewportIndex),
+    DrawParameters(CapabilityDrawParameters),
+    StorageBuffer16BitAccess(CapabilityStorageBuffer16BitAccess),
+    UniformAndStorageBuffer16BitAccess(CapabilityUniformAndStorageBuffer16BitAccess),
+    StoragePushConstant16(CapabilityStoragePushConstant16),
+    StorageInputOutput16(CapabilityStorageInputOutput16),
+    DeviceGroup(CapabilityDeviceGroup),
+    MultiView(CapabilityMultiView),
+    VariablePointersStorageBuffer(CapabilityVariablePointersStorageBuffer),
+    VariablePointers(CapabilityVariablePointers),
+    StorageBuffer8BitAccess(CapabilityStorageBuffer8BitAccess),
+    UniformAndStorageBuffer8BitAccess(CapabilityUniformAndStorageBuffer8BitAccess),
+    StoragePushConstant8(CapabilityStoragePushConstant8),
+    DenormPreserve(CapabilityDenormPreserve),
+    DenormFlushToZero(CapabilityDenormFlushToZero),
+    SignedZeroInfNanPreserve(CapabilitySignedZeroInfNanPreserve),
+    RoundingModeRTE(CapabilityRoundingModeRTE),
+    RoundingModeRTZ(CapabilityRoundingModeRTZ),
+    ShaderNonUniform(CapabilityShaderNonUniform),
+    RuntimeDescriptorArray(CapabilityRuntimeDescriptorArray),
+    InputAttachmentArrayDynamicIndexing(CapabilityInputAttachmentArrayDynamicIndexing),
+    UniformTexelBufferArrayDynamicIndexing(CapabilityUniformTexelBufferArrayDynamicIndexing),
+    StorageTexelBufferArrayDynamicIndexing(CapabilityStorageTexelBufferArrayDynamicIndexing),
+    UniformBufferArrayNonUniformIndexing(CapabilityUniformBufferArrayNonUniformIndexing),
+    SampledImageArrayNonUniformIndexing(CapabilitySampledImageArrayNonUniformIndexing),
+    StorageBufferArrayNonUniformIndexing(CapabilityStorageBufferArrayNonUniformIndexing),
+    StorageImageArrayNonUniformIndexing(CapabilityStorageImageArrayNonUniformIndexing),
+    InputAttachmentArrayNonUniformIndexing(CapabilityInputAttachmentArrayNonUniformIndexing),
+    UniformTexelBufferArrayNonUniformIndexing(CapabilityUniformTexelBufferArrayNonUniformIndexing),
+    StorageTexelBufferArrayNonUniformIndexing(CapabilityStorageTexelBufferArrayNonUniformIndexing),
+    VulkanMemoryModel(CapabilityVulkanMemoryModel),
+    VulkanMemoryModelDeviceScope(CapabilityVulkanMemoryModelDeviceScope),
+    PhysicalStorageBufferAddresses(CapabilityPhysicalStorageBufferAddresses),
 }
 impl SPIRVParse for Capability {
     fn spirv_parse<'a>(
@@ -3635,107 +6789,316 @@ impl SPIRVParse for Capability {
     ) -> Result<(Self, &'a [u32])> {
         let (enumerant, words) = u32::spirv_parse(words, parse_state)?;
         match enumerant {
-            0u32 => Ok((Capability::Matrix, words)),
-            1u32 => Ok((Capability::Shader, words)),
-            2u32 => Ok((Capability::Geometry, words)),
-            3u32 => Ok((Capability::Tessellation, words)),
-            4u32 => Ok((Capability::Addresses, words)),
-            5u32 => Ok((Capability::Linkage, words)),
-            6u32 => Ok((Capability::Kernel, words)),
-            7u32 => Ok((Capability::Vector16, words)),
-            8u32 => Ok((Capability::Float16Buffer, words)),
-            9u32 => Ok((Capability::Float16, words)),
-            10u32 => Ok((Capability::Float64, words)),
-            11u32 => Ok((Capability::Int64, words)),
-            12u32 => Ok((Capability::Int64Atomics, words)),
-            13u32 => Ok((Capability::ImageBasic, words)),
-            14u32 => Ok((Capability::ImageReadWrite, words)),
-            15u32 => Ok((Capability::ImageMipmap, words)),
-            17u32 => Ok((Capability::Pipes, words)),
-            18u32 => Ok((Capability::Groups, words)),
-            19u32 => Ok((Capability::DeviceEnqueue, words)),
-            20u32 => Ok((Capability::LiteralSampler, words)),
-            21u32 => Ok((Capability::AtomicStorage, words)),
-            22u32 => Ok((Capability::Int16, words)),
-            23u32 => Ok((Capability::TessellationPointSize, words)),
-            24u32 => Ok((Capability::GeometryPointSize, words)),
-            25u32 => Ok((Capability::ImageGatherExtended, words)),
-            27u32 => Ok((Capability::StorageImageMultisample, words)),
-            28u32 => Ok((Capability::UniformBufferArrayDynamicIndexing, words)),
-            29u32 => Ok((Capability::SampledImageArrayDynamicIndexing, words)),
-            30u32 => Ok((Capability::StorageBufferArrayDynamicIndexing, words)),
-            31u32 => Ok((Capability::StorageImageArrayDynamicIndexing, words)),
-            32u32 => Ok((Capability::ClipDistance, words)),
-            33u32 => Ok((Capability::CullDistance, words)),
-            34u32 => Ok((Capability::ImageCubeArray, words)),
-            35u32 => Ok((Capability::SampleRateShading, words)),
-            36u32 => Ok((Capability::ImageRect, words)),
-            37u32 => Ok((Capability::SampledRect, words)),
-            38u32 => Ok((Capability::GenericPointer, words)),
-            39u32 => Ok((Capability::Int8, words)),
-            40u32 => Ok((Capability::InputAttachment, words)),
-            41u32 => Ok((Capability::SparseResidency, words)),
-            42u32 => Ok((Capability::MinLod, words)),
-            43u32 => Ok((Capability::Sampled1D, words)),
-            44u32 => Ok((Capability::Image1D, words)),
-            45u32 => Ok((Capability::SampledCubeArray, words)),
-            46u32 => Ok((Capability::SampledBuffer, words)),
-            47u32 => Ok((Capability::ImageBuffer, words)),
-            48u32 => Ok((Capability::ImageMSArray, words)),
-            49u32 => Ok((Capability::StorageImageExtendedFormats, words)),
-            50u32 => Ok((Capability::ImageQuery, words)),
-            51u32 => Ok((Capability::DerivativeControl, words)),
-            52u32 => Ok((Capability::InterpolationFunction, words)),
-            53u32 => Ok((Capability::TransformFeedback, words)),
-            54u32 => Ok((Capability::GeometryStreams, words)),
-            55u32 => Ok((Capability::StorageImageReadWithoutFormat, words)),
-            56u32 => Ok((Capability::StorageImageWriteWithoutFormat, words)),
-            57u32 => Ok((Capability::MultiViewport, words)),
-            58u32 => Ok((Capability::SubgroupDispatch, words)),
-            59u32 => Ok((Capability::NamedBarrier, words)),
-            60u32 => Ok((Capability::PipeStorage, words)),
-            61u32 => Ok((Capability::GroupNonUniform, words)),
-            62u32 => Ok((Capability::GroupNonUniformVote, words)),
-            63u32 => Ok((Capability::GroupNonUniformArithmetic, words)),
-            64u32 => Ok((Capability::GroupNonUniformBallot, words)),
-            65u32 => Ok((Capability::GroupNonUniformShuffle, words)),
-            66u32 => Ok((Capability::GroupNonUniformShuffleRelative, words)),
-            67u32 => Ok((Capability::GroupNonUniformClustered, words)),
-            68u32 => Ok((Capability::GroupNonUniformQuad, words)),
-            69u32 => Ok((Capability::ShaderLayer, words)),
-            70u32 => Ok((Capability::ShaderViewportIndex, words)),
-            4427u32 => Ok((Capability::DrawParameters, words)),
-            4433u32 => Ok((Capability::StorageBuffer16BitAccess, words)),
-            4434u32 => Ok((Capability::UniformAndStorageBuffer16BitAccess, words)),
-            4435u32 => Ok((Capability::StoragePushConstant16, words)),
-            4436u32 => Ok((Capability::StorageInputOutput16, words)),
-            4437u32 => Ok((Capability::DeviceGroup, words)),
-            4439u32 => Ok((Capability::MultiView, words)),
-            4441u32 => Ok((Capability::VariablePointersStorageBuffer, words)),
-            4442u32 => Ok((Capability::VariablePointers, words)),
-            4448u32 => Ok((Capability::StorageBuffer8BitAccess, words)),
-            4449u32 => Ok((Capability::UniformAndStorageBuffer8BitAccess, words)),
-            4450u32 => Ok((Capability::StoragePushConstant8, words)),
-            4464u32 => Ok((Capability::DenormPreserve, words)),
-            4465u32 => Ok((Capability::DenormFlushToZero, words)),
-            4466u32 => Ok((Capability::SignedZeroInfNanPreserve, words)),
-            4467u32 => Ok((Capability::RoundingModeRTE, words)),
-            4468u32 => Ok((Capability::RoundingModeRTZ, words)),
-            5301u32 => Ok((Capability::ShaderNonUniform, words)),
-            5302u32 => Ok((Capability::RuntimeDescriptorArray, words)),
-            5303u32 => Ok((Capability::InputAttachmentArrayDynamicIndexing, words)),
-            5304u32 => Ok((Capability::UniformTexelBufferArrayDynamicIndexing, words)),
-            5305u32 => Ok((Capability::StorageTexelBufferArrayDynamicIndexing, words)),
-            5306u32 => Ok((Capability::UniformBufferArrayNonUniformIndexing, words)),
-            5307u32 => Ok((Capability::SampledImageArrayNonUniformIndexing, words)),
-            5308u32 => Ok((Capability::StorageBufferArrayNonUniformIndexing, words)),
-            5309u32 => Ok((Capability::StorageImageArrayNonUniformIndexing, words)),
-            5310u32 => Ok((Capability::InputAttachmentArrayNonUniformIndexing, words)),
-            5311u32 => Ok((Capability::UniformTexelBufferArrayNonUniformIndexing, words)),
-            5312u32 => Ok((Capability::StorageTexelBufferArrayNonUniformIndexing, words)),
-            5345u32 => Ok((Capability::VulkanMemoryModel, words)),
-            5346u32 => Ok((Capability::VulkanMemoryModelDeviceScope, words)),
-            5347u32 => Ok((Capability::PhysicalStorageBufferAddresses, words)),
+            0u32 => Ok((Capability::Matrix(CapabilityMatrix), words)),
+            1u32 => Ok((Capability::Shader(CapabilityShader), words)),
+            2u32 => Ok((Capability::Geometry(CapabilityGeometry), words)),
+            3u32 => Ok((Capability::Tessellation(CapabilityTessellation), words)),
+            4u32 => Ok((Capability::Addresses(CapabilityAddresses), words)),
+            5u32 => Ok((Capability::Linkage(CapabilityLinkage), words)),
+            6u32 => Ok((Capability::Kernel(CapabilityKernel), words)),
+            7u32 => Ok((Capability::Vector16(CapabilityVector16), words)),
+            8u32 => Ok((Capability::Float16Buffer(CapabilityFloat16Buffer), words)),
+            9u32 => Ok((Capability::Float16(CapabilityFloat16), words)),
+            10u32 => Ok((Capability::Float64(CapabilityFloat64), words)),
+            11u32 => Ok((Capability::Int64(CapabilityInt64), words)),
+            12u32 => Ok((Capability::Int64Atomics(CapabilityInt64Atomics), words)),
+            13u32 => Ok((Capability::ImageBasic(CapabilityImageBasic), words)),
+            14u32 => Ok((Capability::ImageReadWrite(CapabilityImageReadWrite), words)),
+            15u32 => Ok((Capability::ImageMipmap(CapabilityImageMipmap), words)),
+            17u32 => Ok((Capability::Pipes(CapabilityPipes), words)),
+            18u32 => Ok((Capability::Groups(CapabilityGroups), words)),
+            19u32 => Ok((Capability::DeviceEnqueue(CapabilityDeviceEnqueue), words)),
+            20u32 => Ok((Capability::LiteralSampler(CapabilityLiteralSampler), words)),
+            21u32 => Ok((Capability::AtomicStorage(CapabilityAtomicStorage), words)),
+            22u32 => Ok((Capability::Int16(CapabilityInt16), words)),
+            23u32 => Ok((
+                Capability::TessellationPointSize(CapabilityTessellationPointSize),
+                words,
+            )),
+            24u32 => Ok((
+                Capability::GeometryPointSize(CapabilityGeometryPointSize),
+                words,
+            )),
+            25u32 => Ok((
+                Capability::ImageGatherExtended(CapabilityImageGatherExtended),
+                words,
+            )),
+            27u32 => Ok((
+                Capability::StorageImageMultisample(CapabilityStorageImageMultisample),
+                words,
+            )),
+            28u32 => Ok((
+                Capability::UniformBufferArrayDynamicIndexing(
+                    CapabilityUniformBufferArrayDynamicIndexing,
+                ),
+                words,
+            )),
+            29u32 => Ok((
+                Capability::SampledImageArrayDynamicIndexing(
+                    CapabilitySampledImageArrayDynamicIndexing,
+                ),
+                words,
+            )),
+            30u32 => Ok((
+                Capability::StorageBufferArrayDynamicIndexing(
+                    CapabilityStorageBufferArrayDynamicIndexing,
+                ),
+                words,
+            )),
+            31u32 => Ok((
+                Capability::StorageImageArrayDynamicIndexing(
+                    CapabilityStorageImageArrayDynamicIndexing,
+                ),
+                words,
+            )),
+            32u32 => Ok((Capability::ClipDistance(CapabilityClipDistance), words)),
+            33u32 => Ok((Capability::CullDistance(CapabilityCullDistance), words)),
+            34u32 => Ok((Capability::ImageCubeArray(CapabilityImageCubeArray), words)),
+            35u32 => Ok((
+                Capability::SampleRateShading(CapabilitySampleRateShading),
+                words,
+            )),
+            36u32 => Ok((Capability::ImageRect(CapabilityImageRect), words)),
+            37u32 => Ok((Capability::SampledRect(CapabilitySampledRect), words)),
+            38u32 => Ok((Capability::GenericPointer(CapabilityGenericPointer), words)),
+            39u32 => Ok((Capability::Int8(CapabilityInt8), words)),
+            40u32 => Ok((
+                Capability::InputAttachment(CapabilityInputAttachment),
+                words,
+            )),
+            41u32 => Ok((
+                Capability::SparseResidency(CapabilitySparseResidency),
+                words,
+            )),
+            42u32 => Ok((Capability::MinLod(CapabilityMinLod), words)),
+            43u32 => Ok((Capability::Sampled1D(CapabilitySampled1D), words)),
+            44u32 => Ok((Capability::Image1D(CapabilityImage1D), words)),
+            45u32 => Ok((
+                Capability::SampledCubeArray(CapabilitySampledCubeArray),
+                words,
+            )),
+            46u32 => Ok((Capability::SampledBuffer(CapabilitySampledBuffer), words)),
+            47u32 => Ok((Capability::ImageBuffer(CapabilityImageBuffer), words)),
+            48u32 => Ok((Capability::ImageMSArray(CapabilityImageMSArray), words)),
+            49u32 => Ok((
+                Capability::StorageImageExtendedFormats(CapabilityStorageImageExtendedFormats),
+                words,
+            )),
+            50u32 => Ok((Capability::ImageQuery(CapabilityImageQuery), words)),
+            51u32 => Ok((
+                Capability::DerivativeControl(CapabilityDerivativeControl),
+                words,
+            )),
+            52u32 => Ok((
+                Capability::InterpolationFunction(CapabilityInterpolationFunction),
+                words,
+            )),
+            53u32 => Ok((
+                Capability::TransformFeedback(CapabilityTransformFeedback),
+                words,
+            )),
+            54u32 => Ok((
+                Capability::GeometryStreams(CapabilityGeometryStreams),
+                words,
+            )),
+            55u32 => Ok((
+                Capability::StorageImageReadWithoutFormat(CapabilityStorageImageReadWithoutFormat),
+                words,
+            )),
+            56u32 => Ok((
+                Capability::StorageImageWriteWithoutFormat(
+                    CapabilityStorageImageWriteWithoutFormat,
+                ),
+                words,
+            )),
+            57u32 => Ok((Capability::MultiViewport(CapabilityMultiViewport), words)),
+            58u32 => Ok((
+                Capability::SubgroupDispatch(CapabilitySubgroupDispatch),
+                words,
+            )),
+            59u32 => Ok((Capability::NamedBarrier(CapabilityNamedBarrier), words)),
+            60u32 => Ok((Capability::PipeStorage(CapabilityPipeStorage), words)),
+            61u32 => Ok((
+                Capability::GroupNonUniform(CapabilityGroupNonUniform),
+                words,
+            )),
+            62u32 => Ok((
+                Capability::GroupNonUniformVote(CapabilityGroupNonUniformVote),
+                words,
+            )),
+            63u32 => Ok((
+                Capability::GroupNonUniformArithmetic(CapabilityGroupNonUniformArithmetic),
+                words,
+            )),
+            64u32 => Ok((
+                Capability::GroupNonUniformBallot(CapabilityGroupNonUniformBallot),
+                words,
+            )),
+            65u32 => Ok((
+                Capability::GroupNonUniformShuffle(CapabilityGroupNonUniformShuffle),
+                words,
+            )),
+            66u32 => Ok((
+                Capability::GroupNonUniformShuffleRelative(
+                    CapabilityGroupNonUniformShuffleRelative,
+                ),
+                words,
+            )),
+            67u32 => Ok((
+                Capability::GroupNonUniformClustered(CapabilityGroupNonUniformClustered),
+                words,
+            )),
+            68u32 => Ok((
+                Capability::GroupNonUniformQuad(CapabilityGroupNonUniformQuad),
+                words,
+            )),
+            69u32 => Ok((Capability::ShaderLayer(CapabilityShaderLayer), words)),
+            70u32 => Ok((
+                Capability::ShaderViewportIndex(CapabilityShaderViewportIndex),
+                words,
+            )),
+            4427u32 => Ok((Capability::DrawParameters(CapabilityDrawParameters), words)),
+            4433u32 => Ok((
+                Capability::StorageBuffer16BitAccess(CapabilityStorageBuffer16BitAccess),
+                words,
+            )),
+            4434u32 => Ok((
+                Capability::UniformAndStorageBuffer16BitAccess(
+                    CapabilityUniformAndStorageBuffer16BitAccess,
+                ),
+                words,
+            )),
+            4435u32 => Ok((
+                Capability::StoragePushConstant16(CapabilityStoragePushConstant16),
+                words,
+            )),
+            4436u32 => Ok((
+                Capability::StorageInputOutput16(CapabilityStorageInputOutput16),
+                words,
+            )),
+            4437u32 => Ok((Capability::DeviceGroup(CapabilityDeviceGroup), words)),
+            4439u32 => Ok((Capability::MultiView(CapabilityMultiView), words)),
+            4441u32 => Ok((
+                Capability::VariablePointersStorageBuffer(CapabilityVariablePointersStorageBuffer),
+                words,
+            )),
+            4442u32 => Ok((
+                Capability::VariablePointers(CapabilityVariablePointers),
+                words,
+            )),
+            4448u32 => Ok((
+                Capability::StorageBuffer8BitAccess(CapabilityStorageBuffer8BitAccess),
+                words,
+            )),
+            4449u32 => Ok((
+                Capability::UniformAndStorageBuffer8BitAccess(
+                    CapabilityUniformAndStorageBuffer8BitAccess,
+                ),
+                words,
+            )),
+            4450u32 => Ok((
+                Capability::StoragePushConstant8(CapabilityStoragePushConstant8),
+                words,
+            )),
+            4464u32 => Ok((Capability::DenormPreserve(CapabilityDenormPreserve), words)),
+            4465u32 => Ok((
+                Capability::DenormFlushToZero(CapabilityDenormFlushToZero),
+                words,
+            )),
+            4466u32 => Ok((
+                Capability::SignedZeroInfNanPreserve(CapabilitySignedZeroInfNanPreserve),
+                words,
+            )),
+            4467u32 => Ok((
+                Capability::RoundingModeRTE(CapabilityRoundingModeRTE),
+                words,
+            )),
+            4468u32 => Ok((
+                Capability::RoundingModeRTZ(CapabilityRoundingModeRTZ),
+                words,
+            )),
+            5301u32 => Ok((
+                Capability::ShaderNonUniform(CapabilityShaderNonUniform),
+                words,
+            )),
+            5302u32 => Ok((
+                Capability::RuntimeDescriptorArray(CapabilityRuntimeDescriptorArray),
+                words,
+            )),
+            5303u32 => Ok((
+                Capability::InputAttachmentArrayDynamicIndexing(
+                    CapabilityInputAttachmentArrayDynamicIndexing,
+                ),
+                words,
+            )),
+            5304u32 => Ok((
+                Capability::UniformTexelBufferArrayDynamicIndexing(
+                    CapabilityUniformTexelBufferArrayDynamicIndexing,
+                ),
+                words,
+            )),
+            5305u32 => Ok((
+                Capability::StorageTexelBufferArrayDynamicIndexing(
+                    CapabilityStorageTexelBufferArrayDynamicIndexing,
+                ),
+                words,
+            )),
+            5306u32 => Ok((
+                Capability::UniformBufferArrayNonUniformIndexing(
+                    CapabilityUniformBufferArrayNonUniformIndexing,
+                ),
+                words,
+            )),
+            5307u32 => Ok((
+                Capability::SampledImageArrayNonUniformIndexing(
+                    CapabilitySampledImageArrayNonUniformIndexing,
+                ),
+                words,
+            )),
+            5308u32 => Ok((
+                Capability::StorageBufferArrayNonUniformIndexing(
+                    CapabilityStorageBufferArrayNonUniformIndexing,
+                ),
+                words,
+            )),
+            5309u32 => Ok((
+                Capability::StorageImageArrayNonUniformIndexing(
+                    CapabilityStorageImageArrayNonUniformIndexing,
+                ),
+                words,
+            )),
+            5310u32 => Ok((
+                Capability::InputAttachmentArrayNonUniformIndexing(
+                    CapabilityInputAttachmentArrayNonUniformIndexing,
+                ),
+                words,
+            )),
+            5311u32 => Ok((
+                Capability::UniformTexelBufferArrayNonUniformIndexing(
+                    CapabilityUniformTexelBufferArrayNonUniformIndexing,
+                ),
+                words,
+            )),
+            5312u32 => Ok((
+                Capability::StorageTexelBufferArrayNonUniformIndexing(
+                    CapabilityStorageTexelBufferArrayNonUniformIndexing,
+                ),
+                words,
+            )),
+            5345u32 => Ok((
+                Capability::VulkanMemoryModel(CapabilityVulkanMemoryModel),
+                words,
+            )),
+            5346u32 => Ok((
+                Capability::VulkanMemoryModelDeviceScope(CapabilityVulkanMemoryModelDeviceScope),
+                words,
+            )),
+            5347u32 => Ok((
+                Capability::PhysicalStorageBufferAddresses(
+                    CapabilityPhysicalStorageBufferAddresses,
+                ),
+                words,
+            )),
             _ => Err(Error::InvalidEnumValue),
         }
     }
@@ -3743,151 +7106,153 @@ impl SPIRVParse for Capability {
 impl SPIRVDisplay for Capability {
     fn spirv_display(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Capability::Matrix => write!(f, " {}", "Matrix"),
-            Capability::Shader => write!(f, " {}", "Shader"),
-            Capability::Geometry => write!(f, " {}", "Geometry"),
-            Capability::Tessellation => write!(f, " {}", "Tessellation"),
-            Capability::Addresses => write!(f, " {}", "Addresses"),
-            Capability::Linkage => write!(f, " {}", "Linkage"),
-            Capability::Kernel => write!(f, " {}", "Kernel"),
-            Capability::Vector16 => write!(f, " {}", "Vector16"),
-            Capability::Float16Buffer => write!(f, " {}", "Float16Buffer"),
-            Capability::Float16 => write!(f, " {}", "Float16"),
-            Capability::Float64 => write!(f, " {}", "Float64"),
-            Capability::Int64 => write!(f, " {}", "Int64"),
-            Capability::Int64Atomics => write!(f, " {}", "Int64Atomics"),
-            Capability::ImageBasic => write!(f, " {}", "ImageBasic"),
-            Capability::ImageReadWrite => write!(f, " {}", "ImageReadWrite"),
-            Capability::ImageMipmap => write!(f, " {}", "ImageMipmap"),
-            Capability::Pipes => write!(f, " {}", "Pipes"),
-            Capability::Groups => write!(f, " {}", "Groups"),
-            Capability::DeviceEnqueue => write!(f, " {}", "DeviceEnqueue"),
-            Capability::LiteralSampler => write!(f, " {}", "LiteralSampler"),
-            Capability::AtomicStorage => write!(f, " {}", "AtomicStorage"),
-            Capability::Int16 => write!(f, " {}", "Int16"),
-            Capability::TessellationPointSize => write!(f, " {}", "TessellationPointSize"),
-            Capability::GeometryPointSize => write!(f, " {}", "GeometryPointSize"),
-            Capability::ImageGatherExtended => write!(f, " {}", "ImageGatherExtended"),
-            Capability::StorageImageMultisample => write!(f, " {}", "StorageImageMultisample"),
-            Capability::UniformBufferArrayDynamicIndexing => {
+            Capability::Matrix(_) => write!(f, " {}", "Matrix"),
+            Capability::Shader(_) => write!(f, " {}", "Shader"),
+            Capability::Geometry(_) => write!(f, " {}", "Geometry"),
+            Capability::Tessellation(_) => write!(f, " {}", "Tessellation"),
+            Capability::Addresses(_) => write!(f, " {}", "Addresses"),
+            Capability::Linkage(_) => write!(f, " {}", "Linkage"),
+            Capability::Kernel(_) => write!(f, " {}", "Kernel"),
+            Capability::Vector16(_) => write!(f, " {}", "Vector16"),
+            Capability::Float16Buffer(_) => write!(f, " {}", "Float16Buffer"),
+            Capability::Float16(_) => write!(f, " {}", "Float16"),
+            Capability::Float64(_) => write!(f, " {}", "Float64"),
+            Capability::Int64(_) => write!(f, " {}", "Int64"),
+            Capability::Int64Atomics(_) => write!(f, " {}", "Int64Atomics"),
+            Capability::ImageBasic(_) => write!(f, " {}", "ImageBasic"),
+            Capability::ImageReadWrite(_) => write!(f, " {}", "ImageReadWrite"),
+            Capability::ImageMipmap(_) => write!(f, " {}", "ImageMipmap"),
+            Capability::Pipes(_) => write!(f, " {}", "Pipes"),
+            Capability::Groups(_) => write!(f, " {}", "Groups"),
+            Capability::DeviceEnqueue(_) => write!(f, " {}", "DeviceEnqueue"),
+            Capability::LiteralSampler(_) => write!(f, " {}", "LiteralSampler"),
+            Capability::AtomicStorage(_) => write!(f, " {}", "AtomicStorage"),
+            Capability::Int16(_) => write!(f, " {}", "Int16"),
+            Capability::TessellationPointSize(_) => write!(f, " {}", "TessellationPointSize"),
+            Capability::GeometryPointSize(_) => write!(f, " {}", "GeometryPointSize"),
+            Capability::ImageGatherExtended(_) => write!(f, " {}", "ImageGatherExtended"),
+            Capability::StorageImageMultisample(_) => write!(f, " {}", "StorageImageMultisample"),
+            Capability::UniformBufferArrayDynamicIndexing(_) => {
                 write!(f, " {}", "UniformBufferArrayDynamicIndexing")
             }
-            Capability::SampledImageArrayDynamicIndexing => {
+            Capability::SampledImageArrayDynamicIndexing(_) => {
                 write!(f, " {}", "SampledImageArrayDynamicIndexing")
             }
-            Capability::StorageBufferArrayDynamicIndexing => {
+            Capability::StorageBufferArrayDynamicIndexing(_) => {
                 write!(f, " {}", "StorageBufferArrayDynamicIndexing")
             }
-            Capability::StorageImageArrayDynamicIndexing => {
+            Capability::StorageImageArrayDynamicIndexing(_) => {
                 write!(f, " {}", "StorageImageArrayDynamicIndexing")
             }
-            Capability::ClipDistance => write!(f, " {}", "ClipDistance"),
-            Capability::CullDistance => write!(f, " {}", "CullDistance"),
-            Capability::ImageCubeArray => write!(f, " {}", "ImageCubeArray"),
-            Capability::SampleRateShading => write!(f, " {}", "SampleRateShading"),
-            Capability::ImageRect => write!(f, " {}", "ImageRect"),
-            Capability::SampledRect => write!(f, " {}", "SampledRect"),
-            Capability::GenericPointer => write!(f, " {}", "GenericPointer"),
-            Capability::Int8 => write!(f, " {}", "Int8"),
-            Capability::InputAttachment => write!(f, " {}", "InputAttachment"),
-            Capability::SparseResidency => write!(f, " {}", "SparseResidency"),
-            Capability::MinLod => write!(f, " {}", "MinLod"),
-            Capability::Sampled1D => write!(f, " {}", "Sampled1D"),
-            Capability::Image1D => write!(f, " {}", "Image1D"),
-            Capability::SampledCubeArray => write!(f, " {}", "SampledCubeArray"),
-            Capability::SampledBuffer => write!(f, " {}", "SampledBuffer"),
-            Capability::ImageBuffer => write!(f, " {}", "ImageBuffer"),
-            Capability::ImageMSArray => write!(f, " {}", "ImageMSArray"),
-            Capability::StorageImageExtendedFormats => {
+            Capability::ClipDistance(_) => write!(f, " {}", "ClipDistance"),
+            Capability::CullDistance(_) => write!(f, " {}", "CullDistance"),
+            Capability::ImageCubeArray(_) => write!(f, " {}", "ImageCubeArray"),
+            Capability::SampleRateShading(_) => write!(f, " {}", "SampleRateShading"),
+            Capability::ImageRect(_) => write!(f, " {}", "ImageRect"),
+            Capability::SampledRect(_) => write!(f, " {}", "SampledRect"),
+            Capability::GenericPointer(_) => write!(f, " {}", "GenericPointer"),
+            Capability::Int8(_) => write!(f, " {}", "Int8"),
+            Capability::InputAttachment(_) => write!(f, " {}", "InputAttachment"),
+            Capability::SparseResidency(_) => write!(f, " {}", "SparseResidency"),
+            Capability::MinLod(_) => write!(f, " {}", "MinLod"),
+            Capability::Sampled1D(_) => write!(f, " {}", "Sampled1D"),
+            Capability::Image1D(_) => write!(f, " {}", "Image1D"),
+            Capability::SampledCubeArray(_) => write!(f, " {}", "SampledCubeArray"),
+            Capability::SampledBuffer(_) => write!(f, " {}", "SampledBuffer"),
+            Capability::ImageBuffer(_) => write!(f, " {}", "ImageBuffer"),
+            Capability::ImageMSArray(_) => write!(f, " {}", "ImageMSArray"),
+            Capability::StorageImageExtendedFormats(_) => {
                 write!(f, " {}", "StorageImageExtendedFormats")
             }
-            Capability::ImageQuery => write!(f, " {}", "ImageQuery"),
-            Capability::DerivativeControl => write!(f, " {}", "DerivativeControl"),
-            Capability::InterpolationFunction => write!(f, " {}", "InterpolationFunction"),
-            Capability::TransformFeedback => write!(f, " {}", "TransformFeedback"),
-            Capability::GeometryStreams => write!(f, " {}", "GeometryStreams"),
-            Capability::StorageImageReadWithoutFormat => {
+            Capability::ImageQuery(_) => write!(f, " {}", "ImageQuery"),
+            Capability::DerivativeControl(_) => write!(f, " {}", "DerivativeControl"),
+            Capability::InterpolationFunction(_) => write!(f, " {}", "InterpolationFunction"),
+            Capability::TransformFeedback(_) => write!(f, " {}", "TransformFeedback"),
+            Capability::GeometryStreams(_) => write!(f, " {}", "GeometryStreams"),
+            Capability::StorageImageReadWithoutFormat(_) => {
                 write!(f, " {}", "StorageImageReadWithoutFormat")
             }
-            Capability::StorageImageWriteWithoutFormat => {
+            Capability::StorageImageWriteWithoutFormat(_) => {
                 write!(f, " {}", "StorageImageWriteWithoutFormat")
             }
-            Capability::MultiViewport => write!(f, " {}", "MultiViewport"),
-            Capability::SubgroupDispatch => write!(f, " {}", "SubgroupDispatch"),
-            Capability::NamedBarrier => write!(f, " {}", "NamedBarrier"),
-            Capability::PipeStorage => write!(f, " {}", "PipeStorage"),
-            Capability::GroupNonUniform => write!(f, " {}", "GroupNonUniform"),
-            Capability::GroupNonUniformVote => write!(f, " {}", "GroupNonUniformVote"),
-            Capability::GroupNonUniformArithmetic => write!(f, " {}", "GroupNonUniformArithmetic"),
-            Capability::GroupNonUniformBallot => write!(f, " {}", "GroupNonUniformBallot"),
-            Capability::GroupNonUniformShuffle => write!(f, " {}", "GroupNonUniformShuffle"),
-            Capability::GroupNonUniformShuffleRelative => {
+            Capability::MultiViewport(_) => write!(f, " {}", "MultiViewport"),
+            Capability::SubgroupDispatch(_) => write!(f, " {}", "SubgroupDispatch"),
+            Capability::NamedBarrier(_) => write!(f, " {}", "NamedBarrier"),
+            Capability::PipeStorage(_) => write!(f, " {}", "PipeStorage"),
+            Capability::GroupNonUniform(_) => write!(f, " {}", "GroupNonUniform"),
+            Capability::GroupNonUniformVote(_) => write!(f, " {}", "GroupNonUniformVote"),
+            Capability::GroupNonUniformArithmetic(_) => {
+                write!(f, " {}", "GroupNonUniformArithmetic")
+            }
+            Capability::GroupNonUniformBallot(_) => write!(f, " {}", "GroupNonUniformBallot"),
+            Capability::GroupNonUniformShuffle(_) => write!(f, " {}", "GroupNonUniformShuffle"),
+            Capability::GroupNonUniformShuffleRelative(_) => {
                 write!(f, " {}", "GroupNonUniformShuffleRelative")
             }
-            Capability::GroupNonUniformClustered => write!(f, " {}", "GroupNonUniformClustered"),
-            Capability::GroupNonUniformQuad => write!(f, " {}", "GroupNonUniformQuad"),
-            Capability::ShaderLayer => write!(f, " {}", "ShaderLayer"),
-            Capability::ShaderViewportIndex => write!(f, " {}", "ShaderViewportIndex"),
-            Capability::DrawParameters => write!(f, " {}", "DrawParameters"),
-            Capability::StorageBuffer16BitAccess => write!(f, " {}", "StorageBuffer16BitAccess"),
-            Capability::UniformAndStorageBuffer16BitAccess => {
+            Capability::GroupNonUniformClustered(_) => write!(f, " {}", "GroupNonUniformClustered"),
+            Capability::GroupNonUniformQuad(_) => write!(f, " {}", "GroupNonUniformQuad"),
+            Capability::ShaderLayer(_) => write!(f, " {}", "ShaderLayer"),
+            Capability::ShaderViewportIndex(_) => write!(f, " {}", "ShaderViewportIndex"),
+            Capability::DrawParameters(_) => write!(f, " {}", "DrawParameters"),
+            Capability::StorageBuffer16BitAccess(_) => write!(f, " {}", "StorageBuffer16BitAccess"),
+            Capability::UniformAndStorageBuffer16BitAccess(_) => {
                 write!(f, " {}", "UniformAndStorageBuffer16BitAccess")
             }
-            Capability::StoragePushConstant16 => write!(f, " {}", "StoragePushConstant16"),
-            Capability::StorageInputOutput16 => write!(f, " {}", "StorageInputOutput16"),
-            Capability::DeviceGroup => write!(f, " {}", "DeviceGroup"),
-            Capability::MultiView => write!(f, " {}", "MultiView"),
-            Capability::VariablePointersStorageBuffer => {
+            Capability::StoragePushConstant16(_) => write!(f, " {}", "StoragePushConstant16"),
+            Capability::StorageInputOutput16(_) => write!(f, " {}", "StorageInputOutput16"),
+            Capability::DeviceGroup(_) => write!(f, " {}", "DeviceGroup"),
+            Capability::MultiView(_) => write!(f, " {}", "MultiView"),
+            Capability::VariablePointersStorageBuffer(_) => {
                 write!(f, " {}", "VariablePointersStorageBuffer")
             }
-            Capability::VariablePointers => write!(f, " {}", "VariablePointers"),
-            Capability::StorageBuffer8BitAccess => write!(f, " {}", "StorageBuffer8BitAccess"),
-            Capability::UniformAndStorageBuffer8BitAccess => {
+            Capability::VariablePointers(_) => write!(f, " {}", "VariablePointers"),
+            Capability::StorageBuffer8BitAccess(_) => write!(f, " {}", "StorageBuffer8BitAccess"),
+            Capability::UniformAndStorageBuffer8BitAccess(_) => {
                 write!(f, " {}", "UniformAndStorageBuffer8BitAccess")
             }
-            Capability::StoragePushConstant8 => write!(f, " {}", "StoragePushConstant8"),
-            Capability::DenormPreserve => write!(f, " {}", "DenormPreserve"),
-            Capability::DenormFlushToZero => write!(f, " {}", "DenormFlushToZero"),
-            Capability::SignedZeroInfNanPreserve => write!(f, " {}", "SignedZeroInfNanPreserve"),
-            Capability::RoundingModeRTE => write!(f, " {}", "RoundingModeRTE"),
-            Capability::RoundingModeRTZ => write!(f, " {}", "RoundingModeRTZ"),
-            Capability::ShaderNonUniform => write!(f, " {}", "ShaderNonUniform"),
-            Capability::RuntimeDescriptorArray => write!(f, " {}", "RuntimeDescriptorArray"),
-            Capability::InputAttachmentArrayDynamicIndexing => {
+            Capability::StoragePushConstant8(_) => write!(f, " {}", "StoragePushConstant8"),
+            Capability::DenormPreserve(_) => write!(f, " {}", "DenormPreserve"),
+            Capability::DenormFlushToZero(_) => write!(f, " {}", "DenormFlushToZero"),
+            Capability::SignedZeroInfNanPreserve(_) => write!(f, " {}", "SignedZeroInfNanPreserve"),
+            Capability::RoundingModeRTE(_) => write!(f, " {}", "RoundingModeRTE"),
+            Capability::RoundingModeRTZ(_) => write!(f, " {}", "RoundingModeRTZ"),
+            Capability::ShaderNonUniform(_) => write!(f, " {}", "ShaderNonUniform"),
+            Capability::RuntimeDescriptorArray(_) => write!(f, " {}", "RuntimeDescriptorArray"),
+            Capability::InputAttachmentArrayDynamicIndexing(_) => {
                 write!(f, " {}", "InputAttachmentArrayDynamicIndexing")
             }
-            Capability::UniformTexelBufferArrayDynamicIndexing => {
+            Capability::UniformTexelBufferArrayDynamicIndexing(_) => {
                 write!(f, " {}", "UniformTexelBufferArrayDynamicIndexing")
             }
-            Capability::StorageTexelBufferArrayDynamicIndexing => {
+            Capability::StorageTexelBufferArrayDynamicIndexing(_) => {
                 write!(f, " {}", "StorageTexelBufferArrayDynamicIndexing")
             }
-            Capability::UniformBufferArrayNonUniformIndexing => {
+            Capability::UniformBufferArrayNonUniformIndexing(_) => {
                 write!(f, " {}", "UniformBufferArrayNonUniformIndexing")
             }
-            Capability::SampledImageArrayNonUniformIndexing => {
+            Capability::SampledImageArrayNonUniformIndexing(_) => {
                 write!(f, " {}", "SampledImageArrayNonUniformIndexing")
             }
-            Capability::StorageBufferArrayNonUniformIndexing => {
+            Capability::StorageBufferArrayNonUniformIndexing(_) => {
                 write!(f, " {}", "StorageBufferArrayNonUniformIndexing")
             }
-            Capability::StorageImageArrayNonUniformIndexing => {
+            Capability::StorageImageArrayNonUniformIndexing(_) => {
                 write!(f, " {}", "StorageImageArrayNonUniformIndexing")
             }
-            Capability::InputAttachmentArrayNonUniformIndexing => {
+            Capability::InputAttachmentArrayNonUniformIndexing(_) => {
                 write!(f, " {}", "InputAttachmentArrayNonUniformIndexing")
             }
-            Capability::UniformTexelBufferArrayNonUniformIndexing => {
+            Capability::UniformTexelBufferArrayNonUniformIndexing(_) => {
                 write!(f, " {}", "UniformTexelBufferArrayNonUniformIndexing")
             }
-            Capability::StorageTexelBufferArrayNonUniformIndexing => {
+            Capability::StorageTexelBufferArrayNonUniformIndexing(_) => {
                 write!(f, " {}", "StorageTexelBufferArrayNonUniformIndexing")
             }
-            Capability::VulkanMemoryModel => write!(f, " {}", "VulkanMemoryModel"),
-            Capability::VulkanMemoryModelDeviceScope => {
+            Capability::VulkanMemoryModel(_) => write!(f, " {}", "VulkanMemoryModel"),
+            Capability::VulkanMemoryModelDeviceScope(_) => {
                 write!(f, " {}", "VulkanMemoryModelDeviceScope")
             }
-            Capability::PhysicalStorageBufferAddresses => {
+            Capability::PhysicalStorageBufferAddresses(_) => {
                 write!(f, " {}", "PhysicalStorageBufferAddresses")
             }
         }
@@ -5097,7 +8462,7 @@ impl fmt::Display for OpSpecConstantOp {
         }
     }
 }
-#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
 pub struct OpNop;
 impl From<OpNop> for Instruction {
     fn from(v: OpNop) -> Self {
@@ -5631,7 +8996,7 @@ impl From<OpFunctionParameter> for Instruction {
         Self::FunctionParameter(v)
     }
 }
-#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
 pub struct OpFunctionEnd;
 impl From<OpFunctionEnd> for Instruction {
     fn from(v: OpFunctionEnd) -> Self {
@@ -7410,14 +10775,14 @@ impl From<OpFwidthCoarse> for Instruction {
         Self::FwidthCoarse(v)
     }
 }
-#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
 pub struct OpEmitVertex;
 impl From<OpEmitVertex> for Instruction {
     fn from(v: OpEmitVertex) -> Self {
         Self::EmitVertex(v)
     }
 }
-#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
 pub struct OpEndPrimitive;
 impl From<OpEndPrimitive> for Instruction {
     fn from(v: OpEndPrimitive) -> Self {
@@ -7770,14 +11135,14 @@ impl From<OpSwitch64> for Instruction {
         Self::Switch64(v)
     }
 }
-#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
 pub struct OpKill;
 impl From<OpKill> for Instruction {
     fn from(v: OpKill) -> Self {
         Self::Kill(v)
     }
 }
-#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
 pub struct OpReturn;
 impl From<OpReturn> for Instruction {
     fn from(v: OpReturn) -> Self {
@@ -7793,7 +11158,7 @@ impl From<OpReturnValue> for Instruction {
         Self::ReturnValue(v)
     }
 }
-#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
 pub struct OpUnreachable;
 impl From<OpUnreachable> for Instruction {
     fn from(v: OpUnreachable) -> Self {
@@ -8475,7 +11840,7 @@ impl From<OpImageSparseTexelsResident> for Instruction {
         Self::ImageSparseTexelsResident(v)
     }
 }
-#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
 pub struct OpNoLine;
 impl From<OpNoLine> for Instruction {
     fn from(v: OpNoLine) -> Self {
@@ -9166,1017 +12531,6 @@ pub struct OpMemberDecorateString {
 impl From<OpMemberDecorateString> for Instruction {
     fn from(v: OpMemberDecorateString) -> Self {
         Self::MemberDecorateString(v)
-    }
-}
-#[derive(Clone, Debug)]
-pub struct OpGLSLStd450Round {
-    pub id_result_type: IdResultType,
-    pub id_result: IdResult,
-    pub set: IdRef,
-    pub x: IdRef,
-}
-impl From<OpGLSLStd450Round> for Instruction {
-    fn from(v: OpGLSLStd450Round) -> Self {
-        Self::GLSLStd450Round(v)
-    }
-}
-#[derive(Clone, Debug)]
-pub struct OpGLSLStd450RoundEven {
-    pub id_result_type: IdResultType,
-    pub id_result: IdResult,
-    pub set: IdRef,
-    pub x: IdRef,
-}
-impl From<OpGLSLStd450RoundEven> for Instruction {
-    fn from(v: OpGLSLStd450RoundEven) -> Self {
-        Self::GLSLStd450RoundEven(v)
-    }
-}
-#[derive(Clone, Debug)]
-pub struct OpGLSLStd450Trunc {
-    pub id_result_type: IdResultType,
-    pub id_result: IdResult,
-    pub set: IdRef,
-    pub x: IdRef,
-}
-impl From<OpGLSLStd450Trunc> for Instruction {
-    fn from(v: OpGLSLStd450Trunc) -> Self {
-        Self::GLSLStd450Trunc(v)
-    }
-}
-#[derive(Clone, Debug)]
-pub struct OpGLSLStd450FAbs {
-    pub id_result_type: IdResultType,
-    pub id_result: IdResult,
-    pub set: IdRef,
-    pub x: IdRef,
-}
-impl From<OpGLSLStd450FAbs> for Instruction {
-    fn from(v: OpGLSLStd450FAbs) -> Self {
-        Self::GLSLStd450FAbs(v)
-    }
-}
-#[derive(Clone, Debug)]
-pub struct OpGLSLStd450SAbs {
-    pub id_result_type: IdResultType,
-    pub id_result: IdResult,
-    pub set: IdRef,
-    pub x: IdRef,
-}
-impl From<OpGLSLStd450SAbs> for Instruction {
-    fn from(v: OpGLSLStd450SAbs) -> Self {
-        Self::GLSLStd450SAbs(v)
-    }
-}
-#[derive(Clone, Debug)]
-pub struct OpGLSLStd450FSign {
-    pub id_result_type: IdResultType,
-    pub id_result: IdResult,
-    pub set: IdRef,
-    pub x: IdRef,
-}
-impl From<OpGLSLStd450FSign> for Instruction {
-    fn from(v: OpGLSLStd450FSign) -> Self {
-        Self::GLSLStd450FSign(v)
-    }
-}
-#[derive(Clone, Debug)]
-pub struct OpGLSLStd450SSign {
-    pub id_result_type: IdResultType,
-    pub id_result: IdResult,
-    pub set: IdRef,
-    pub x: IdRef,
-}
-impl From<OpGLSLStd450SSign> for Instruction {
-    fn from(v: OpGLSLStd450SSign) -> Self {
-        Self::GLSLStd450SSign(v)
-    }
-}
-#[derive(Clone, Debug)]
-pub struct OpGLSLStd450Floor {
-    pub id_result_type: IdResultType,
-    pub id_result: IdResult,
-    pub set: IdRef,
-    pub x: IdRef,
-}
-impl From<OpGLSLStd450Floor> for Instruction {
-    fn from(v: OpGLSLStd450Floor) -> Self {
-        Self::GLSLStd450Floor(v)
-    }
-}
-#[derive(Clone, Debug)]
-pub struct OpGLSLStd450Ceil {
-    pub id_result_type: IdResultType,
-    pub id_result: IdResult,
-    pub set: IdRef,
-    pub x: IdRef,
-}
-impl From<OpGLSLStd450Ceil> for Instruction {
-    fn from(v: OpGLSLStd450Ceil) -> Self {
-        Self::GLSLStd450Ceil(v)
-    }
-}
-#[derive(Clone, Debug)]
-pub struct OpGLSLStd450Fract {
-    pub id_result_type: IdResultType,
-    pub id_result: IdResult,
-    pub set: IdRef,
-    pub x: IdRef,
-}
-impl From<OpGLSLStd450Fract> for Instruction {
-    fn from(v: OpGLSLStd450Fract) -> Self {
-        Self::GLSLStd450Fract(v)
-    }
-}
-#[derive(Clone, Debug)]
-pub struct OpGLSLStd450Radians {
-    pub id_result_type: IdResultType,
-    pub id_result: IdResult,
-    pub set: IdRef,
-    pub degrees: IdRef,
-}
-impl From<OpGLSLStd450Radians> for Instruction {
-    fn from(v: OpGLSLStd450Radians) -> Self {
-        Self::GLSLStd450Radians(v)
-    }
-}
-#[derive(Clone, Debug)]
-pub struct OpGLSLStd450Degrees {
-    pub id_result_type: IdResultType,
-    pub id_result: IdResult,
-    pub set: IdRef,
-    pub radians: IdRef,
-}
-impl From<OpGLSLStd450Degrees> for Instruction {
-    fn from(v: OpGLSLStd450Degrees) -> Self {
-        Self::GLSLStd450Degrees(v)
-    }
-}
-#[derive(Clone, Debug)]
-pub struct OpGLSLStd450Sin {
-    pub id_result_type: IdResultType,
-    pub id_result: IdResult,
-    pub set: IdRef,
-    pub x: IdRef,
-}
-impl From<OpGLSLStd450Sin> for Instruction {
-    fn from(v: OpGLSLStd450Sin) -> Self {
-        Self::GLSLStd450Sin(v)
-    }
-}
-#[derive(Clone, Debug)]
-pub struct OpGLSLStd450Cos {
-    pub id_result_type: IdResultType,
-    pub id_result: IdResult,
-    pub set: IdRef,
-    pub x: IdRef,
-}
-impl From<OpGLSLStd450Cos> for Instruction {
-    fn from(v: OpGLSLStd450Cos) -> Self {
-        Self::GLSLStd450Cos(v)
-    }
-}
-#[derive(Clone, Debug)]
-pub struct OpGLSLStd450Tan {
-    pub id_result_type: IdResultType,
-    pub id_result: IdResult,
-    pub set: IdRef,
-    pub x: IdRef,
-}
-impl From<OpGLSLStd450Tan> for Instruction {
-    fn from(v: OpGLSLStd450Tan) -> Self {
-        Self::GLSLStd450Tan(v)
-    }
-}
-#[derive(Clone, Debug)]
-pub struct OpGLSLStd450Asin {
-    pub id_result_type: IdResultType,
-    pub id_result: IdResult,
-    pub set: IdRef,
-    pub x: IdRef,
-}
-impl From<OpGLSLStd450Asin> for Instruction {
-    fn from(v: OpGLSLStd450Asin) -> Self {
-        Self::GLSLStd450Asin(v)
-    }
-}
-#[derive(Clone, Debug)]
-pub struct OpGLSLStd450Acos {
-    pub id_result_type: IdResultType,
-    pub id_result: IdResult,
-    pub set: IdRef,
-    pub x: IdRef,
-}
-impl From<OpGLSLStd450Acos> for Instruction {
-    fn from(v: OpGLSLStd450Acos) -> Self {
-        Self::GLSLStd450Acos(v)
-    }
-}
-#[derive(Clone, Debug)]
-pub struct OpGLSLStd450Atan {
-    pub id_result_type: IdResultType,
-    pub id_result: IdResult,
-    pub set: IdRef,
-    pub y_over_x: IdRef,
-}
-impl From<OpGLSLStd450Atan> for Instruction {
-    fn from(v: OpGLSLStd450Atan) -> Self {
-        Self::GLSLStd450Atan(v)
-    }
-}
-#[derive(Clone, Debug)]
-pub struct OpGLSLStd450Sinh {
-    pub id_result_type: IdResultType,
-    pub id_result: IdResult,
-    pub set: IdRef,
-    pub x: IdRef,
-}
-impl From<OpGLSLStd450Sinh> for Instruction {
-    fn from(v: OpGLSLStd450Sinh) -> Self {
-        Self::GLSLStd450Sinh(v)
-    }
-}
-#[derive(Clone, Debug)]
-pub struct OpGLSLStd450Cosh {
-    pub id_result_type: IdResultType,
-    pub id_result: IdResult,
-    pub set: IdRef,
-    pub x: IdRef,
-}
-impl From<OpGLSLStd450Cosh> for Instruction {
-    fn from(v: OpGLSLStd450Cosh) -> Self {
-        Self::GLSLStd450Cosh(v)
-    }
-}
-#[derive(Clone, Debug)]
-pub struct OpGLSLStd450Tanh {
-    pub id_result_type: IdResultType,
-    pub id_result: IdResult,
-    pub set: IdRef,
-    pub x: IdRef,
-}
-impl From<OpGLSLStd450Tanh> for Instruction {
-    fn from(v: OpGLSLStd450Tanh) -> Self {
-        Self::GLSLStd450Tanh(v)
-    }
-}
-#[derive(Clone, Debug)]
-pub struct OpGLSLStd450Asinh {
-    pub id_result_type: IdResultType,
-    pub id_result: IdResult,
-    pub set: IdRef,
-    pub x: IdRef,
-}
-impl From<OpGLSLStd450Asinh> for Instruction {
-    fn from(v: OpGLSLStd450Asinh) -> Self {
-        Self::GLSLStd450Asinh(v)
-    }
-}
-#[derive(Clone, Debug)]
-pub struct OpGLSLStd450Acosh {
-    pub id_result_type: IdResultType,
-    pub id_result: IdResult,
-    pub set: IdRef,
-    pub x: IdRef,
-}
-impl From<OpGLSLStd450Acosh> for Instruction {
-    fn from(v: OpGLSLStd450Acosh) -> Self {
-        Self::GLSLStd450Acosh(v)
-    }
-}
-#[derive(Clone, Debug)]
-pub struct OpGLSLStd450Atanh {
-    pub id_result_type: IdResultType,
-    pub id_result: IdResult,
-    pub set: IdRef,
-    pub x: IdRef,
-}
-impl From<OpGLSLStd450Atanh> for Instruction {
-    fn from(v: OpGLSLStd450Atanh) -> Self {
-        Self::GLSLStd450Atanh(v)
-    }
-}
-#[derive(Clone, Debug)]
-pub struct OpGLSLStd450Atan2 {
-    pub id_result_type: IdResultType,
-    pub id_result: IdResult,
-    pub set: IdRef,
-    pub y: IdRef,
-    pub x: IdRef,
-}
-impl From<OpGLSLStd450Atan2> for Instruction {
-    fn from(v: OpGLSLStd450Atan2) -> Self {
-        Self::GLSLStd450Atan2(v)
-    }
-}
-#[derive(Clone, Debug)]
-pub struct OpGLSLStd450Pow {
-    pub id_result_type: IdResultType,
-    pub id_result: IdResult,
-    pub set: IdRef,
-    pub x: IdRef,
-    pub y: IdRef,
-}
-impl From<OpGLSLStd450Pow> for Instruction {
-    fn from(v: OpGLSLStd450Pow) -> Self {
-        Self::GLSLStd450Pow(v)
-    }
-}
-#[derive(Clone, Debug)]
-pub struct OpGLSLStd450Exp {
-    pub id_result_type: IdResultType,
-    pub id_result: IdResult,
-    pub set: IdRef,
-    pub x: IdRef,
-}
-impl From<OpGLSLStd450Exp> for Instruction {
-    fn from(v: OpGLSLStd450Exp) -> Self {
-        Self::GLSLStd450Exp(v)
-    }
-}
-#[derive(Clone, Debug)]
-pub struct OpGLSLStd450Log {
-    pub id_result_type: IdResultType,
-    pub id_result: IdResult,
-    pub set: IdRef,
-    pub x: IdRef,
-}
-impl From<OpGLSLStd450Log> for Instruction {
-    fn from(v: OpGLSLStd450Log) -> Self {
-        Self::GLSLStd450Log(v)
-    }
-}
-#[derive(Clone, Debug)]
-pub struct OpGLSLStd450Exp2 {
-    pub id_result_type: IdResultType,
-    pub id_result: IdResult,
-    pub set: IdRef,
-    pub x: IdRef,
-}
-impl From<OpGLSLStd450Exp2> for Instruction {
-    fn from(v: OpGLSLStd450Exp2) -> Self {
-        Self::GLSLStd450Exp2(v)
-    }
-}
-#[derive(Clone, Debug)]
-pub struct OpGLSLStd450Log2 {
-    pub id_result_type: IdResultType,
-    pub id_result: IdResult,
-    pub set: IdRef,
-    pub x: IdRef,
-}
-impl From<OpGLSLStd450Log2> for Instruction {
-    fn from(v: OpGLSLStd450Log2) -> Self {
-        Self::GLSLStd450Log2(v)
-    }
-}
-#[derive(Clone, Debug)]
-pub struct OpGLSLStd450Sqrt {
-    pub id_result_type: IdResultType,
-    pub id_result: IdResult,
-    pub set: IdRef,
-    pub x: IdRef,
-}
-impl From<OpGLSLStd450Sqrt> for Instruction {
-    fn from(v: OpGLSLStd450Sqrt) -> Self {
-        Self::GLSLStd450Sqrt(v)
-    }
-}
-#[derive(Clone, Debug)]
-pub struct OpGLSLStd450InverseSqrt {
-    pub id_result_type: IdResultType,
-    pub id_result: IdResult,
-    pub set: IdRef,
-    pub x: IdRef,
-}
-impl From<OpGLSLStd450InverseSqrt> for Instruction {
-    fn from(v: OpGLSLStd450InverseSqrt) -> Self {
-        Self::GLSLStd450InverseSqrt(v)
-    }
-}
-#[derive(Clone, Debug)]
-pub struct OpGLSLStd450Determinant {
-    pub id_result_type: IdResultType,
-    pub id_result: IdResult,
-    pub set: IdRef,
-    pub x: IdRef,
-}
-impl From<OpGLSLStd450Determinant> for Instruction {
-    fn from(v: OpGLSLStd450Determinant) -> Self {
-        Self::GLSLStd450Determinant(v)
-    }
-}
-#[derive(Clone, Debug)]
-pub struct OpGLSLStd450MatrixInverse {
-    pub id_result_type: IdResultType,
-    pub id_result: IdResult,
-    pub set: IdRef,
-    pub x: IdRef,
-}
-impl From<OpGLSLStd450MatrixInverse> for Instruction {
-    fn from(v: OpGLSLStd450MatrixInverse) -> Self {
-        Self::GLSLStd450MatrixInverse(v)
-    }
-}
-#[derive(Clone, Debug)]
-pub struct OpGLSLStd450Modf {
-    pub id_result_type: IdResultType,
-    pub id_result: IdResult,
-    pub set: IdRef,
-    pub x: IdRef,
-    pub i: IdRef,
-}
-impl From<OpGLSLStd450Modf> for Instruction {
-    fn from(v: OpGLSLStd450Modf) -> Self {
-        Self::GLSLStd450Modf(v)
-    }
-}
-#[derive(Clone, Debug)]
-pub struct OpGLSLStd450ModfStruct {
-    pub id_result_type: IdResultType,
-    pub id_result: IdResult,
-    pub set: IdRef,
-    pub x: IdRef,
-}
-impl From<OpGLSLStd450ModfStruct> for Instruction {
-    fn from(v: OpGLSLStd450ModfStruct) -> Self {
-        Self::GLSLStd450ModfStruct(v)
-    }
-}
-#[derive(Clone, Debug)]
-pub struct OpGLSLStd450FMin {
-    pub id_result_type: IdResultType,
-    pub id_result: IdResult,
-    pub set: IdRef,
-    pub x: IdRef,
-    pub y: IdRef,
-}
-impl From<OpGLSLStd450FMin> for Instruction {
-    fn from(v: OpGLSLStd450FMin) -> Self {
-        Self::GLSLStd450FMin(v)
-    }
-}
-#[derive(Clone, Debug)]
-pub struct OpGLSLStd450UMin {
-    pub id_result_type: IdResultType,
-    pub id_result: IdResult,
-    pub set: IdRef,
-    pub x: IdRef,
-    pub y: IdRef,
-}
-impl From<OpGLSLStd450UMin> for Instruction {
-    fn from(v: OpGLSLStd450UMin) -> Self {
-        Self::GLSLStd450UMin(v)
-    }
-}
-#[derive(Clone, Debug)]
-pub struct OpGLSLStd450SMin {
-    pub id_result_type: IdResultType,
-    pub id_result: IdResult,
-    pub set: IdRef,
-    pub x: IdRef,
-    pub y: IdRef,
-}
-impl From<OpGLSLStd450SMin> for Instruction {
-    fn from(v: OpGLSLStd450SMin) -> Self {
-        Self::GLSLStd450SMin(v)
-    }
-}
-#[derive(Clone, Debug)]
-pub struct OpGLSLStd450FMax {
-    pub id_result_type: IdResultType,
-    pub id_result: IdResult,
-    pub set: IdRef,
-    pub x: IdRef,
-    pub y: IdRef,
-}
-impl From<OpGLSLStd450FMax> for Instruction {
-    fn from(v: OpGLSLStd450FMax) -> Self {
-        Self::GLSLStd450FMax(v)
-    }
-}
-#[derive(Clone, Debug)]
-pub struct OpGLSLStd450UMax {
-    pub id_result_type: IdResultType,
-    pub id_result: IdResult,
-    pub set: IdRef,
-    pub x: IdRef,
-    pub y: IdRef,
-}
-impl From<OpGLSLStd450UMax> for Instruction {
-    fn from(v: OpGLSLStd450UMax) -> Self {
-        Self::GLSLStd450UMax(v)
-    }
-}
-#[derive(Clone, Debug)]
-pub struct OpGLSLStd450SMax {
-    pub id_result_type: IdResultType,
-    pub id_result: IdResult,
-    pub set: IdRef,
-    pub x: IdRef,
-    pub y: IdRef,
-}
-impl From<OpGLSLStd450SMax> for Instruction {
-    fn from(v: OpGLSLStd450SMax) -> Self {
-        Self::GLSLStd450SMax(v)
-    }
-}
-#[derive(Clone, Debug)]
-pub struct OpGLSLStd450FClamp {
-    pub id_result_type: IdResultType,
-    pub id_result: IdResult,
-    pub set: IdRef,
-    pub x: IdRef,
-    pub min_val: IdRef,
-    pub max_val: IdRef,
-}
-impl From<OpGLSLStd450FClamp> for Instruction {
-    fn from(v: OpGLSLStd450FClamp) -> Self {
-        Self::GLSLStd450FClamp(v)
-    }
-}
-#[derive(Clone, Debug)]
-pub struct OpGLSLStd450UClamp {
-    pub id_result_type: IdResultType,
-    pub id_result: IdResult,
-    pub set: IdRef,
-    pub x: IdRef,
-    pub min_val: IdRef,
-    pub max_val: IdRef,
-}
-impl From<OpGLSLStd450UClamp> for Instruction {
-    fn from(v: OpGLSLStd450UClamp) -> Self {
-        Self::GLSLStd450UClamp(v)
-    }
-}
-#[derive(Clone, Debug)]
-pub struct OpGLSLStd450SClamp {
-    pub id_result_type: IdResultType,
-    pub id_result: IdResult,
-    pub set: IdRef,
-    pub x: IdRef,
-    pub min_val: IdRef,
-    pub max_val: IdRef,
-}
-impl From<OpGLSLStd450SClamp> for Instruction {
-    fn from(v: OpGLSLStd450SClamp) -> Self {
-        Self::GLSLStd450SClamp(v)
-    }
-}
-#[derive(Clone, Debug)]
-pub struct OpGLSLStd450FMix {
-    pub id_result_type: IdResultType,
-    pub id_result: IdResult,
-    pub set: IdRef,
-    pub x: IdRef,
-    pub y: IdRef,
-    pub a: IdRef,
-}
-impl From<OpGLSLStd450FMix> for Instruction {
-    fn from(v: OpGLSLStd450FMix) -> Self {
-        Self::GLSLStd450FMix(v)
-    }
-}
-#[derive(Clone, Debug)]
-pub struct OpGLSLStd450IMix {
-    pub id_result_type: IdResultType,
-    pub id_result: IdResult,
-    pub set: IdRef,
-    pub x: IdRef,
-    pub y: IdRef,
-    pub a: IdRef,
-}
-impl From<OpGLSLStd450IMix> for Instruction {
-    fn from(v: OpGLSLStd450IMix) -> Self {
-        Self::GLSLStd450IMix(v)
-    }
-}
-#[derive(Clone, Debug)]
-pub struct OpGLSLStd450Step {
-    pub id_result_type: IdResultType,
-    pub id_result: IdResult,
-    pub set: IdRef,
-    pub edge: IdRef,
-    pub x: IdRef,
-}
-impl From<OpGLSLStd450Step> for Instruction {
-    fn from(v: OpGLSLStd450Step) -> Self {
-        Self::GLSLStd450Step(v)
-    }
-}
-#[derive(Clone, Debug)]
-pub struct OpGLSLStd450SmoothStep {
-    pub id_result_type: IdResultType,
-    pub id_result: IdResult,
-    pub set: IdRef,
-    pub edge0: IdRef,
-    pub edge1: IdRef,
-    pub x: IdRef,
-}
-impl From<OpGLSLStd450SmoothStep> for Instruction {
-    fn from(v: OpGLSLStd450SmoothStep) -> Self {
-        Self::GLSLStd450SmoothStep(v)
-    }
-}
-#[derive(Clone, Debug)]
-pub struct OpGLSLStd450Fma {
-    pub id_result_type: IdResultType,
-    pub id_result: IdResult,
-    pub set: IdRef,
-    pub a: IdRef,
-    pub b: IdRef,
-    pub c: IdRef,
-}
-impl From<OpGLSLStd450Fma> for Instruction {
-    fn from(v: OpGLSLStd450Fma) -> Self {
-        Self::GLSLStd450Fma(v)
-    }
-}
-#[derive(Clone, Debug)]
-pub struct OpGLSLStd450Frexp {
-    pub id_result_type: IdResultType,
-    pub id_result: IdResult,
-    pub set: IdRef,
-    pub x: IdRef,
-    pub exp: IdRef,
-}
-impl From<OpGLSLStd450Frexp> for Instruction {
-    fn from(v: OpGLSLStd450Frexp) -> Self {
-        Self::GLSLStd450Frexp(v)
-    }
-}
-#[derive(Clone, Debug)]
-pub struct OpGLSLStd450FrexpStruct {
-    pub id_result_type: IdResultType,
-    pub id_result: IdResult,
-    pub set: IdRef,
-    pub x: IdRef,
-}
-impl From<OpGLSLStd450FrexpStruct> for Instruction {
-    fn from(v: OpGLSLStd450FrexpStruct) -> Self {
-        Self::GLSLStd450FrexpStruct(v)
-    }
-}
-#[derive(Clone, Debug)]
-pub struct OpGLSLStd450Ldexp {
-    pub id_result_type: IdResultType,
-    pub id_result: IdResult,
-    pub set: IdRef,
-    pub x: IdRef,
-    pub exp: IdRef,
-}
-impl From<OpGLSLStd450Ldexp> for Instruction {
-    fn from(v: OpGLSLStd450Ldexp) -> Self {
-        Self::GLSLStd450Ldexp(v)
-    }
-}
-#[derive(Clone, Debug)]
-pub struct OpGLSLStd450PackSnorm4x8 {
-    pub id_result_type: IdResultType,
-    pub id_result: IdResult,
-    pub set: IdRef,
-    pub v: IdRef,
-}
-impl From<OpGLSLStd450PackSnorm4x8> for Instruction {
-    fn from(v: OpGLSLStd450PackSnorm4x8) -> Self {
-        Self::GLSLStd450PackSnorm4x8(v)
-    }
-}
-#[derive(Clone, Debug)]
-pub struct OpGLSLStd450PackUnorm4x8 {
-    pub id_result_type: IdResultType,
-    pub id_result: IdResult,
-    pub set: IdRef,
-    pub v: IdRef,
-}
-impl From<OpGLSLStd450PackUnorm4x8> for Instruction {
-    fn from(v: OpGLSLStd450PackUnorm4x8) -> Self {
-        Self::GLSLStd450PackUnorm4x8(v)
-    }
-}
-#[derive(Clone, Debug)]
-pub struct OpGLSLStd450PackSnorm2x16 {
-    pub id_result_type: IdResultType,
-    pub id_result: IdResult,
-    pub set: IdRef,
-    pub v: IdRef,
-}
-impl From<OpGLSLStd450PackSnorm2x16> for Instruction {
-    fn from(v: OpGLSLStd450PackSnorm2x16) -> Self {
-        Self::GLSLStd450PackSnorm2x16(v)
-    }
-}
-#[derive(Clone, Debug)]
-pub struct OpGLSLStd450PackUnorm2x16 {
-    pub id_result_type: IdResultType,
-    pub id_result: IdResult,
-    pub set: IdRef,
-    pub v: IdRef,
-}
-impl From<OpGLSLStd450PackUnorm2x16> for Instruction {
-    fn from(v: OpGLSLStd450PackUnorm2x16) -> Self {
-        Self::GLSLStd450PackUnorm2x16(v)
-    }
-}
-#[derive(Clone, Debug)]
-pub struct OpGLSLStd450PackHalf2x16 {
-    pub id_result_type: IdResultType,
-    pub id_result: IdResult,
-    pub set: IdRef,
-    pub v: IdRef,
-}
-impl From<OpGLSLStd450PackHalf2x16> for Instruction {
-    fn from(v: OpGLSLStd450PackHalf2x16) -> Self {
-        Self::GLSLStd450PackHalf2x16(v)
-    }
-}
-#[derive(Clone, Debug)]
-pub struct OpGLSLStd450PackDouble2x32 {
-    pub id_result_type: IdResultType,
-    pub id_result: IdResult,
-    pub set: IdRef,
-    pub v: IdRef,
-}
-impl From<OpGLSLStd450PackDouble2x32> for Instruction {
-    fn from(v: OpGLSLStd450PackDouble2x32) -> Self {
-        Self::GLSLStd450PackDouble2x32(v)
-    }
-}
-#[derive(Clone, Debug)]
-pub struct OpGLSLStd450UnpackSnorm2x16 {
-    pub id_result_type: IdResultType,
-    pub id_result: IdResult,
-    pub set: IdRef,
-    pub p: IdRef,
-}
-impl From<OpGLSLStd450UnpackSnorm2x16> for Instruction {
-    fn from(v: OpGLSLStd450UnpackSnorm2x16) -> Self {
-        Self::GLSLStd450UnpackSnorm2x16(v)
-    }
-}
-#[derive(Clone, Debug)]
-pub struct OpGLSLStd450UnpackUnorm2x16 {
-    pub id_result_type: IdResultType,
-    pub id_result: IdResult,
-    pub set: IdRef,
-    pub p: IdRef,
-}
-impl From<OpGLSLStd450UnpackUnorm2x16> for Instruction {
-    fn from(v: OpGLSLStd450UnpackUnorm2x16) -> Self {
-        Self::GLSLStd450UnpackUnorm2x16(v)
-    }
-}
-#[derive(Clone, Debug)]
-pub struct OpGLSLStd450UnpackHalf2x16 {
-    pub id_result_type: IdResultType,
-    pub id_result: IdResult,
-    pub set: IdRef,
-    pub v: IdRef,
-}
-impl From<OpGLSLStd450UnpackHalf2x16> for Instruction {
-    fn from(v: OpGLSLStd450UnpackHalf2x16) -> Self {
-        Self::GLSLStd450UnpackHalf2x16(v)
-    }
-}
-#[derive(Clone, Debug)]
-pub struct OpGLSLStd450UnpackSnorm4x8 {
-    pub id_result_type: IdResultType,
-    pub id_result: IdResult,
-    pub set: IdRef,
-    pub p: IdRef,
-}
-impl From<OpGLSLStd450UnpackSnorm4x8> for Instruction {
-    fn from(v: OpGLSLStd450UnpackSnorm4x8) -> Self {
-        Self::GLSLStd450UnpackSnorm4x8(v)
-    }
-}
-#[derive(Clone, Debug)]
-pub struct OpGLSLStd450UnpackUnorm4x8 {
-    pub id_result_type: IdResultType,
-    pub id_result: IdResult,
-    pub set: IdRef,
-    pub p: IdRef,
-}
-impl From<OpGLSLStd450UnpackUnorm4x8> for Instruction {
-    fn from(v: OpGLSLStd450UnpackUnorm4x8) -> Self {
-        Self::GLSLStd450UnpackUnorm4x8(v)
-    }
-}
-#[derive(Clone, Debug)]
-pub struct OpGLSLStd450UnpackDouble2x32 {
-    pub id_result_type: IdResultType,
-    pub id_result: IdResult,
-    pub set: IdRef,
-    pub v: IdRef,
-}
-impl From<OpGLSLStd450UnpackDouble2x32> for Instruction {
-    fn from(v: OpGLSLStd450UnpackDouble2x32) -> Self {
-        Self::GLSLStd450UnpackDouble2x32(v)
-    }
-}
-#[derive(Clone, Debug)]
-pub struct OpGLSLStd450Length {
-    pub id_result_type: IdResultType,
-    pub id_result: IdResult,
-    pub set: IdRef,
-    pub x: IdRef,
-}
-impl From<OpGLSLStd450Length> for Instruction {
-    fn from(v: OpGLSLStd450Length) -> Self {
-        Self::GLSLStd450Length(v)
-    }
-}
-#[derive(Clone, Debug)]
-pub struct OpGLSLStd450Distance {
-    pub id_result_type: IdResultType,
-    pub id_result: IdResult,
-    pub set: IdRef,
-    pub p0: IdRef,
-    pub p1: IdRef,
-}
-impl From<OpGLSLStd450Distance> for Instruction {
-    fn from(v: OpGLSLStd450Distance) -> Self {
-        Self::GLSLStd450Distance(v)
-    }
-}
-#[derive(Clone, Debug)]
-pub struct OpGLSLStd450Cross {
-    pub id_result_type: IdResultType,
-    pub id_result: IdResult,
-    pub set: IdRef,
-    pub x: IdRef,
-    pub y: IdRef,
-}
-impl From<OpGLSLStd450Cross> for Instruction {
-    fn from(v: OpGLSLStd450Cross) -> Self {
-        Self::GLSLStd450Cross(v)
-    }
-}
-#[derive(Clone, Debug)]
-pub struct OpGLSLStd450Normalize {
-    pub id_result_type: IdResultType,
-    pub id_result: IdResult,
-    pub set: IdRef,
-    pub x: IdRef,
-}
-impl From<OpGLSLStd450Normalize> for Instruction {
-    fn from(v: OpGLSLStd450Normalize) -> Self {
-        Self::GLSLStd450Normalize(v)
-    }
-}
-#[derive(Clone, Debug)]
-pub struct OpGLSLStd450FaceForward {
-    pub id_result_type: IdResultType,
-    pub id_result: IdResult,
-    pub set: IdRef,
-    pub n: IdRef,
-    pub i: IdRef,
-    pub nref: IdRef,
-}
-impl From<OpGLSLStd450FaceForward> for Instruction {
-    fn from(v: OpGLSLStd450FaceForward) -> Self {
-        Self::GLSLStd450FaceForward(v)
-    }
-}
-#[derive(Clone, Debug)]
-pub struct OpGLSLStd450Reflect {
-    pub id_result_type: IdResultType,
-    pub id_result: IdResult,
-    pub set: IdRef,
-    pub i: IdRef,
-    pub n: IdRef,
-}
-impl From<OpGLSLStd450Reflect> for Instruction {
-    fn from(v: OpGLSLStd450Reflect) -> Self {
-        Self::GLSLStd450Reflect(v)
-    }
-}
-#[derive(Clone, Debug)]
-pub struct OpGLSLStd450Refract {
-    pub id_result_type: IdResultType,
-    pub id_result: IdResult,
-    pub set: IdRef,
-    pub i: IdRef,
-    pub n: IdRef,
-    pub eta: IdRef,
-}
-impl From<OpGLSLStd450Refract> for Instruction {
-    fn from(v: OpGLSLStd450Refract) -> Self {
-        Self::GLSLStd450Refract(v)
-    }
-}
-#[derive(Clone, Debug)]
-pub struct OpGLSLStd450FindILsb {
-    pub id_result_type: IdResultType,
-    pub id_result: IdResult,
-    pub set: IdRef,
-    pub value: IdRef,
-}
-impl From<OpGLSLStd450FindILsb> for Instruction {
-    fn from(v: OpGLSLStd450FindILsb) -> Self {
-        Self::GLSLStd450FindILsb(v)
-    }
-}
-#[derive(Clone, Debug)]
-pub struct OpGLSLStd450FindSMsb {
-    pub id_result_type: IdResultType,
-    pub id_result: IdResult,
-    pub set: IdRef,
-    pub value: IdRef,
-}
-impl From<OpGLSLStd450FindSMsb> for Instruction {
-    fn from(v: OpGLSLStd450FindSMsb) -> Self {
-        Self::GLSLStd450FindSMsb(v)
-    }
-}
-#[derive(Clone, Debug)]
-pub struct OpGLSLStd450FindUMsb {
-    pub id_result_type: IdResultType,
-    pub id_result: IdResult,
-    pub set: IdRef,
-    pub value: IdRef,
-}
-impl From<OpGLSLStd450FindUMsb> for Instruction {
-    fn from(v: OpGLSLStd450FindUMsb) -> Self {
-        Self::GLSLStd450FindUMsb(v)
-    }
-}
-#[derive(Clone, Debug)]
-pub struct OpGLSLStd450InterpolateAtCentroid {
-    pub id_result_type: IdResultType,
-    pub id_result: IdResult,
-    pub set: IdRef,
-    pub interpolant: IdRef,
-}
-impl From<OpGLSLStd450InterpolateAtCentroid> for Instruction {
-    fn from(v: OpGLSLStd450InterpolateAtCentroid) -> Self {
-        Self::GLSLStd450InterpolateAtCentroid(v)
-    }
-}
-#[derive(Clone, Debug)]
-pub struct OpGLSLStd450InterpolateAtSample {
-    pub id_result_type: IdResultType,
-    pub id_result: IdResult,
-    pub set: IdRef,
-    pub interpolant: IdRef,
-    pub sample: IdRef,
-}
-impl From<OpGLSLStd450InterpolateAtSample> for Instruction {
-    fn from(v: OpGLSLStd450InterpolateAtSample) -> Self {
-        Self::GLSLStd450InterpolateAtSample(v)
-    }
-}
-#[derive(Clone, Debug)]
-pub struct OpGLSLStd450InterpolateAtOffset {
-    pub id_result_type: IdResultType,
-    pub id_result: IdResult,
-    pub set: IdRef,
-    pub interpolant: IdRef,
-    pub offset: IdRef,
-}
-impl From<OpGLSLStd450InterpolateAtOffset> for Instruction {
-    fn from(v: OpGLSLStd450InterpolateAtOffset) -> Self {
-        Self::GLSLStd450InterpolateAtOffset(v)
-    }
-}
-#[derive(Clone, Debug)]
-pub struct OpGLSLStd450NMin {
-    pub id_result_type: IdResultType,
-    pub id_result: IdResult,
-    pub set: IdRef,
-    pub x: IdRef,
-    pub y: IdRef,
-}
-impl From<OpGLSLStd450NMin> for Instruction {
-    fn from(v: OpGLSLStd450NMin) -> Self {
-        Self::GLSLStd450NMin(v)
-    }
-}
-#[derive(Clone, Debug)]
-pub struct OpGLSLStd450NMax {
-    pub id_result_type: IdResultType,
-    pub id_result: IdResult,
-    pub set: IdRef,
-    pub x: IdRef,
-    pub y: IdRef,
-}
-impl From<OpGLSLStd450NMax> for Instruction {
-    fn from(v: OpGLSLStd450NMax) -> Self {
-        Self::GLSLStd450NMax(v)
-    }
-}
-#[derive(Clone, Debug)]
-pub struct OpGLSLStd450NClamp {
-    pub id_result_type: IdResultType,
-    pub id_result: IdResult,
-    pub set: IdRef,
-    pub x: IdRef,
-    pub min_val: IdRef,
-    pub max_val: IdRef,
-}
-impl From<OpGLSLStd450NClamp> for Instruction {
-    fn from(v: OpGLSLStd450NClamp) -> Self {
-        Self::GLSLStd450NClamp(v)
     }
 }
 #[derive(Clone, Debug)]
@@ -12238,6 +14592,1017 @@ impl From<OpOpenCLStdPrefetch> for Instruction {
     }
 }
 #[derive(Clone, Debug)]
+pub struct OpGLSLStd450Round {
+    pub id_result_type: IdResultType,
+    pub id_result: IdResult,
+    pub set: IdRef,
+    pub x: IdRef,
+}
+impl From<OpGLSLStd450Round> for Instruction {
+    fn from(v: OpGLSLStd450Round) -> Self {
+        Self::GLSLStd450Round(v)
+    }
+}
+#[derive(Clone, Debug)]
+pub struct OpGLSLStd450RoundEven {
+    pub id_result_type: IdResultType,
+    pub id_result: IdResult,
+    pub set: IdRef,
+    pub x: IdRef,
+}
+impl From<OpGLSLStd450RoundEven> for Instruction {
+    fn from(v: OpGLSLStd450RoundEven) -> Self {
+        Self::GLSLStd450RoundEven(v)
+    }
+}
+#[derive(Clone, Debug)]
+pub struct OpGLSLStd450Trunc {
+    pub id_result_type: IdResultType,
+    pub id_result: IdResult,
+    pub set: IdRef,
+    pub x: IdRef,
+}
+impl From<OpGLSLStd450Trunc> for Instruction {
+    fn from(v: OpGLSLStd450Trunc) -> Self {
+        Self::GLSLStd450Trunc(v)
+    }
+}
+#[derive(Clone, Debug)]
+pub struct OpGLSLStd450FAbs {
+    pub id_result_type: IdResultType,
+    pub id_result: IdResult,
+    pub set: IdRef,
+    pub x: IdRef,
+}
+impl From<OpGLSLStd450FAbs> for Instruction {
+    fn from(v: OpGLSLStd450FAbs) -> Self {
+        Self::GLSLStd450FAbs(v)
+    }
+}
+#[derive(Clone, Debug)]
+pub struct OpGLSLStd450SAbs {
+    pub id_result_type: IdResultType,
+    pub id_result: IdResult,
+    pub set: IdRef,
+    pub x: IdRef,
+}
+impl From<OpGLSLStd450SAbs> for Instruction {
+    fn from(v: OpGLSLStd450SAbs) -> Self {
+        Self::GLSLStd450SAbs(v)
+    }
+}
+#[derive(Clone, Debug)]
+pub struct OpGLSLStd450FSign {
+    pub id_result_type: IdResultType,
+    pub id_result: IdResult,
+    pub set: IdRef,
+    pub x: IdRef,
+}
+impl From<OpGLSLStd450FSign> for Instruction {
+    fn from(v: OpGLSLStd450FSign) -> Self {
+        Self::GLSLStd450FSign(v)
+    }
+}
+#[derive(Clone, Debug)]
+pub struct OpGLSLStd450SSign {
+    pub id_result_type: IdResultType,
+    pub id_result: IdResult,
+    pub set: IdRef,
+    pub x: IdRef,
+}
+impl From<OpGLSLStd450SSign> for Instruction {
+    fn from(v: OpGLSLStd450SSign) -> Self {
+        Self::GLSLStd450SSign(v)
+    }
+}
+#[derive(Clone, Debug)]
+pub struct OpGLSLStd450Floor {
+    pub id_result_type: IdResultType,
+    pub id_result: IdResult,
+    pub set: IdRef,
+    pub x: IdRef,
+}
+impl From<OpGLSLStd450Floor> for Instruction {
+    fn from(v: OpGLSLStd450Floor) -> Self {
+        Self::GLSLStd450Floor(v)
+    }
+}
+#[derive(Clone, Debug)]
+pub struct OpGLSLStd450Ceil {
+    pub id_result_type: IdResultType,
+    pub id_result: IdResult,
+    pub set: IdRef,
+    pub x: IdRef,
+}
+impl From<OpGLSLStd450Ceil> for Instruction {
+    fn from(v: OpGLSLStd450Ceil) -> Self {
+        Self::GLSLStd450Ceil(v)
+    }
+}
+#[derive(Clone, Debug)]
+pub struct OpGLSLStd450Fract {
+    pub id_result_type: IdResultType,
+    pub id_result: IdResult,
+    pub set: IdRef,
+    pub x: IdRef,
+}
+impl From<OpGLSLStd450Fract> for Instruction {
+    fn from(v: OpGLSLStd450Fract) -> Self {
+        Self::GLSLStd450Fract(v)
+    }
+}
+#[derive(Clone, Debug)]
+pub struct OpGLSLStd450Radians {
+    pub id_result_type: IdResultType,
+    pub id_result: IdResult,
+    pub set: IdRef,
+    pub degrees: IdRef,
+}
+impl From<OpGLSLStd450Radians> for Instruction {
+    fn from(v: OpGLSLStd450Radians) -> Self {
+        Self::GLSLStd450Radians(v)
+    }
+}
+#[derive(Clone, Debug)]
+pub struct OpGLSLStd450Degrees {
+    pub id_result_type: IdResultType,
+    pub id_result: IdResult,
+    pub set: IdRef,
+    pub radians: IdRef,
+}
+impl From<OpGLSLStd450Degrees> for Instruction {
+    fn from(v: OpGLSLStd450Degrees) -> Self {
+        Self::GLSLStd450Degrees(v)
+    }
+}
+#[derive(Clone, Debug)]
+pub struct OpGLSLStd450Sin {
+    pub id_result_type: IdResultType,
+    pub id_result: IdResult,
+    pub set: IdRef,
+    pub x: IdRef,
+}
+impl From<OpGLSLStd450Sin> for Instruction {
+    fn from(v: OpGLSLStd450Sin) -> Self {
+        Self::GLSLStd450Sin(v)
+    }
+}
+#[derive(Clone, Debug)]
+pub struct OpGLSLStd450Cos {
+    pub id_result_type: IdResultType,
+    pub id_result: IdResult,
+    pub set: IdRef,
+    pub x: IdRef,
+}
+impl From<OpGLSLStd450Cos> for Instruction {
+    fn from(v: OpGLSLStd450Cos) -> Self {
+        Self::GLSLStd450Cos(v)
+    }
+}
+#[derive(Clone, Debug)]
+pub struct OpGLSLStd450Tan {
+    pub id_result_type: IdResultType,
+    pub id_result: IdResult,
+    pub set: IdRef,
+    pub x: IdRef,
+}
+impl From<OpGLSLStd450Tan> for Instruction {
+    fn from(v: OpGLSLStd450Tan) -> Self {
+        Self::GLSLStd450Tan(v)
+    }
+}
+#[derive(Clone, Debug)]
+pub struct OpGLSLStd450Asin {
+    pub id_result_type: IdResultType,
+    pub id_result: IdResult,
+    pub set: IdRef,
+    pub x: IdRef,
+}
+impl From<OpGLSLStd450Asin> for Instruction {
+    fn from(v: OpGLSLStd450Asin) -> Self {
+        Self::GLSLStd450Asin(v)
+    }
+}
+#[derive(Clone, Debug)]
+pub struct OpGLSLStd450Acos {
+    pub id_result_type: IdResultType,
+    pub id_result: IdResult,
+    pub set: IdRef,
+    pub x: IdRef,
+}
+impl From<OpGLSLStd450Acos> for Instruction {
+    fn from(v: OpGLSLStd450Acos) -> Self {
+        Self::GLSLStd450Acos(v)
+    }
+}
+#[derive(Clone, Debug)]
+pub struct OpGLSLStd450Atan {
+    pub id_result_type: IdResultType,
+    pub id_result: IdResult,
+    pub set: IdRef,
+    pub y_over_x: IdRef,
+}
+impl From<OpGLSLStd450Atan> for Instruction {
+    fn from(v: OpGLSLStd450Atan) -> Self {
+        Self::GLSLStd450Atan(v)
+    }
+}
+#[derive(Clone, Debug)]
+pub struct OpGLSLStd450Sinh {
+    pub id_result_type: IdResultType,
+    pub id_result: IdResult,
+    pub set: IdRef,
+    pub x: IdRef,
+}
+impl From<OpGLSLStd450Sinh> for Instruction {
+    fn from(v: OpGLSLStd450Sinh) -> Self {
+        Self::GLSLStd450Sinh(v)
+    }
+}
+#[derive(Clone, Debug)]
+pub struct OpGLSLStd450Cosh {
+    pub id_result_type: IdResultType,
+    pub id_result: IdResult,
+    pub set: IdRef,
+    pub x: IdRef,
+}
+impl From<OpGLSLStd450Cosh> for Instruction {
+    fn from(v: OpGLSLStd450Cosh) -> Self {
+        Self::GLSLStd450Cosh(v)
+    }
+}
+#[derive(Clone, Debug)]
+pub struct OpGLSLStd450Tanh {
+    pub id_result_type: IdResultType,
+    pub id_result: IdResult,
+    pub set: IdRef,
+    pub x: IdRef,
+}
+impl From<OpGLSLStd450Tanh> for Instruction {
+    fn from(v: OpGLSLStd450Tanh) -> Self {
+        Self::GLSLStd450Tanh(v)
+    }
+}
+#[derive(Clone, Debug)]
+pub struct OpGLSLStd450Asinh {
+    pub id_result_type: IdResultType,
+    pub id_result: IdResult,
+    pub set: IdRef,
+    pub x: IdRef,
+}
+impl From<OpGLSLStd450Asinh> for Instruction {
+    fn from(v: OpGLSLStd450Asinh) -> Self {
+        Self::GLSLStd450Asinh(v)
+    }
+}
+#[derive(Clone, Debug)]
+pub struct OpGLSLStd450Acosh {
+    pub id_result_type: IdResultType,
+    pub id_result: IdResult,
+    pub set: IdRef,
+    pub x: IdRef,
+}
+impl From<OpGLSLStd450Acosh> for Instruction {
+    fn from(v: OpGLSLStd450Acosh) -> Self {
+        Self::GLSLStd450Acosh(v)
+    }
+}
+#[derive(Clone, Debug)]
+pub struct OpGLSLStd450Atanh {
+    pub id_result_type: IdResultType,
+    pub id_result: IdResult,
+    pub set: IdRef,
+    pub x: IdRef,
+}
+impl From<OpGLSLStd450Atanh> for Instruction {
+    fn from(v: OpGLSLStd450Atanh) -> Self {
+        Self::GLSLStd450Atanh(v)
+    }
+}
+#[derive(Clone, Debug)]
+pub struct OpGLSLStd450Atan2 {
+    pub id_result_type: IdResultType,
+    pub id_result: IdResult,
+    pub set: IdRef,
+    pub y: IdRef,
+    pub x: IdRef,
+}
+impl From<OpGLSLStd450Atan2> for Instruction {
+    fn from(v: OpGLSLStd450Atan2) -> Self {
+        Self::GLSLStd450Atan2(v)
+    }
+}
+#[derive(Clone, Debug)]
+pub struct OpGLSLStd450Pow {
+    pub id_result_type: IdResultType,
+    pub id_result: IdResult,
+    pub set: IdRef,
+    pub x: IdRef,
+    pub y: IdRef,
+}
+impl From<OpGLSLStd450Pow> for Instruction {
+    fn from(v: OpGLSLStd450Pow) -> Self {
+        Self::GLSLStd450Pow(v)
+    }
+}
+#[derive(Clone, Debug)]
+pub struct OpGLSLStd450Exp {
+    pub id_result_type: IdResultType,
+    pub id_result: IdResult,
+    pub set: IdRef,
+    pub x: IdRef,
+}
+impl From<OpGLSLStd450Exp> for Instruction {
+    fn from(v: OpGLSLStd450Exp) -> Self {
+        Self::GLSLStd450Exp(v)
+    }
+}
+#[derive(Clone, Debug)]
+pub struct OpGLSLStd450Log {
+    pub id_result_type: IdResultType,
+    pub id_result: IdResult,
+    pub set: IdRef,
+    pub x: IdRef,
+}
+impl From<OpGLSLStd450Log> for Instruction {
+    fn from(v: OpGLSLStd450Log) -> Self {
+        Self::GLSLStd450Log(v)
+    }
+}
+#[derive(Clone, Debug)]
+pub struct OpGLSLStd450Exp2 {
+    pub id_result_type: IdResultType,
+    pub id_result: IdResult,
+    pub set: IdRef,
+    pub x: IdRef,
+}
+impl From<OpGLSLStd450Exp2> for Instruction {
+    fn from(v: OpGLSLStd450Exp2) -> Self {
+        Self::GLSLStd450Exp2(v)
+    }
+}
+#[derive(Clone, Debug)]
+pub struct OpGLSLStd450Log2 {
+    pub id_result_type: IdResultType,
+    pub id_result: IdResult,
+    pub set: IdRef,
+    pub x: IdRef,
+}
+impl From<OpGLSLStd450Log2> for Instruction {
+    fn from(v: OpGLSLStd450Log2) -> Self {
+        Self::GLSLStd450Log2(v)
+    }
+}
+#[derive(Clone, Debug)]
+pub struct OpGLSLStd450Sqrt {
+    pub id_result_type: IdResultType,
+    pub id_result: IdResult,
+    pub set: IdRef,
+    pub x: IdRef,
+}
+impl From<OpGLSLStd450Sqrt> for Instruction {
+    fn from(v: OpGLSLStd450Sqrt) -> Self {
+        Self::GLSLStd450Sqrt(v)
+    }
+}
+#[derive(Clone, Debug)]
+pub struct OpGLSLStd450InverseSqrt {
+    pub id_result_type: IdResultType,
+    pub id_result: IdResult,
+    pub set: IdRef,
+    pub x: IdRef,
+}
+impl From<OpGLSLStd450InverseSqrt> for Instruction {
+    fn from(v: OpGLSLStd450InverseSqrt) -> Self {
+        Self::GLSLStd450InverseSqrt(v)
+    }
+}
+#[derive(Clone, Debug)]
+pub struct OpGLSLStd450Determinant {
+    pub id_result_type: IdResultType,
+    pub id_result: IdResult,
+    pub set: IdRef,
+    pub x: IdRef,
+}
+impl From<OpGLSLStd450Determinant> for Instruction {
+    fn from(v: OpGLSLStd450Determinant) -> Self {
+        Self::GLSLStd450Determinant(v)
+    }
+}
+#[derive(Clone, Debug)]
+pub struct OpGLSLStd450MatrixInverse {
+    pub id_result_type: IdResultType,
+    pub id_result: IdResult,
+    pub set: IdRef,
+    pub x: IdRef,
+}
+impl From<OpGLSLStd450MatrixInverse> for Instruction {
+    fn from(v: OpGLSLStd450MatrixInverse) -> Self {
+        Self::GLSLStd450MatrixInverse(v)
+    }
+}
+#[derive(Clone, Debug)]
+pub struct OpGLSLStd450Modf {
+    pub id_result_type: IdResultType,
+    pub id_result: IdResult,
+    pub set: IdRef,
+    pub x: IdRef,
+    pub i: IdRef,
+}
+impl From<OpGLSLStd450Modf> for Instruction {
+    fn from(v: OpGLSLStd450Modf) -> Self {
+        Self::GLSLStd450Modf(v)
+    }
+}
+#[derive(Clone, Debug)]
+pub struct OpGLSLStd450ModfStruct {
+    pub id_result_type: IdResultType,
+    pub id_result: IdResult,
+    pub set: IdRef,
+    pub x: IdRef,
+}
+impl From<OpGLSLStd450ModfStruct> for Instruction {
+    fn from(v: OpGLSLStd450ModfStruct) -> Self {
+        Self::GLSLStd450ModfStruct(v)
+    }
+}
+#[derive(Clone, Debug)]
+pub struct OpGLSLStd450FMin {
+    pub id_result_type: IdResultType,
+    pub id_result: IdResult,
+    pub set: IdRef,
+    pub x: IdRef,
+    pub y: IdRef,
+}
+impl From<OpGLSLStd450FMin> for Instruction {
+    fn from(v: OpGLSLStd450FMin) -> Self {
+        Self::GLSLStd450FMin(v)
+    }
+}
+#[derive(Clone, Debug)]
+pub struct OpGLSLStd450UMin {
+    pub id_result_type: IdResultType,
+    pub id_result: IdResult,
+    pub set: IdRef,
+    pub x: IdRef,
+    pub y: IdRef,
+}
+impl From<OpGLSLStd450UMin> for Instruction {
+    fn from(v: OpGLSLStd450UMin) -> Self {
+        Self::GLSLStd450UMin(v)
+    }
+}
+#[derive(Clone, Debug)]
+pub struct OpGLSLStd450SMin {
+    pub id_result_type: IdResultType,
+    pub id_result: IdResult,
+    pub set: IdRef,
+    pub x: IdRef,
+    pub y: IdRef,
+}
+impl From<OpGLSLStd450SMin> for Instruction {
+    fn from(v: OpGLSLStd450SMin) -> Self {
+        Self::GLSLStd450SMin(v)
+    }
+}
+#[derive(Clone, Debug)]
+pub struct OpGLSLStd450FMax {
+    pub id_result_type: IdResultType,
+    pub id_result: IdResult,
+    pub set: IdRef,
+    pub x: IdRef,
+    pub y: IdRef,
+}
+impl From<OpGLSLStd450FMax> for Instruction {
+    fn from(v: OpGLSLStd450FMax) -> Self {
+        Self::GLSLStd450FMax(v)
+    }
+}
+#[derive(Clone, Debug)]
+pub struct OpGLSLStd450UMax {
+    pub id_result_type: IdResultType,
+    pub id_result: IdResult,
+    pub set: IdRef,
+    pub x: IdRef,
+    pub y: IdRef,
+}
+impl From<OpGLSLStd450UMax> for Instruction {
+    fn from(v: OpGLSLStd450UMax) -> Self {
+        Self::GLSLStd450UMax(v)
+    }
+}
+#[derive(Clone, Debug)]
+pub struct OpGLSLStd450SMax {
+    pub id_result_type: IdResultType,
+    pub id_result: IdResult,
+    pub set: IdRef,
+    pub x: IdRef,
+    pub y: IdRef,
+}
+impl From<OpGLSLStd450SMax> for Instruction {
+    fn from(v: OpGLSLStd450SMax) -> Self {
+        Self::GLSLStd450SMax(v)
+    }
+}
+#[derive(Clone, Debug)]
+pub struct OpGLSLStd450FClamp {
+    pub id_result_type: IdResultType,
+    pub id_result: IdResult,
+    pub set: IdRef,
+    pub x: IdRef,
+    pub min_val: IdRef,
+    pub max_val: IdRef,
+}
+impl From<OpGLSLStd450FClamp> for Instruction {
+    fn from(v: OpGLSLStd450FClamp) -> Self {
+        Self::GLSLStd450FClamp(v)
+    }
+}
+#[derive(Clone, Debug)]
+pub struct OpGLSLStd450UClamp {
+    pub id_result_type: IdResultType,
+    pub id_result: IdResult,
+    pub set: IdRef,
+    pub x: IdRef,
+    pub min_val: IdRef,
+    pub max_val: IdRef,
+}
+impl From<OpGLSLStd450UClamp> for Instruction {
+    fn from(v: OpGLSLStd450UClamp) -> Self {
+        Self::GLSLStd450UClamp(v)
+    }
+}
+#[derive(Clone, Debug)]
+pub struct OpGLSLStd450SClamp {
+    pub id_result_type: IdResultType,
+    pub id_result: IdResult,
+    pub set: IdRef,
+    pub x: IdRef,
+    pub min_val: IdRef,
+    pub max_val: IdRef,
+}
+impl From<OpGLSLStd450SClamp> for Instruction {
+    fn from(v: OpGLSLStd450SClamp) -> Self {
+        Self::GLSLStd450SClamp(v)
+    }
+}
+#[derive(Clone, Debug)]
+pub struct OpGLSLStd450FMix {
+    pub id_result_type: IdResultType,
+    pub id_result: IdResult,
+    pub set: IdRef,
+    pub x: IdRef,
+    pub y: IdRef,
+    pub a: IdRef,
+}
+impl From<OpGLSLStd450FMix> for Instruction {
+    fn from(v: OpGLSLStd450FMix) -> Self {
+        Self::GLSLStd450FMix(v)
+    }
+}
+#[derive(Clone, Debug)]
+pub struct OpGLSLStd450IMix {
+    pub id_result_type: IdResultType,
+    pub id_result: IdResult,
+    pub set: IdRef,
+    pub x: IdRef,
+    pub y: IdRef,
+    pub a: IdRef,
+}
+impl From<OpGLSLStd450IMix> for Instruction {
+    fn from(v: OpGLSLStd450IMix) -> Self {
+        Self::GLSLStd450IMix(v)
+    }
+}
+#[derive(Clone, Debug)]
+pub struct OpGLSLStd450Step {
+    pub id_result_type: IdResultType,
+    pub id_result: IdResult,
+    pub set: IdRef,
+    pub edge: IdRef,
+    pub x: IdRef,
+}
+impl From<OpGLSLStd450Step> for Instruction {
+    fn from(v: OpGLSLStd450Step) -> Self {
+        Self::GLSLStd450Step(v)
+    }
+}
+#[derive(Clone, Debug)]
+pub struct OpGLSLStd450SmoothStep {
+    pub id_result_type: IdResultType,
+    pub id_result: IdResult,
+    pub set: IdRef,
+    pub edge0: IdRef,
+    pub edge1: IdRef,
+    pub x: IdRef,
+}
+impl From<OpGLSLStd450SmoothStep> for Instruction {
+    fn from(v: OpGLSLStd450SmoothStep) -> Self {
+        Self::GLSLStd450SmoothStep(v)
+    }
+}
+#[derive(Clone, Debug)]
+pub struct OpGLSLStd450Fma {
+    pub id_result_type: IdResultType,
+    pub id_result: IdResult,
+    pub set: IdRef,
+    pub a: IdRef,
+    pub b: IdRef,
+    pub c: IdRef,
+}
+impl From<OpGLSLStd450Fma> for Instruction {
+    fn from(v: OpGLSLStd450Fma) -> Self {
+        Self::GLSLStd450Fma(v)
+    }
+}
+#[derive(Clone, Debug)]
+pub struct OpGLSLStd450Frexp {
+    pub id_result_type: IdResultType,
+    pub id_result: IdResult,
+    pub set: IdRef,
+    pub x: IdRef,
+    pub exp: IdRef,
+}
+impl From<OpGLSLStd450Frexp> for Instruction {
+    fn from(v: OpGLSLStd450Frexp) -> Self {
+        Self::GLSLStd450Frexp(v)
+    }
+}
+#[derive(Clone, Debug)]
+pub struct OpGLSLStd450FrexpStruct {
+    pub id_result_type: IdResultType,
+    pub id_result: IdResult,
+    pub set: IdRef,
+    pub x: IdRef,
+}
+impl From<OpGLSLStd450FrexpStruct> for Instruction {
+    fn from(v: OpGLSLStd450FrexpStruct) -> Self {
+        Self::GLSLStd450FrexpStruct(v)
+    }
+}
+#[derive(Clone, Debug)]
+pub struct OpGLSLStd450Ldexp {
+    pub id_result_type: IdResultType,
+    pub id_result: IdResult,
+    pub set: IdRef,
+    pub x: IdRef,
+    pub exp: IdRef,
+}
+impl From<OpGLSLStd450Ldexp> for Instruction {
+    fn from(v: OpGLSLStd450Ldexp) -> Self {
+        Self::GLSLStd450Ldexp(v)
+    }
+}
+#[derive(Clone, Debug)]
+pub struct OpGLSLStd450PackSnorm4x8 {
+    pub id_result_type: IdResultType,
+    pub id_result: IdResult,
+    pub set: IdRef,
+    pub v: IdRef,
+}
+impl From<OpGLSLStd450PackSnorm4x8> for Instruction {
+    fn from(v: OpGLSLStd450PackSnorm4x8) -> Self {
+        Self::GLSLStd450PackSnorm4x8(v)
+    }
+}
+#[derive(Clone, Debug)]
+pub struct OpGLSLStd450PackUnorm4x8 {
+    pub id_result_type: IdResultType,
+    pub id_result: IdResult,
+    pub set: IdRef,
+    pub v: IdRef,
+}
+impl From<OpGLSLStd450PackUnorm4x8> for Instruction {
+    fn from(v: OpGLSLStd450PackUnorm4x8) -> Self {
+        Self::GLSLStd450PackUnorm4x8(v)
+    }
+}
+#[derive(Clone, Debug)]
+pub struct OpGLSLStd450PackSnorm2x16 {
+    pub id_result_type: IdResultType,
+    pub id_result: IdResult,
+    pub set: IdRef,
+    pub v: IdRef,
+}
+impl From<OpGLSLStd450PackSnorm2x16> for Instruction {
+    fn from(v: OpGLSLStd450PackSnorm2x16) -> Self {
+        Self::GLSLStd450PackSnorm2x16(v)
+    }
+}
+#[derive(Clone, Debug)]
+pub struct OpGLSLStd450PackUnorm2x16 {
+    pub id_result_type: IdResultType,
+    pub id_result: IdResult,
+    pub set: IdRef,
+    pub v: IdRef,
+}
+impl From<OpGLSLStd450PackUnorm2x16> for Instruction {
+    fn from(v: OpGLSLStd450PackUnorm2x16) -> Self {
+        Self::GLSLStd450PackUnorm2x16(v)
+    }
+}
+#[derive(Clone, Debug)]
+pub struct OpGLSLStd450PackHalf2x16 {
+    pub id_result_type: IdResultType,
+    pub id_result: IdResult,
+    pub set: IdRef,
+    pub v: IdRef,
+}
+impl From<OpGLSLStd450PackHalf2x16> for Instruction {
+    fn from(v: OpGLSLStd450PackHalf2x16) -> Self {
+        Self::GLSLStd450PackHalf2x16(v)
+    }
+}
+#[derive(Clone, Debug)]
+pub struct OpGLSLStd450PackDouble2x32 {
+    pub id_result_type: IdResultType,
+    pub id_result: IdResult,
+    pub set: IdRef,
+    pub v: IdRef,
+}
+impl From<OpGLSLStd450PackDouble2x32> for Instruction {
+    fn from(v: OpGLSLStd450PackDouble2x32) -> Self {
+        Self::GLSLStd450PackDouble2x32(v)
+    }
+}
+#[derive(Clone, Debug)]
+pub struct OpGLSLStd450UnpackSnorm2x16 {
+    pub id_result_type: IdResultType,
+    pub id_result: IdResult,
+    pub set: IdRef,
+    pub p: IdRef,
+}
+impl From<OpGLSLStd450UnpackSnorm2x16> for Instruction {
+    fn from(v: OpGLSLStd450UnpackSnorm2x16) -> Self {
+        Self::GLSLStd450UnpackSnorm2x16(v)
+    }
+}
+#[derive(Clone, Debug)]
+pub struct OpGLSLStd450UnpackUnorm2x16 {
+    pub id_result_type: IdResultType,
+    pub id_result: IdResult,
+    pub set: IdRef,
+    pub p: IdRef,
+}
+impl From<OpGLSLStd450UnpackUnorm2x16> for Instruction {
+    fn from(v: OpGLSLStd450UnpackUnorm2x16) -> Self {
+        Self::GLSLStd450UnpackUnorm2x16(v)
+    }
+}
+#[derive(Clone, Debug)]
+pub struct OpGLSLStd450UnpackHalf2x16 {
+    pub id_result_type: IdResultType,
+    pub id_result: IdResult,
+    pub set: IdRef,
+    pub v: IdRef,
+}
+impl From<OpGLSLStd450UnpackHalf2x16> for Instruction {
+    fn from(v: OpGLSLStd450UnpackHalf2x16) -> Self {
+        Self::GLSLStd450UnpackHalf2x16(v)
+    }
+}
+#[derive(Clone, Debug)]
+pub struct OpGLSLStd450UnpackSnorm4x8 {
+    pub id_result_type: IdResultType,
+    pub id_result: IdResult,
+    pub set: IdRef,
+    pub p: IdRef,
+}
+impl From<OpGLSLStd450UnpackSnorm4x8> for Instruction {
+    fn from(v: OpGLSLStd450UnpackSnorm4x8) -> Self {
+        Self::GLSLStd450UnpackSnorm4x8(v)
+    }
+}
+#[derive(Clone, Debug)]
+pub struct OpGLSLStd450UnpackUnorm4x8 {
+    pub id_result_type: IdResultType,
+    pub id_result: IdResult,
+    pub set: IdRef,
+    pub p: IdRef,
+}
+impl From<OpGLSLStd450UnpackUnorm4x8> for Instruction {
+    fn from(v: OpGLSLStd450UnpackUnorm4x8) -> Self {
+        Self::GLSLStd450UnpackUnorm4x8(v)
+    }
+}
+#[derive(Clone, Debug)]
+pub struct OpGLSLStd450UnpackDouble2x32 {
+    pub id_result_type: IdResultType,
+    pub id_result: IdResult,
+    pub set: IdRef,
+    pub v: IdRef,
+}
+impl From<OpGLSLStd450UnpackDouble2x32> for Instruction {
+    fn from(v: OpGLSLStd450UnpackDouble2x32) -> Self {
+        Self::GLSLStd450UnpackDouble2x32(v)
+    }
+}
+#[derive(Clone, Debug)]
+pub struct OpGLSLStd450Length {
+    pub id_result_type: IdResultType,
+    pub id_result: IdResult,
+    pub set: IdRef,
+    pub x: IdRef,
+}
+impl From<OpGLSLStd450Length> for Instruction {
+    fn from(v: OpGLSLStd450Length) -> Self {
+        Self::GLSLStd450Length(v)
+    }
+}
+#[derive(Clone, Debug)]
+pub struct OpGLSLStd450Distance {
+    pub id_result_type: IdResultType,
+    pub id_result: IdResult,
+    pub set: IdRef,
+    pub p0: IdRef,
+    pub p1: IdRef,
+}
+impl From<OpGLSLStd450Distance> for Instruction {
+    fn from(v: OpGLSLStd450Distance) -> Self {
+        Self::GLSLStd450Distance(v)
+    }
+}
+#[derive(Clone, Debug)]
+pub struct OpGLSLStd450Cross {
+    pub id_result_type: IdResultType,
+    pub id_result: IdResult,
+    pub set: IdRef,
+    pub x: IdRef,
+    pub y: IdRef,
+}
+impl From<OpGLSLStd450Cross> for Instruction {
+    fn from(v: OpGLSLStd450Cross) -> Self {
+        Self::GLSLStd450Cross(v)
+    }
+}
+#[derive(Clone, Debug)]
+pub struct OpGLSLStd450Normalize {
+    pub id_result_type: IdResultType,
+    pub id_result: IdResult,
+    pub set: IdRef,
+    pub x: IdRef,
+}
+impl From<OpGLSLStd450Normalize> for Instruction {
+    fn from(v: OpGLSLStd450Normalize) -> Self {
+        Self::GLSLStd450Normalize(v)
+    }
+}
+#[derive(Clone, Debug)]
+pub struct OpGLSLStd450FaceForward {
+    pub id_result_type: IdResultType,
+    pub id_result: IdResult,
+    pub set: IdRef,
+    pub n: IdRef,
+    pub i: IdRef,
+    pub nref: IdRef,
+}
+impl From<OpGLSLStd450FaceForward> for Instruction {
+    fn from(v: OpGLSLStd450FaceForward) -> Self {
+        Self::GLSLStd450FaceForward(v)
+    }
+}
+#[derive(Clone, Debug)]
+pub struct OpGLSLStd450Reflect {
+    pub id_result_type: IdResultType,
+    pub id_result: IdResult,
+    pub set: IdRef,
+    pub i: IdRef,
+    pub n: IdRef,
+}
+impl From<OpGLSLStd450Reflect> for Instruction {
+    fn from(v: OpGLSLStd450Reflect) -> Self {
+        Self::GLSLStd450Reflect(v)
+    }
+}
+#[derive(Clone, Debug)]
+pub struct OpGLSLStd450Refract {
+    pub id_result_type: IdResultType,
+    pub id_result: IdResult,
+    pub set: IdRef,
+    pub i: IdRef,
+    pub n: IdRef,
+    pub eta: IdRef,
+}
+impl From<OpGLSLStd450Refract> for Instruction {
+    fn from(v: OpGLSLStd450Refract) -> Self {
+        Self::GLSLStd450Refract(v)
+    }
+}
+#[derive(Clone, Debug)]
+pub struct OpGLSLStd450FindILsb {
+    pub id_result_type: IdResultType,
+    pub id_result: IdResult,
+    pub set: IdRef,
+    pub value: IdRef,
+}
+impl From<OpGLSLStd450FindILsb> for Instruction {
+    fn from(v: OpGLSLStd450FindILsb) -> Self {
+        Self::GLSLStd450FindILsb(v)
+    }
+}
+#[derive(Clone, Debug)]
+pub struct OpGLSLStd450FindSMsb {
+    pub id_result_type: IdResultType,
+    pub id_result: IdResult,
+    pub set: IdRef,
+    pub value: IdRef,
+}
+impl From<OpGLSLStd450FindSMsb> for Instruction {
+    fn from(v: OpGLSLStd450FindSMsb) -> Self {
+        Self::GLSLStd450FindSMsb(v)
+    }
+}
+#[derive(Clone, Debug)]
+pub struct OpGLSLStd450FindUMsb {
+    pub id_result_type: IdResultType,
+    pub id_result: IdResult,
+    pub set: IdRef,
+    pub value: IdRef,
+}
+impl From<OpGLSLStd450FindUMsb> for Instruction {
+    fn from(v: OpGLSLStd450FindUMsb) -> Self {
+        Self::GLSLStd450FindUMsb(v)
+    }
+}
+#[derive(Clone, Debug)]
+pub struct OpGLSLStd450InterpolateAtCentroid {
+    pub id_result_type: IdResultType,
+    pub id_result: IdResult,
+    pub set: IdRef,
+    pub interpolant: IdRef,
+}
+impl From<OpGLSLStd450InterpolateAtCentroid> for Instruction {
+    fn from(v: OpGLSLStd450InterpolateAtCentroid) -> Self {
+        Self::GLSLStd450InterpolateAtCentroid(v)
+    }
+}
+#[derive(Clone, Debug)]
+pub struct OpGLSLStd450InterpolateAtSample {
+    pub id_result_type: IdResultType,
+    pub id_result: IdResult,
+    pub set: IdRef,
+    pub interpolant: IdRef,
+    pub sample: IdRef,
+}
+impl From<OpGLSLStd450InterpolateAtSample> for Instruction {
+    fn from(v: OpGLSLStd450InterpolateAtSample) -> Self {
+        Self::GLSLStd450InterpolateAtSample(v)
+    }
+}
+#[derive(Clone, Debug)]
+pub struct OpGLSLStd450InterpolateAtOffset {
+    pub id_result_type: IdResultType,
+    pub id_result: IdResult,
+    pub set: IdRef,
+    pub interpolant: IdRef,
+    pub offset: IdRef,
+}
+impl From<OpGLSLStd450InterpolateAtOffset> for Instruction {
+    fn from(v: OpGLSLStd450InterpolateAtOffset) -> Self {
+        Self::GLSLStd450InterpolateAtOffset(v)
+    }
+}
+#[derive(Clone, Debug)]
+pub struct OpGLSLStd450NMin {
+    pub id_result_type: IdResultType,
+    pub id_result: IdResult,
+    pub set: IdRef,
+    pub x: IdRef,
+    pub y: IdRef,
+}
+impl From<OpGLSLStd450NMin> for Instruction {
+    fn from(v: OpGLSLStd450NMin) -> Self {
+        Self::GLSLStd450NMin(v)
+    }
+}
+#[derive(Clone, Debug)]
+pub struct OpGLSLStd450NMax {
+    pub id_result_type: IdResultType,
+    pub id_result: IdResult,
+    pub set: IdRef,
+    pub x: IdRef,
+    pub y: IdRef,
+}
+impl From<OpGLSLStd450NMax> for Instruction {
+    fn from(v: OpGLSLStd450NMax) -> Self {
+        Self::GLSLStd450NMax(v)
+    }
+}
+#[derive(Clone, Debug)]
+pub struct OpGLSLStd450NClamp {
+    pub id_result_type: IdResultType,
+    pub id_result: IdResult,
+    pub set: IdRef,
+    pub x: IdRef,
+    pub min_val: IdRef,
+    pub max_val: IdRef,
+}
+impl From<OpGLSLStd450NClamp> for Instruction {
+    fn from(v: OpGLSLStd450NClamp) -> Self {
+        Self::GLSLStd450NClamp(v)
+    }
+}
+#[derive(Clone, Debug)]
 pub enum Instruction {
     Nop(OpNop),
     Undef(OpUndef),
@@ -12584,87 +15949,6 @@ pub enum Instruction {
     PtrDiff(OpPtrDiff),
     DecorateString(OpDecorateString),
     MemberDecorateString(OpMemberDecorateString),
-    GLSLStd450Round(OpGLSLStd450Round),
-    GLSLStd450RoundEven(OpGLSLStd450RoundEven),
-    GLSLStd450Trunc(OpGLSLStd450Trunc),
-    GLSLStd450FAbs(OpGLSLStd450FAbs),
-    GLSLStd450SAbs(OpGLSLStd450SAbs),
-    GLSLStd450FSign(OpGLSLStd450FSign),
-    GLSLStd450SSign(OpGLSLStd450SSign),
-    GLSLStd450Floor(OpGLSLStd450Floor),
-    GLSLStd450Ceil(OpGLSLStd450Ceil),
-    GLSLStd450Fract(OpGLSLStd450Fract),
-    GLSLStd450Radians(OpGLSLStd450Radians),
-    GLSLStd450Degrees(OpGLSLStd450Degrees),
-    GLSLStd450Sin(OpGLSLStd450Sin),
-    GLSLStd450Cos(OpGLSLStd450Cos),
-    GLSLStd450Tan(OpGLSLStd450Tan),
-    GLSLStd450Asin(OpGLSLStd450Asin),
-    GLSLStd450Acos(OpGLSLStd450Acos),
-    GLSLStd450Atan(OpGLSLStd450Atan),
-    GLSLStd450Sinh(OpGLSLStd450Sinh),
-    GLSLStd450Cosh(OpGLSLStd450Cosh),
-    GLSLStd450Tanh(OpGLSLStd450Tanh),
-    GLSLStd450Asinh(OpGLSLStd450Asinh),
-    GLSLStd450Acosh(OpGLSLStd450Acosh),
-    GLSLStd450Atanh(OpGLSLStd450Atanh),
-    GLSLStd450Atan2(OpGLSLStd450Atan2),
-    GLSLStd450Pow(OpGLSLStd450Pow),
-    GLSLStd450Exp(OpGLSLStd450Exp),
-    GLSLStd450Log(OpGLSLStd450Log),
-    GLSLStd450Exp2(OpGLSLStd450Exp2),
-    GLSLStd450Log2(OpGLSLStd450Log2),
-    GLSLStd450Sqrt(OpGLSLStd450Sqrt),
-    GLSLStd450InverseSqrt(OpGLSLStd450InverseSqrt),
-    GLSLStd450Determinant(OpGLSLStd450Determinant),
-    GLSLStd450MatrixInverse(OpGLSLStd450MatrixInverse),
-    GLSLStd450Modf(OpGLSLStd450Modf),
-    GLSLStd450ModfStruct(OpGLSLStd450ModfStruct),
-    GLSLStd450FMin(OpGLSLStd450FMin),
-    GLSLStd450UMin(OpGLSLStd450UMin),
-    GLSLStd450SMin(OpGLSLStd450SMin),
-    GLSLStd450FMax(OpGLSLStd450FMax),
-    GLSLStd450UMax(OpGLSLStd450UMax),
-    GLSLStd450SMax(OpGLSLStd450SMax),
-    GLSLStd450FClamp(OpGLSLStd450FClamp),
-    GLSLStd450UClamp(OpGLSLStd450UClamp),
-    GLSLStd450SClamp(OpGLSLStd450SClamp),
-    GLSLStd450FMix(OpGLSLStd450FMix),
-    GLSLStd450IMix(OpGLSLStd450IMix),
-    GLSLStd450Step(OpGLSLStd450Step),
-    GLSLStd450SmoothStep(OpGLSLStd450SmoothStep),
-    GLSLStd450Fma(OpGLSLStd450Fma),
-    GLSLStd450Frexp(OpGLSLStd450Frexp),
-    GLSLStd450FrexpStruct(OpGLSLStd450FrexpStruct),
-    GLSLStd450Ldexp(OpGLSLStd450Ldexp),
-    GLSLStd450PackSnorm4x8(OpGLSLStd450PackSnorm4x8),
-    GLSLStd450PackUnorm4x8(OpGLSLStd450PackUnorm4x8),
-    GLSLStd450PackSnorm2x16(OpGLSLStd450PackSnorm2x16),
-    GLSLStd450PackUnorm2x16(OpGLSLStd450PackUnorm2x16),
-    GLSLStd450PackHalf2x16(OpGLSLStd450PackHalf2x16),
-    GLSLStd450PackDouble2x32(OpGLSLStd450PackDouble2x32),
-    GLSLStd450UnpackSnorm2x16(OpGLSLStd450UnpackSnorm2x16),
-    GLSLStd450UnpackUnorm2x16(OpGLSLStd450UnpackUnorm2x16),
-    GLSLStd450UnpackHalf2x16(OpGLSLStd450UnpackHalf2x16),
-    GLSLStd450UnpackSnorm4x8(OpGLSLStd450UnpackSnorm4x8),
-    GLSLStd450UnpackUnorm4x8(OpGLSLStd450UnpackUnorm4x8),
-    GLSLStd450UnpackDouble2x32(OpGLSLStd450UnpackDouble2x32),
-    GLSLStd450Length(OpGLSLStd450Length),
-    GLSLStd450Distance(OpGLSLStd450Distance),
-    GLSLStd450Cross(OpGLSLStd450Cross),
-    GLSLStd450Normalize(OpGLSLStd450Normalize),
-    GLSLStd450FaceForward(OpGLSLStd450FaceForward),
-    GLSLStd450Reflect(OpGLSLStd450Reflect),
-    GLSLStd450Refract(OpGLSLStd450Refract),
-    GLSLStd450FindILsb(OpGLSLStd450FindILsb),
-    GLSLStd450FindSMsb(OpGLSLStd450FindSMsb),
-    GLSLStd450FindUMsb(OpGLSLStd450FindUMsb),
-    GLSLStd450InterpolateAtCentroid(OpGLSLStd450InterpolateAtCentroid),
-    GLSLStd450InterpolateAtSample(OpGLSLStd450InterpolateAtSample),
-    GLSLStd450InterpolateAtOffset(OpGLSLStd450InterpolateAtOffset),
-    GLSLStd450NMin(OpGLSLStd450NMin),
-    GLSLStd450NMax(OpGLSLStd450NMax),
-    GLSLStd450NClamp(OpGLSLStd450NClamp),
     OpenCLStdAcos(OpOpenCLStdAcos),
     OpenCLStdAcosh(OpOpenCLStdAcosh),
     OpenCLStdAcospi(OpOpenCLStdAcospi),
@@ -12827,6 +16111,87 @@ pub enum Instruction {
     OpenCLStdShuffle2(OpOpenCLStdShuffle2),
     OpenCLStdPrintf(OpOpenCLStdPrintf),
     OpenCLStdPrefetch(OpOpenCLStdPrefetch),
+    GLSLStd450Round(OpGLSLStd450Round),
+    GLSLStd450RoundEven(OpGLSLStd450RoundEven),
+    GLSLStd450Trunc(OpGLSLStd450Trunc),
+    GLSLStd450FAbs(OpGLSLStd450FAbs),
+    GLSLStd450SAbs(OpGLSLStd450SAbs),
+    GLSLStd450FSign(OpGLSLStd450FSign),
+    GLSLStd450SSign(OpGLSLStd450SSign),
+    GLSLStd450Floor(OpGLSLStd450Floor),
+    GLSLStd450Ceil(OpGLSLStd450Ceil),
+    GLSLStd450Fract(OpGLSLStd450Fract),
+    GLSLStd450Radians(OpGLSLStd450Radians),
+    GLSLStd450Degrees(OpGLSLStd450Degrees),
+    GLSLStd450Sin(OpGLSLStd450Sin),
+    GLSLStd450Cos(OpGLSLStd450Cos),
+    GLSLStd450Tan(OpGLSLStd450Tan),
+    GLSLStd450Asin(OpGLSLStd450Asin),
+    GLSLStd450Acos(OpGLSLStd450Acos),
+    GLSLStd450Atan(OpGLSLStd450Atan),
+    GLSLStd450Sinh(OpGLSLStd450Sinh),
+    GLSLStd450Cosh(OpGLSLStd450Cosh),
+    GLSLStd450Tanh(OpGLSLStd450Tanh),
+    GLSLStd450Asinh(OpGLSLStd450Asinh),
+    GLSLStd450Acosh(OpGLSLStd450Acosh),
+    GLSLStd450Atanh(OpGLSLStd450Atanh),
+    GLSLStd450Atan2(OpGLSLStd450Atan2),
+    GLSLStd450Pow(OpGLSLStd450Pow),
+    GLSLStd450Exp(OpGLSLStd450Exp),
+    GLSLStd450Log(OpGLSLStd450Log),
+    GLSLStd450Exp2(OpGLSLStd450Exp2),
+    GLSLStd450Log2(OpGLSLStd450Log2),
+    GLSLStd450Sqrt(OpGLSLStd450Sqrt),
+    GLSLStd450InverseSqrt(OpGLSLStd450InverseSqrt),
+    GLSLStd450Determinant(OpGLSLStd450Determinant),
+    GLSLStd450MatrixInverse(OpGLSLStd450MatrixInverse),
+    GLSLStd450Modf(OpGLSLStd450Modf),
+    GLSLStd450ModfStruct(OpGLSLStd450ModfStruct),
+    GLSLStd450FMin(OpGLSLStd450FMin),
+    GLSLStd450UMin(OpGLSLStd450UMin),
+    GLSLStd450SMin(OpGLSLStd450SMin),
+    GLSLStd450FMax(OpGLSLStd450FMax),
+    GLSLStd450UMax(OpGLSLStd450UMax),
+    GLSLStd450SMax(OpGLSLStd450SMax),
+    GLSLStd450FClamp(OpGLSLStd450FClamp),
+    GLSLStd450UClamp(OpGLSLStd450UClamp),
+    GLSLStd450SClamp(OpGLSLStd450SClamp),
+    GLSLStd450FMix(OpGLSLStd450FMix),
+    GLSLStd450IMix(OpGLSLStd450IMix),
+    GLSLStd450Step(OpGLSLStd450Step),
+    GLSLStd450SmoothStep(OpGLSLStd450SmoothStep),
+    GLSLStd450Fma(OpGLSLStd450Fma),
+    GLSLStd450Frexp(OpGLSLStd450Frexp),
+    GLSLStd450FrexpStruct(OpGLSLStd450FrexpStruct),
+    GLSLStd450Ldexp(OpGLSLStd450Ldexp),
+    GLSLStd450PackSnorm4x8(OpGLSLStd450PackSnorm4x8),
+    GLSLStd450PackUnorm4x8(OpGLSLStd450PackUnorm4x8),
+    GLSLStd450PackSnorm2x16(OpGLSLStd450PackSnorm2x16),
+    GLSLStd450PackUnorm2x16(OpGLSLStd450PackUnorm2x16),
+    GLSLStd450PackHalf2x16(OpGLSLStd450PackHalf2x16),
+    GLSLStd450PackDouble2x32(OpGLSLStd450PackDouble2x32),
+    GLSLStd450UnpackSnorm2x16(OpGLSLStd450UnpackSnorm2x16),
+    GLSLStd450UnpackUnorm2x16(OpGLSLStd450UnpackUnorm2x16),
+    GLSLStd450UnpackHalf2x16(OpGLSLStd450UnpackHalf2x16),
+    GLSLStd450UnpackSnorm4x8(OpGLSLStd450UnpackSnorm4x8),
+    GLSLStd450UnpackUnorm4x8(OpGLSLStd450UnpackUnorm4x8),
+    GLSLStd450UnpackDouble2x32(OpGLSLStd450UnpackDouble2x32),
+    GLSLStd450Length(OpGLSLStd450Length),
+    GLSLStd450Distance(OpGLSLStd450Distance),
+    GLSLStd450Cross(OpGLSLStd450Cross),
+    GLSLStd450Normalize(OpGLSLStd450Normalize),
+    GLSLStd450FaceForward(OpGLSLStd450FaceForward),
+    GLSLStd450Reflect(OpGLSLStd450Reflect),
+    GLSLStd450Refract(OpGLSLStd450Refract),
+    GLSLStd450FindILsb(OpGLSLStd450FindILsb),
+    GLSLStd450FindSMsb(OpGLSLStd450FindSMsb),
+    GLSLStd450FindUMsb(OpGLSLStd450FindUMsb),
+    GLSLStd450InterpolateAtCentroid(OpGLSLStd450InterpolateAtCentroid),
+    GLSLStd450InterpolateAtSample(OpGLSLStd450InterpolateAtSample),
+    GLSLStd450InterpolateAtOffset(OpGLSLStd450InterpolateAtOffset),
+    GLSLStd450NMin(OpGLSLStd450NMin),
+    GLSLStd450NMax(OpGLSLStd450NMax),
+    GLSLStd450NClamp(OpGLSLStd450NClamp),
 }
 #[derive(Copy, Clone, Debug)]
 pub struct Header {
@@ -13214,1177 +16579,6 @@ fn parse_instruction(
                 _ => return Err(Error::IdIsNotExtInstImport(set)),
             };
             match (extension_instruction_set, instruction) {
-                (ExtensionInstructionSet::GLSLStd450, 1u32) => split_fn!({
-                    let (x, words) = IdRef::spirv_parse(words, parse_state)?;
-                    if words.is_empty() {
-                        Ok(Instruction::GLSLStd450Round(OpGLSLStd450Round {
-                            id_result_type,
-                            id_result,
-                            set,
-                            x,
-                        }))
-                    } else {
-                        Err(Error::InstructionTooLong)
-                    }
-                }),
-                (ExtensionInstructionSet::GLSLStd450, 2u32) => split_fn!({
-                    let (x, words) = IdRef::spirv_parse(words, parse_state)?;
-                    if words.is_empty() {
-                        Ok(Instruction::GLSLStd450RoundEven(OpGLSLStd450RoundEven {
-                            id_result_type,
-                            id_result,
-                            set,
-                            x,
-                        }))
-                    } else {
-                        Err(Error::InstructionTooLong)
-                    }
-                }),
-                (ExtensionInstructionSet::GLSLStd450, 3u32) => split_fn!({
-                    let (x, words) = IdRef::spirv_parse(words, parse_state)?;
-                    if words.is_empty() {
-                        Ok(Instruction::GLSLStd450Trunc(OpGLSLStd450Trunc {
-                            id_result_type,
-                            id_result,
-                            set,
-                            x,
-                        }))
-                    } else {
-                        Err(Error::InstructionTooLong)
-                    }
-                }),
-                (ExtensionInstructionSet::GLSLStd450, 4u32) => split_fn!({
-                    let (x, words) = IdRef::spirv_parse(words, parse_state)?;
-                    if words.is_empty() {
-                        Ok(Instruction::GLSLStd450FAbs(OpGLSLStd450FAbs {
-                            id_result_type,
-                            id_result,
-                            set,
-                            x,
-                        }))
-                    } else {
-                        Err(Error::InstructionTooLong)
-                    }
-                }),
-                (ExtensionInstructionSet::GLSLStd450, 5u32) => split_fn!({
-                    let (x, words) = IdRef::spirv_parse(words, parse_state)?;
-                    if words.is_empty() {
-                        Ok(Instruction::GLSLStd450SAbs(OpGLSLStd450SAbs {
-                            id_result_type,
-                            id_result,
-                            set,
-                            x,
-                        }))
-                    } else {
-                        Err(Error::InstructionTooLong)
-                    }
-                }),
-                (ExtensionInstructionSet::GLSLStd450, 6u32) => split_fn!({
-                    let (x, words) = IdRef::spirv_parse(words, parse_state)?;
-                    if words.is_empty() {
-                        Ok(Instruction::GLSLStd450FSign(OpGLSLStd450FSign {
-                            id_result_type,
-                            id_result,
-                            set,
-                            x,
-                        }))
-                    } else {
-                        Err(Error::InstructionTooLong)
-                    }
-                }),
-                (ExtensionInstructionSet::GLSLStd450, 7u32) => split_fn!({
-                    let (x, words) = IdRef::spirv_parse(words, parse_state)?;
-                    if words.is_empty() {
-                        Ok(Instruction::GLSLStd450SSign(OpGLSLStd450SSign {
-                            id_result_type,
-                            id_result,
-                            set,
-                            x,
-                        }))
-                    } else {
-                        Err(Error::InstructionTooLong)
-                    }
-                }),
-                (ExtensionInstructionSet::GLSLStd450, 8u32) => split_fn!({
-                    let (x, words) = IdRef::spirv_parse(words, parse_state)?;
-                    if words.is_empty() {
-                        Ok(Instruction::GLSLStd450Floor(OpGLSLStd450Floor {
-                            id_result_type,
-                            id_result,
-                            set,
-                            x,
-                        }))
-                    } else {
-                        Err(Error::InstructionTooLong)
-                    }
-                }),
-                (ExtensionInstructionSet::GLSLStd450, 9u32) => split_fn!({
-                    let (x, words) = IdRef::spirv_parse(words, parse_state)?;
-                    if words.is_empty() {
-                        Ok(Instruction::GLSLStd450Ceil(OpGLSLStd450Ceil {
-                            id_result_type,
-                            id_result,
-                            set,
-                            x,
-                        }))
-                    } else {
-                        Err(Error::InstructionTooLong)
-                    }
-                }),
-                (ExtensionInstructionSet::GLSLStd450, 10u32) => split_fn!({
-                    let (x, words) = IdRef::spirv_parse(words, parse_state)?;
-                    if words.is_empty() {
-                        Ok(Instruction::GLSLStd450Fract(OpGLSLStd450Fract {
-                            id_result_type,
-                            id_result,
-                            set,
-                            x,
-                        }))
-                    } else {
-                        Err(Error::InstructionTooLong)
-                    }
-                }),
-                (ExtensionInstructionSet::GLSLStd450, 11u32) => split_fn!({
-                    let (degrees, words) = IdRef::spirv_parse(words, parse_state)?;
-                    if words.is_empty() {
-                        Ok(Instruction::GLSLStd450Radians(OpGLSLStd450Radians {
-                            id_result_type,
-                            id_result,
-                            set,
-                            degrees,
-                        }))
-                    } else {
-                        Err(Error::InstructionTooLong)
-                    }
-                }),
-                (ExtensionInstructionSet::GLSLStd450, 12u32) => split_fn!({
-                    let (radians, words) = IdRef::spirv_parse(words, parse_state)?;
-                    if words.is_empty() {
-                        Ok(Instruction::GLSLStd450Degrees(OpGLSLStd450Degrees {
-                            id_result_type,
-                            id_result,
-                            set,
-                            radians,
-                        }))
-                    } else {
-                        Err(Error::InstructionTooLong)
-                    }
-                }),
-                (ExtensionInstructionSet::GLSLStd450, 13u32) => split_fn!({
-                    let (x, words) = IdRef::spirv_parse(words, parse_state)?;
-                    if words.is_empty() {
-                        Ok(Instruction::GLSLStd450Sin(OpGLSLStd450Sin {
-                            id_result_type,
-                            id_result,
-                            set,
-                            x,
-                        }))
-                    } else {
-                        Err(Error::InstructionTooLong)
-                    }
-                }),
-                (ExtensionInstructionSet::GLSLStd450, 14u32) => split_fn!({
-                    let (x, words) = IdRef::spirv_parse(words, parse_state)?;
-                    if words.is_empty() {
-                        Ok(Instruction::GLSLStd450Cos(OpGLSLStd450Cos {
-                            id_result_type,
-                            id_result,
-                            set,
-                            x,
-                        }))
-                    } else {
-                        Err(Error::InstructionTooLong)
-                    }
-                }),
-                (ExtensionInstructionSet::GLSLStd450, 15u32) => split_fn!({
-                    let (x, words) = IdRef::spirv_parse(words, parse_state)?;
-                    if words.is_empty() {
-                        Ok(Instruction::GLSLStd450Tan(OpGLSLStd450Tan {
-                            id_result_type,
-                            id_result,
-                            set,
-                            x,
-                        }))
-                    } else {
-                        Err(Error::InstructionTooLong)
-                    }
-                }),
-                (ExtensionInstructionSet::GLSLStd450, 16u32) => split_fn!({
-                    let (x, words) = IdRef::spirv_parse(words, parse_state)?;
-                    if words.is_empty() {
-                        Ok(Instruction::GLSLStd450Asin(OpGLSLStd450Asin {
-                            id_result_type,
-                            id_result,
-                            set,
-                            x,
-                        }))
-                    } else {
-                        Err(Error::InstructionTooLong)
-                    }
-                }),
-                (ExtensionInstructionSet::GLSLStd450, 17u32) => split_fn!({
-                    let (x, words) = IdRef::spirv_parse(words, parse_state)?;
-                    if words.is_empty() {
-                        Ok(Instruction::GLSLStd450Acos(OpGLSLStd450Acos {
-                            id_result_type,
-                            id_result,
-                            set,
-                            x,
-                        }))
-                    } else {
-                        Err(Error::InstructionTooLong)
-                    }
-                }),
-                (ExtensionInstructionSet::GLSLStd450, 18u32) => split_fn!({
-                    let (y_over_x, words) = IdRef::spirv_parse(words, parse_state)?;
-                    if words.is_empty() {
-                        Ok(Instruction::GLSLStd450Atan(OpGLSLStd450Atan {
-                            id_result_type,
-                            id_result,
-                            set,
-                            y_over_x,
-                        }))
-                    } else {
-                        Err(Error::InstructionTooLong)
-                    }
-                }),
-                (ExtensionInstructionSet::GLSLStd450, 19u32) => split_fn!({
-                    let (x, words) = IdRef::spirv_parse(words, parse_state)?;
-                    if words.is_empty() {
-                        Ok(Instruction::GLSLStd450Sinh(OpGLSLStd450Sinh {
-                            id_result_type,
-                            id_result,
-                            set,
-                            x,
-                        }))
-                    } else {
-                        Err(Error::InstructionTooLong)
-                    }
-                }),
-                (ExtensionInstructionSet::GLSLStd450, 20u32) => split_fn!({
-                    let (x, words) = IdRef::spirv_parse(words, parse_state)?;
-                    if words.is_empty() {
-                        Ok(Instruction::GLSLStd450Cosh(OpGLSLStd450Cosh {
-                            id_result_type,
-                            id_result,
-                            set,
-                            x,
-                        }))
-                    } else {
-                        Err(Error::InstructionTooLong)
-                    }
-                }),
-                (ExtensionInstructionSet::GLSLStd450, 21u32) => split_fn!({
-                    let (x, words) = IdRef::spirv_parse(words, parse_state)?;
-                    if words.is_empty() {
-                        Ok(Instruction::GLSLStd450Tanh(OpGLSLStd450Tanh {
-                            id_result_type,
-                            id_result,
-                            set,
-                            x,
-                        }))
-                    } else {
-                        Err(Error::InstructionTooLong)
-                    }
-                }),
-                (ExtensionInstructionSet::GLSLStd450, 22u32) => split_fn!({
-                    let (x, words) = IdRef::spirv_parse(words, parse_state)?;
-                    if words.is_empty() {
-                        Ok(Instruction::GLSLStd450Asinh(OpGLSLStd450Asinh {
-                            id_result_type,
-                            id_result,
-                            set,
-                            x,
-                        }))
-                    } else {
-                        Err(Error::InstructionTooLong)
-                    }
-                }),
-                (ExtensionInstructionSet::GLSLStd450, 23u32) => split_fn!({
-                    let (x, words) = IdRef::spirv_parse(words, parse_state)?;
-                    if words.is_empty() {
-                        Ok(Instruction::GLSLStd450Acosh(OpGLSLStd450Acosh {
-                            id_result_type,
-                            id_result,
-                            set,
-                            x,
-                        }))
-                    } else {
-                        Err(Error::InstructionTooLong)
-                    }
-                }),
-                (ExtensionInstructionSet::GLSLStd450, 24u32) => split_fn!({
-                    let (x, words) = IdRef::spirv_parse(words, parse_state)?;
-                    if words.is_empty() {
-                        Ok(Instruction::GLSLStd450Atanh(OpGLSLStd450Atanh {
-                            id_result_type,
-                            id_result,
-                            set,
-                            x,
-                        }))
-                    } else {
-                        Err(Error::InstructionTooLong)
-                    }
-                }),
-                (ExtensionInstructionSet::GLSLStd450, 25u32) => split_fn!({
-                    let (y, words) = IdRef::spirv_parse(words, parse_state)?;
-                    let (x, words) = IdRef::spirv_parse(words, parse_state)?;
-                    if words.is_empty() {
-                        Ok(Instruction::GLSLStd450Atan2(OpGLSLStd450Atan2 {
-                            id_result_type,
-                            id_result,
-                            set,
-                            y,
-                            x,
-                        }))
-                    } else {
-                        Err(Error::InstructionTooLong)
-                    }
-                }),
-                (ExtensionInstructionSet::GLSLStd450, 26u32) => split_fn!({
-                    let (x, words) = IdRef::spirv_parse(words, parse_state)?;
-                    let (y, words) = IdRef::spirv_parse(words, parse_state)?;
-                    if words.is_empty() {
-                        Ok(Instruction::GLSLStd450Pow(OpGLSLStd450Pow {
-                            id_result_type,
-                            id_result,
-                            set,
-                            x,
-                            y,
-                        }))
-                    } else {
-                        Err(Error::InstructionTooLong)
-                    }
-                }),
-                (ExtensionInstructionSet::GLSLStd450, 27u32) => split_fn!({
-                    let (x, words) = IdRef::spirv_parse(words, parse_state)?;
-                    if words.is_empty() {
-                        Ok(Instruction::GLSLStd450Exp(OpGLSLStd450Exp {
-                            id_result_type,
-                            id_result,
-                            set,
-                            x,
-                        }))
-                    } else {
-                        Err(Error::InstructionTooLong)
-                    }
-                }),
-                (ExtensionInstructionSet::GLSLStd450, 28u32) => split_fn!({
-                    let (x, words) = IdRef::spirv_parse(words, parse_state)?;
-                    if words.is_empty() {
-                        Ok(Instruction::GLSLStd450Log(OpGLSLStd450Log {
-                            id_result_type,
-                            id_result,
-                            set,
-                            x,
-                        }))
-                    } else {
-                        Err(Error::InstructionTooLong)
-                    }
-                }),
-                (ExtensionInstructionSet::GLSLStd450, 29u32) => split_fn!({
-                    let (x, words) = IdRef::spirv_parse(words, parse_state)?;
-                    if words.is_empty() {
-                        Ok(Instruction::GLSLStd450Exp2(OpGLSLStd450Exp2 {
-                            id_result_type,
-                            id_result,
-                            set,
-                            x,
-                        }))
-                    } else {
-                        Err(Error::InstructionTooLong)
-                    }
-                }),
-                (ExtensionInstructionSet::GLSLStd450, 30u32) => split_fn!({
-                    let (x, words) = IdRef::spirv_parse(words, parse_state)?;
-                    if words.is_empty() {
-                        Ok(Instruction::GLSLStd450Log2(OpGLSLStd450Log2 {
-                            id_result_type,
-                            id_result,
-                            set,
-                            x,
-                        }))
-                    } else {
-                        Err(Error::InstructionTooLong)
-                    }
-                }),
-                (ExtensionInstructionSet::GLSLStd450, 31u32) => split_fn!({
-                    let (x, words) = IdRef::spirv_parse(words, parse_state)?;
-                    if words.is_empty() {
-                        Ok(Instruction::GLSLStd450Sqrt(OpGLSLStd450Sqrt {
-                            id_result_type,
-                            id_result,
-                            set,
-                            x,
-                        }))
-                    } else {
-                        Err(Error::InstructionTooLong)
-                    }
-                }),
-                (ExtensionInstructionSet::GLSLStd450, 32u32) => split_fn!({
-                    let (x, words) = IdRef::spirv_parse(words, parse_state)?;
-                    if words.is_empty() {
-                        Ok(Instruction::GLSLStd450InverseSqrt(
-                            OpGLSLStd450InverseSqrt {
-                                id_result_type,
-                                id_result,
-                                set,
-                                x,
-                            },
-                        ))
-                    } else {
-                        Err(Error::InstructionTooLong)
-                    }
-                }),
-                (ExtensionInstructionSet::GLSLStd450, 33u32) => split_fn!({
-                    let (x, words) = IdRef::spirv_parse(words, parse_state)?;
-                    if words.is_empty() {
-                        Ok(Instruction::GLSLStd450Determinant(
-                            OpGLSLStd450Determinant {
-                                id_result_type,
-                                id_result,
-                                set,
-                                x,
-                            },
-                        ))
-                    } else {
-                        Err(Error::InstructionTooLong)
-                    }
-                }),
-                (ExtensionInstructionSet::GLSLStd450, 34u32) => split_fn!({
-                    let (x, words) = IdRef::spirv_parse(words, parse_state)?;
-                    if words.is_empty() {
-                        Ok(Instruction::GLSLStd450MatrixInverse(
-                            OpGLSLStd450MatrixInverse {
-                                id_result_type,
-                                id_result,
-                                set,
-                                x,
-                            },
-                        ))
-                    } else {
-                        Err(Error::InstructionTooLong)
-                    }
-                }),
-                (ExtensionInstructionSet::GLSLStd450, 35u32) => split_fn!({
-                    let (x, words) = IdRef::spirv_parse(words, parse_state)?;
-                    let (i, words) = IdRef::spirv_parse(words, parse_state)?;
-                    if words.is_empty() {
-                        Ok(Instruction::GLSLStd450Modf(OpGLSLStd450Modf {
-                            id_result_type,
-                            id_result,
-                            set,
-                            x,
-                            i,
-                        }))
-                    } else {
-                        Err(Error::InstructionTooLong)
-                    }
-                }),
-                (ExtensionInstructionSet::GLSLStd450, 36u32) => split_fn!({
-                    let (x, words) = IdRef::spirv_parse(words, parse_state)?;
-                    if words.is_empty() {
-                        Ok(Instruction::GLSLStd450ModfStruct(OpGLSLStd450ModfStruct {
-                            id_result_type,
-                            id_result,
-                            set,
-                            x,
-                        }))
-                    } else {
-                        Err(Error::InstructionTooLong)
-                    }
-                }),
-                (ExtensionInstructionSet::GLSLStd450, 37u32) => split_fn!({
-                    let (x, words) = IdRef::spirv_parse(words, parse_state)?;
-                    let (y, words) = IdRef::spirv_parse(words, parse_state)?;
-                    if words.is_empty() {
-                        Ok(Instruction::GLSLStd450FMin(OpGLSLStd450FMin {
-                            id_result_type,
-                            id_result,
-                            set,
-                            x,
-                            y,
-                        }))
-                    } else {
-                        Err(Error::InstructionTooLong)
-                    }
-                }),
-                (ExtensionInstructionSet::GLSLStd450, 38u32) => split_fn!({
-                    let (x, words) = IdRef::spirv_parse(words, parse_state)?;
-                    let (y, words) = IdRef::spirv_parse(words, parse_state)?;
-                    if words.is_empty() {
-                        Ok(Instruction::GLSLStd450UMin(OpGLSLStd450UMin {
-                            id_result_type,
-                            id_result,
-                            set,
-                            x,
-                            y,
-                        }))
-                    } else {
-                        Err(Error::InstructionTooLong)
-                    }
-                }),
-                (ExtensionInstructionSet::GLSLStd450, 39u32) => split_fn!({
-                    let (x, words) = IdRef::spirv_parse(words, parse_state)?;
-                    let (y, words) = IdRef::spirv_parse(words, parse_state)?;
-                    if words.is_empty() {
-                        Ok(Instruction::GLSLStd450SMin(OpGLSLStd450SMin {
-                            id_result_type,
-                            id_result,
-                            set,
-                            x,
-                            y,
-                        }))
-                    } else {
-                        Err(Error::InstructionTooLong)
-                    }
-                }),
-                (ExtensionInstructionSet::GLSLStd450, 40u32) => split_fn!({
-                    let (x, words) = IdRef::spirv_parse(words, parse_state)?;
-                    let (y, words) = IdRef::spirv_parse(words, parse_state)?;
-                    if words.is_empty() {
-                        Ok(Instruction::GLSLStd450FMax(OpGLSLStd450FMax {
-                            id_result_type,
-                            id_result,
-                            set,
-                            x,
-                            y,
-                        }))
-                    } else {
-                        Err(Error::InstructionTooLong)
-                    }
-                }),
-                (ExtensionInstructionSet::GLSLStd450, 41u32) => split_fn!({
-                    let (x, words) = IdRef::spirv_parse(words, parse_state)?;
-                    let (y, words) = IdRef::spirv_parse(words, parse_state)?;
-                    if words.is_empty() {
-                        Ok(Instruction::GLSLStd450UMax(OpGLSLStd450UMax {
-                            id_result_type,
-                            id_result,
-                            set,
-                            x,
-                            y,
-                        }))
-                    } else {
-                        Err(Error::InstructionTooLong)
-                    }
-                }),
-                (ExtensionInstructionSet::GLSLStd450, 42u32) => split_fn!({
-                    let (x, words) = IdRef::spirv_parse(words, parse_state)?;
-                    let (y, words) = IdRef::spirv_parse(words, parse_state)?;
-                    if words.is_empty() {
-                        Ok(Instruction::GLSLStd450SMax(OpGLSLStd450SMax {
-                            id_result_type,
-                            id_result,
-                            set,
-                            x,
-                            y,
-                        }))
-                    } else {
-                        Err(Error::InstructionTooLong)
-                    }
-                }),
-                (ExtensionInstructionSet::GLSLStd450, 43u32) => split_fn!({
-                    let (x, words) = IdRef::spirv_parse(words, parse_state)?;
-                    let (min_val, words) = IdRef::spirv_parse(words, parse_state)?;
-                    let (max_val, words) = IdRef::spirv_parse(words, parse_state)?;
-                    if words.is_empty() {
-                        Ok(Instruction::GLSLStd450FClamp(OpGLSLStd450FClamp {
-                            id_result_type,
-                            id_result,
-                            set,
-                            x,
-                            min_val,
-                            max_val,
-                        }))
-                    } else {
-                        Err(Error::InstructionTooLong)
-                    }
-                }),
-                (ExtensionInstructionSet::GLSLStd450, 44u32) => split_fn!({
-                    let (x, words) = IdRef::spirv_parse(words, parse_state)?;
-                    let (min_val, words) = IdRef::spirv_parse(words, parse_state)?;
-                    let (max_val, words) = IdRef::spirv_parse(words, parse_state)?;
-                    if words.is_empty() {
-                        Ok(Instruction::GLSLStd450UClamp(OpGLSLStd450UClamp {
-                            id_result_type,
-                            id_result,
-                            set,
-                            x,
-                            min_val,
-                            max_val,
-                        }))
-                    } else {
-                        Err(Error::InstructionTooLong)
-                    }
-                }),
-                (ExtensionInstructionSet::GLSLStd450, 45u32) => split_fn!({
-                    let (x, words) = IdRef::spirv_parse(words, parse_state)?;
-                    let (min_val, words) = IdRef::spirv_parse(words, parse_state)?;
-                    let (max_val, words) = IdRef::spirv_parse(words, parse_state)?;
-                    if words.is_empty() {
-                        Ok(Instruction::GLSLStd450SClamp(OpGLSLStd450SClamp {
-                            id_result_type,
-                            id_result,
-                            set,
-                            x,
-                            min_val,
-                            max_val,
-                        }))
-                    } else {
-                        Err(Error::InstructionTooLong)
-                    }
-                }),
-                (ExtensionInstructionSet::GLSLStd450, 46u32) => split_fn!({
-                    let (x, words) = IdRef::spirv_parse(words, parse_state)?;
-                    let (y, words) = IdRef::spirv_parse(words, parse_state)?;
-                    let (a, words) = IdRef::spirv_parse(words, parse_state)?;
-                    if words.is_empty() {
-                        Ok(Instruction::GLSLStd450FMix(OpGLSLStd450FMix {
-                            id_result_type,
-                            id_result,
-                            set,
-                            x,
-                            y,
-                            a,
-                        }))
-                    } else {
-                        Err(Error::InstructionTooLong)
-                    }
-                }),
-                (ExtensionInstructionSet::GLSLStd450, 47u32) => split_fn!({
-                    let (x, words) = IdRef::spirv_parse(words, parse_state)?;
-                    let (y, words) = IdRef::spirv_parse(words, parse_state)?;
-                    let (a, words) = IdRef::spirv_parse(words, parse_state)?;
-                    if words.is_empty() {
-                        Ok(Instruction::GLSLStd450IMix(OpGLSLStd450IMix {
-                            id_result_type,
-                            id_result,
-                            set,
-                            x,
-                            y,
-                            a,
-                        }))
-                    } else {
-                        Err(Error::InstructionTooLong)
-                    }
-                }),
-                (ExtensionInstructionSet::GLSLStd450, 48u32) => split_fn!({
-                    let (edge, words) = IdRef::spirv_parse(words, parse_state)?;
-                    let (x, words) = IdRef::spirv_parse(words, parse_state)?;
-                    if words.is_empty() {
-                        Ok(Instruction::GLSLStd450Step(OpGLSLStd450Step {
-                            id_result_type,
-                            id_result,
-                            set,
-                            edge,
-                            x,
-                        }))
-                    } else {
-                        Err(Error::InstructionTooLong)
-                    }
-                }),
-                (ExtensionInstructionSet::GLSLStd450, 49u32) => split_fn!({
-                    let (edge0, words) = IdRef::spirv_parse(words, parse_state)?;
-                    let (edge1, words) = IdRef::spirv_parse(words, parse_state)?;
-                    let (x, words) = IdRef::spirv_parse(words, parse_state)?;
-                    if words.is_empty() {
-                        Ok(Instruction::GLSLStd450SmoothStep(OpGLSLStd450SmoothStep {
-                            id_result_type,
-                            id_result,
-                            set,
-                            edge0,
-                            edge1,
-                            x,
-                        }))
-                    } else {
-                        Err(Error::InstructionTooLong)
-                    }
-                }),
-                (ExtensionInstructionSet::GLSLStd450, 50u32) => split_fn!({
-                    let (a, words) = IdRef::spirv_parse(words, parse_state)?;
-                    let (b, words) = IdRef::spirv_parse(words, parse_state)?;
-                    let (c, words) = IdRef::spirv_parse(words, parse_state)?;
-                    if words.is_empty() {
-                        Ok(Instruction::GLSLStd450Fma(OpGLSLStd450Fma {
-                            id_result_type,
-                            id_result,
-                            set,
-                            a,
-                            b,
-                            c,
-                        }))
-                    } else {
-                        Err(Error::InstructionTooLong)
-                    }
-                }),
-                (ExtensionInstructionSet::GLSLStd450, 51u32) => split_fn!({
-                    let (x, words) = IdRef::spirv_parse(words, parse_state)?;
-                    let (exp, words) = IdRef::spirv_parse(words, parse_state)?;
-                    if words.is_empty() {
-                        Ok(Instruction::GLSLStd450Frexp(OpGLSLStd450Frexp {
-                            id_result_type,
-                            id_result,
-                            set,
-                            x,
-                            exp,
-                        }))
-                    } else {
-                        Err(Error::InstructionTooLong)
-                    }
-                }),
-                (ExtensionInstructionSet::GLSLStd450, 52u32) => split_fn!({
-                    let (x, words) = IdRef::spirv_parse(words, parse_state)?;
-                    if words.is_empty() {
-                        Ok(Instruction::GLSLStd450FrexpStruct(
-                            OpGLSLStd450FrexpStruct {
-                                id_result_type,
-                                id_result,
-                                set,
-                                x,
-                            },
-                        ))
-                    } else {
-                        Err(Error::InstructionTooLong)
-                    }
-                }),
-                (ExtensionInstructionSet::GLSLStd450, 53u32) => split_fn!({
-                    let (x, words) = IdRef::spirv_parse(words, parse_state)?;
-                    let (exp, words) = IdRef::spirv_parse(words, parse_state)?;
-                    if words.is_empty() {
-                        Ok(Instruction::GLSLStd450Ldexp(OpGLSLStd450Ldexp {
-                            id_result_type,
-                            id_result,
-                            set,
-                            x,
-                            exp,
-                        }))
-                    } else {
-                        Err(Error::InstructionTooLong)
-                    }
-                }),
-                (ExtensionInstructionSet::GLSLStd450, 54u32) => split_fn!({
-                    let (v, words) = IdRef::spirv_parse(words, parse_state)?;
-                    if words.is_empty() {
-                        Ok(Instruction::GLSLStd450PackSnorm4x8(
-                            OpGLSLStd450PackSnorm4x8 {
-                                id_result_type,
-                                id_result,
-                                set,
-                                v,
-                            },
-                        ))
-                    } else {
-                        Err(Error::InstructionTooLong)
-                    }
-                }),
-                (ExtensionInstructionSet::GLSLStd450, 55u32) => split_fn!({
-                    let (v, words) = IdRef::spirv_parse(words, parse_state)?;
-                    if words.is_empty() {
-                        Ok(Instruction::GLSLStd450PackUnorm4x8(
-                            OpGLSLStd450PackUnorm4x8 {
-                                id_result_type,
-                                id_result,
-                                set,
-                                v,
-                            },
-                        ))
-                    } else {
-                        Err(Error::InstructionTooLong)
-                    }
-                }),
-                (ExtensionInstructionSet::GLSLStd450, 56u32) => split_fn!({
-                    let (v, words) = IdRef::spirv_parse(words, parse_state)?;
-                    if words.is_empty() {
-                        Ok(Instruction::GLSLStd450PackSnorm2x16(
-                            OpGLSLStd450PackSnorm2x16 {
-                                id_result_type,
-                                id_result,
-                                set,
-                                v,
-                            },
-                        ))
-                    } else {
-                        Err(Error::InstructionTooLong)
-                    }
-                }),
-                (ExtensionInstructionSet::GLSLStd450, 57u32) => split_fn!({
-                    let (v, words) = IdRef::spirv_parse(words, parse_state)?;
-                    if words.is_empty() {
-                        Ok(Instruction::GLSLStd450PackUnorm2x16(
-                            OpGLSLStd450PackUnorm2x16 {
-                                id_result_type,
-                                id_result,
-                                set,
-                                v,
-                            },
-                        ))
-                    } else {
-                        Err(Error::InstructionTooLong)
-                    }
-                }),
-                (ExtensionInstructionSet::GLSLStd450, 58u32) => split_fn!({
-                    let (v, words) = IdRef::spirv_parse(words, parse_state)?;
-                    if words.is_empty() {
-                        Ok(Instruction::GLSLStd450PackHalf2x16(
-                            OpGLSLStd450PackHalf2x16 {
-                                id_result_type,
-                                id_result,
-                                set,
-                                v,
-                            },
-                        ))
-                    } else {
-                        Err(Error::InstructionTooLong)
-                    }
-                }),
-                (ExtensionInstructionSet::GLSLStd450, 59u32) => split_fn!({
-                    let (v, words) = IdRef::spirv_parse(words, parse_state)?;
-                    if words.is_empty() {
-                        Ok(Instruction::GLSLStd450PackDouble2x32(
-                            OpGLSLStd450PackDouble2x32 {
-                                id_result_type,
-                                id_result,
-                                set,
-                                v,
-                            },
-                        ))
-                    } else {
-                        Err(Error::InstructionTooLong)
-                    }
-                }),
-                (ExtensionInstructionSet::GLSLStd450, 60u32) => split_fn!({
-                    let (p, words) = IdRef::spirv_parse(words, parse_state)?;
-                    if words.is_empty() {
-                        Ok(Instruction::GLSLStd450UnpackSnorm2x16(
-                            OpGLSLStd450UnpackSnorm2x16 {
-                                id_result_type,
-                                id_result,
-                                set,
-                                p,
-                            },
-                        ))
-                    } else {
-                        Err(Error::InstructionTooLong)
-                    }
-                }),
-                (ExtensionInstructionSet::GLSLStd450, 61u32) => split_fn!({
-                    let (p, words) = IdRef::spirv_parse(words, parse_state)?;
-                    if words.is_empty() {
-                        Ok(Instruction::GLSLStd450UnpackUnorm2x16(
-                            OpGLSLStd450UnpackUnorm2x16 {
-                                id_result_type,
-                                id_result,
-                                set,
-                                p,
-                            },
-                        ))
-                    } else {
-                        Err(Error::InstructionTooLong)
-                    }
-                }),
-                (ExtensionInstructionSet::GLSLStd450, 62u32) => split_fn!({
-                    let (v, words) = IdRef::spirv_parse(words, parse_state)?;
-                    if words.is_empty() {
-                        Ok(Instruction::GLSLStd450UnpackHalf2x16(
-                            OpGLSLStd450UnpackHalf2x16 {
-                                id_result_type,
-                                id_result,
-                                set,
-                                v,
-                            },
-                        ))
-                    } else {
-                        Err(Error::InstructionTooLong)
-                    }
-                }),
-                (ExtensionInstructionSet::GLSLStd450, 63u32) => split_fn!({
-                    let (p, words) = IdRef::spirv_parse(words, parse_state)?;
-                    if words.is_empty() {
-                        Ok(Instruction::GLSLStd450UnpackSnorm4x8(
-                            OpGLSLStd450UnpackSnorm4x8 {
-                                id_result_type,
-                                id_result,
-                                set,
-                                p,
-                            },
-                        ))
-                    } else {
-                        Err(Error::InstructionTooLong)
-                    }
-                }),
-                (ExtensionInstructionSet::GLSLStd450, 64u32) => split_fn!({
-                    let (p, words) = IdRef::spirv_parse(words, parse_state)?;
-                    if words.is_empty() {
-                        Ok(Instruction::GLSLStd450UnpackUnorm4x8(
-                            OpGLSLStd450UnpackUnorm4x8 {
-                                id_result_type,
-                                id_result,
-                                set,
-                                p,
-                            },
-                        ))
-                    } else {
-                        Err(Error::InstructionTooLong)
-                    }
-                }),
-                (ExtensionInstructionSet::GLSLStd450, 65u32) => split_fn!({
-                    let (v, words) = IdRef::spirv_parse(words, parse_state)?;
-                    if words.is_empty() {
-                        Ok(Instruction::GLSLStd450UnpackDouble2x32(
-                            OpGLSLStd450UnpackDouble2x32 {
-                                id_result_type,
-                                id_result,
-                                set,
-                                v,
-                            },
-                        ))
-                    } else {
-                        Err(Error::InstructionTooLong)
-                    }
-                }),
-                (ExtensionInstructionSet::GLSLStd450, 66u32) => split_fn!({
-                    let (x, words) = IdRef::spirv_parse(words, parse_state)?;
-                    if words.is_empty() {
-                        Ok(Instruction::GLSLStd450Length(OpGLSLStd450Length {
-                            id_result_type,
-                            id_result,
-                            set,
-                            x,
-                        }))
-                    } else {
-                        Err(Error::InstructionTooLong)
-                    }
-                }),
-                (ExtensionInstructionSet::GLSLStd450, 67u32) => split_fn!({
-                    let (p0, words) = IdRef::spirv_parse(words, parse_state)?;
-                    let (p1, words) = IdRef::spirv_parse(words, parse_state)?;
-                    if words.is_empty() {
-                        Ok(Instruction::GLSLStd450Distance(OpGLSLStd450Distance {
-                            id_result_type,
-                            id_result,
-                            set,
-                            p0,
-                            p1,
-                        }))
-                    } else {
-                        Err(Error::InstructionTooLong)
-                    }
-                }),
-                (ExtensionInstructionSet::GLSLStd450, 68u32) => split_fn!({
-                    let (x, words) = IdRef::spirv_parse(words, parse_state)?;
-                    let (y, words) = IdRef::spirv_parse(words, parse_state)?;
-                    if words.is_empty() {
-                        Ok(Instruction::GLSLStd450Cross(OpGLSLStd450Cross {
-                            id_result_type,
-                            id_result,
-                            set,
-                            x,
-                            y,
-                        }))
-                    } else {
-                        Err(Error::InstructionTooLong)
-                    }
-                }),
-                (ExtensionInstructionSet::GLSLStd450, 69u32) => split_fn!({
-                    let (x, words) = IdRef::spirv_parse(words, parse_state)?;
-                    if words.is_empty() {
-                        Ok(Instruction::GLSLStd450Normalize(OpGLSLStd450Normalize {
-                            id_result_type,
-                            id_result,
-                            set,
-                            x,
-                        }))
-                    } else {
-                        Err(Error::InstructionTooLong)
-                    }
-                }),
-                (ExtensionInstructionSet::GLSLStd450, 70u32) => split_fn!({
-                    let (n, words) = IdRef::spirv_parse(words, parse_state)?;
-                    let (i, words) = IdRef::spirv_parse(words, parse_state)?;
-                    let (nref, words) = IdRef::spirv_parse(words, parse_state)?;
-                    if words.is_empty() {
-                        Ok(Instruction::GLSLStd450FaceForward(
-                            OpGLSLStd450FaceForward {
-                                id_result_type,
-                                id_result,
-                                set,
-                                n,
-                                i,
-                                nref,
-                            },
-                        ))
-                    } else {
-                        Err(Error::InstructionTooLong)
-                    }
-                }),
-                (ExtensionInstructionSet::GLSLStd450, 71u32) => split_fn!({
-                    let (i, words) = IdRef::spirv_parse(words, parse_state)?;
-                    let (n, words) = IdRef::spirv_parse(words, parse_state)?;
-                    if words.is_empty() {
-                        Ok(Instruction::GLSLStd450Reflect(OpGLSLStd450Reflect {
-                            id_result_type,
-                            id_result,
-                            set,
-                            i,
-                            n,
-                        }))
-                    } else {
-                        Err(Error::InstructionTooLong)
-                    }
-                }),
-                (ExtensionInstructionSet::GLSLStd450, 72u32) => split_fn!({
-                    let (i, words) = IdRef::spirv_parse(words, parse_state)?;
-                    let (n, words) = IdRef::spirv_parse(words, parse_state)?;
-                    let (eta, words) = IdRef::spirv_parse(words, parse_state)?;
-                    if words.is_empty() {
-                        Ok(Instruction::GLSLStd450Refract(OpGLSLStd450Refract {
-                            id_result_type,
-                            id_result,
-                            set,
-                            i,
-                            n,
-                            eta,
-                        }))
-                    } else {
-                        Err(Error::InstructionTooLong)
-                    }
-                }),
-                (ExtensionInstructionSet::GLSLStd450, 73u32) => split_fn!({
-                    let (value, words) = IdRef::spirv_parse(words, parse_state)?;
-                    if words.is_empty() {
-                        Ok(Instruction::GLSLStd450FindILsb(OpGLSLStd450FindILsb {
-                            id_result_type,
-                            id_result,
-                            set,
-                            value,
-                        }))
-                    } else {
-                        Err(Error::InstructionTooLong)
-                    }
-                }),
-                (ExtensionInstructionSet::GLSLStd450, 74u32) => split_fn!({
-                    let (value, words) = IdRef::spirv_parse(words, parse_state)?;
-                    if words.is_empty() {
-                        Ok(Instruction::GLSLStd450FindSMsb(OpGLSLStd450FindSMsb {
-                            id_result_type,
-                            id_result,
-                            set,
-                            value,
-                        }))
-                    } else {
-                        Err(Error::InstructionTooLong)
-                    }
-                }),
-                (ExtensionInstructionSet::GLSLStd450, 75u32) => split_fn!({
-                    let (value, words) = IdRef::spirv_parse(words, parse_state)?;
-                    if words.is_empty() {
-                        Ok(Instruction::GLSLStd450FindUMsb(OpGLSLStd450FindUMsb {
-                            id_result_type,
-                            id_result,
-                            set,
-                            value,
-                        }))
-                    } else {
-                        Err(Error::InstructionTooLong)
-                    }
-                }),
-                (ExtensionInstructionSet::GLSLStd450, 76u32) => split_fn!({
-                    let (interpolant, words) = IdRef::spirv_parse(words, parse_state)?;
-                    if words.is_empty() {
-                        Ok(Instruction::GLSLStd450InterpolateAtCentroid(
-                            OpGLSLStd450InterpolateAtCentroid {
-                                id_result_type,
-                                id_result,
-                                set,
-                                interpolant,
-                            },
-                        ))
-                    } else {
-                        Err(Error::InstructionTooLong)
-                    }
-                }),
-                (ExtensionInstructionSet::GLSLStd450, 77u32) => split_fn!({
-                    let (interpolant, words) = IdRef::spirv_parse(words, parse_state)?;
-                    let (sample, words) = IdRef::spirv_parse(words, parse_state)?;
-                    if words.is_empty() {
-                        Ok(Instruction::GLSLStd450InterpolateAtSample(
-                            OpGLSLStd450InterpolateAtSample {
-                                id_result_type,
-                                id_result,
-                                set,
-                                interpolant,
-                                sample,
-                            },
-                        ))
-                    } else {
-                        Err(Error::InstructionTooLong)
-                    }
-                }),
-                (ExtensionInstructionSet::GLSLStd450, 78u32) => split_fn!({
-                    let (interpolant, words) = IdRef::spirv_parse(words, parse_state)?;
-                    let (offset, words) = IdRef::spirv_parse(words, parse_state)?;
-                    if words.is_empty() {
-                        Ok(Instruction::GLSLStd450InterpolateAtOffset(
-                            OpGLSLStd450InterpolateAtOffset {
-                                id_result_type,
-                                id_result,
-                                set,
-                                interpolant,
-                                offset,
-                            },
-                        ))
-                    } else {
-                        Err(Error::InstructionTooLong)
-                    }
-                }),
-                (ExtensionInstructionSet::GLSLStd450, 79u32) => split_fn!({
-                    let (x, words) = IdRef::spirv_parse(words, parse_state)?;
-                    let (y, words) = IdRef::spirv_parse(words, parse_state)?;
-                    if words.is_empty() {
-                        Ok(Instruction::GLSLStd450NMin(OpGLSLStd450NMin {
-                            id_result_type,
-                            id_result,
-                            set,
-                            x,
-                            y,
-                        }))
-                    } else {
-                        Err(Error::InstructionTooLong)
-                    }
-                }),
-                (ExtensionInstructionSet::GLSLStd450, 80u32) => split_fn!({
-                    let (x, words) = IdRef::spirv_parse(words, parse_state)?;
-                    let (y, words) = IdRef::spirv_parse(words, parse_state)?;
-                    if words.is_empty() {
-                        Ok(Instruction::GLSLStd450NMax(OpGLSLStd450NMax {
-                            id_result_type,
-                            id_result,
-                            set,
-                            x,
-                            y,
-                        }))
-                    } else {
-                        Err(Error::InstructionTooLong)
-                    }
-                }),
-                (ExtensionInstructionSet::GLSLStd450, 81u32) => split_fn!({
-                    let (x, words) = IdRef::spirv_parse(words, parse_state)?;
-                    let (min_val, words) = IdRef::spirv_parse(words, parse_state)?;
-                    let (max_val, words) = IdRef::spirv_parse(words, parse_state)?;
-                    if words.is_empty() {
-                        Ok(Instruction::GLSLStd450NClamp(OpGLSLStd450NClamp {
-                            id_result_type,
-                            id_result,
-                            set,
-                            x,
-                            min_val,
-                            max_val,
-                        }))
-                    } else {
-                        Err(Error::InstructionTooLong)
-                    }
-                }),
                 (ExtensionInstructionSet::OpenCLStd, 0u32) => split_fn!({
                     let (x, words) = IdRef::spirv_parse(words, parse_state)?;
                     if words.is_empty() {
@@ -16727,6 +18921,1177 @@ fn parse_instruction(
                             set,
                             ptr,
                             num_elements,
+                        }))
+                    } else {
+                        Err(Error::InstructionTooLong)
+                    }
+                }),
+                (ExtensionInstructionSet::GLSLStd450, 1u32) => split_fn!({
+                    let (x, words) = IdRef::spirv_parse(words, parse_state)?;
+                    if words.is_empty() {
+                        Ok(Instruction::GLSLStd450Round(OpGLSLStd450Round {
+                            id_result_type,
+                            id_result,
+                            set,
+                            x,
+                        }))
+                    } else {
+                        Err(Error::InstructionTooLong)
+                    }
+                }),
+                (ExtensionInstructionSet::GLSLStd450, 2u32) => split_fn!({
+                    let (x, words) = IdRef::spirv_parse(words, parse_state)?;
+                    if words.is_empty() {
+                        Ok(Instruction::GLSLStd450RoundEven(OpGLSLStd450RoundEven {
+                            id_result_type,
+                            id_result,
+                            set,
+                            x,
+                        }))
+                    } else {
+                        Err(Error::InstructionTooLong)
+                    }
+                }),
+                (ExtensionInstructionSet::GLSLStd450, 3u32) => split_fn!({
+                    let (x, words) = IdRef::spirv_parse(words, parse_state)?;
+                    if words.is_empty() {
+                        Ok(Instruction::GLSLStd450Trunc(OpGLSLStd450Trunc {
+                            id_result_type,
+                            id_result,
+                            set,
+                            x,
+                        }))
+                    } else {
+                        Err(Error::InstructionTooLong)
+                    }
+                }),
+                (ExtensionInstructionSet::GLSLStd450, 4u32) => split_fn!({
+                    let (x, words) = IdRef::spirv_parse(words, parse_state)?;
+                    if words.is_empty() {
+                        Ok(Instruction::GLSLStd450FAbs(OpGLSLStd450FAbs {
+                            id_result_type,
+                            id_result,
+                            set,
+                            x,
+                        }))
+                    } else {
+                        Err(Error::InstructionTooLong)
+                    }
+                }),
+                (ExtensionInstructionSet::GLSLStd450, 5u32) => split_fn!({
+                    let (x, words) = IdRef::spirv_parse(words, parse_state)?;
+                    if words.is_empty() {
+                        Ok(Instruction::GLSLStd450SAbs(OpGLSLStd450SAbs {
+                            id_result_type,
+                            id_result,
+                            set,
+                            x,
+                        }))
+                    } else {
+                        Err(Error::InstructionTooLong)
+                    }
+                }),
+                (ExtensionInstructionSet::GLSLStd450, 6u32) => split_fn!({
+                    let (x, words) = IdRef::spirv_parse(words, parse_state)?;
+                    if words.is_empty() {
+                        Ok(Instruction::GLSLStd450FSign(OpGLSLStd450FSign {
+                            id_result_type,
+                            id_result,
+                            set,
+                            x,
+                        }))
+                    } else {
+                        Err(Error::InstructionTooLong)
+                    }
+                }),
+                (ExtensionInstructionSet::GLSLStd450, 7u32) => split_fn!({
+                    let (x, words) = IdRef::spirv_parse(words, parse_state)?;
+                    if words.is_empty() {
+                        Ok(Instruction::GLSLStd450SSign(OpGLSLStd450SSign {
+                            id_result_type,
+                            id_result,
+                            set,
+                            x,
+                        }))
+                    } else {
+                        Err(Error::InstructionTooLong)
+                    }
+                }),
+                (ExtensionInstructionSet::GLSLStd450, 8u32) => split_fn!({
+                    let (x, words) = IdRef::spirv_parse(words, parse_state)?;
+                    if words.is_empty() {
+                        Ok(Instruction::GLSLStd450Floor(OpGLSLStd450Floor {
+                            id_result_type,
+                            id_result,
+                            set,
+                            x,
+                        }))
+                    } else {
+                        Err(Error::InstructionTooLong)
+                    }
+                }),
+                (ExtensionInstructionSet::GLSLStd450, 9u32) => split_fn!({
+                    let (x, words) = IdRef::spirv_parse(words, parse_state)?;
+                    if words.is_empty() {
+                        Ok(Instruction::GLSLStd450Ceil(OpGLSLStd450Ceil {
+                            id_result_type,
+                            id_result,
+                            set,
+                            x,
+                        }))
+                    } else {
+                        Err(Error::InstructionTooLong)
+                    }
+                }),
+                (ExtensionInstructionSet::GLSLStd450, 10u32) => split_fn!({
+                    let (x, words) = IdRef::spirv_parse(words, parse_state)?;
+                    if words.is_empty() {
+                        Ok(Instruction::GLSLStd450Fract(OpGLSLStd450Fract {
+                            id_result_type,
+                            id_result,
+                            set,
+                            x,
+                        }))
+                    } else {
+                        Err(Error::InstructionTooLong)
+                    }
+                }),
+                (ExtensionInstructionSet::GLSLStd450, 11u32) => split_fn!({
+                    let (degrees, words) = IdRef::spirv_parse(words, parse_state)?;
+                    if words.is_empty() {
+                        Ok(Instruction::GLSLStd450Radians(OpGLSLStd450Radians {
+                            id_result_type,
+                            id_result,
+                            set,
+                            degrees,
+                        }))
+                    } else {
+                        Err(Error::InstructionTooLong)
+                    }
+                }),
+                (ExtensionInstructionSet::GLSLStd450, 12u32) => split_fn!({
+                    let (radians, words) = IdRef::spirv_parse(words, parse_state)?;
+                    if words.is_empty() {
+                        Ok(Instruction::GLSLStd450Degrees(OpGLSLStd450Degrees {
+                            id_result_type,
+                            id_result,
+                            set,
+                            radians,
+                        }))
+                    } else {
+                        Err(Error::InstructionTooLong)
+                    }
+                }),
+                (ExtensionInstructionSet::GLSLStd450, 13u32) => split_fn!({
+                    let (x, words) = IdRef::spirv_parse(words, parse_state)?;
+                    if words.is_empty() {
+                        Ok(Instruction::GLSLStd450Sin(OpGLSLStd450Sin {
+                            id_result_type,
+                            id_result,
+                            set,
+                            x,
+                        }))
+                    } else {
+                        Err(Error::InstructionTooLong)
+                    }
+                }),
+                (ExtensionInstructionSet::GLSLStd450, 14u32) => split_fn!({
+                    let (x, words) = IdRef::spirv_parse(words, parse_state)?;
+                    if words.is_empty() {
+                        Ok(Instruction::GLSLStd450Cos(OpGLSLStd450Cos {
+                            id_result_type,
+                            id_result,
+                            set,
+                            x,
+                        }))
+                    } else {
+                        Err(Error::InstructionTooLong)
+                    }
+                }),
+                (ExtensionInstructionSet::GLSLStd450, 15u32) => split_fn!({
+                    let (x, words) = IdRef::spirv_parse(words, parse_state)?;
+                    if words.is_empty() {
+                        Ok(Instruction::GLSLStd450Tan(OpGLSLStd450Tan {
+                            id_result_type,
+                            id_result,
+                            set,
+                            x,
+                        }))
+                    } else {
+                        Err(Error::InstructionTooLong)
+                    }
+                }),
+                (ExtensionInstructionSet::GLSLStd450, 16u32) => split_fn!({
+                    let (x, words) = IdRef::spirv_parse(words, parse_state)?;
+                    if words.is_empty() {
+                        Ok(Instruction::GLSLStd450Asin(OpGLSLStd450Asin {
+                            id_result_type,
+                            id_result,
+                            set,
+                            x,
+                        }))
+                    } else {
+                        Err(Error::InstructionTooLong)
+                    }
+                }),
+                (ExtensionInstructionSet::GLSLStd450, 17u32) => split_fn!({
+                    let (x, words) = IdRef::spirv_parse(words, parse_state)?;
+                    if words.is_empty() {
+                        Ok(Instruction::GLSLStd450Acos(OpGLSLStd450Acos {
+                            id_result_type,
+                            id_result,
+                            set,
+                            x,
+                        }))
+                    } else {
+                        Err(Error::InstructionTooLong)
+                    }
+                }),
+                (ExtensionInstructionSet::GLSLStd450, 18u32) => split_fn!({
+                    let (y_over_x, words) = IdRef::spirv_parse(words, parse_state)?;
+                    if words.is_empty() {
+                        Ok(Instruction::GLSLStd450Atan(OpGLSLStd450Atan {
+                            id_result_type,
+                            id_result,
+                            set,
+                            y_over_x,
+                        }))
+                    } else {
+                        Err(Error::InstructionTooLong)
+                    }
+                }),
+                (ExtensionInstructionSet::GLSLStd450, 19u32) => split_fn!({
+                    let (x, words) = IdRef::spirv_parse(words, parse_state)?;
+                    if words.is_empty() {
+                        Ok(Instruction::GLSLStd450Sinh(OpGLSLStd450Sinh {
+                            id_result_type,
+                            id_result,
+                            set,
+                            x,
+                        }))
+                    } else {
+                        Err(Error::InstructionTooLong)
+                    }
+                }),
+                (ExtensionInstructionSet::GLSLStd450, 20u32) => split_fn!({
+                    let (x, words) = IdRef::spirv_parse(words, parse_state)?;
+                    if words.is_empty() {
+                        Ok(Instruction::GLSLStd450Cosh(OpGLSLStd450Cosh {
+                            id_result_type,
+                            id_result,
+                            set,
+                            x,
+                        }))
+                    } else {
+                        Err(Error::InstructionTooLong)
+                    }
+                }),
+                (ExtensionInstructionSet::GLSLStd450, 21u32) => split_fn!({
+                    let (x, words) = IdRef::spirv_parse(words, parse_state)?;
+                    if words.is_empty() {
+                        Ok(Instruction::GLSLStd450Tanh(OpGLSLStd450Tanh {
+                            id_result_type,
+                            id_result,
+                            set,
+                            x,
+                        }))
+                    } else {
+                        Err(Error::InstructionTooLong)
+                    }
+                }),
+                (ExtensionInstructionSet::GLSLStd450, 22u32) => split_fn!({
+                    let (x, words) = IdRef::spirv_parse(words, parse_state)?;
+                    if words.is_empty() {
+                        Ok(Instruction::GLSLStd450Asinh(OpGLSLStd450Asinh {
+                            id_result_type,
+                            id_result,
+                            set,
+                            x,
+                        }))
+                    } else {
+                        Err(Error::InstructionTooLong)
+                    }
+                }),
+                (ExtensionInstructionSet::GLSLStd450, 23u32) => split_fn!({
+                    let (x, words) = IdRef::spirv_parse(words, parse_state)?;
+                    if words.is_empty() {
+                        Ok(Instruction::GLSLStd450Acosh(OpGLSLStd450Acosh {
+                            id_result_type,
+                            id_result,
+                            set,
+                            x,
+                        }))
+                    } else {
+                        Err(Error::InstructionTooLong)
+                    }
+                }),
+                (ExtensionInstructionSet::GLSLStd450, 24u32) => split_fn!({
+                    let (x, words) = IdRef::spirv_parse(words, parse_state)?;
+                    if words.is_empty() {
+                        Ok(Instruction::GLSLStd450Atanh(OpGLSLStd450Atanh {
+                            id_result_type,
+                            id_result,
+                            set,
+                            x,
+                        }))
+                    } else {
+                        Err(Error::InstructionTooLong)
+                    }
+                }),
+                (ExtensionInstructionSet::GLSLStd450, 25u32) => split_fn!({
+                    let (y, words) = IdRef::spirv_parse(words, parse_state)?;
+                    let (x, words) = IdRef::spirv_parse(words, parse_state)?;
+                    if words.is_empty() {
+                        Ok(Instruction::GLSLStd450Atan2(OpGLSLStd450Atan2 {
+                            id_result_type,
+                            id_result,
+                            set,
+                            y,
+                            x,
+                        }))
+                    } else {
+                        Err(Error::InstructionTooLong)
+                    }
+                }),
+                (ExtensionInstructionSet::GLSLStd450, 26u32) => split_fn!({
+                    let (x, words) = IdRef::spirv_parse(words, parse_state)?;
+                    let (y, words) = IdRef::spirv_parse(words, parse_state)?;
+                    if words.is_empty() {
+                        Ok(Instruction::GLSLStd450Pow(OpGLSLStd450Pow {
+                            id_result_type,
+                            id_result,
+                            set,
+                            x,
+                            y,
+                        }))
+                    } else {
+                        Err(Error::InstructionTooLong)
+                    }
+                }),
+                (ExtensionInstructionSet::GLSLStd450, 27u32) => split_fn!({
+                    let (x, words) = IdRef::spirv_parse(words, parse_state)?;
+                    if words.is_empty() {
+                        Ok(Instruction::GLSLStd450Exp(OpGLSLStd450Exp {
+                            id_result_type,
+                            id_result,
+                            set,
+                            x,
+                        }))
+                    } else {
+                        Err(Error::InstructionTooLong)
+                    }
+                }),
+                (ExtensionInstructionSet::GLSLStd450, 28u32) => split_fn!({
+                    let (x, words) = IdRef::spirv_parse(words, parse_state)?;
+                    if words.is_empty() {
+                        Ok(Instruction::GLSLStd450Log(OpGLSLStd450Log {
+                            id_result_type,
+                            id_result,
+                            set,
+                            x,
+                        }))
+                    } else {
+                        Err(Error::InstructionTooLong)
+                    }
+                }),
+                (ExtensionInstructionSet::GLSLStd450, 29u32) => split_fn!({
+                    let (x, words) = IdRef::spirv_parse(words, parse_state)?;
+                    if words.is_empty() {
+                        Ok(Instruction::GLSLStd450Exp2(OpGLSLStd450Exp2 {
+                            id_result_type,
+                            id_result,
+                            set,
+                            x,
+                        }))
+                    } else {
+                        Err(Error::InstructionTooLong)
+                    }
+                }),
+                (ExtensionInstructionSet::GLSLStd450, 30u32) => split_fn!({
+                    let (x, words) = IdRef::spirv_parse(words, parse_state)?;
+                    if words.is_empty() {
+                        Ok(Instruction::GLSLStd450Log2(OpGLSLStd450Log2 {
+                            id_result_type,
+                            id_result,
+                            set,
+                            x,
+                        }))
+                    } else {
+                        Err(Error::InstructionTooLong)
+                    }
+                }),
+                (ExtensionInstructionSet::GLSLStd450, 31u32) => split_fn!({
+                    let (x, words) = IdRef::spirv_parse(words, parse_state)?;
+                    if words.is_empty() {
+                        Ok(Instruction::GLSLStd450Sqrt(OpGLSLStd450Sqrt {
+                            id_result_type,
+                            id_result,
+                            set,
+                            x,
+                        }))
+                    } else {
+                        Err(Error::InstructionTooLong)
+                    }
+                }),
+                (ExtensionInstructionSet::GLSLStd450, 32u32) => split_fn!({
+                    let (x, words) = IdRef::spirv_parse(words, parse_state)?;
+                    if words.is_empty() {
+                        Ok(Instruction::GLSLStd450InverseSqrt(
+                            OpGLSLStd450InverseSqrt {
+                                id_result_type,
+                                id_result,
+                                set,
+                                x,
+                            },
+                        ))
+                    } else {
+                        Err(Error::InstructionTooLong)
+                    }
+                }),
+                (ExtensionInstructionSet::GLSLStd450, 33u32) => split_fn!({
+                    let (x, words) = IdRef::spirv_parse(words, parse_state)?;
+                    if words.is_empty() {
+                        Ok(Instruction::GLSLStd450Determinant(
+                            OpGLSLStd450Determinant {
+                                id_result_type,
+                                id_result,
+                                set,
+                                x,
+                            },
+                        ))
+                    } else {
+                        Err(Error::InstructionTooLong)
+                    }
+                }),
+                (ExtensionInstructionSet::GLSLStd450, 34u32) => split_fn!({
+                    let (x, words) = IdRef::spirv_parse(words, parse_state)?;
+                    if words.is_empty() {
+                        Ok(Instruction::GLSLStd450MatrixInverse(
+                            OpGLSLStd450MatrixInverse {
+                                id_result_type,
+                                id_result,
+                                set,
+                                x,
+                            },
+                        ))
+                    } else {
+                        Err(Error::InstructionTooLong)
+                    }
+                }),
+                (ExtensionInstructionSet::GLSLStd450, 35u32) => split_fn!({
+                    let (x, words) = IdRef::spirv_parse(words, parse_state)?;
+                    let (i, words) = IdRef::spirv_parse(words, parse_state)?;
+                    if words.is_empty() {
+                        Ok(Instruction::GLSLStd450Modf(OpGLSLStd450Modf {
+                            id_result_type,
+                            id_result,
+                            set,
+                            x,
+                            i,
+                        }))
+                    } else {
+                        Err(Error::InstructionTooLong)
+                    }
+                }),
+                (ExtensionInstructionSet::GLSLStd450, 36u32) => split_fn!({
+                    let (x, words) = IdRef::spirv_parse(words, parse_state)?;
+                    if words.is_empty() {
+                        Ok(Instruction::GLSLStd450ModfStruct(OpGLSLStd450ModfStruct {
+                            id_result_type,
+                            id_result,
+                            set,
+                            x,
+                        }))
+                    } else {
+                        Err(Error::InstructionTooLong)
+                    }
+                }),
+                (ExtensionInstructionSet::GLSLStd450, 37u32) => split_fn!({
+                    let (x, words) = IdRef::spirv_parse(words, parse_state)?;
+                    let (y, words) = IdRef::spirv_parse(words, parse_state)?;
+                    if words.is_empty() {
+                        Ok(Instruction::GLSLStd450FMin(OpGLSLStd450FMin {
+                            id_result_type,
+                            id_result,
+                            set,
+                            x,
+                            y,
+                        }))
+                    } else {
+                        Err(Error::InstructionTooLong)
+                    }
+                }),
+                (ExtensionInstructionSet::GLSLStd450, 38u32) => split_fn!({
+                    let (x, words) = IdRef::spirv_parse(words, parse_state)?;
+                    let (y, words) = IdRef::spirv_parse(words, parse_state)?;
+                    if words.is_empty() {
+                        Ok(Instruction::GLSLStd450UMin(OpGLSLStd450UMin {
+                            id_result_type,
+                            id_result,
+                            set,
+                            x,
+                            y,
+                        }))
+                    } else {
+                        Err(Error::InstructionTooLong)
+                    }
+                }),
+                (ExtensionInstructionSet::GLSLStd450, 39u32) => split_fn!({
+                    let (x, words) = IdRef::spirv_parse(words, parse_state)?;
+                    let (y, words) = IdRef::spirv_parse(words, parse_state)?;
+                    if words.is_empty() {
+                        Ok(Instruction::GLSLStd450SMin(OpGLSLStd450SMin {
+                            id_result_type,
+                            id_result,
+                            set,
+                            x,
+                            y,
+                        }))
+                    } else {
+                        Err(Error::InstructionTooLong)
+                    }
+                }),
+                (ExtensionInstructionSet::GLSLStd450, 40u32) => split_fn!({
+                    let (x, words) = IdRef::spirv_parse(words, parse_state)?;
+                    let (y, words) = IdRef::spirv_parse(words, parse_state)?;
+                    if words.is_empty() {
+                        Ok(Instruction::GLSLStd450FMax(OpGLSLStd450FMax {
+                            id_result_type,
+                            id_result,
+                            set,
+                            x,
+                            y,
+                        }))
+                    } else {
+                        Err(Error::InstructionTooLong)
+                    }
+                }),
+                (ExtensionInstructionSet::GLSLStd450, 41u32) => split_fn!({
+                    let (x, words) = IdRef::spirv_parse(words, parse_state)?;
+                    let (y, words) = IdRef::spirv_parse(words, parse_state)?;
+                    if words.is_empty() {
+                        Ok(Instruction::GLSLStd450UMax(OpGLSLStd450UMax {
+                            id_result_type,
+                            id_result,
+                            set,
+                            x,
+                            y,
+                        }))
+                    } else {
+                        Err(Error::InstructionTooLong)
+                    }
+                }),
+                (ExtensionInstructionSet::GLSLStd450, 42u32) => split_fn!({
+                    let (x, words) = IdRef::spirv_parse(words, parse_state)?;
+                    let (y, words) = IdRef::spirv_parse(words, parse_state)?;
+                    if words.is_empty() {
+                        Ok(Instruction::GLSLStd450SMax(OpGLSLStd450SMax {
+                            id_result_type,
+                            id_result,
+                            set,
+                            x,
+                            y,
+                        }))
+                    } else {
+                        Err(Error::InstructionTooLong)
+                    }
+                }),
+                (ExtensionInstructionSet::GLSLStd450, 43u32) => split_fn!({
+                    let (x, words) = IdRef::spirv_parse(words, parse_state)?;
+                    let (min_val, words) = IdRef::spirv_parse(words, parse_state)?;
+                    let (max_val, words) = IdRef::spirv_parse(words, parse_state)?;
+                    if words.is_empty() {
+                        Ok(Instruction::GLSLStd450FClamp(OpGLSLStd450FClamp {
+                            id_result_type,
+                            id_result,
+                            set,
+                            x,
+                            min_val,
+                            max_val,
+                        }))
+                    } else {
+                        Err(Error::InstructionTooLong)
+                    }
+                }),
+                (ExtensionInstructionSet::GLSLStd450, 44u32) => split_fn!({
+                    let (x, words) = IdRef::spirv_parse(words, parse_state)?;
+                    let (min_val, words) = IdRef::spirv_parse(words, parse_state)?;
+                    let (max_val, words) = IdRef::spirv_parse(words, parse_state)?;
+                    if words.is_empty() {
+                        Ok(Instruction::GLSLStd450UClamp(OpGLSLStd450UClamp {
+                            id_result_type,
+                            id_result,
+                            set,
+                            x,
+                            min_val,
+                            max_val,
+                        }))
+                    } else {
+                        Err(Error::InstructionTooLong)
+                    }
+                }),
+                (ExtensionInstructionSet::GLSLStd450, 45u32) => split_fn!({
+                    let (x, words) = IdRef::spirv_parse(words, parse_state)?;
+                    let (min_val, words) = IdRef::spirv_parse(words, parse_state)?;
+                    let (max_val, words) = IdRef::spirv_parse(words, parse_state)?;
+                    if words.is_empty() {
+                        Ok(Instruction::GLSLStd450SClamp(OpGLSLStd450SClamp {
+                            id_result_type,
+                            id_result,
+                            set,
+                            x,
+                            min_val,
+                            max_val,
+                        }))
+                    } else {
+                        Err(Error::InstructionTooLong)
+                    }
+                }),
+                (ExtensionInstructionSet::GLSLStd450, 46u32) => split_fn!({
+                    let (x, words) = IdRef::spirv_parse(words, parse_state)?;
+                    let (y, words) = IdRef::spirv_parse(words, parse_state)?;
+                    let (a, words) = IdRef::spirv_parse(words, parse_state)?;
+                    if words.is_empty() {
+                        Ok(Instruction::GLSLStd450FMix(OpGLSLStd450FMix {
+                            id_result_type,
+                            id_result,
+                            set,
+                            x,
+                            y,
+                            a,
+                        }))
+                    } else {
+                        Err(Error::InstructionTooLong)
+                    }
+                }),
+                (ExtensionInstructionSet::GLSLStd450, 47u32) => split_fn!({
+                    let (x, words) = IdRef::spirv_parse(words, parse_state)?;
+                    let (y, words) = IdRef::spirv_parse(words, parse_state)?;
+                    let (a, words) = IdRef::spirv_parse(words, parse_state)?;
+                    if words.is_empty() {
+                        Ok(Instruction::GLSLStd450IMix(OpGLSLStd450IMix {
+                            id_result_type,
+                            id_result,
+                            set,
+                            x,
+                            y,
+                            a,
+                        }))
+                    } else {
+                        Err(Error::InstructionTooLong)
+                    }
+                }),
+                (ExtensionInstructionSet::GLSLStd450, 48u32) => split_fn!({
+                    let (edge, words) = IdRef::spirv_parse(words, parse_state)?;
+                    let (x, words) = IdRef::spirv_parse(words, parse_state)?;
+                    if words.is_empty() {
+                        Ok(Instruction::GLSLStd450Step(OpGLSLStd450Step {
+                            id_result_type,
+                            id_result,
+                            set,
+                            edge,
+                            x,
+                        }))
+                    } else {
+                        Err(Error::InstructionTooLong)
+                    }
+                }),
+                (ExtensionInstructionSet::GLSLStd450, 49u32) => split_fn!({
+                    let (edge0, words) = IdRef::spirv_parse(words, parse_state)?;
+                    let (edge1, words) = IdRef::spirv_parse(words, parse_state)?;
+                    let (x, words) = IdRef::spirv_parse(words, parse_state)?;
+                    if words.is_empty() {
+                        Ok(Instruction::GLSLStd450SmoothStep(OpGLSLStd450SmoothStep {
+                            id_result_type,
+                            id_result,
+                            set,
+                            edge0,
+                            edge1,
+                            x,
+                        }))
+                    } else {
+                        Err(Error::InstructionTooLong)
+                    }
+                }),
+                (ExtensionInstructionSet::GLSLStd450, 50u32) => split_fn!({
+                    let (a, words) = IdRef::spirv_parse(words, parse_state)?;
+                    let (b, words) = IdRef::spirv_parse(words, parse_state)?;
+                    let (c, words) = IdRef::spirv_parse(words, parse_state)?;
+                    if words.is_empty() {
+                        Ok(Instruction::GLSLStd450Fma(OpGLSLStd450Fma {
+                            id_result_type,
+                            id_result,
+                            set,
+                            a,
+                            b,
+                            c,
+                        }))
+                    } else {
+                        Err(Error::InstructionTooLong)
+                    }
+                }),
+                (ExtensionInstructionSet::GLSLStd450, 51u32) => split_fn!({
+                    let (x, words) = IdRef::spirv_parse(words, parse_state)?;
+                    let (exp, words) = IdRef::spirv_parse(words, parse_state)?;
+                    if words.is_empty() {
+                        Ok(Instruction::GLSLStd450Frexp(OpGLSLStd450Frexp {
+                            id_result_type,
+                            id_result,
+                            set,
+                            x,
+                            exp,
+                        }))
+                    } else {
+                        Err(Error::InstructionTooLong)
+                    }
+                }),
+                (ExtensionInstructionSet::GLSLStd450, 52u32) => split_fn!({
+                    let (x, words) = IdRef::spirv_parse(words, parse_state)?;
+                    if words.is_empty() {
+                        Ok(Instruction::GLSLStd450FrexpStruct(
+                            OpGLSLStd450FrexpStruct {
+                                id_result_type,
+                                id_result,
+                                set,
+                                x,
+                            },
+                        ))
+                    } else {
+                        Err(Error::InstructionTooLong)
+                    }
+                }),
+                (ExtensionInstructionSet::GLSLStd450, 53u32) => split_fn!({
+                    let (x, words) = IdRef::spirv_parse(words, parse_state)?;
+                    let (exp, words) = IdRef::spirv_parse(words, parse_state)?;
+                    if words.is_empty() {
+                        Ok(Instruction::GLSLStd450Ldexp(OpGLSLStd450Ldexp {
+                            id_result_type,
+                            id_result,
+                            set,
+                            x,
+                            exp,
+                        }))
+                    } else {
+                        Err(Error::InstructionTooLong)
+                    }
+                }),
+                (ExtensionInstructionSet::GLSLStd450, 54u32) => split_fn!({
+                    let (v, words) = IdRef::spirv_parse(words, parse_state)?;
+                    if words.is_empty() {
+                        Ok(Instruction::GLSLStd450PackSnorm4x8(
+                            OpGLSLStd450PackSnorm4x8 {
+                                id_result_type,
+                                id_result,
+                                set,
+                                v,
+                            },
+                        ))
+                    } else {
+                        Err(Error::InstructionTooLong)
+                    }
+                }),
+                (ExtensionInstructionSet::GLSLStd450, 55u32) => split_fn!({
+                    let (v, words) = IdRef::spirv_parse(words, parse_state)?;
+                    if words.is_empty() {
+                        Ok(Instruction::GLSLStd450PackUnorm4x8(
+                            OpGLSLStd450PackUnorm4x8 {
+                                id_result_type,
+                                id_result,
+                                set,
+                                v,
+                            },
+                        ))
+                    } else {
+                        Err(Error::InstructionTooLong)
+                    }
+                }),
+                (ExtensionInstructionSet::GLSLStd450, 56u32) => split_fn!({
+                    let (v, words) = IdRef::spirv_parse(words, parse_state)?;
+                    if words.is_empty() {
+                        Ok(Instruction::GLSLStd450PackSnorm2x16(
+                            OpGLSLStd450PackSnorm2x16 {
+                                id_result_type,
+                                id_result,
+                                set,
+                                v,
+                            },
+                        ))
+                    } else {
+                        Err(Error::InstructionTooLong)
+                    }
+                }),
+                (ExtensionInstructionSet::GLSLStd450, 57u32) => split_fn!({
+                    let (v, words) = IdRef::spirv_parse(words, parse_state)?;
+                    if words.is_empty() {
+                        Ok(Instruction::GLSLStd450PackUnorm2x16(
+                            OpGLSLStd450PackUnorm2x16 {
+                                id_result_type,
+                                id_result,
+                                set,
+                                v,
+                            },
+                        ))
+                    } else {
+                        Err(Error::InstructionTooLong)
+                    }
+                }),
+                (ExtensionInstructionSet::GLSLStd450, 58u32) => split_fn!({
+                    let (v, words) = IdRef::spirv_parse(words, parse_state)?;
+                    if words.is_empty() {
+                        Ok(Instruction::GLSLStd450PackHalf2x16(
+                            OpGLSLStd450PackHalf2x16 {
+                                id_result_type,
+                                id_result,
+                                set,
+                                v,
+                            },
+                        ))
+                    } else {
+                        Err(Error::InstructionTooLong)
+                    }
+                }),
+                (ExtensionInstructionSet::GLSLStd450, 59u32) => split_fn!({
+                    let (v, words) = IdRef::spirv_parse(words, parse_state)?;
+                    if words.is_empty() {
+                        Ok(Instruction::GLSLStd450PackDouble2x32(
+                            OpGLSLStd450PackDouble2x32 {
+                                id_result_type,
+                                id_result,
+                                set,
+                                v,
+                            },
+                        ))
+                    } else {
+                        Err(Error::InstructionTooLong)
+                    }
+                }),
+                (ExtensionInstructionSet::GLSLStd450, 60u32) => split_fn!({
+                    let (p, words) = IdRef::spirv_parse(words, parse_state)?;
+                    if words.is_empty() {
+                        Ok(Instruction::GLSLStd450UnpackSnorm2x16(
+                            OpGLSLStd450UnpackSnorm2x16 {
+                                id_result_type,
+                                id_result,
+                                set,
+                                p,
+                            },
+                        ))
+                    } else {
+                        Err(Error::InstructionTooLong)
+                    }
+                }),
+                (ExtensionInstructionSet::GLSLStd450, 61u32) => split_fn!({
+                    let (p, words) = IdRef::spirv_parse(words, parse_state)?;
+                    if words.is_empty() {
+                        Ok(Instruction::GLSLStd450UnpackUnorm2x16(
+                            OpGLSLStd450UnpackUnorm2x16 {
+                                id_result_type,
+                                id_result,
+                                set,
+                                p,
+                            },
+                        ))
+                    } else {
+                        Err(Error::InstructionTooLong)
+                    }
+                }),
+                (ExtensionInstructionSet::GLSLStd450, 62u32) => split_fn!({
+                    let (v, words) = IdRef::spirv_parse(words, parse_state)?;
+                    if words.is_empty() {
+                        Ok(Instruction::GLSLStd450UnpackHalf2x16(
+                            OpGLSLStd450UnpackHalf2x16 {
+                                id_result_type,
+                                id_result,
+                                set,
+                                v,
+                            },
+                        ))
+                    } else {
+                        Err(Error::InstructionTooLong)
+                    }
+                }),
+                (ExtensionInstructionSet::GLSLStd450, 63u32) => split_fn!({
+                    let (p, words) = IdRef::spirv_parse(words, parse_state)?;
+                    if words.is_empty() {
+                        Ok(Instruction::GLSLStd450UnpackSnorm4x8(
+                            OpGLSLStd450UnpackSnorm4x8 {
+                                id_result_type,
+                                id_result,
+                                set,
+                                p,
+                            },
+                        ))
+                    } else {
+                        Err(Error::InstructionTooLong)
+                    }
+                }),
+                (ExtensionInstructionSet::GLSLStd450, 64u32) => split_fn!({
+                    let (p, words) = IdRef::spirv_parse(words, parse_state)?;
+                    if words.is_empty() {
+                        Ok(Instruction::GLSLStd450UnpackUnorm4x8(
+                            OpGLSLStd450UnpackUnorm4x8 {
+                                id_result_type,
+                                id_result,
+                                set,
+                                p,
+                            },
+                        ))
+                    } else {
+                        Err(Error::InstructionTooLong)
+                    }
+                }),
+                (ExtensionInstructionSet::GLSLStd450, 65u32) => split_fn!({
+                    let (v, words) = IdRef::spirv_parse(words, parse_state)?;
+                    if words.is_empty() {
+                        Ok(Instruction::GLSLStd450UnpackDouble2x32(
+                            OpGLSLStd450UnpackDouble2x32 {
+                                id_result_type,
+                                id_result,
+                                set,
+                                v,
+                            },
+                        ))
+                    } else {
+                        Err(Error::InstructionTooLong)
+                    }
+                }),
+                (ExtensionInstructionSet::GLSLStd450, 66u32) => split_fn!({
+                    let (x, words) = IdRef::spirv_parse(words, parse_state)?;
+                    if words.is_empty() {
+                        Ok(Instruction::GLSLStd450Length(OpGLSLStd450Length {
+                            id_result_type,
+                            id_result,
+                            set,
+                            x,
+                        }))
+                    } else {
+                        Err(Error::InstructionTooLong)
+                    }
+                }),
+                (ExtensionInstructionSet::GLSLStd450, 67u32) => split_fn!({
+                    let (p0, words) = IdRef::spirv_parse(words, parse_state)?;
+                    let (p1, words) = IdRef::spirv_parse(words, parse_state)?;
+                    if words.is_empty() {
+                        Ok(Instruction::GLSLStd450Distance(OpGLSLStd450Distance {
+                            id_result_type,
+                            id_result,
+                            set,
+                            p0,
+                            p1,
+                        }))
+                    } else {
+                        Err(Error::InstructionTooLong)
+                    }
+                }),
+                (ExtensionInstructionSet::GLSLStd450, 68u32) => split_fn!({
+                    let (x, words) = IdRef::spirv_parse(words, parse_state)?;
+                    let (y, words) = IdRef::spirv_parse(words, parse_state)?;
+                    if words.is_empty() {
+                        Ok(Instruction::GLSLStd450Cross(OpGLSLStd450Cross {
+                            id_result_type,
+                            id_result,
+                            set,
+                            x,
+                            y,
+                        }))
+                    } else {
+                        Err(Error::InstructionTooLong)
+                    }
+                }),
+                (ExtensionInstructionSet::GLSLStd450, 69u32) => split_fn!({
+                    let (x, words) = IdRef::spirv_parse(words, parse_state)?;
+                    if words.is_empty() {
+                        Ok(Instruction::GLSLStd450Normalize(OpGLSLStd450Normalize {
+                            id_result_type,
+                            id_result,
+                            set,
+                            x,
+                        }))
+                    } else {
+                        Err(Error::InstructionTooLong)
+                    }
+                }),
+                (ExtensionInstructionSet::GLSLStd450, 70u32) => split_fn!({
+                    let (n, words) = IdRef::spirv_parse(words, parse_state)?;
+                    let (i, words) = IdRef::spirv_parse(words, parse_state)?;
+                    let (nref, words) = IdRef::spirv_parse(words, parse_state)?;
+                    if words.is_empty() {
+                        Ok(Instruction::GLSLStd450FaceForward(
+                            OpGLSLStd450FaceForward {
+                                id_result_type,
+                                id_result,
+                                set,
+                                n,
+                                i,
+                                nref,
+                            },
+                        ))
+                    } else {
+                        Err(Error::InstructionTooLong)
+                    }
+                }),
+                (ExtensionInstructionSet::GLSLStd450, 71u32) => split_fn!({
+                    let (i, words) = IdRef::spirv_parse(words, parse_state)?;
+                    let (n, words) = IdRef::spirv_parse(words, parse_state)?;
+                    if words.is_empty() {
+                        Ok(Instruction::GLSLStd450Reflect(OpGLSLStd450Reflect {
+                            id_result_type,
+                            id_result,
+                            set,
+                            i,
+                            n,
+                        }))
+                    } else {
+                        Err(Error::InstructionTooLong)
+                    }
+                }),
+                (ExtensionInstructionSet::GLSLStd450, 72u32) => split_fn!({
+                    let (i, words) = IdRef::spirv_parse(words, parse_state)?;
+                    let (n, words) = IdRef::spirv_parse(words, parse_state)?;
+                    let (eta, words) = IdRef::spirv_parse(words, parse_state)?;
+                    if words.is_empty() {
+                        Ok(Instruction::GLSLStd450Refract(OpGLSLStd450Refract {
+                            id_result_type,
+                            id_result,
+                            set,
+                            i,
+                            n,
+                            eta,
+                        }))
+                    } else {
+                        Err(Error::InstructionTooLong)
+                    }
+                }),
+                (ExtensionInstructionSet::GLSLStd450, 73u32) => split_fn!({
+                    let (value, words) = IdRef::spirv_parse(words, parse_state)?;
+                    if words.is_empty() {
+                        Ok(Instruction::GLSLStd450FindILsb(OpGLSLStd450FindILsb {
+                            id_result_type,
+                            id_result,
+                            set,
+                            value,
+                        }))
+                    } else {
+                        Err(Error::InstructionTooLong)
+                    }
+                }),
+                (ExtensionInstructionSet::GLSLStd450, 74u32) => split_fn!({
+                    let (value, words) = IdRef::spirv_parse(words, parse_state)?;
+                    if words.is_empty() {
+                        Ok(Instruction::GLSLStd450FindSMsb(OpGLSLStd450FindSMsb {
+                            id_result_type,
+                            id_result,
+                            set,
+                            value,
+                        }))
+                    } else {
+                        Err(Error::InstructionTooLong)
+                    }
+                }),
+                (ExtensionInstructionSet::GLSLStd450, 75u32) => split_fn!({
+                    let (value, words) = IdRef::spirv_parse(words, parse_state)?;
+                    if words.is_empty() {
+                        Ok(Instruction::GLSLStd450FindUMsb(OpGLSLStd450FindUMsb {
+                            id_result_type,
+                            id_result,
+                            set,
+                            value,
+                        }))
+                    } else {
+                        Err(Error::InstructionTooLong)
+                    }
+                }),
+                (ExtensionInstructionSet::GLSLStd450, 76u32) => split_fn!({
+                    let (interpolant, words) = IdRef::spirv_parse(words, parse_state)?;
+                    if words.is_empty() {
+                        Ok(Instruction::GLSLStd450InterpolateAtCentroid(
+                            OpGLSLStd450InterpolateAtCentroid {
+                                id_result_type,
+                                id_result,
+                                set,
+                                interpolant,
+                            },
+                        ))
+                    } else {
+                        Err(Error::InstructionTooLong)
+                    }
+                }),
+                (ExtensionInstructionSet::GLSLStd450, 77u32) => split_fn!({
+                    let (interpolant, words) = IdRef::spirv_parse(words, parse_state)?;
+                    let (sample, words) = IdRef::spirv_parse(words, parse_state)?;
+                    if words.is_empty() {
+                        Ok(Instruction::GLSLStd450InterpolateAtSample(
+                            OpGLSLStd450InterpolateAtSample {
+                                id_result_type,
+                                id_result,
+                                set,
+                                interpolant,
+                                sample,
+                            },
+                        ))
+                    } else {
+                        Err(Error::InstructionTooLong)
+                    }
+                }),
+                (ExtensionInstructionSet::GLSLStd450, 78u32) => split_fn!({
+                    let (interpolant, words) = IdRef::spirv_parse(words, parse_state)?;
+                    let (offset, words) = IdRef::spirv_parse(words, parse_state)?;
+                    if words.is_empty() {
+                        Ok(Instruction::GLSLStd450InterpolateAtOffset(
+                            OpGLSLStd450InterpolateAtOffset {
+                                id_result_type,
+                                id_result,
+                                set,
+                                interpolant,
+                                offset,
+                            },
+                        ))
+                    } else {
+                        Err(Error::InstructionTooLong)
+                    }
+                }),
+                (ExtensionInstructionSet::GLSLStd450, 79u32) => split_fn!({
+                    let (x, words) = IdRef::spirv_parse(words, parse_state)?;
+                    let (y, words) = IdRef::spirv_parse(words, parse_state)?;
+                    if words.is_empty() {
+                        Ok(Instruction::GLSLStd450NMin(OpGLSLStd450NMin {
+                            id_result_type,
+                            id_result,
+                            set,
+                            x,
+                            y,
+                        }))
+                    } else {
+                        Err(Error::InstructionTooLong)
+                    }
+                }),
+                (ExtensionInstructionSet::GLSLStd450, 80u32) => split_fn!({
+                    let (x, words) = IdRef::spirv_parse(words, parse_state)?;
+                    let (y, words) = IdRef::spirv_parse(words, parse_state)?;
+                    if words.is_empty() {
+                        Ok(Instruction::GLSLStd450NMax(OpGLSLStd450NMax {
+                            id_result_type,
+                            id_result,
+                            set,
+                            x,
+                            y,
+                        }))
+                    } else {
+                        Err(Error::InstructionTooLong)
+                    }
+                }),
+                (ExtensionInstructionSet::GLSLStd450, 81u32) => split_fn!({
+                    let (x, words) = IdRef::spirv_parse(words, parse_state)?;
+                    let (min_val, words) = IdRef::spirv_parse(words, parse_state)?;
+                    let (max_val, words) = IdRef::spirv_parse(words, parse_state)?;
+                    if words.is_empty() {
+                        Ok(Instruction::GLSLStd450NClamp(OpGLSLStd450NClamp {
+                            id_result_type,
+                            id_result,
+                            set,
+                            x,
+                            min_val,
+                            max_val,
                         }))
                     } else {
                         Err(Error::InstructionTooLong)
@@ -27917,1461 +31282,6 @@ impl fmt::Display for Instruction {
                 decoration.spirv_display(f)?;
                 writeln!(f)
             }),
-            Instruction::GLSLStd450Round(OpGLSLStd450Round {
-                id_result_type,
-                id_result,
-                set,
-                x,
-            }) => split_fn!({
-                write!(
-                    f,
-                    "{}OpExtInst {} {} {}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    id_result_type,
-                    set,
-                    "Round",
-                )?;
-                x.spirv_display(f)?;
-                writeln!(f)
-            }),
-            Instruction::GLSLStd450RoundEven(OpGLSLStd450RoundEven {
-                id_result_type,
-                id_result,
-                set,
-                x,
-            }) => split_fn!({
-                write!(
-                    f,
-                    "{}OpExtInst {} {} {}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    id_result_type,
-                    set,
-                    "RoundEven",
-                )?;
-                x.spirv_display(f)?;
-                writeln!(f)
-            }),
-            Instruction::GLSLStd450Trunc(OpGLSLStd450Trunc {
-                id_result_type,
-                id_result,
-                set,
-                x,
-            }) => split_fn!({
-                write!(
-                    f,
-                    "{}OpExtInst {} {} {}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    id_result_type,
-                    set,
-                    "Trunc",
-                )?;
-                x.spirv_display(f)?;
-                writeln!(f)
-            }),
-            Instruction::GLSLStd450FAbs(OpGLSLStd450FAbs {
-                id_result_type,
-                id_result,
-                set,
-                x,
-            }) => split_fn!({
-                write!(
-                    f,
-                    "{}OpExtInst {} {} {}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    id_result_type,
-                    set,
-                    "FAbs",
-                )?;
-                x.spirv_display(f)?;
-                writeln!(f)
-            }),
-            Instruction::GLSLStd450SAbs(OpGLSLStd450SAbs {
-                id_result_type,
-                id_result,
-                set,
-                x,
-            }) => split_fn!({
-                write!(
-                    f,
-                    "{}OpExtInst {} {} {}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    id_result_type,
-                    set,
-                    "SAbs",
-                )?;
-                x.spirv_display(f)?;
-                writeln!(f)
-            }),
-            Instruction::GLSLStd450FSign(OpGLSLStd450FSign {
-                id_result_type,
-                id_result,
-                set,
-                x,
-            }) => split_fn!({
-                write!(
-                    f,
-                    "{}OpExtInst {} {} {}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    id_result_type,
-                    set,
-                    "FSign",
-                )?;
-                x.spirv_display(f)?;
-                writeln!(f)
-            }),
-            Instruction::GLSLStd450SSign(OpGLSLStd450SSign {
-                id_result_type,
-                id_result,
-                set,
-                x,
-            }) => split_fn!({
-                write!(
-                    f,
-                    "{}OpExtInst {} {} {}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    id_result_type,
-                    set,
-                    "SSign",
-                )?;
-                x.spirv_display(f)?;
-                writeln!(f)
-            }),
-            Instruction::GLSLStd450Floor(OpGLSLStd450Floor {
-                id_result_type,
-                id_result,
-                set,
-                x,
-            }) => split_fn!({
-                write!(
-                    f,
-                    "{}OpExtInst {} {} {}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    id_result_type,
-                    set,
-                    "Floor",
-                )?;
-                x.spirv_display(f)?;
-                writeln!(f)
-            }),
-            Instruction::GLSLStd450Ceil(OpGLSLStd450Ceil {
-                id_result_type,
-                id_result,
-                set,
-                x,
-            }) => split_fn!({
-                write!(
-                    f,
-                    "{}OpExtInst {} {} {}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    id_result_type,
-                    set,
-                    "Ceil",
-                )?;
-                x.spirv_display(f)?;
-                writeln!(f)
-            }),
-            Instruction::GLSLStd450Fract(OpGLSLStd450Fract {
-                id_result_type,
-                id_result,
-                set,
-                x,
-            }) => split_fn!({
-                write!(
-                    f,
-                    "{}OpExtInst {} {} {}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    id_result_type,
-                    set,
-                    "Fract",
-                )?;
-                x.spirv_display(f)?;
-                writeln!(f)
-            }),
-            Instruction::GLSLStd450Radians(OpGLSLStd450Radians {
-                id_result_type,
-                id_result,
-                set,
-                degrees,
-            }) => split_fn!({
-                write!(
-                    f,
-                    "{}OpExtInst {} {} {}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    id_result_type,
-                    set,
-                    "Radians",
-                )?;
-                degrees.spirv_display(f)?;
-                writeln!(f)
-            }),
-            Instruction::GLSLStd450Degrees(OpGLSLStd450Degrees {
-                id_result_type,
-                id_result,
-                set,
-                radians,
-            }) => split_fn!({
-                write!(
-                    f,
-                    "{}OpExtInst {} {} {}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    id_result_type,
-                    set,
-                    "Degrees",
-                )?;
-                radians.spirv_display(f)?;
-                writeln!(f)
-            }),
-            Instruction::GLSLStd450Sin(OpGLSLStd450Sin {
-                id_result_type,
-                id_result,
-                set,
-                x,
-            }) => split_fn!({
-                write!(
-                    f,
-                    "{}OpExtInst {} {} {}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    id_result_type,
-                    set,
-                    "Sin",
-                )?;
-                x.spirv_display(f)?;
-                writeln!(f)
-            }),
-            Instruction::GLSLStd450Cos(OpGLSLStd450Cos {
-                id_result_type,
-                id_result,
-                set,
-                x,
-            }) => split_fn!({
-                write!(
-                    f,
-                    "{}OpExtInst {} {} {}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    id_result_type,
-                    set,
-                    "Cos",
-                )?;
-                x.spirv_display(f)?;
-                writeln!(f)
-            }),
-            Instruction::GLSLStd450Tan(OpGLSLStd450Tan {
-                id_result_type,
-                id_result,
-                set,
-                x,
-            }) => split_fn!({
-                write!(
-                    f,
-                    "{}OpExtInst {} {} {}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    id_result_type,
-                    set,
-                    "Tan",
-                )?;
-                x.spirv_display(f)?;
-                writeln!(f)
-            }),
-            Instruction::GLSLStd450Asin(OpGLSLStd450Asin {
-                id_result_type,
-                id_result,
-                set,
-                x,
-            }) => split_fn!({
-                write!(
-                    f,
-                    "{}OpExtInst {} {} {}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    id_result_type,
-                    set,
-                    "Asin",
-                )?;
-                x.spirv_display(f)?;
-                writeln!(f)
-            }),
-            Instruction::GLSLStd450Acos(OpGLSLStd450Acos {
-                id_result_type,
-                id_result,
-                set,
-                x,
-            }) => split_fn!({
-                write!(
-                    f,
-                    "{}OpExtInst {} {} {}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    id_result_type,
-                    set,
-                    "Acos",
-                )?;
-                x.spirv_display(f)?;
-                writeln!(f)
-            }),
-            Instruction::GLSLStd450Atan(OpGLSLStd450Atan {
-                id_result_type,
-                id_result,
-                set,
-                y_over_x,
-            }) => split_fn!({
-                write!(
-                    f,
-                    "{}OpExtInst {} {} {}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    id_result_type,
-                    set,
-                    "Atan",
-                )?;
-                y_over_x.spirv_display(f)?;
-                writeln!(f)
-            }),
-            Instruction::GLSLStd450Sinh(OpGLSLStd450Sinh {
-                id_result_type,
-                id_result,
-                set,
-                x,
-            }) => split_fn!({
-                write!(
-                    f,
-                    "{}OpExtInst {} {} {}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    id_result_type,
-                    set,
-                    "Sinh",
-                )?;
-                x.spirv_display(f)?;
-                writeln!(f)
-            }),
-            Instruction::GLSLStd450Cosh(OpGLSLStd450Cosh {
-                id_result_type,
-                id_result,
-                set,
-                x,
-            }) => split_fn!({
-                write!(
-                    f,
-                    "{}OpExtInst {} {} {}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    id_result_type,
-                    set,
-                    "Cosh",
-                )?;
-                x.spirv_display(f)?;
-                writeln!(f)
-            }),
-            Instruction::GLSLStd450Tanh(OpGLSLStd450Tanh {
-                id_result_type,
-                id_result,
-                set,
-                x,
-            }) => split_fn!({
-                write!(
-                    f,
-                    "{}OpExtInst {} {} {}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    id_result_type,
-                    set,
-                    "Tanh",
-                )?;
-                x.spirv_display(f)?;
-                writeln!(f)
-            }),
-            Instruction::GLSLStd450Asinh(OpGLSLStd450Asinh {
-                id_result_type,
-                id_result,
-                set,
-                x,
-            }) => split_fn!({
-                write!(
-                    f,
-                    "{}OpExtInst {} {} {}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    id_result_type,
-                    set,
-                    "Asinh",
-                )?;
-                x.spirv_display(f)?;
-                writeln!(f)
-            }),
-            Instruction::GLSLStd450Acosh(OpGLSLStd450Acosh {
-                id_result_type,
-                id_result,
-                set,
-                x,
-            }) => split_fn!({
-                write!(
-                    f,
-                    "{}OpExtInst {} {} {}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    id_result_type,
-                    set,
-                    "Acosh",
-                )?;
-                x.spirv_display(f)?;
-                writeln!(f)
-            }),
-            Instruction::GLSLStd450Atanh(OpGLSLStd450Atanh {
-                id_result_type,
-                id_result,
-                set,
-                x,
-            }) => split_fn!({
-                write!(
-                    f,
-                    "{}OpExtInst {} {} {}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    id_result_type,
-                    set,
-                    "Atanh",
-                )?;
-                x.spirv_display(f)?;
-                writeln!(f)
-            }),
-            Instruction::GLSLStd450Atan2(OpGLSLStd450Atan2 {
-                id_result_type,
-                id_result,
-                set,
-                y,
-                x,
-            }) => split_fn!({
-                write!(
-                    f,
-                    "{}OpExtInst {} {} {}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    id_result_type,
-                    set,
-                    "Atan2",
-                )?;
-                y.spirv_display(f)?;
-                x.spirv_display(f)?;
-                writeln!(f)
-            }),
-            Instruction::GLSLStd450Pow(OpGLSLStd450Pow {
-                id_result_type,
-                id_result,
-                set,
-                x,
-                y,
-            }) => split_fn!({
-                write!(
-                    f,
-                    "{}OpExtInst {} {} {}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    id_result_type,
-                    set,
-                    "Pow",
-                )?;
-                x.spirv_display(f)?;
-                y.spirv_display(f)?;
-                writeln!(f)
-            }),
-            Instruction::GLSLStd450Exp(OpGLSLStd450Exp {
-                id_result_type,
-                id_result,
-                set,
-                x,
-            }) => split_fn!({
-                write!(
-                    f,
-                    "{}OpExtInst {} {} {}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    id_result_type,
-                    set,
-                    "Exp",
-                )?;
-                x.spirv_display(f)?;
-                writeln!(f)
-            }),
-            Instruction::GLSLStd450Log(OpGLSLStd450Log {
-                id_result_type,
-                id_result,
-                set,
-                x,
-            }) => split_fn!({
-                write!(
-                    f,
-                    "{}OpExtInst {} {} {}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    id_result_type,
-                    set,
-                    "Log",
-                )?;
-                x.spirv_display(f)?;
-                writeln!(f)
-            }),
-            Instruction::GLSLStd450Exp2(OpGLSLStd450Exp2 {
-                id_result_type,
-                id_result,
-                set,
-                x,
-            }) => split_fn!({
-                write!(
-                    f,
-                    "{}OpExtInst {} {} {}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    id_result_type,
-                    set,
-                    "Exp2",
-                )?;
-                x.spirv_display(f)?;
-                writeln!(f)
-            }),
-            Instruction::GLSLStd450Log2(OpGLSLStd450Log2 {
-                id_result_type,
-                id_result,
-                set,
-                x,
-            }) => split_fn!({
-                write!(
-                    f,
-                    "{}OpExtInst {} {} {}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    id_result_type,
-                    set,
-                    "Log2",
-                )?;
-                x.spirv_display(f)?;
-                writeln!(f)
-            }),
-            Instruction::GLSLStd450Sqrt(OpGLSLStd450Sqrt {
-                id_result_type,
-                id_result,
-                set,
-                x,
-            }) => split_fn!({
-                write!(
-                    f,
-                    "{}OpExtInst {} {} {}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    id_result_type,
-                    set,
-                    "Sqrt",
-                )?;
-                x.spirv_display(f)?;
-                writeln!(f)
-            }),
-            Instruction::GLSLStd450InverseSqrt(OpGLSLStd450InverseSqrt {
-                id_result_type,
-                id_result,
-                set,
-                x,
-            }) => split_fn!({
-                write!(
-                    f,
-                    "{}OpExtInst {} {} {}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    id_result_type,
-                    set,
-                    "InverseSqrt",
-                )?;
-                x.spirv_display(f)?;
-                writeln!(f)
-            }),
-            Instruction::GLSLStd450Determinant(OpGLSLStd450Determinant {
-                id_result_type,
-                id_result,
-                set,
-                x,
-            }) => split_fn!({
-                write!(
-                    f,
-                    "{}OpExtInst {} {} {}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    id_result_type,
-                    set,
-                    "Determinant",
-                )?;
-                x.spirv_display(f)?;
-                writeln!(f)
-            }),
-            Instruction::GLSLStd450MatrixInverse(OpGLSLStd450MatrixInverse {
-                id_result_type,
-                id_result,
-                set,
-                x,
-            }) => split_fn!({
-                write!(
-                    f,
-                    "{}OpExtInst {} {} {}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    id_result_type,
-                    set,
-                    "MatrixInverse",
-                )?;
-                x.spirv_display(f)?;
-                writeln!(f)
-            }),
-            Instruction::GLSLStd450Modf(OpGLSLStd450Modf {
-                id_result_type,
-                id_result,
-                set,
-                x,
-                i,
-            }) => split_fn!({
-                write!(
-                    f,
-                    "{}OpExtInst {} {} {}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    id_result_type,
-                    set,
-                    "Modf",
-                )?;
-                x.spirv_display(f)?;
-                i.spirv_display(f)?;
-                writeln!(f)
-            }),
-            Instruction::GLSLStd450ModfStruct(OpGLSLStd450ModfStruct {
-                id_result_type,
-                id_result,
-                set,
-                x,
-            }) => split_fn!({
-                write!(
-                    f,
-                    "{}OpExtInst {} {} {}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    id_result_type,
-                    set,
-                    "ModfStruct",
-                )?;
-                x.spirv_display(f)?;
-                writeln!(f)
-            }),
-            Instruction::GLSLStd450FMin(OpGLSLStd450FMin {
-                id_result_type,
-                id_result,
-                set,
-                x,
-                y,
-            }) => split_fn!({
-                write!(
-                    f,
-                    "{}OpExtInst {} {} {}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    id_result_type,
-                    set,
-                    "FMin",
-                )?;
-                x.spirv_display(f)?;
-                y.spirv_display(f)?;
-                writeln!(f)
-            }),
-            Instruction::GLSLStd450UMin(OpGLSLStd450UMin {
-                id_result_type,
-                id_result,
-                set,
-                x,
-                y,
-            }) => split_fn!({
-                write!(
-                    f,
-                    "{}OpExtInst {} {} {}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    id_result_type,
-                    set,
-                    "UMin",
-                )?;
-                x.spirv_display(f)?;
-                y.spirv_display(f)?;
-                writeln!(f)
-            }),
-            Instruction::GLSLStd450SMin(OpGLSLStd450SMin {
-                id_result_type,
-                id_result,
-                set,
-                x,
-                y,
-            }) => split_fn!({
-                write!(
-                    f,
-                    "{}OpExtInst {} {} {}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    id_result_type,
-                    set,
-                    "SMin",
-                )?;
-                x.spirv_display(f)?;
-                y.spirv_display(f)?;
-                writeln!(f)
-            }),
-            Instruction::GLSLStd450FMax(OpGLSLStd450FMax {
-                id_result_type,
-                id_result,
-                set,
-                x,
-                y,
-            }) => split_fn!({
-                write!(
-                    f,
-                    "{}OpExtInst {} {} {}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    id_result_type,
-                    set,
-                    "FMax",
-                )?;
-                x.spirv_display(f)?;
-                y.spirv_display(f)?;
-                writeln!(f)
-            }),
-            Instruction::GLSLStd450UMax(OpGLSLStd450UMax {
-                id_result_type,
-                id_result,
-                set,
-                x,
-                y,
-            }) => split_fn!({
-                write!(
-                    f,
-                    "{}OpExtInst {} {} {}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    id_result_type,
-                    set,
-                    "UMax",
-                )?;
-                x.spirv_display(f)?;
-                y.spirv_display(f)?;
-                writeln!(f)
-            }),
-            Instruction::GLSLStd450SMax(OpGLSLStd450SMax {
-                id_result_type,
-                id_result,
-                set,
-                x,
-                y,
-            }) => split_fn!({
-                write!(
-                    f,
-                    "{}OpExtInst {} {} {}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    id_result_type,
-                    set,
-                    "SMax",
-                )?;
-                x.spirv_display(f)?;
-                y.spirv_display(f)?;
-                writeln!(f)
-            }),
-            Instruction::GLSLStd450FClamp(OpGLSLStd450FClamp {
-                id_result_type,
-                id_result,
-                set,
-                x,
-                min_val,
-                max_val,
-            }) => split_fn!({
-                write!(
-                    f,
-                    "{}OpExtInst {} {} {}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    id_result_type,
-                    set,
-                    "FClamp",
-                )?;
-                x.spirv_display(f)?;
-                min_val.spirv_display(f)?;
-                max_val.spirv_display(f)?;
-                writeln!(f)
-            }),
-            Instruction::GLSLStd450UClamp(OpGLSLStd450UClamp {
-                id_result_type,
-                id_result,
-                set,
-                x,
-                min_val,
-                max_val,
-            }) => split_fn!({
-                write!(
-                    f,
-                    "{}OpExtInst {} {} {}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    id_result_type,
-                    set,
-                    "UClamp",
-                )?;
-                x.spirv_display(f)?;
-                min_val.spirv_display(f)?;
-                max_val.spirv_display(f)?;
-                writeln!(f)
-            }),
-            Instruction::GLSLStd450SClamp(OpGLSLStd450SClamp {
-                id_result_type,
-                id_result,
-                set,
-                x,
-                min_val,
-                max_val,
-            }) => split_fn!({
-                write!(
-                    f,
-                    "{}OpExtInst {} {} {}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    id_result_type,
-                    set,
-                    "SClamp",
-                )?;
-                x.spirv_display(f)?;
-                min_val.spirv_display(f)?;
-                max_val.spirv_display(f)?;
-                writeln!(f)
-            }),
-            Instruction::GLSLStd450FMix(OpGLSLStd450FMix {
-                id_result_type,
-                id_result,
-                set,
-                x,
-                y,
-                a,
-            }) => split_fn!({
-                write!(
-                    f,
-                    "{}OpExtInst {} {} {}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    id_result_type,
-                    set,
-                    "FMix",
-                )?;
-                x.spirv_display(f)?;
-                y.spirv_display(f)?;
-                a.spirv_display(f)?;
-                writeln!(f)
-            }),
-            Instruction::GLSLStd450IMix(OpGLSLStd450IMix {
-                id_result_type,
-                id_result,
-                set,
-                x,
-                y,
-                a,
-            }) => split_fn!({
-                write!(
-                    f,
-                    "{}OpExtInst {} {} {}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    id_result_type,
-                    set,
-                    "IMix",
-                )?;
-                x.spirv_display(f)?;
-                y.spirv_display(f)?;
-                a.spirv_display(f)?;
-                writeln!(f)
-            }),
-            Instruction::GLSLStd450Step(OpGLSLStd450Step {
-                id_result_type,
-                id_result,
-                set,
-                edge,
-                x,
-            }) => split_fn!({
-                write!(
-                    f,
-                    "{}OpExtInst {} {} {}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    id_result_type,
-                    set,
-                    "Step",
-                )?;
-                edge.spirv_display(f)?;
-                x.spirv_display(f)?;
-                writeln!(f)
-            }),
-            Instruction::GLSLStd450SmoothStep(OpGLSLStd450SmoothStep {
-                id_result_type,
-                id_result,
-                set,
-                edge0,
-                edge1,
-                x,
-            }) => split_fn!({
-                write!(
-                    f,
-                    "{}OpExtInst {} {} {}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    id_result_type,
-                    set,
-                    "SmoothStep",
-                )?;
-                edge0.spirv_display(f)?;
-                edge1.spirv_display(f)?;
-                x.spirv_display(f)?;
-                writeln!(f)
-            }),
-            Instruction::GLSLStd450Fma(OpGLSLStd450Fma {
-                id_result_type,
-                id_result,
-                set,
-                a,
-                b,
-                c,
-            }) => split_fn!({
-                write!(
-                    f,
-                    "{}OpExtInst {} {} {}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    id_result_type,
-                    set,
-                    "Fma",
-                )?;
-                a.spirv_display(f)?;
-                b.spirv_display(f)?;
-                c.spirv_display(f)?;
-                writeln!(f)
-            }),
-            Instruction::GLSLStd450Frexp(OpGLSLStd450Frexp {
-                id_result_type,
-                id_result,
-                set,
-                x,
-                exp,
-            }) => split_fn!({
-                write!(
-                    f,
-                    "{}OpExtInst {} {} {}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    id_result_type,
-                    set,
-                    "Frexp",
-                )?;
-                x.spirv_display(f)?;
-                exp.spirv_display(f)?;
-                writeln!(f)
-            }),
-            Instruction::GLSLStd450FrexpStruct(OpGLSLStd450FrexpStruct {
-                id_result_type,
-                id_result,
-                set,
-                x,
-            }) => split_fn!({
-                write!(
-                    f,
-                    "{}OpExtInst {} {} {}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    id_result_type,
-                    set,
-                    "FrexpStruct",
-                )?;
-                x.spirv_display(f)?;
-                writeln!(f)
-            }),
-            Instruction::GLSLStd450Ldexp(OpGLSLStd450Ldexp {
-                id_result_type,
-                id_result,
-                set,
-                x,
-                exp,
-            }) => split_fn!({
-                write!(
-                    f,
-                    "{}OpExtInst {} {} {}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    id_result_type,
-                    set,
-                    "Ldexp",
-                )?;
-                x.spirv_display(f)?;
-                exp.spirv_display(f)?;
-                writeln!(f)
-            }),
-            Instruction::GLSLStd450PackSnorm4x8(OpGLSLStd450PackSnorm4x8 {
-                id_result_type,
-                id_result,
-                set,
-                v,
-            }) => split_fn!({
-                write!(
-                    f,
-                    "{}OpExtInst {} {} {}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    id_result_type,
-                    set,
-                    "PackSnorm4x8",
-                )?;
-                v.spirv_display(f)?;
-                writeln!(f)
-            }),
-            Instruction::GLSLStd450PackUnorm4x8(OpGLSLStd450PackUnorm4x8 {
-                id_result_type,
-                id_result,
-                set,
-                v,
-            }) => split_fn!({
-                write!(
-                    f,
-                    "{}OpExtInst {} {} {}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    id_result_type,
-                    set,
-                    "PackUnorm4x8",
-                )?;
-                v.spirv_display(f)?;
-                writeln!(f)
-            }),
-            Instruction::GLSLStd450PackSnorm2x16(OpGLSLStd450PackSnorm2x16 {
-                id_result_type,
-                id_result,
-                set,
-                v,
-            }) => split_fn!({
-                write!(
-                    f,
-                    "{}OpExtInst {} {} {}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    id_result_type,
-                    set,
-                    "PackSnorm2x16",
-                )?;
-                v.spirv_display(f)?;
-                writeln!(f)
-            }),
-            Instruction::GLSLStd450PackUnorm2x16(OpGLSLStd450PackUnorm2x16 {
-                id_result_type,
-                id_result,
-                set,
-                v,
-            }) => split_fn!({
-                write!(
-                    f,
-                    "{}OpExtInst {} {} {}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    id_result_type,
-                    set,
-                    "PackUnorm2x16",
-                )?;
-                v.spirv_display(f)?;
-                writeln!(f)
-            }),
-            Instruction::GLSLStd450PackHalf2x16(OpGLSLStd450PackHalf2x16 {
-                id_result_type,
-                id_result,
-                set,
-                v,
-            }) => split_fn!({
-                write!(
-                    f,
-                    "{}OpExtInst {} {} {}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    id_result_type,
-                    set,
-                    "PackHalf2x16",
-                )?;
-                v.spirv_display(f)?;
-                writeln!(f)
-            }),
-            Instruction::GLSLStd450PackDouble2x32(OpGLSLStd450PackDouble2x32 {
-                id_result_type,
-                id_result,
-                set,
-                v,
-            }) => split_fn!({
-                write!(
-                    f,
-                    "{}OpExtInst {} {} {}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    id_result_type,
-                    set,
-                    "PackDouble2x32",
-                )?;
-                v.spirv_display(f)?;
-                writeln!(f)
-            }),
-            Instruction::GLSLStd450UnpackSnorm2x16(OpGLSLStd450UnpackSnorm2x16 {
-                id_result_type,
-                id_result,
-                set,
-                p,
-            }) => split_fn!({
-                write!(
-                    f,
-                    "{}OpExtInst {} {} {}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    id_result_type,
-                    set,
-                    "UnpackSnorm2x16",
-                )?;
-                p.spirv_display(f)?;
-                writeln!(f)
-            }),
-            Instruction::GLSLStd450UnpackUnorm2x16(OpGLSLStd450UnpackUnorm2x16 {
-                id_result_type,
-                id_result,
-                set,
-                p,
-            }) => split_fn!({
-                write!(
-                    f,
-                    "{}OpExtInst {} {} {}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    id_result_type,
-                    set,
-                    "UnpackUnorm2x16",
-                )?;
-                p.spirv_display(f)?;
-                writeln!(f)
-            }),
-            Instruction::GLSLStd450UnpackHalf2x16(OpGLSLStd450UnpackHalf2x16 {
-                id_result_type,
-                id_result,
-                set,
-                v,
-            }) => split_fn!({
-                write!(
-                    f,
-                    "{}OpExtInst {} {} {}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    id_result_type,
-                    set,
-                    "UnpackHalf2x16",
-                )?;
-                v.spirv_display(f)?;
-                writeln!(f)
-            }),
-            Instruction::GLSLStd450UnpackSnorm4x8(OpGLSLStd450UnpackSnorm4x8 {
-                id_result_type,
-                id_result,
-                set,
-                p,
-            }) => split_fn!({
-                write!(
-                    f,
-                    "{}OpExtInst {} {} {}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    id_result_type,
-                    set,
-                    "UnpackSnorm4x8",
-                )?;
-                p.spirv_display(f)?;
-                writeln!(f)
-            }),
-            Instruction::GLSLStd450UnpackUnorm4x8(OpGLSLStd450UnpackUnorm4x8 {
-                id_result_type,
-                id_result,
-                set,
-                p,
-            }) => split_fn!({
-                write!(
-                    f,
-                    "{}OpExtInst {} {} {}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    id_result_type,
-                    set,
-                    "UnpackUnorm4x8",
-                )?;
-                p.spirv_display(f)?;
-                writeln!(f)
-            }),
-            Instruction::GLSLStd450UnpackDouble2x32(OpGLSLStd450UnpackDouble2x32 {
-                id_result_type,
-                id_result,
-                set,
-                v,
-            }) => split_fn!({
-                write!(
-                    f,
-                    "{}OpExtInst {} {} {}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    id_result_type,
-                    set,
-                    "UnpackDouble2x32",
-                )?;
-                v.spirv_display(f)?;
-                writeln!(f)
-            }),
-            Instruction::GLSLStd450Length(OpGLSLStd450Length {
-                id_result_type,
-                id_result,
-                set,
-                x,
-            }) => split_fn!({
-                write!(
-                    f,
-                    "{}OpExtInst {} {} {}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    id_result_type,
-                    set,
-                    "Length",
-                )?;
-                x.spirv_display(f)?;
-                writeln!(f)
-            }),
-            Instruction::GLSLStd450Distance(OpGLSLStd450Distance {
-                id_result_type,
-                id_result,
-                set,
-                p0,
-                p1,
-            }) => split_fn!({
-                write!(
-                    f,
-                    "{}OpExtInst {} {} {}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    id_result_type,
-                    set,
-                    "Distance",
-                )?;
-                p0.spirv_display(f)?;
-                p1.spirv_display(f)?;
-                writeln!(f)
-            }),
-            Instruction::GLSLStd450Cross(OpGLSLStd450Cross {
-                id_result_type,
-                id_result,
-                set,
-                x,
-                y,
-            }) => split_fn!({
-                write!(
-                    f,
-                    "{}OpExtInst {} {} {}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    id_result_type,
-                    set,
-                    "Cross",
-                )?;
-                x.spirv_display(f)?;
-                y.spirv_display(f)?;
-                writeln!(f)
-            }),
-            Instruction::GLSLStd450Normalize(OpGLSLStd450Normalize {
-                id_result_type,
-                id_result,
-                set,
-                x,
-            }) => split_fn!({
-                write!(
-                    f,
-                    "{}OpExtInst {} {} {}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    id_result_type,
-                    set,
-                    "Normalize",
-                )?;
-                x.spirv_display(f)?;
-                writeln!(f)
-            }),
-            Instruction::GLSLStd450FaceForward(OpGLSLStd450FaceForward {
-                id_result_type,
-                id_result,
-                set,
-                n,
-                i,
-                nref,
-            }) => split_fn!({
-                write!(
-                    f,
-                    "{}OpExtInst {} {} {}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    id_result_type,
-                    set,
-                    "FaceForward",
-                )?;
-                n.spirv_display(f)?;
-                i.spirv_display(f)?;
-                nref.spirv_display(f)?;
-                writeln!(f)
-            }),
-            Instruction::GLSLStd450Reflect(OpGLSLStd450Reflect {
-                id_result_type,
-                id_result,
-                set,
-                i,
-                n,
-            }) => split_fn!({
-                write!(
-                    f,
-                    "{}OpExtInst {} {} {}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    id_result_type,
-                    set,
-                    "Reflect",
-                )?;
-                i.spirv_display(f)?;
-                n.spirv_display(f)?;
-                writeln!(f)
-            }),
-            Instruction::GLSLStd450Refract(OpGLSLStd450Refract {
-                id_result_type,
-                id_result,
-                set,
-                i,
-                n,
-                eta,
-            }) => split_fn!({
-                write!(
-                    f,
-                    "{}OpExtInst {} {} {}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    id_result_type,
-                    set,
-                    "Refract",
-                )?;
-                i.spirv_display(f)?;
-                n.spirv_display(f)?;
-                eta.spirv_display(f)?;
-                writeln!(f)
-            }),
-            Instruction::GLSLStd450FindILsb(OpGLSLStd450FindILsb {
-                id_result_type,
-                id_result,
-                set,
-                value,
-            }) => split_fn!({
-                write!(
-                    f,
-                    "{}OpExtInst {} {} {}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    id_result_type,
-                    set,
-                    "FindILsb",
-                )?;
-                value.spirv_display(f)?;
-                writeln!(f)
-            }),
-            Instruction::GLSLStd450FindSMsb(OpGLSLStd450FindSMsb {
-                id_result_type,
-                id_result,
-                set,
-                value,
-            }) => split_fn!({
-                write!(
-                    f,
-                    "{}OpExtInst {} {} {}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    id_result_type,
-                    set,
-                    "FindSMsb",
-                )?;
-                value.spirv_display(f)?;
-                writeln!(f)
-            }),
-            Instruction::GLSLStd450FindUMsb(OpGLSLStd450FindUMsb {
-                id_result_type,
-                id_result,
-                set,
-                value,
-            }) => split_fn!({
-                write!(
-                    f,
-                    "{}OpExtInst {} {} {}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    id_result_type,
-                    set,
-                    "FindUMsb",
-                )?;
-                value.spirv_display(f)?;
-                writeln!(f)
-            }),
-            Instruction::GLSLStd450InterpolateAtCentroid(OpGLSLStd450InterpolateAtCentroid {
-                id_result_type,
-                id_result,
-                set,
-                interpolant,
-            }) => split_fn!({
-                write!(
-                    f,
-                    "{}OpExtInst {} {} {}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    id_result_type,
-                    set,
-                    "InterpolateAtCentroid",
-                )?;
-                interpolant.spirv_display(f)?;
-                writeln!(f)
-            }),
-            Instruction::GLSLStd450InterpolateAtSample(OpGLSLStd450InterpolateAtSample {
-                id_result_type,
-                id_result,
-                set,
-                interpolant,
-                sample,
-            }) => split_fn!({
-                write!(
-                    f,
-                    "{}OpExtInst {} {} {}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    id_result_type,
-                    set,
-                    "InterpolateAtSample",
-                )?;
-                interpolant.spirv_display(f)?;
-                sample.spirv_display(f)?;
-                writeln!(f)
-            }),
-            Instruction::GLSLStd450InterpolateAtOffset(OpGLSLStd450InterpolateAtOffset {
-                id_result_type,
-                id_result,
-                set,
-                interpolant,
-                offset,
-            }) => split_fn!({
-                write!(
-                    f,
-                    "{}OpExtInst {} {} {}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    id_result_type,
-                    set,
-                    "InterpolateAtOffset",
-                )?;
-                interpolant.spirv_display(f)?;
-                offset.spirv_display(f)?;
-                writeln!(f)
-            }),
-            Instruction::GLSLStd450NMin(OpGLSLStd450NMin {
-                id_result_type,
-                id_result,
-                set,
-                x,
-                y,
-            }) => split_fn!({
-                write!(
-                    f,
-                    "{}OpExtInst {} {} {}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    id_result_type,
-                    set,
-                    "NMin",
-                )?;
-                x.spirv_display(f)?;
-                y.spirv_display(f)?;
-                writeln!(f)
-            }),
-            Instruction::GLSLStd450NMax(OpGLSLStd450NMax {
-                id_result_type,
-                id_result,
-                set,
-                x,
-                y,
-            }) => split_fn!({
-                write!(
-                    f,
-                    "{}OpExtInst {} {} {}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    id_result_type,
-                    set,
-                    "NMax",
-                )?;
-                x.spirv_display(f)?;
-                y.spirv_display(f)?;
-                writeln!(f)
-            }),
-            Instruction::GLSLStd450NClamp(OpGLSLStd450NClamp {
-                id_result_type,
-                id_result,
-                set,
-                x,
-                min_val,
-                max_val,
-            }) => split_fn!({
-                write!(
-                    f,
-                    "{}OpExtInst {} {} {}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    id_result_type,
-                    set,
-                    "NClamp",
-                )?;
-                x.spirv_display(f)?;
-                min_val.spirv_display(f)?;
-                max_val.spirv_display(f)?;
-                writeln!(f)
-            }),
             Instruction::OpenCLStdAcos(OpOpenCLStdAcos {
                 id_result_type,
                 id_result,
@@ -32354,6 +34264,1461 @@ impl fmt::Display for Instruction {
                 num_elements.spirv_display(f)?;
                 writeln!(f)
             }),
+            Instruction::GLSLStd450Round(OpGLSLStd450Round {
+                id_result_type,
+                id_result,
+                set,
+                x,
+            }) => split_fn!({
+                write!(
+                    f,
+                    "{}OpExtInst {} {} {}",
+                    InstructionIndentAndResult(Some(*id_result)),
+                    id_result_type,
+                    set,
+                    "Round",
+                )?;
+                x.spirv_display(f)?;
+                writeln!(f)
+            }),
+            Instruction::GLSLStd450RoundEven(OpGLSLStd450RoundEven {
+                id_result_type,
+                id_result,
+                set,
+                x,
+            }) => split_fn!({
+                write!(
+                    f,
+                    "{}OpExtInst {} {} {}",
+                    InstructionIndentAndResult(Some(*id_result)),
+                    id_result_type,
+                    set,
+                    "RoundEven",
+                )?;
+                x.spirv_display(f)?;
+                writeln!(f)
+            }),
+            Instruction::GLSLStd450Trunc(OpGLSLStd450Trunc {
+                id_result_type,
+                id_result,
+                set,
+                x,
+            }) => split_fn!({
+                write!(
+                    f,
+                    "{}OpExtInst {} {} {}",
+                    InstructionIndentAndResult(Some(*id_result)),
+                    id_result_type,
+                    set,
+                    "Trunc",
+                )?;
+                x.spirv_display(f)?;
+                writeln!(f)
+            }),
+            Instruction::GLSLStd450FAbs(OpGLSLStd450FAbs {
+                id_result_type,
+                id_result,
+                set,
+                x,
+            }) => split_fn!({
+                write!(
+                    f,
+                    "{}OpExtInst {} {} {}",
+                    InstructionIndentAndResult(Some(*id_result)),
+                    id_result_type,
+                    set,
+                    "FAbs",
+                )?;
+                x.spirv_display(f)?;
+                writeln!(f)
+            }),
+            Instruction::GLSLStd450SAbs(OpGLSLStd450SAbs {
+                id_result_type,
+                id_result,
+                set,
+                x,
+            }) => split_fn!({
+                write!(
+                    f,
+                    "{}OpExtInst {} {} {}",
+                    InstructionIndentAndResult(Some(*id_result)),
+                    id_result_type,
+                    set,
+                    "SAbs",
+                )?;
+                x.spirv_display(f)?;
+                writeln!(f)
+            }),
+            Instruction::GLSLStd450FSign(OpGLSLStd450FSign {
+                id_result_type,
+                id_result,
+                set,
+                x,
+            }) => split_fn!({
+                write!(
+                    f,
+                    "{}OpExtInst {} {} {}",
+                    InstructionIndentAndResult(Some(*id_result)),
+                    id_result_type,
+                    set,
+                    "FSign",
+                )?;
+                x.spirv_display(f)?;
+                writeln!(f)
+            }),
+            Instruction::GLSLStd450SSign(OpGLSLStd450SSign {
+                id_result_type,
+                id_result,
+                set,
+                x,
+            }) => split_fn!({
+                write!(
+                    f,
+                    "{}OpExtInst {} {} {}",
+                    InstructionIndentAndResult(Some(*id_result)),
+                    id_result_type,
+                    set,
+                    "SSign",
+                )?;
+                x.spirv_display(f)?;
+                writeln!(f)
+            }),
+            Instruction::GLSLStd450Floor(OpGLSLStd450Floor {
+                id_result_type,
+                id_result,
+                set,
+                x,
+            }) => split_fn!({
+                write!(
+                    f,
+                    "{}OpExtInst {} {} {}",
+                    InstructionIndentAndResult(Some(*id_result)),
+                    id_result_type,
+                    set,
+                    "Floor",
+                )?;
+                x.spirv_display(f)?;
+                writeln!(f)
+            }),
+            Instruction::GLSLStd450Ceil(OpGLSLStd450Ceil {
+                id_result_type,
+                id_result,
+                set,
+                x,
+            }) => split_fn!({
+                write!(
+                    f,
+                    "{}OpExtInst {} {} {}",
+                    InstructionIndentAndResult(Some(*id_result)),
+                    id_result_type,
+                    set,
+                    "Ceil",
+                )?;
+                x.spirv_display(f)?;
+                writeln!(f)
+            }),
+            Instruction::GLSLStd450Fract(OpGLSLStd450Fract {
+                id_result_type,
+                id_result,
+                set,
+                x,
+            }) => split_fn!({
+                write!(
+                    f,
+                    "{}OpExtInst {} {} {}",
+                    InstructionIndentAndResult(Some(*id_result)),
+                    id_result_type,
+                    set,
+                    "Fract",
+                )?;
+                x.spirv_display(f)?;
+                writeln!(f)
+            }),
+            Instruction::GLSLStd450Radians(OpGLSLStd450Radians {
+                id_result_type,
+                id_result,
+                set,
+                degrees,
+            }) => split_fn!({
+                write!(
+                    f,
+                    "{}OpExtInst {} {} {}",
+                    InstructionIndentAndResult(Some(*id_result)),
+                    id_result_type,
+                    set,
+                    "Radians",
+                )?;
+                degrees.spirv_display(f)?;
+                writeln!(f)
+            }),
+            Instruction::GLSLStd450Degrees(OpGLSLStd450Degrees {
+                id_result_type,
+                id_result,
+                set,
+                radians,
+            }) => split_fn!({
+                write!(
+                    f,
+                    "{}OpExtInst {} {} {}",
+                    InstructionIndentAndResult(Some(*id_result)),
+                    id_result_type,
+                    set,
+                    "Degrees",
+                )?;
+                radians.spirv_display(f)?;
+                writeln!(f)
+            }),
+            Instruction::GLSLStd450Sin(OpGLSLStd450Sin {
+                id_result_type,
+                id_result,
+                set,
+                x,
+            }) => split_fn!({
+                write!(
+                    f,
+                    "{}OpExtInst {} {} {}",
+                    InstructionIndentAndResult(Some(*id_result)),
+                    id_result_type,
+                    set,
+                    "Sin",
+                )?;
+                x.spirv_display(f)?;
+                writeln!(f)
+            }),
+            Instruction::GLSLStd450Cos(OpGLSLStd450Cos {
+                id_result_type,
+                id_result,
+                set,
+                x,
+            }) => split_fn!({
+                write!(
+                    f,
+                    "{}OpExtInst {} {} {}",
+                    InstructionIndentAndResult(Some(*id_result)),
+                    id_result_type,
+                    set,
+                    "Cos",
+                )?;
+                x.spirv_display(f)?;
+                writeln!(f)
+            }),
+            Instruction::GLSLStd450Tan(OpGLSLStd450Tan {
+                id_result_type,
+                id_result,
+                set,
+                x,
+            }) => split_fn!({
+                write!(
+                    f,
+                    "{}OpExtInst {} {} {}",
+                    InstructionIndentAndResult(Some(*id_result)),
+                    id_result_type,
+                    set,
+                    "Tan",
+                )?;
+                x.spirv_display(f)?;
+                writeln!(f)
+            }),
+            Instruction::GLSLStd450Asin(OpGLSLStd450Asin {
+                id_result_type,
+                id_result,
+                set,
+                x,
+            }) => split_fn!({
+                write!(
+                    f,
+                    "{}OpExtInst {} {} {}",
+                    InstructionIndentAndResult(Some(*id_result)),
+                    id_result_type,
+                    set,
+                    "Asin",
+                )?;
+                x.spirv_display(f)?;
+                writeln!(f)
+            }),
+            Instruction::GLSLStd450Acos(OpGLSLStd450Acos {
+                id_result_type,
+                id_result,
+                set,
+                x,
+            }) => split_fn!({
+                write!(
+                    f,
+                    "{}OpExtInst {} {} {}",
+                    InstructionIndentAndResult(Some(*id_result)),
+                    id_result_type,
+                    set,
+                    "Acos",
+                )?;
+                x.spirv_display(f)?;
+                writeln!(f)
+            }),
+            Instruction::GLSLStd450Atan(OpGLSLStd450Atan {
+                id_result_type,
+                id_result,
+                set,
+                y_over_x,
+            }) => split_fn!({
+                write!(
+                    f,
+                    "{}OpExtInst {} {} {}",
+                    InstructionIndentAndResult(Some(*id_result)),
+                    id_result_type,
+                    set,
+                    "Atan",
+                )?;
+                y_over_x.spirv_display(f)?;
+                writeln!(f)
+            }),
+            Instruction::GLSLStd450Sinh(OpGLSLStd450Sinh {
+                id_result_type,
+                id_result,
+                set,
+                x,
+            }) => split_fn!({
+                write!(
+                    f,
+                    "{}OpExtInst {} {} {}",
+                    InstructionIndentAndResult(Some(*id_result)),
+                    id_result_type,
+                    set,
+                    "Sinh",
+                )?;
+                x.spirv_display(f)?;
+                writeln!(f)
+            }),
+            Instruction::GLSLStd450Cosh(OpGLSLStd450Cosh {
+                id_result_type,
+                id_result,
+                set,
+                x,
+            }) => split_fn!({
+                write!(
+                    f,
+                    "{}OpExtInst {} {} {}",
+                    InstructionIndentAndResult(Some(*id_result)),
+                    id_result_type,
+                    set,
+                    "Cosh",
+                )?;
+                x.spirv_display(f)?;
+                writeln!(f)
+            }),
+            Instruction::GLSLStd450Tanh(OpGLSLStd450Tanh {
+                id_result_type,
+                id_result,
+                set,
+                x,
+            }) => split_fn!({
+                write!(
+                    f,
+                    "{}OpExtInst {} {} {}",
+                    InstructionIndentAndResult(Some(*id_result)),
+                    id_result_type,
+                    set,
+                    "Tanh",
+                )?;
+                x.spirv_display(f)?;
+                writeln!(f)
+            }),
+            Instruction::GLSLStd450Asinh(OpGLSLStd450Asinh {
+                id_result_type,
+                id_result,
+                set,
+                x,
+            }) => split_fn!({
+                write!(
+                    f,
+                    "{}OpExtInst {} {} {}",
+                    InstructionIndentAndResult(Some(*id_result)),
+                    id_result_type,
+                    set,
+                    "Asinh",
+                )?;
+                x.spirv_display(f)?;
+                writeln!(f)
+            }),
+            Instruction::GLSLStd450Acosh(OpGLSLStd450Acosh {
+                id_result_type,
+                id_result,
+                set,
+                x,
+            }) => split_fn!({
+                write!(
+                    f,
+                    "{}OpExtInst {} {} {}",
+                    InstructionIndentAndResult(Some(*id_result)),
+                    id_result_type,
+                    set,
+                    "Acosh",
+                )?;
+                x.spirv_display(f)?;
+                writeln!(f)
+            }),
+            Instruction::GLSLStd450Atanh(OpGLSLStd450Atanh {
+                id_result_type,
+                id_result,
+                set,
+                x,
+            }) => split_fn!({
+                write!(
+                    f,
+                    "{}OpExtInst {} {} {}",
+                    InstructionIndentAndResult(Some(*id_result)),
+                    id_result_type,
+                    set,
+                    "Atanh",
+                )?;
+                x.spirv_display(f)?;
+                writeln!(f)
+            }),
+            Instruction::GLSLStd450Atan2(OpGLSLStd450Atan2 {
+                id_result_type,
+                id_result,
+                set,
+                y,
+                x,
+            }) => split_fn!({
+                write!(
+                    f,
+                    "{}OpExtInst {} {} {}",
+                    InstructionIndentAndResult(Some(*id_result)),
+                    id_result_type,
+                    set,
+                    "Atan2",
+                )?;
+                y.spirv_display(f)?;
+                x.spirv_display(f)?;
+                writeln!(f)
+            }),
+            Instruction::GLSLStd450Pow(OpGLSLStd450Pow {
+                id_result_type,
+                id_result,
+                set,
+                x,
+                y,
+            }) => split_fn!({
+                write!(
+                    f,
+                    "{}OpExtInst {} {} {}",
+                    InstructionIndentAndResult(Some(*id_result)),
+                    id_result_type,
+                    set,
+                    "Pow",
+                )?;
+                x.spirv_display(f)?;
+                y.spirv_display(f)?;
+                writeln!(f)
+            }),
+            Instruction::GLSLStd450Exp(OpGLSLStd450Exp {
+                id_result_type,
+                id_result,
+                set,
+                x,
+            }) => split_fn!({
+                write!(
+                    f,
+                    "{}OpExtInst {} {} {}",
+                    InstructionIndentAndResult(Some(*id_result)),
+                    id_result_type,
+                    set,
+                    "Exp",
+                )?;
+                x.spirv_display(f)?;
+                writeln!(f)
+            }),
+            Instruction::GLSLStd450Log(OpGLSLStd450Log {
+                id_result_type,
+                id_result,
+                set,
+                x,
+            }) => split_fn!({
+                write!(
+                    f,
+                    "{}OpExtInst {} {} {}",
+                    InstructionIndentAndResult(Some(*id_result)),
+                    id_result_type,
+                    set,
+                    "Log",
+                )?;
+                x.spirv_display(f)?;
+                writeln!(f)
+            }),
+            Instruction::GLSLStd450Exp2(OpGLSLStd450Exp2 {
+                id_result_type,
+                id_result,
+                set,
+                x,
+            }) => split_fn!({
+                write!(
+                    f,
+                    "{}OpExtInst {} {} {}",
+                    InstructionIndentAndResult(Some(*id_result)),
+                    id_result_type,
+                    set,
+                    "Exp2",
+                )?;
+                x.spirv_display(f)?;
+                writeln!(f)
+            }),
+            Instruction::GLSLStd450Log2(OpGLSLStd450Log2 {
+                id_result_type,
+                id_result,
+                set,
+                x,
+            }) => split_fn!({
+                write!(
+                    f,
+                    "{}OpExtInst {} {} {}",
+                    InstructionIndentAndResult(Some(*id_result)),
+                    id_result_type,
+                    set,
+                    "Log2",
+                )?;
+                x.spirv_display(f)?;
+                writeln!(f)
+            }),
+            Instruction::GLSLStd450Sqrt(OpGLSLStd450Sqrt {
+                id_result_type,
+                id_result,
+                set,
+                x,
+            }) => split_fn!({
+                write!(
+                    f,
+                    "{}OpExtInst {} {} {}",
+                    InstructionIndentAndResult(Some(*id_result)),
+                    id_result_type,
+                    set,
+                    "Sqrt",
+                )?;
+                x.spirv_display(f)?;
+                writeln!(f)
+            }),
+            Instruction::GLSLStd450InverseSqrt(OpGLSLStd450InverseSqrt {
+                id_result_type,
+                id_result,
+                set,
+                x,
+            }) => split_fn!({
+                write!(
+                    f,
+                    "{}OpExtInst {} {} {}",
+                    InstructionIndentAndResult(Some(*id_result)),
+                    id_result_type,
+                    set,
+                    "InverseSqrt",
+                )?;
+                x.spirv_display(f)?;
+                writeln!(f)
+            }),
+            Instruction::GLSLStd450Determinant(OpGLSLStd450Determinant {
+                id_result_type,
+                id_result,
+                set,
+                x,
+            }) => split_fn!({
+                write!(
+                    f,
+                    "{}OpExtInst {} {} {}",
+                    InstructionIndentAndResult(Some(*id_result)),
+                    id_result_type,
+                    set,
+                    "Determinant",
+                )?;
+                x.spirv_display(f)?;
+                writeln!(f)
+            }),
+            Instruction::GLSLStd450MatrixInverse(OpGLSLStd450MatrixInverse {
+                id_result_type,
+                id_result,
+                set,
+                x,
+            }) => split_fn!({
+                write!(
+                    f,
+                    "{}OpExtInst {} {} {}",
+                    InstructionIndentAndResult(Some(*id_result)),
+                    id_result_type,
+                    set,
+                    "MatrixInverse",
+                )?;
+                x.spirv_display(f)?;
+                writeln!(f)
+            }),
+            Instruction::GLSLStd450Modf(OpGLSLStd450Modf {
+                id_result_type,
+                id_result,
+                set,
+                x,
+                i,
+            }) => split_fn!({
+                write!(
+                    f,
+                    "{}OpExtInst {} {} {}",
+                    InstructionIndentAndResult(Some(*id_result)),
+                    id_result_type,
+                    set,
+                    "Modf",
+                )?;
+                x.spirv_display(f)?;
+                i.spirv_display(f)?;
+                writeln!(f)
+            }),
+            Instruction::GLSLStd450ModfStruct(OpGLSLStd450ModfStruct {
+                id_result_type,
+                id_result,
+                set,
+                x,
+            }) => split_fn!({
+                write!(
+                    f,
+                    "{}OpExtInst {} {} {}",
+                    InstructionIndentAndResult(Some(*id_result)),
+                    id_result_type,
+                    set,
+                    "ModfStruct",
+                )?;
+                x.spirv_display(f)?;
+                writeln!(f)
+            }),
+            Instruction::GLSLStd450FMin(OpGLSLStd450FMin {
+                id_result_type,
+                id_result,
+                set,
+                x,
+                y,
+            }) => split_fn!({
+                write!(
+                    f,
+                    "{}OpExtInst {} {} {}",
+                    InstructionIndentAndResult(Some(*id_result)),
+                    id_result_type,
+                    set,
+                    "FMin",
+                )?;
+                x.spirv_display(f)?;
+                y.spirv_display(f)?;
+                writeln!(f)
+            }),
+            Instruction::GLSLStd450UMin(OpGLSLStd450UMin {
+                id_result_type,
+                id_result,
+                set,
+                x,
+                y,
+            }) => split_fn!({
+                write!(
+                    f,
+                    "{}OpExtInst {} {} {}",
+                    InstructionIndentAndResult(Some(*id_result)),
+                    id_result_type,
+                    set,
+                    "UMin",
+                )?;
+                x.spirv_display(f)?;
+                y.spirv_display(f)?;
+                writeln!(f)
+            }),
+            Instruction::GLSLStd450SMin(OpGLSLStd450SMin {
+                id_result_type,
+                id_result,
+                set,
+                x,
+                y,
+            }) => split_fn!({
+                write!(
+                    f,
+                    "{}OpExtInst {} {} {}",
+                    InstructionIndentAndResult(Some(*id_result)),
+                    id_result_type,
+                    set,
+                    "SMin",
+                )?;
+                x.spirv_display(f)?;
+                y.spirv_display(f)?;
+                writeln!(f)
+            }),
+            Instruction::GLSLStd450FMax(OpGLSLStd450FMax {
+                id_result_type,
+                id_result,
+                set,
+                x,
+                y,
+            }) => split_fn!({
+                write!(
+                    f,
+                    "{}OpExtInst {} {} {}",
+                    InstructionIndentAndResult(Some(*id_result)),
+                    id_result_type,
+                    set,
+                    "FMax",
+                )?;
+                x.spirv_display(f)?;
+                y.spirv_display(f)?;
+                writeln!(f)
+            }),
+            Instruction::GLSLStd450UMax(OpGLSLStd450UMax {
+                id_result_type,
+                id_result,
+                set,
+                x,
+                y,
+            }) => split_fn!({
+                write!(
+                    f,
+                    "{}OpExtInst {} {} {}",
+                    InstructionIndentAndResult(Some(*id_result)),
+                    id_result_type,
+                    set,
+                    "UMax",
+                )?;
+                x.spirv_display(f)?;
+                y.spirv_display(f)?;
+                writeln!(f)
+            }),
+            Instruction::GLSLStd450SMax(OpGLSLStd450SMax {
+                id_result_type,
+                id_result,
+                set,
+                x,
+                y,
+            }) => split_fn!({
+                write!(
+                    f,
+                    "{}OpExtInst {} {} {}",
+                    InstructionIndentAndResult(Some(*id_result)),
+                    id_result_type,
+                    set,
+                    "SMax",
+                )?;
+                x.spirv_display(f)?;
+                y.spirv_display(f)?;
+                writeln!(f)
+            }),
+            Instruction::GLSLStd450FClamp(OpGLSLStd450FClamp {
+                id_result_type,
+                id_result,
+                set,
+                x,
+                min_val,
+                max_val,
+            }) => split_fn!({
+                write!(
+                    f,
+                    "{}OpExtInst {} {} {}",
+                    InstructionIndentAndResult(Some(*id_result)),
+                    id_result_type,
+                    set,
+                    "FClamp",
+                )?;
+                x.spirv_display(f)?;
+                min_val.spirv_display(f)?;
+                max_val.spirv_display(f)?;
+                writeln!(f)
+            }),
+            Instruction::GLSLStd450UClamp(OpGLSLStd450UClamp {
+                id_result_type,
+                id_result,
+                set,
+                x,
+                min_val,
+                max_val,
+            }) => split_fn!({
+                write!(
+                    f,
+                    "{}OpExtInst {} {} {}",
+                    InstructionIndentAndResult(Some(*id_result)),
+                    id_result_type,
+                    set,
+                    "UClamp",
+                )?;
+                x.spirv_display(f)?;
+                min_val.spirv_display(f)?;
+                max_val.spirv_display(f)?;
+                writeln!(f)
+            }),
+            Instruction::GLSLStd450SClamp(OpGLSLStd450SClamp {
+                id_result_type,
+                id_result,
+                set,
+                x,
+                min_val,
+                max_val,
+            }) => split_fn!({
+                write!(
+                    f,
+                    "{}OpExtInst {} {} {}",
+                    InstructionIndentAndResult(Some(*id_result)),
+                    id_result_type,
+                    set,
+                    "SClamp",
+                )?;
+                x.spirv_display(f)?;
+                min_val.spirv_display(f)?;
+                max_val.spirv_display(f)?;
+                writeln!(f)
+            }),
+            Instruction::GLSLStd450FMix(OpGLSLStd450FMix {
+                id_result_type,
+                id_result,
+                set,
+                x,
+                y,
+                a,
+            }) => split_fn!({
+                write!(
+                    f,
+                    "{}OpExtInst {} {} {}",
+                    InstructionIndentAndResult(Some(*id_result)),
+                    id_result_type,
+                    set,
+                    "FMix",
+                )?;
+                x.spirv_display(f)?;
+                y.spirv_display(f)?;
+                a.spirv_display(f)?;
+                writeln!(f)
+            }),
+            Instruction::GLSLStd450IMix(OpGLSLStd450IMix {
+                id_result_type,
+                id_result,
+                set,
+                x,
+                y,
+                a,
+            }) => split_fn!({
+                write!(
+                    f,
+                    "{}OpExtInst {} {} {}",
+                    InstructionIndentAndResult(Some(*id_result)),
+                    id_result_type,
+                    set,
+                    "IMix",
+                )?;
+                x.spirv_display(f)?;
+                y.spirv_display(f)?;
+                a.spirv_display(f)?;
+                writeln!(f)
+            }),
+            Instruction::GLSLStd450Step(OpGLSLStd450Step {
+                id_result_type,
+                id_result,
+                set,
+                edge,
+                x,
+            }) => split_fn!({
+                write!(
+                    f,
+                    "{}OpExtInst {} {} {}",
+                    InstructionIndentAndResult(Some(*id_result)),
+                    id_result_type,
+                    set,
+                    "Step",
+                )?;
+                edge.spirv_display(f)?;
+                x.spirv_display(f)?;
+                writeln!(f)
+            }),
+            Instruction::GLSLStd450SmoothStep(OpGLSLStd450SmoothStep {
+                id_result_type,
+                id_result,
+                set,
+                edge0,
+                edge1,
+                x,
+            }) => split_fn!({
+                write!(
+                    f,
+                    "{}OpExtInst {} {} {}",
+                    InstructionIndentAndResult(Some(*id_result)),
+                    id_result_type,
+                    set,
+                    "SmoothStep",
+                )?;
+                edge0.spirv_display(f)?;
+                edge1.spirv_display(f)?;
+                x.spirv_display(f)?;
+                writeln!(f)
+            }),
+            Instruction::GLSLStd450Fma(OpGLSLStd450Fma {
+                id_result_type,
+                id_result,
+                set,
+                a,
+                b,
+                c,
+            }) => split_fn!({
+                write!(
+                    f,
+                    "{}OpExtInst {} {} {}",
+                    InstructionIndentAndResult(Some(*id_result)),
+                    id_result_type,
+                    set,
+                    "Fma",
+                )?;
+                a.spirv_display(f)?;
+                b.spirv_display(f)?;
+                c.spirv_display(f)?;
+                writeln!(f)
+            }),
+            Instruction::GLSLStd450Frexp(OpGLSLStd450Frexp {
+                id_result_type,
+                id_result,
+                set,
+                x,
+                exp,
+            }) => split_fn!({
+                write!(
+                    f,
+                    "{}OpExtInst {} {} {}",
+                    InstructionIndentAndResult(Some(*id_result)),
+                    id_result_type,
+                    set,
+                    "Frexp",
+                )?;
+                x.spirv_display(f)?;
+                exp.spirv_display(f)?;
+                writeln!(f)
+            }),
+            Instruction::GLSLStd450FrexpStruct(OpGLSLStd450FrexpStruct {
+                id_result_type,
+                id_result,
+                set,
+                x,
+            }) => split_fn!({
+                write!(
+                    f,
+                    "{}OpExtInst {} {} {}",
+                    InstructionIndentAndResult(Some(*id_result)),
+                    id_result_type,
+                    set,
+                    "FrexpStruct",
+                )?;
+                x.spirv_display(f)?;
+                writeln!(f)
+            }),
+            Instruction::GLSLStd450Ldexp(OpGLSLStd450Ldexp {
+                id_result_type,
+                id_result,
+                set,
+                x,
+                exp,
+            }) => split_fn!({
+                write!(
+                    f,
+                    "{}OpExtInst {} {} {}",
+                    InstructionIndentAndResult(Some(*id_result)),
+                    id_result_type,
+                    set,
+                    "Ldexp",
+                )?;
+                x.spirv_display(f)?;
+                exp.spirv_display(f)?;
+                writeln!(f)
+            }),
+            Instruction::GLSLStd450PackSnorm4x8(OpGLSLStd450PackSnorm4x8 {
+                id_result_type,
+                id_result,
+                set,
+                v,
+            }) => split_fn!({
+                write!(
+                    f,
+                    "{}OpExtInst {} {} {}",
+                    InstructionIndentAndResult(Some(*id_result)),
+                    id_result_type,
+                    set,
+                    "PackSnorm4x8",
+                )?;
+                v.spirv_display(f)?;
+                writeln!(f)
+            }),
+            Instruction::GLSLStd450PackUnorm4x8(OpGLSLStd450PackUnorm4x8 {
+                id_result_type,
+                id_result,
+                set,
+                v,
+            }) => split_fn!({
+                write!(
+                    f,
+                    "{}OpExtInst {} {} {}",
+                    InstructionIndentAndResult(Some(*id_result)),
+                    id_result_type,
+                    set,
+                    "PackUnorm4x8",
+                )?;
+                v.spirv_display(f)?;
+                writeln!(f)
+            }),
+            Instruction::GLSLStd450PackSnorm2x16(OpGLSLStd450PackSnorm2x16 {
+                id_result_type,
+                id_result,
+                set,
+                v,
+            }) => split_fn!({
+                write!(
+                    f,
+                    "{}OpExtInst {} {} {}",
+                    InstructionIndentAndResult(Some(*id_result)),
+                    id_result_type,
+                    set,
+                    "PackSnorm2x16",
+                )?;
+                v.spirv_display(f)?;
+                writeln!(f)
+            }),
+            Instruction::GLSLStd450PackUnorm2x16(OpGLSLStd450PackUnorm2x16 {
+                id_result_type,
+                id_result,
+                set,
+                v,
+            }) => split_fn!({
+                write!(
+                    f,
+                    "{}OpExtInst {} {} {}",
+                    InstructionIndentAndResult(Some(*id_result)),
+                    id_result_type,
+                    set,
+                    "PackUnorm2x16",
+                )?;
+                v.spirv_display(f)?;
+                writeln!(f)
+            }),
+            Instruction::GLSLStd450PackHalf2x16(OpGLSLStd450PackHalf2x16 {
+                id_result_type,
+                id_result,
+                set,
+                v,
+            }) => split_fn!({
+                write!(
+                    f,
+                    "{}OpExtInst {} {} {}",
+                    InstructionIndentAndResult(Some(*id_result)),
+                    id_result_type,
+                    set,
+                    "PackHalf2x16",
+                )?;
+                v.spirv_display(f)?;
+                writeln!(f)
+            }),
+            Instruction::GLSLStd450PackDouble2x32(OpGLSLStd450PackDouble2x32 {
+                id_result_type,
+                id_result,
+                set,
+                v,
+            }) => split_fn!({
+                write!(
+                    f,
+                    "{}OpExtInst {} {} {}",
+                    InstructionIndentAndResult(Some(*id_result)),
+                    id_result_type,
+                    set,
+                    "PackDouble2x32",
+                )?;
+                v.spirv_display(f)?;
+                writeln!(f)
+            }),
+            Instruction::GLSLStd450UnpackSnorm2x16(OpGLSLStd450UnpackSnorm2x16 {
+                id_result_type,
+                id_result,
+                set,
+                p,
+            }) => split_fn!({
+                write!(
+                    f,
+                    "{}OpExtInst {} {} {}",
+                    InstructionIndentAndResult(Some(*id_result)),
+                    id_result_type,
+                    set,
+                    "UnpackSnorm2x16",
+                )?;
+                p.spirv_display(f)?;
+                writeln!(f)
+            }),
+            Instruction::GLSLStd450UnpackUnorm2x16(OpGLSLStd450UnpackUnorm2x16 {
+                id_result_type,
+                id_result,
+                set,
+                p,
+            }) => split_fn!({
+                write!(
+                    f,
+                    "{}OpExtInst {} {} {}",
+                    InstructionIndentAndResult(Some(*id_result)),
+                    id_result_type,
+                    set,
+                    "UnpackUnorm2x16",
+                )?;
+                p.spirv_display(f)?;
+                writeln!(f)
+            }),
+            Instruction::GLSLStd450UnpackHalf2x16(OpGLSLStd450UnpackHalf2x16 {
+                id_result_type,
+                id_result,
+                set,
+                v,
+            }) => split_fn!({
+                write!(
+                    f,
+                    "{}OpExtInst {} {} {}",
+                    InstructionIndentAndResult(Some(*id_result)),
+                    id_result_type,
+                    set,
+                    "UnpackHalf2x16",
+                )?;
+                v.spirv_display(f)?;
+                writeln!(f)
+            }),
+            Instruction::GLSLStd450UnpackSnorm4x8(OpGLSLStd450UnpackSnorm4x8 {
+                id_result_type,
+                id_result,
+                set,
+                p,
+            }) => split_fn!({
+                write!(
+                    f,
+                    "{}OpExtInst {} {} {}",
+                    InstructionIndentAndResult(Some(*id_result)),
+                    id_result_type,
+                    set,
+                    "UnpackSnorm4x8",
+                )?;
+                p.spirv_display(f)?;
+                writeln!(f)
+            }),
+            Instruction::GLSLStd450UnpackUnorm4x8(OpGLSLStd450UnpackUnorm4x8 {
+                id_result_type,
+                id_result,
+                set,
+                p,
+            }) => split_fn!({
+                write!(
+                    f,
+                    "{}OpExtInst {} {} {}",
+                    InstructionIndentAndResult(Some(*id_result)),
+                    id_result_type,
+                    set,
+                    "UnpackUnorm4x8",
+                )?;
+                p.spirv_display(f)?;
+                writeln!(f)
+            }),
+            Instruction::GLSLStd450UnpackDouble2x32(OpGLSLStd450UnpackDouble2x32 {
+                id_result_type,
+                id_result,
+                set,
+                v,
+            }) => split_fn!({
+                write!(
+                    f,
+                    "{}OpExtInst {} {} {}",
+                    InstructionIndentAndResult(Some(*id_result)),
+                    id_result_type,
+                    set,
+                    "UnpackDouble2x32",
+                )?;
+                v.spirv_display(f)?;
+                writeln!(f)
+            }),
+            Instruction::GLSLStd450Length(OpGLSLStd450Length {
+                id_result_type,
+                id_result,
+                set,
+                x,
+            }) => split_fn!({
+                write!(
+                    f,
+                    "{}OpExtInst {} {} {}",
+                    InstructionIndentAndResult(Some(*id_result)),
+                    id_result_type,
+                    set,
+                    "Length",
+                )?;
+                x.spirv_display(f)?;
+                writeln!(f)
+            }),
+            Instruction::GLSLStd450Distance(OpGLSLStd450Distance {
+                id_result_type,
+                id_result,
+                set,
+                p0,
+                p1,
+            }) => split_fn!({
+                write!(
+                    f,
+                    "{}OpExtInst {} {} {}",
+                    InstructionIndentAndResult(Some(*id_result)),
+                    id_result_type,
+                    set,
+                    "Distance",
+                )?;
+                p0.spirv_display(f)?;
+                p1.spirv_display(f)?;
+                writeln!(f)
+            }),
+            Instruction::GLSLStd450Cross(OpGLSLStd450Cross {
+                id_result_type,
+                id_result,
+                set,
+                x,
+                y,
+            }) => split_fn!({
+                write!(
+                    f,
+                    "{}OpExtInst {} {} {}",
+                    InstructionIndentAndResult(Some(*id_result)),
+                    id_result_type,
+                    set,
+                    "Cross",
+                )?;
+                x.spirv_display(f)?;
+                y.spirv_display(f)?;
+                writeln!(f)
+            }),
+            Instruction::GLSLStd450Normalize(OpGLSLStd450Normalize {
+                id_result_type,
+                id_result,
+                set,
+                x,
+            }) => split_fn!({
+                write!(
+                    f,
+                    "{}OpExtInst {} {} {}",
+                    InstructionIndentAndResult(Some(*id_result)),
+                    id_result_type,
+                    set,
+                    "Normalize",
+                )?;
+                x.spirv_display(f)?;
+                writeln!(f)
+            }),
+            Instruction::GLSLStd450FaceForward(OpGLSLStd450FaceForward {
+                id_result_type,
+                id_result,
+                set,
+                n,
+                i,
+                nref,
+            }) => split_fn!({
+                write!(
+                    f,
+                    "{}OpExtInst {} {} {}",
+                    InstructionIndentAndResult(Some(*id_result)),
+                    id_result_type,
+                    set,
+                    "FaceForward",
+                )?;
+                n.spirv_display(f)?;
+                i.spirv_display(f)?;
+                nref.spirv_display(f)?;
+                writeln!(f)
+            }),
+            Instruction::GLSLStd450Reflect(OpGLSLStd450Reflect {
+                id_result_type,
+                id_result,
+                set,
+                i,
+                n,
+            }) => split_fn!({
+                write!(
+                    f,
+                    "{}OpExtInst {} {} {}",
+                    InstructionIndentAndResult(Some(*id_result)),
+                    id_result_type,
+                    set,
+                    "Reflect",
+                )?;
+                i.spirv_display(f)?;
+                n.spirv_display(f)?;
+                writeln!(f)
+            }),
+            Instruction::GLSLStd450Refract(OpGLSLStd450Refract {
+                id_result_type,
+                id_result,
+                set,
+                i,
+                n,
+                eta,
+            }) => split_fn!({
+                write!(
+                    f,
+                    "{}OpExtInst {} {} {}",
+                    InstructionIndentAndResult(Some(*id_result)),
+                    id_result_type,
+                    set,
+                    "Refract",
+                )?;
+                i.spirv_display(f)?;
+                n.spirv_display(f)?;
+                eta.spirv_display(f)?;
+                writeln!(f)
+            }),
+            Instruction::GLSLStd450FindILsb(OpGLSLStd450FindILsb {
+                id_result_type,
+                id_result,
+                set,
+                value,
+            }) => split_fn!({
+                write!(
+                    f,
+                    "{}OpExtInst {} {} {}",
+                    InstructionIndentAndResult(Some(*id_result)),
+                    id_result_type,
+                    set,
+                    "FindILsb",
+                )?;
+                value.spirv_display(f)?;
+                writeln!(f)
+            }),
+            Instruction::GLSLStd450FindSMsb(OpGLSLStd450FindSMsb {
+                id_result_type,
+                id_result,
+                set,
+                value,
+            }) => split_fn!({
+                write!(
+                    f,
+                    "{}OpExtInst {} {} {}",
+                    InstructionIndentAndResult(Some(*id_result)),
+                    id_result_type,
+                    set,
+                    "FindSMsb",
+                )?;
+                value.spirv_display(f)?;
+                writeln!(f)
+            }),
+            Instruction::GLSLStd450FindUMsb(OpGLSLStd450FindUMsb {
+                id_result_type,
+                id_result,
+                set,
+                value,
+            }) => split_fn!({
+                write!(
+                    f,
+                    "{}OpExtInst {} {} {}",
+                    InstructionIndentAndResult(Some(*id_result)),
+                    id_result_type,
+                    set,
+                    "FindUMsb",
+                )?;
+                value.spirv_display(f)?;
+                writeln!(f)
+            }),
+            Instruction::GLSLStd450InterpolateAtCentroid(OpGLSLStd450InterpolateAtCentroid {
+                id_result_type,
+                id_result,
+                set,
+                interpolant,
+            }) => split_fn!({
+                write!(
+                    f,
+                    "{}OpExtInst {} {} {}",
+                    InstructionIndentAndResult(Some(*id_result)),
+                    id_result_type,
+                    set,
+                    "InterpolateAtCentroid",
+                )?;
+                interpolant.spirv_display(f)?;
+                writeln!(f)
+            }),
+            Instruction::GLSLStd450InterpolateAtSample(OpGLSLStd450InterpolateAtSample {
+                id_result_type,
+                id_result,
+                set,
+                interpolant,
+                sample,
+            }) => split_fn!({
+                write!(
+                    f,
+                    "{}OpExtInst {} {} {}",
+                    InstructionIndentAndResult(Some(*id_result)),
+                    id_result_type,
+                    set,
+                    "InterpolateAtSample",
+                )?;
+                interpolant.spirv_display(f)?;
+                sample.spirv_display(f)?;
+                writeln!(f)
+            }),
+            Instruction::GLSLStd450InterpolateAtOffset(OpGLSLStd450InterpolateAtOffset {
+                id_result_type,
+                id_result,
+                set,
+                interpolant,
+                offset,
+            }) => split_fn!({
+                write!(
+                    f,
+                    "{}OpExtInst {} {} {}",
+                    InstructionIndentAndResult(Some(*id_result)),
+                    id_result_type,
+                    set,
+                    "InterpolateAtOffset",
+                )?;
+                interpolant.spirv_display(f)?;
+                offset.spirv_display(f)?;
+                writeln!(f)
+            }),
+            Instruction::GLSLStd450NMin(OpGLSLStd450NMin {
+                id_result_type,
+                id_result,
+                set,
+                x,
+                y,
+            }) => split_fn!({
+                write!(
+                    f,
+                    "{}OpExtInst {} {} {}",
+                    InstructionIndentAndResult(Some(*id_result)),
+                    id_result_type,
+                    set,
+                    "NMin",
+                )?;
+                x.spirv_display(f)?;
+                y.spirv_display(f)?;
+                writeln!(f)
+            }),
+            Instruction::GLSLStd450NMax(OpGLSLStd450NMax {
+                id_result_type,
+                id_result,
+                set,
+                x,
+                y,
+            }) => split_fn!({
+                write!(
+                    f,
+                    "{}OpExtInst {} {} {}",
+                    InstructionIndentAndResult(Some(*id_result)),
+                    id_result_type,
+                    set,
+                    "NMax",
+                )?;
+                x.spirv_display(f)?;
+                y.spirv_display(f)?;
+                writeln!(f)
+            }),
+            Instruction::GLSLStd450NClamp(OpGLSLStd450NClamp {
+                id_result_type,
+                id_result,
+                set,
+                x,
+                min_val,
+                max_val,
+            }) => split_fn!({
+                write!(
+                    f,
+                    "{}OpExtInst {} {} {}",
+                    InstructionIndentAndResult(Some(*id_result)),
+                    id_result_type,
+                    set,
+                    "NClamp",
+                )?;
+                x.spirv_display(f)?;
+                min_val.spirv_display(f)?;
+                max_val.spirv_display(f)?;
+                writeln!(f)
+            }),
         }
     }
 }
@@ -33408,21 +36773,21 @@ impl SPIRVParse for OpSpecConstantOp {
         }
     }
 }
-pub const GLSL_STD_450_VERSION: u32 = 100u32;
-pub const GLSL_STD_450_REVISION: u32 = 2u32;
 pub const OPEN_CL_STD_VERSION: u32 = 100u32;
 pub const OPEN_CL_STD_REVISION: u32 = 2u32;
+pub const GLSL_STD_450_VERSION: u32 = 100u32;
+pub const GLSL_STD_450_REVISION: u32 = 2u32;
 #[derive(Clone, Eq, PartialEq, Hash, Debug)]
 pub enum ExtensionInstructionSet {
-    GLSLStd450,
     OpenCLStd,
+    GLSLStd450,
     Other(String),
 }
 impl<'a> From<Cow<'a, str>> for ExtensionInstructionSet {
     fn from(s: Cow<'a, str>) -> ExtensionInstructionSet {
         match s.as_ref() {
-            "GLSL.std.450" => return ExtensionInstructionSet::GLSLStd450,
             "OpenCL.std" => return ExtensionInstructionSet::OpenCLStd,
+            "GLSL.std.450" => return ExtensionInstructionSet::GLSLStd450,
             _ => {}
         }
         ExtensionInstructionSet::Other(s.into_owned())
@@ -33432,8 +36797,8 @@ impl Deref for ExtensionInstructionSet {
     type Target = str;
     fn deref(&self) -> &str {
         match self {
-            ExtensionInstructionSet::GLSLStd450 => "GLSL.std.450",
             ExtensionInstructionSet::OpenCLStd => "OpenCL.std",
+            ExtensionInstructionSet::GLSLStd450 => "GLSL.std.450",
             ExtensionInstructionSet::Other(s) => &**s,
         }
     }
@@ -33499,15 +36864,15 @@ mod input_file_tests {
         println!("checking that generated code is up to date -- update by running:");
         println!("cargo build --features=spirv-parser-generator");
         input_file_test ( "../spirv-parser-generator/src/ast.rs" , b"A\xDF\x03\xF41\xF3\xD2\xCB)\xF0\xB3\xB8t\xF9N\x1B\xDB\xAB\xE3\xAFq\x0BDu\x8E\xE1\xEF\xEARf\xEC\xF7" ) ;
-        input_file_test ( "../spirv-parser-generator/src/generate.rs" , b"\xF7\xD9$;C\xA6\xE8m\xA9(\x93x\xDFa\xE1.\xDF\xE7\xCF\xED;j\xDAC3H\xC9\xBD\xF7\xF4%\xB3" ) ;
+        input_file_test ( "../spirv-parser-generator/src/generate.rs" , b"\xAEa\x0B\xFF\x04\xFD\xE7\xEE\xA6\xFCDk\xE1m\xB5p\x12\xC6\x8B\xB3\xF1\xA6[\xC30\x8C\x0Ee\x96P\xD2{" ) ;
         input_file_test ( "../spirv-parser-generator/src/lib.rs" , b"\xEC\xF6`\xB8\x8C\x90\xE8/\r1\xE3\xE2\xC9\xD8\xBF\x8B?6b\x99{\x9D\xB2Y\xE8H\xF1g\xE9B\xA7\xF2" ) ;
         input_file_test ( "../spirv-parser-generator/src/util.rs" , b"\xB6\x92f\xB0*\x8D\xB4\xA7\xA0\x194\x12\xCC\xCDg\x8B\xDB\xB3\xCA\xF4\xE2)\xDE\xE3\x03Hw]\x13\xB1w\xEB" ) ;
         input_file_test ( "../spirv-parser-generator/Cargo.toml" , b"\xB2\xBB?\xE5\xB5\xB3\xED\x96]\x8Cj\xDDM+\xB0\xFB\xC9\xBB\xAB\xF8\tH\x02\xFF\xA7\x05\xD3\x0E\xDE\x98\r\x02" ) ;
         input_file_test ( "../external/SPIRV-Headers/include/spirv/unified1/spirv.core.grammar.json" , b"\xA0\xE8!\x91\xFBV\x81\x041Ra\xCB\xCE\r6\xBC\xCCD\xAE34\xECT\x82\xC0\x150S\x97\xEF\x06\xA5" ) ;
+        input_file_test ( "../external/SPIRV-Headers/include/spirv/unified1/extinst.glsl.std.450.grammar.json" , b";\xCFx\xC1;q\xA9\xEB\xBAQ\xE8\x90\xC5_A\xA5\xE0\xF4{\xA2\x83\xBC|\x08\xFD~\x13D\xEA_G\xA6" ) ;
         input_file_test(
             "../external/SPIRV-Headers/include/spirv/unified1/extinst.opencl.std.100.grammar.json",
             b"\xB6\xBE2H\xAF\x8EaP3.\xC5\xD9\xDF.W\x8B6MX\x8Cv%3\x83\x1BuP\xF6\x07\xA7?\xF8",
         );
-        input_file_test ( "../external/SPIRV-Headers/include/spirv/unified1/extinst.glsl.std.450.grammar.json" , b";\xCFx\xC1;q\xA9\xEB\xBAQ\xE8\x90\xC5_A\xA5\xE0\xF4{\xA2\x83\xBC|\x08\xFD~\x13D\xEA_G\xA6" ) ;
     }
 }

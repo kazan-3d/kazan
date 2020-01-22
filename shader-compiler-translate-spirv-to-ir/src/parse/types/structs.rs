@@ -15,6 +15,7 @@ use crate::types::structs::StructType;
 use crate::types::structs::StructTypeData;
 use alloc::vec::Vec;
 use spirv_parser::Decoration;
+use spirv_parser::DecorationBuiltIn;
 use spirv_parser::OpTypeStruct;
 
 impl ParseInstruction for OpTypeStruct {
@@ -49,12 +50,12 @@ impl ParseInstruction for OpTypeStruct {
         let mut struct_kind = StructKind::Generic;
         for decoration in decorations {
             match decoration {
-                Decoration::Block => {
+                Decoration::Block(_) => {
                     struct_kind = StructKind::Block {
                         is_buffer_block: false,
                     };
                 }
-                Decoration::BufferBlock => {
+                Decoration::BufferBlock(_) => {
                     struct_kind = StructKind::Block {
                         is_buffer_block: true,
                     };
@@ -78,7 +79,7 @@ impl ParseInstruction for OpTypeStruct {
             let mut built_in = None;
             for member_decoration in member_decorations {
                 match member_decoration {
-                    Decoration::BuiltIn { built_in: v } => built_in = Some(v),
+                    Decoration::BuiltIn(DecorationBuiltIn { built_in: v }) => built_in = Some(v),
                     // TODO: finish
                     _ => {
                         return Err(MemberDecorationNotAllowed {

@@ -8,6 +8,8 @@ use crate::parse::ParseInstruction;
 use crate::TranslationResult;
 use core::mem;
 use spirv_parser::ExecutionMode;
+use spirv_parser::ExecutionModeLocalSize;
+use spirv_parser::ExecutionModeLocalSizeId;
 use spirv_parser::IdRef;
 use spirv_parser::Instruction;
 use spirv_parser::OpExecutionMode;
@@ -62,99 +64,99 @@ impl<'g, 'i> TranslationStateParsedExecutionModes<'g, 'i> {
         }
         match *execution_mode {
             // requires Geometry
-            ExecutionMode::Invocations { .. }
-            | ExecutionMode::InputPoints
-            | ExecutionMode::InputLines
-            | ExecutionMode::InputLinesAdjacency
-            | ExecutionMode::InputTrianglesAdjacency
-            | ExecutionMode::OutputPoints
-            | ExecutionMode::OutputLineStrip
-            | ExecutionMode::OutputTriangleStrip => Err(UnsupportedSPIRVExecutionMode {
+            ExecutionMode::Invocations(_)
+            | ExecutionMode::InputPoints(_)
+            | ExecutionMode::InputLines(_)
+            | ExecutionMode::InputLinesAdjacency(_)
+            | ExecutionMode::InputTrianglesAdjacency(_)
+            | ExecutionMode::OutputPoints(_)
+            | ExecutionMode::OutputLineStrip(_)
+            | ExecutionMode::OutputTriangleStrip(_) => Err(UnsupportedSPIRVExecutionMode {
                 execution_mode: execution_mode.clone(),
             }
             .into()),
             // requires Tessellation
-            ExecutionMode::SpacingEqual
-            | ExecutionMode::SpacingFractionalEven
-            | ExecutionMode::SpacingFractionalOdd
-            | ExecutionMode::VertexOrderCw
-            | ExecutionMode::VertexOrderCcw
-            | ExecutionMode::PointMode
-            | ExecutionMode::Quads
-            | ExecutionMode::Isolines => Err(UnsupportedSPIRVExecutionMode {
+            ExecutionMode::SpacingEqual(_)
+            | ExecutionMode::SpacingFractionalEven(_)
+            | ExecutionMode::SpacingFractionalOdd(_)
+            | ExecutionMode::VertexOrderCw(_)
+            | ExecutionMode::VertexOrderCcw(_)
+            | ExecutionMode::PointMode(_)
+            | ExecutionMode::Quads(_)
+            | ExecutionMode::Isolines(_) => Err(UnsupportedSPIRVExecutionMode {
                 execution_mode: execution_mode.clone(),
             }
             .into()),
             // requires Geometry or Tessellation
-            ExecutionMode::Triangles | ExecutionMode::OutputVertices { .. } => {
+            ExecutionMode::Triangles(_) | ExecutionMode::OutputVertices(_) => {
                 Err(UnsupportedSPIRVExecutionMode {
                     execution_mode: execution_mode.clone(),
                 }
                 .into())
             }
             // requires TransformFeedback
-            ExecutionMode::Xfb => Err(UnsupportedSPIRVExecutionMode {
+            ExecutionMode::Xfb(_) => Err(UnsupportedSPIRVExecutionMode {
                 execution_mode: execution_mode.clone(),
             }
             .into()),
             // requires SPV_KHR_float_controls
-            ExecutionMode::DenormPreserve { .. }
-            | ExecutionMode::DenormFlushToZero { .. }
-            | ExecutionMode::SignedZeroInfNanPreserve { .. }
-            | ExecutionMode::RoundingModeRTE { .. }
-            | ExecutionMode::RoundingModeRTZ { .. } => Err(UnsupportedSPIRVExecutionMode {
+            ExecutionMode::DenormPreserve(_)
+            | ExecutionMode::DenormFlushToZero(_)
+            | ExecutionMode::SignedZeroInfNanPreserve(_)
+            | ExecutionMode::RoundingModeRTE(_)
+            | ExecutionMode::RoundingModeRTZ(_) => Err(UnsupportedSPIRVExecutionMode {
                 execution_mode: execution_mode.clone(),
             }
             .into()),
             // not supported on Vulkan
-            ExecutionMode::PixelCenterInteger
-            | ExecutionMode::OriginLowerLeft
-            | ExecutionMode::LocalSizeHint { .. }
-            | ExecutionMode::VecTypeHint { .. }
-            | ExecutionMode::ContractionOff
-            | ExecutionMode::Initializer
-            | ExecutionMode::Finalizer
-            | ExecutionMode::SubgroupSize { .. }
-            | ExecutionMode::SubgroupsPerWorkgroup { .. }
-            | ExecutionMode::SubgroupsPerWorkgroupId { .. }
-            | ExecutionMode::LocalSizeHintId { .. } => Err(UnsupportedSPIRVExecutionMode {
+            ExecutionMode::PixelCenterInteger(_)
+            | ExecutionMode::OriginLowerLeft(_)
+            | ExecutionMode::LocalSizeHint(_)
+            | ExecutionMode::VecTypeHint(_)
+            | ExecutionMode::ContractionOff(_)
+            | ExecutionMode::Initializer(_)
+            | ExecutionMode::Finalizer(_)
+            | ExecutionMode::SubgroupSize(_)
+            | ExecutionMode::SubgroupsPerWorkgroup(_)
+            | ExecutionMode::SubgroupsPerWorkgroupId(_)
+            | ExecutionMode::LocalSizeHintId(_) => Err(UnsupportedSPIRVExecutionMode {
                 execution_mode: execution_mode.clone(),
             }
             .into()),
             // allowed
-            ExecutionMode::OriginUpperLeft => Ok(()),
-            ExecutionMode::EarlyFragmentTests => {
+            ExecutionMode::OriginUpperLeft(_) => Ok(()),
+            ExecutionMode::EarlyFragmentTests(_) => {
                 self.fragment_tests_time = FragmentTestsTime::Early;
                 Ok(())
             }
-            ExecutionMode::DepthReplacing => {
+            ExecutionMode::DepthReplacing(_) => {
                 if self.fragment_depth_write.is_none() {
                     self.fragment_depth_write = Some(FragmentDepthWrite::Unconstrained);
                 }
                 Ok(())
             }
-            ExecutionMode::DepthGreater => {
+            ExecutionMode::DepthGreater(_) => {
                 self.fragment_depth_write = Some(FragmentDepthWrite::Greater);
                 Ok(())
             }
-            ExecutionMode::DepthLess => {
+            ExecutionMode::DepthLess(_) => {
                 self.fragment_depth_write = Some(FragmentDepthWrite::Less);
                 Ok(())
             }
-            ExecutionMode::DepthUnchanged => {
+            ExecutionMode::DepthUnchanged(_) => {
                 self.fragment_depth_write = Some(FragmentDepthWrite::Equal);
                 Ok(())
             }
-            ExecutionMode::LocalSize {
+            ExecutionMode::LocalSize(ExecutionModeLocalSize {
                 x_size: x,
                 y_size: y,
                 z_size: z,
-            } => self.set_compute_local_size(ComputeLocalSize::Literal { x, y, z }),
-            ExecutionMode::LocalSizeId {
+            }) => self.set_compute_local_size(ComputeLocalSize::Literal { x, y, z }),
+            ExecutionMode::LocalSizeId(ExecutionModeLocalSizeId {
                 x_size: x,
                 y_size: y,
                 z_size: z,
-            } => self.set_compute_local_size(ComputeLocalSize::Id { x, y, z }),
+            }) => self.set_compute_local_size(ComputeLocalSize::Id { x, y, z }),
         }
     }
 }

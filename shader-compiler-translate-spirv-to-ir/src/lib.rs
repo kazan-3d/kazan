@@ -411,7 +411,7 @@ mod tests {
             &mut crate::DefaultSpecializationResolver,
             &mut PrintOutput,
             "main",
-            spirv_parser::ExecutionModel::Vertex,
+            spirv_parser::ExecutionModelVertex.into(),
             spirv_code,
         )
         .map_err(|e| e.to_string())

@@ -25,15 +25,16 @@ struct CapabilityAndDependencies<'a> {
 
 macro_rules! supported_capabilities_and_dependencies {
     ($($cap:ident => [$($dep:ident),*],)+) => {
-        const SUPPORTED_CAPABILITIES_AND_DEPENDENCIES: &[CapabilityAndDependencies] =
-            &[$(
+        fn call_with_supported_capabilities_and_dependencies<R, T: FnOnce(&[CapabilityAndDependencies]) -> R>(f: T) -> R {
+            f(&[$(
                 CapabilityAndDependencies {
-                    capability: Capability::$cap,
+                    capability: Capability::$cap(Default::default()),
                     dependencies: &[$(
-                        Capability::$dep,
+                        Capability::$dep(Default::default()),
                     )*],
                 },
-            )+];
+            )+])
+        }
     };
 }
 
@@ -54,25 +55,29 @@ impl<'g, 'i> TranslationStateParsedCapabilities<'g, 'i> {
         instruction: &'i OpCapability,
     ) -> TranslationResult<()> {
         let OpCapability { capability } = *instruction;
-        for &CapabilityAndDependencies {
-            capability: supported_capability,
-            dependencies,
-        } in SUPPORTED_CAPABILITIES_AND_DEPENDENCIES
-        {
-            if capability == supported_capability {
-                self.enabled_capabilities.insert(capability);
-                writeln!(self.debug_output, "added capability: {:?}", capability)?;
-                self.enabled_capabilities
-                    .extend(dependencies.iter().copied());
-                writeln!(
-                    self.debug_output,
-                    "added dependency capabilities: {:?}",
-                    dependencies
-                )?;
-                return Ok(());
-            }
-        }
-        Err(SPIRVCapabilityNotSupported { capability }.into())
+        call_with_supported_capabilities_and_dependencies(
+            |supported_capabilities_and_dependencies| {
+                for &CapabilityAndDependencies {
+                    capability: supported_capability,
+                    ref dependencies,
+                } in supported_capabilities_and_dependencies
+                {
+                    if capability == supported_capability {
+                        self.enabled_capabilities.insert(capability);
+                        writeln!(self.debug_output, "added capability: {:?}", capability)?;
+                        self.enabled_capabilities
+                            .extend(dependencies.iter().copied());
+                        writeln!(
+                            self.debug_output,
+                            "added dependency capabilities: {:?}",
+                            dependencies
+                        )?;
+                        return Ok(());
+                    }
+                }
+                Err(SPIRVCapabilityNotSupported { capability }.into())
+            },
+        )
     }
 }
 
