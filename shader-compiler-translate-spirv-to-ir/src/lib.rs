@@ -50,6 +50,7 @@ macro_rules! impl_spirv_enum_partition {
         #[derive(Clone, Debug)]
         $vis enum $class_enum {
             $(
+                $(#[doc = $class_enumerant_doc])*
                 $class_enumerant($class_value),
             )+
         }
