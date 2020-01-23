@@ -25,10 +25,99 @@ use spirv_parser::OpGroupMemberDecorate;
 use spirv_parser::OpMemberDecorate;
 use spirv_parser::OpMemberDecorateString;
 
+impl_spirv_enum_partition! {
+    /// partitioned form of `Decoration`
+    pub(crate) enum DecorationClass(Decoration) {
+        Misc(DecorationClassMisc {
+            RelaxedPrecision(DecorationRelaxedPrecision),
+            SpecId(DecorationSpecId),
+            BuiltIn(DecorationBuiltIn),
+            FPRoundingMode(DecorationFPRoundingMode),
+            ArrayStride(DecorationArrayStride),
+        }),
+        /// decorations on `OpTypeStruct`
+        Struct(DecorationClassStruct {
+            Block(DecorationBlock),
+            BufferBlock(DecorationBufferBlock),
+            GLSLShared(DecorationGLSLShared),
+            GLSLPacked(DecorationGLSLPacked),
+        }),
+        /// decorations on struct members
+        StructMember(DecorationClassStructMember {
+            RowMajor(DecorationRowMajor),
+            ColMajor(DecorationColMajor),
+            MatrixStride(DecorationMatrixStride),
+            Offset(DecorationOffset),
+        }),
+        /// ignored decorations
+        Ignored(DecorationClassIgnored {
+            CounterBuffer(DecorationCounterBuffer),
+            UserSemantic(DecorationUserSemantic),
+        }),
+        /// decorations that are not allowed
+        Invalid(DecorationClassInvalid {
+            CPacked(DecorationCPacked),
+            Constant(DecorationConstant),
+            SaturatedConversion(DecorationSaturatedConversion),
+            FuncParamAttr(DecorationFuncParamAttr),
+            FPFastMathMode(DecorationFPFastMathMode),
+            LinkageAttributes(DecorationLinkageAttributes),
+            Alignment(DecorationAlignment),
+            MaxByteOffset(DecorationMaxByteOffset),
+            AlignmentId(DecorationAlignmentId),
+            MaxByteOffsetId(DecorationMaxByteOffsetId),
+        }),
+        /// decorations for memory object declarations or struct members
+        MemoryObjectDeclarationOrStructMember(DecorationClassMemoryObjectDeclarationOrStructMember {
+            NoPerspective(DecorationNoPerspective),
+            Flat(DecorationFlat),
+            Patch(DecorationPatch),
+            Centroid(DecorationCentroid),
+            Sample(DecorationSample),
+            Volatile(DecorationVolatile),
+            Coherent(DecorationCoherent),
+            NonWritable(DecorationNonWritable),
+            NonReadable(DecorationNonReadable),
+            Stream(DecorationStream),
+            Component(DecorationComponent),
+            XfbBuffer(DecorationXfbBuffer),
+            XfbStride(DecorationXfbStride),
+        }),
+        /// decorations for memory object declarations
+        MemoryObjectDeclaration(DecorationClassMemoryObjectDeclaration {
+            Restrict(DecorationRestrict),
+            Aliased(DecorationAliased),
+        }),
+        /// decorations for variables or struct members
+        VariableOrStructMember(DecorationClassVariableOrBlockStructMember {
+            Invariant(DecorationInvariant),
+            Location(DecorationLocation),
+        }),
+        /// decorations for objects
+        Object(DecorationClassObject {
+            Uniform(DecorationUniform),
+            UniformId(DecorationUniformId),
+            NoContraction(DecorationNoContraction),
+            NoSignedWrap(DecorationNoSignedWrap),
+            NoUnsignedWrap(DecorationNoUnsignedWrap),
+            NonUniform(DecorationNonUniform),
+        }),
+        /// decorations for variables
+        Variable(DecorationClassVariable {
+            Index(DecorationIndex),
+            Binding(DecorationBinding),
+            DescriptorSet(DecorationDescriptorSet),
+            InputAttachmentIndex(DecorationInputAttachmentIndex),
+            RestrictPointer(DecorationRestrictPointer),
+            AliasedPointer(DecorationAliasedPointer),
+        }),
+    }
+}
+
 #[derive(Clone, Debug, Default)]
 pub(crate) struct DecorationsAndMemberDecorations {
-    pub(crate) decorations: Vec<Decoration>,
-    pub(crate) member_decorations: HashMap<u32, Vec<Decoration>>,
+    pub(crate) decorations: Vec<DecorationClass>,
+    pub(crate) member_decorations: HashMap<u32, Vec<DecorationClass>>,
 }
 
 decl_translation_state! {
@@ -43,7 +132,7 @@ impl<'g, 'i> TranslationStateParsedAnnotations<'g, 'i> {
     pub(crate) fn take_decorations(
         &mut self,
         target: IdResult,
-    ) -> TranslationResult<Vec<Decoration>> {
+    ) -> TranslationResult<Vec<DecorationClass>> {
         let DecorationsAndMemberDecorations {
             decorations,
             member_decorations,
@@ -63,11 +152,24 @@ impl<'g, 'i> TranslationStateParsedAnnotations<'g, 'i> {
         instruction: I,
     ) -> TranslationResult<()> {
         for decoration in self.take_decorations(target)? {
-            return Err(DecorationNotAllowedOnInstruction {
-                decoration,
-                instruction: instruction(),
+            match decoration {
+                DecorationClass::Ignored(_) => {}
+                DecorationClass::Invalid(_)
+                | DecorationClass::MemoryObjectDeclaration(_)
+                | DecorationClass::MemoryObjectDeclarationOrStructMember(_)
+                | DecorationClass::Misc(_)
+                | DecorationClass::Object(_)
+                | DecorationClass::Struct(_)
+                | DecorationClass::StructMember(_)
+                | DecorationClass::Variable(_)
+                | DecorationClass::VariableOrStructMember(_) => {
+                    return Err(DecorationNotAllowedOnInstruction {
+                        decoration: decoration.into(),
+                        instruction: instruction(),
+                    }
+                    .into());
+                }
             }
-            .into());
         }
         Ok(())
     }
@@ -96,7 +198,7 @@ impl<'g, 'i> TranslationStateParsingAnnotations<'g, 'i> {
             .entry(target)?
             .or_insert_default()
             .decorations
-            .push(decoration.clone());
+            .push(decoration.clone().into());
         Ok(())
     }
     fn parse_member_decorate_instruction(
@@ -111,7 +213,7 @@ impl<'g, 'i> TranslationStateParsingAnnotations<'g, 'i> {
             .member_decorations
             .entry(member)
             .or_default()
-            .push(decoration.clone());
+            .push(decoration.clone().into());
         Ok(())
     }
     fn parse_decoration_group_instruction(
@@ -121,7 +223,7 @@ impl<'g, 'i> TranslationStateParsingAnnotations<'g, 'i> {
         let OpDecorationGroup { id_result } = *instruction;
         let decorations = self.take_decorations(id_result)?;
         if let Vacant(entry) = self.decoration_groups.entry(id_result.0)? {
-            entry.insert(decorations);
+            entry.insert(decorations.into_iter().map(Into::into).collect());
             Ok(())
         } else {
             Err(SPIRVIdAlreadyDefined { id_result }.into())

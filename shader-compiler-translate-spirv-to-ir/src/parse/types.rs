@@ -13,6 +13,8 @@ use crate::errors::SPIRVIdNotDefined;
 use crate::errors::TranslationResult;
 use crate::errors::UnsupportedSPIRVType;
 use crate::errors::VoidNotAllowedHere;
+use crate::parse::annotations::DecorationClass;
+use crate::parse::annotations::DecorationClassMisc;
 use crate::parse::ParseInstruction;
 use crate::parse::TranslationStateParseBaseTypesConstantsAndGlobals;
 use crate::parse::TranslationStateParsingTypesConstantsAndGlobals;
@@ -28,7 +30,6 @@ use crate::types::VoidType;
 use shader_compiler_ir::BoolType;
 use shader_compiler_ir::FloatType;
 use spirv_id_map::Entry::Vacant;
-use spirv_parser::Decoration;
 use spirv_parser::DecorationArrayStride;
 use spirv_parser::IdRef;
 use spirv_parser::IdResult;
@@ -241,12 +242,24 @@ impl ParseInstruction for OpTypePointer {
         let mut array_stride = None;
         for decoration in decorations {
             match decoration {
-                Decoration::ArrayStride(DecorationArrayStride { array_stride: v }) => {
-                    array_stride = Some(v)
-                }
-                _ => {
+                DecorationClass::Misc(DecorationClassMisc::ArrayStride(
+                    DecorationArrayStride { array_stride: v },
+                )) => array_stride = Some(v),
+                DecorationClass::Ignored(_) => {}
+                DecorationClass::Misc(DecorationClassMisc::BuiltIn(_))
+                | DecorationClass::Misc(DecorationClassMisc::FPRoundingMode(_))
+                | DecorationClass::Misc(DecorationClassMisc::RelaxedPrecision(_))
+                | DecorationClass::Misc(DecorationClassMisc::SpecId(_))
+                | DecorationClass::Invalid(_)
+                | DecorationClass::MemoryObjectDeclaration(_)
+                | DecorationClass::MemoryObjectDeclarationOrStructMember(_)
+                | DecorationClass::Object(_)
+                | DecorationClass::VariableOrStructMember(_)
+                | DecorationClass::Variable(_)
+                | DecorationClass::Struct(_)
+                | DecorationClass::StructMember(_) => {
                     return Err(DecorationNotAllowedOnInstruction {
-                        decoration,
+                        decoration: decoration.into(),
                         instruction: self.clone().into(),
                     }
                     .into());

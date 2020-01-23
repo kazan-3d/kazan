@@ -46,7 +46,6 @@ unimplemented_instruction!(OpFunction);
 unimplemented_instruction!(OpFunctionParameter);
 unimplemented_instruction!(OpFunctionEnd);
 unimplemented_instruction!(OpFunctionCall);
-unimplemented_instruction!(OpVariable);
 unimplemented_instruction!(OpImageTexelPointer);
 unimplemented_instruction!(OpLoad);
 unimplemented_instruction!(OpStore);

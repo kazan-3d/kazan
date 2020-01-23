@@ -6,6 +6,9 @@ use crate::errors::DecorationNotAllowedOnInstruction;
 use crate::errors::MemberDecorationIndexOutOfBounds;
 use crate::errors::MemberDecorationNotAllowed;
 use crate::errors::TranslationResult;
+use crate::parse::annotations::DecorationClass;
+use crate::parse::annotations::DecorationClassMisc;
+use crate::parse::annotations::DecorationClassStruct;
 use crate::parse::annotations::DecorationsAndMemberDecorations;
 use crate::parse::ParseInstruction;
 use crate::parse::TranslationStateParsingTypesConstantsAndGlobals;
@@ -14,7 +17,6 @@ use crate::types::structs::StructMember;
 use crate::types::structs::StructType;
 use crate::types::structs::StructTypeData;
 use alloc::vec::Vec;
-use spirv_parser::Decoration;
 use spirv_parser::DecorationBuiltIn;
 use spirv_parser::OpTypeStruct;
 
@@ -31,14 +33,14 @@ impl ParseInstruction for OpTypeStruct {
             decorations,
             member_decorations: member_decorations_in,
         } = state.take_decorations_for_struct_type(id_result)?;
-        let mut member_decorations: Vec<Vec<Decoration>> =
+        let mut member_decorations: Vec<Vec<DecorationClass>> =
             member_types.iter().map(|_| Vec::new()).collect();
         for (member_index, member_decorations_in) in member_decorations_in {
             if member_index >= member_types.len() as u32 {
                 for decoration in member_decorations_in {
                     return Err(MemberDecorationIndexOutOfBounds {
                         member_index,
-                        decoration,
+                        decoration: decoration.into(),
                         instruction: self.clone().into(),
                     }
                     .into());
@@ -50,20 +52,29 @@ impl ParseInstruction for OpTypeStruct {
         let mut struct_kind = StructKind::Generic;
         for decoration in decorations {
             match decoration {
-                Decoration::Block(_) => {
+                DecorationClass::Ignored(_) => {}
+                DecorationClass::Struct(DecorationClassStruct::Block(_)) => {
                     struct_kind = StructKind::Block {
                         is_buffer_block: false,
                     };
                 }
-                Decoration::BufferBlock(_) => {
+                DecorationClass::Struct(DecorationClassStruct::BufferBlock(_)) => {
                     struct_kind = StructKind::Block {
                         is_buffer_block: true,
                     };
                 }
-                // TODO: finish
-                _ => {
+                DecorationClass::Struct(DecorationClassStruct::GLSLShared(_))
+                | DecorationClass::Struct(DecorationClassStruct::GLSLPacked(_)) => {}
+                DecorationClass::Misc(_)
+                | DecorationClass::MemoryObjectDeclaration(_)
+                | DecorationClass::MemoryObjectDeclarationOrStructMember(_)
+                | DecorationClass::Object(_)
+                | DecorationClass::StructMember(_)
+                | DecorationClass::Variable(_)
+                | DecorationClass::VariableOrStructMember(_)
+                | DecorationClass::Invalid(_) => {
                     return Err(DecorationNotAllowedOnInstruction {
-                        decoration,
+                        decoration: decoration.into(),
                         instruction: self.clone().into(),
                     }
                     .into());
@@ -79,12 +90,25 @@ impl ParseInstruction for OpTypeStruct {
             let mut built_in = None;
             for member_decoration in member_decorations {
                 match member_decoration {
-                    Decoration::BuiltIn(DecorationBuiltIn { built_in: v }) => built_in = Some(v),
-                    // TODO: finish
-                    _ => {
+                    DecorationClass::Ignored(_) => {}
+                    DecorationClass::Misc(DecorationClassMisc::BuiltIn(DecorationBuiltIn {
+                        built_in: v,
+                    })) => built_in = Some(v),
+                    DecorationClass::Misc(DecorationClassMisc::ArrayStride(_)) => todo!(),
+                    DecorationClass::Misc(DecorationClassMisc::FPRoundingMode(_)) => todo!(),
+                    DecorationClass::Misc(DecorationClassMisc::RelaxedPrecision(_)) => todo!(),
+                    DecorationClass::MemoryObjectDeclarationOrStructMember(_)
+                    | DecorationClass::Object(_)
+                    | DecorationClass::VariableOrStructMember(_)
+                    | DecorationClass::StructMember(_) => todo!(),
+                    DecorationClass::Misc(DecorationClassMisc::SpecId(_))
+                    | DecorationClass::MemoryObjectDeclaration(_)
+                    | DecorationClass::Variable(_)
+                    | DecorationClass::Struct(_)
+                    | DecorationClass::Invalid(_) => {
                         return Err(MemberDecorationNotAllowed {
                             member_index: member_index as u32,
-                            decoration: member_decoration,
+                            decoration: member_decoration.into(),
                             instruction: self.clone().into(),
                         }
                         .into());

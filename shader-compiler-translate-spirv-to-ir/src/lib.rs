@@ -6,9 +6,80 @@
 #[macro_use]
 extern crate alloc;
 
+macro_rules! impl_spirv_enum_partition {
+    (
+        $(#[doc = $class_enum_doc:expr])*
+        $vis:vis enum $class_enum:ident($enum:ident) {
+            $(
+                $(#[doc = $class_enumerant_doc:expr])*
+                $class_enumerant:ident($class_value:ident {
+                    $(
+                        $enumerant:ident($value:ident),
+                    )+
+                }),
+            )+
+        }
+    ) => {
+        $(
+            $(#[doc = $class_enumerant_doc])*
+            #[derive(Clone, Debug)]
+            $vis enum $class_value {
+                $(
+                    $enumerant(spirv_parser::$value),
+                )+
+            }
+
+            impl From<$class_value> for $class_enum {
+                fn from(v: $class_value) -> Self {
+                    $class_enum::$class_enumerant(v)
+                }
+            }
+
+            impl Into<spirv_parser::$enum> for $class_value {
+                fn into(self) -> spirv_parser::$enum {
+                    match self {
+                        $(
+                            $class_value::$enumerant(v) => v.into(),
+                        )+
+                    }
+                }
+            }
+        )+
+
+        $(#[doc = $class_enum_doc])*
+        #[derive(Clone, Debug)]
+        $vis enum $class_enum {
+            $(
+                $class_enumerant($class_value),
+            )+
+        }
+
+        impl Into<spirv_parser::$enum> for $class_enum {
+            fn into(self) -> spirv_parser::$enum {
+                match self {
+                    $(
+                        $class_enum::$class_enumerant(v) => v.into(),
+                    )+
+                }
+            }
+        }
+
+        impl From<spirv_parser::$enum> for $class_enum {
+            fn from(v: spirv_parser::$enum) -> Self {
+                match v {
+                    $($(
+                        spirv_parser::$enum::$enumerant(v) => $class_enum::$class_enumerant($class_value::$enumerant(v)),
+                    )+)+
+                }
+            }
+        }
+    };
+}
+
 mod errors;
 mod parse;
 mod types;
+mod values;
 
 pub use crate::errors::*;
 
