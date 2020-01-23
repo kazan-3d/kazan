@@ -520,6 +520,7 @@ impl<'g> FromText<'g> for Const<'g> {
             TokenKind::Integer(_) => Const::Integer(ConstInteger::from_text(state)?),
             TokenKind::Keyword(Keyword::F16)
             | TokenKind::Keyword(Keyword::F32)
+            | TokenKind::Keyword(Keyword::RF32)
             | TokenKind::Keyword(Keyword::F64) => Const::Float(ConstFloat::from_text(state)?),
             TokenKind::Keyword(Keyword::False) | TokenKind::Keyword(Keyword::True) => {
                 Const::Bool(bool::from_text(state)?)

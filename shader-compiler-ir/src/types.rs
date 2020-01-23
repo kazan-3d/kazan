@@ -606,11 +606,13 @@ impl<'g> FromText<'g> for Type<'g> {
             TokenKind::Keyword(Keyword::I8)
             | TokenKind::Keyword(Keyword::I16)
             | TokenKind::Keyword(Keyword::I32)
+            | TokenKind::Keyword(Keyword::RI32)
             | TokenKind::Keyword(Keyword::I64) => {
                 IntegerType::from_text(state)?.intern(state.global_state())
             }
             TokenKind::Keyword(Keyword::F16)
             | TokenKind::Keyword(Keyword::F32)
+            | TokenKind::Keyword(Keyword::RF32)
             | TokenKind::Keyword(Keyword::F64) => {
                 FloatType::from_text(state)?.intern(state.global_state())
             }
