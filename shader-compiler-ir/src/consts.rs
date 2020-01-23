@@ -28,6 +28,8 @@ pub enum ConstInteger {
     Int16(u16),
     /// a constant 32-bit signed or unsigned integer
     Int32(u32),
+    /// a constant 32-bit signed or unsigned integer of type `IntegerType::RelaxedInt32`
+    RelaxedInt32(RelaxedInt32),
     /// a constant 64-bit signed or unsigned integer
     Int64(u64),
 }
@@ -36,6 +38,22 @@ impl<'g> Internable<'g> for ConstInteger {
     type Interned = Const<'g>;
     fn intern(&self, global_state: &'g GlobalState<'g>) -> Interned<'g, Const<'g>> {
         Const::from(*self).intern(global_state)
+    }
+}
+
+/// a constant 32-bit signed or unsigned integer of type `IntegerType::RelaxedInt32`
+#[derive(Copy, Clone, Eq, PartialEq, Hash)]
+pub struct RelaxedInt32(pub u32);
+
+impl From<u32> for RelaxedInt32 {
+    fn from(v: u32) -> Self {
+        RelaxedInt32(v)
+    }
+}
+
+impl From<i32> for RelaxedInt32 {
+    fn from(v: i32) -> Self {
+        RelaxedInt32(v as u32)
     }
 }
 
@@ -78,6 +96,7 @@ impl_const_types! {
         Int16(i16 as u16),
         Int32(u32),
         Int32(i32 as u32),
+        RelaxedInt32(RelaxedInt32),
         Int64(u64),
         Int64(i64 as u64),
     }
@@ -87,6 +106,7 @@ impl_const_types! {
     ConstFloat {
         Float16(Float16),
         Float32(Float32),
+        RelaxedFloat32(RelaxedFloat32),
         Float64(Float64),
     }
 }
@@ -101,21 +121,13 @@ impl From<ConstInteger> for Const<'_> {
 pub struct InvalidFloatSize;
 
 impl ConstInteger {
-    /// bitcast `self` to the corresponding float.
-    pub fn bitcast_to_float(self) -> Result<ConstFloat, InvalidFloatSize> {
-        match self {
-            ConstInteger::Int8(_) => Err(InvalidFloatSize),
-            ConstInteger::Int16(v) => Ok(ConstFloat::Float16(Float16(v))),
-            ConstInteger::Int32(v) => Ok(ConstFloat::Float32(Float32(v))),
-            ConstInteger::Int64(v) => Ok(ConstFloat::Float64(Float64(v))),
-        }
-    }
     /// get `self`'s type
     pub fn get_type(self) -> IntegerType {
         match self {
             ConstInteger::Int8(_) => IntegerType::Int8,
             ConstInteger::Int16(_) => IntegerType::Int16,
             ConstInteger::Int32(_) => IntegerType::Int32,
+            ConstInteger::RelaxedInt32(_) => IntegerType::RelaxedInt32,
             ConstInteger::Int64(_) => IntegerType::Int64,
         }
     }
@@ -129,6 +141,22 @@ pub struct Float16(pub u16);
 #[derive(Copy, Clone, Eq, PartialEq, Hash)]
 pub struct Float32(pub u32);
 
+/// a constant 32-bit float of type `FloatType::RelaxedFloat32`. The bits are stored as a `u32` in `RelaxedFloat32.0`.
+#[derive(Copy, Clone, Eq, PartialEq, Hash)]
+pub struct RelaxedFloat32(pub u32);
+
+impl From<Float32> for RelaxedFloat32 {
+    fn from(v: Float32) -> Self {
+        RelaxedFloat32(v.0)
+    }
+}
+
+impl From<RelaxedFloat32> for Float32 {
+    fn from(v: RelaxedFloat32) -> Self {
+        Float32(v.0)
+    }
+}
+
 /// a constant 64-bit float. The bits are stored as a `u64` in `Float64.0`.
 #[derive(Copy, Clone, Eq, PartialEq, Hash)]
 pub struct Float64(pub u64);
@@ -140,6 +168,8 @@ pub enum ConstFloat {
     Float16(Float16),
     /// a constant 32-bit float.
     Float32(Float32),
+    /// a constant 32-bit float of type `FloatType::RelaxedFloat32`.
+    RelaxedFloat32(RelaxedFloat32),
     /// a constant 64-bit float.
     Float64(Float64),
 }
@@ -157,6 +187,7 @@ impl ConstFloat {
         match self {
             ConstFloat::Float16(_) => FloatType::Float16,
             ConstFloat::Float32(_) => FloatType::Float32,
+            ConstFloat::RelaxedFloat32(_) => FloatType::RelaxedFloat32,
             ConstFloat::Float64(_) => FloatType::Float64,
         }
     }
@@ -314,6 +345,7 @@ impl<'g> FromText<'g> for ConstInteger {
             Some(IntegerSuffix::I8) => value.try_into().map(ConstInteger::Int8),
             Some(IntegerSuffix::I16) => value.try_into().map(ConstInteger::Int16),
             Some(IntegerSuffix::I32) => value.try_into().map(ConstInteger::Int32),
+            Some(IntegerSuffix::RI32) => value.try_into().map(RelaxedInt32).map(ConstInteger::RelaxedInt32),
             Some(IntegerSuffix::I64) => Ok(value).map(ConstInteger::Int64),
             None => state
                 .error_at_peek_token(
@@ -340,6 +372,7 @@ impl<'g> ToText<'g> for ConstInteger {
             ConstInteger::Int8(v) => write!(state, "{:#X}i8", v),
             ConstInteger::Int16(v) => write!(state, "{:#X}i16", v),
             ConstInteger::Int32(v) => write!(state, "{:#X}i32", v),
+            ConstInteger::RelaxedInt32(RelaxedInt32(v)) => write!(state, "{:#X}ri32", v),
             ConstInteger::Int64(v) => write!(state, "{:#X}i64", v),
         }
     }
@@ -361,6 +394,7 @@ impl<'g> FromText<'g> for ConstFloat {
         let retval = match float_type {
             FloatType::Float16 => value.try_into().map(Float16).map(Into::into),
             FloatType::Float32 => value.try_into().map(Float32).map(Into::into),
+            FloatType::RelaxedFloat32 => value.try_into().map(RelaxedFloat32).map(Into::into),
             FloatType::Float64 => Ok(value).map(Float64).map(Into::into),
         };
         let retval = match retval {
@@ -388,6 +422,12 @@ impl<'g> ToText<'g> for Float32 {
     }
 }
 
+impl<'g> ToText<'g> for RelaxedFloat32 {
+    fn to_text(&self, state: &mut ToTextState<'g, '_>) -> fmt::Result {
+        write!(state, "rf32 {:#X}", self.0)
+    }
+}
+
 impl<'g> ToText<'g> for Float64 {
     fn to_text(&self, state: &mut ToTextState<'g, '_>) -> fmt::Result {
         write!(state, "f64 {:#X}", self.0)
@@ -399,6 +439,7 @@ impl<'g> ToText<'g> for ConstFloat {
         match self {
             ConstFloat::Float16(v) => v.to_text(state),
             ConstFloat::Float32(v) => v.to_text(state),
+            ConstFloat::RelaxedFloat32(v) => v.to_text(state),
             ConstFloat::Float64(v) => v.to_text(state),
         }
     }
@@ -563,6 +604,7 @@ mod tests {
         test_const!(global_state, "0x0i8", 0u8);
         test_const!(global_state, "0xFFFFi16", 0xFFFFu16);
         test_const!(global_state, "0xFFFFFFFFi32", 0xFFFF_FFFFu32);
+        test_const!(global_state, "0xFFFFFFFFri32", RelaxedInt32(0xFFFF_FFFFu32));
         test_const!(
             global_state,
             "0xFFFFFFFFFFFFFFFFi64",
@@ -570,6 +612,7 @@ mod tests {
         );
         test_const!(global_state, "f16 0xF000", Float16(0xF000));
         test_const!(global_state, "f32 0xFF000000", Float32(0xFF00_0000));
+        test_const!(global_state, "rf32 0xFF000000", RelaxedFloat32(0xFF00_0000));
         test_const!(
             global_state,
             "f64 0xFF00000000000000",

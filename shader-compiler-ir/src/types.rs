@@ -44,6 +44,8 @@ pub enum IntegerType {
     Int16,
     /// 32-bit signed or unsigned integer type
     Int32,
+    /// 32-bit signed or unsigned integer type with reduced range, the range is at least as big as `Int16`
+    RelaxedInt32,
     /// 64-bit signed or unsigned integer type
     Int64,
 }
@@ -70,6 +72,8 @@ pub enum FloatType {
     Float16,
     /// 32-bit float type
     Float32,
+    /// 32-bit float type with reduced range and precision, the range and precision is at least as big as `Float16`
+    RelaxedFloat32,
     /// 64-bit float type
     Float64,
 }
@@ -410,6 +414,7 @@ impl_from_to_text_for_keyword_type! {
         I8 => IntegerType::Int8,
         I16 => IntegerType::Int16,
         I32 => IntegerType::Int32,
+        RI32 => IntegerType::RelaxedInt32,
         I64 => IntegerType::Int64,
         _ => "invalid integer type",
     }
@@ -419,6 +424,7 @@ impl_from_to_text_for_keyword_type! {
     FloatType {
         F16 => FloatType::Float16,
         F32 => FloatType::Float32,
+        RF32 => FloatType::RelaxedFloat32,
         F64 => FloatType::Float64,
         _ => "invalid float type",
     }
@@ -685,9 +691,11 @@ mod tests {
         test_type!(global_state, "i8", IntegerType::Int8);
         test_type!(global_state, "i16", IntegerType::Int16);
         test_type!(global_state, "i32", IntegerType::Int32);
+        test_type!(global_state, "ri32", IntegerType::RelaxedInt32);
         test_type!(global_state, "i64", IntegerType::Int64);
         test_type!(global_state, "f16", FloatType::Float16);
         test_type!(global_state, "f32", FloatType::Float32);
+        test_type!(global_state, "rf32", FloatType::RelaxedFloat32);
         test_type!(global_state, "f64", FloatType::Float64);
         test_type!(global_state, "bool", BoolType);
         test_type!(
