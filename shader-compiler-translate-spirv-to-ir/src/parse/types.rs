@@ -3,6 +3,8 @@
 
 mod structs;
 
+use crate::decorations::DecorationClass;
+use crate::decorations::DecorationClassMisc;
 use crate::errors::DecorationNotAllowedOnInstruction;
 use crate::errors::InvalidFloatTypeBitWidth;
 use crate::errors::InvalidIntegerType;
@@ -13,8 +15,6 @@ use crate::errors::SPIRVIdNotDefined;
 use crate::errors::TranslationResult;
 use crate::errors::UnsupportedSPIRVType;
 use crate::errors::VoidNotAllowedHere;
-use crate::parse::annotations::DecorationClass;
-use crate::parse::annotations::DecorationClassMisc;
 use crate::parse::ParseInstruction;
 use crate::parse::TranslationStateParseBaseTypesConstantsAndGlobals;
 use crate::parse::TranslationStateParsingTypesConstantsAndGlobals;

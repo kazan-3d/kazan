@@ -361,24 +361,14 @@ impl<'g> PointerType<'g> {
     pub(crate) fn new_forward_declaration() -> Self {
         Self(Rc::new(OnceCell::new()))
     }
-    pub(crate) fn try_get(&self) -> Option<&PointerTypeData<'g>> {
+    pub(crate) fn get(&self) -> Option<&PointerTypeData<'g>> {
         self.0.get()
-    }
-    pub(crate) fn get(&self) -> &PointerTypeData<'g> {
-        self.try_get().expect("pointer has no definition")
     }
     pub(crate) fn resolve_forward_declaration(
         &self,
         v: PointerTypeData<'g>,
     ) -> Result<(), PointerTypeData<'g>> {
         self.0.set(v)
-    }
-}
-
-impl<'g> Deref for PointerType<'g> {
-    type Target = PointerTypeData<'g>;
-    fn deref(&self) -> &PointerTypeData<'g> {
-        self.get()
     }
 }
 

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 // See Notices.txt for copyright information
 
+use crate::decorations::DecorationClass;
 use crate::errors::DecorationNotAllowedOnInstruction;
 use crate::errors::MemberDecorationsAreOnlyAllowedOnStructTypes;
 use crate::errors::SPIRVIdAlreadyDefined;
@@ -24,95 +25,6 @@ use spirv_parser::OpGroupDecorate;
 use spirv_parser::OpGroupMemberDecorate;
 use spirv_parser::OpMemberDecorate;
 use spirv_parser::OpMemberDecorateString;
-
-impl_spirv_enum_partition! {
-    /// partitioned form of `Decoration`
-    pub(crate) enum DecorationClass(Decoration) {
-        Misc(DecorationClassMisc {
-            RelaxedPrecision(DecorationRelaxedPrecision),
-            SpecId(DecorationSpecId),
-            BuiltIn(DecorationBuiltIn),
-            FPRoundingMode(DecorationFPRoundingMode),
-            ArrayStride(DecorationArrayStride),
-        }),
-        /// decorations on `OpTypeStruct`
-        Struct(DecorationClassStruct {
-            Block(DecorationBlock),
-            BufferBlock(DecorationBufferBlock),
-            GLSLShared(DecorationGLSLShared),
-            GLSLPacked(DecorationGLSLPacked),
-        }),
-        /// decorations on struct members
-        StructMember(DecorationClassStructMember {
-            RowMajor(DecorationRowMajor),
-            ColMajor(DecorationColMajor),
-            MatrixStride(DecorationMatrixStride),
-            Offset(DecorationOffset),
-        }),
-        /// ignored decorations
-        Ignored(DecorationClassIgnored {
-            CounterBuffer(DecorationCounterBuffer),
-            UserSemantic(DecorationUserSemantic),
-        }),
-        /// decorations that are not allowed
-        Invalid(DecorationClassInvalid {
-            CPacked(DecorationCPacked),
-            Constant(DecorationConstant),
-            SaturatedConversion(DecorationSaturatedConversion),
-            FuncParamAttr(DecorationFuncParamAttr),
-            FPFastMathMode(DecorationFPFastMathMode),
-            LinkageAttributes(DecorationLinkageAttributes),
-            Alignment(DecorationAlignment),
-            MaxByteOffset(DecorationMaxByteOffset),
-            AlignmentId(DecorationAlignmentId),
-            MaxByteOffsetId(DecorationMaxByteOffsetId),
-        }),
-        /// decorations for memory object declarations or struct members
-        MemoryObjectDeclarationOrStructMember(DecorationClassMemoryObjectDeclarationOrStructMember {
-            NoPerspective(DecorationNoPerspective),
-            Flat(DecorationFlat),
-            Patch(DecorationPatch),
-            Centroid(DecorationCentroid),
-            Sample(DecorationSample),
-            Volatile(DecorationVolatile),
-            Coherent(DecorationCoherent),
-            NonWritable(DecorationNonWritable),
-            NonReadable(DecorationNonReadable),
-            Stream(DecorationStream),
-            Component(DecorationComponent),
-            XfbBuffer(DecorationXfbBuffer),
-            XfbStride(DecorationXfbStride),
-        }),
-        /// decorations for memory object declarations
-        MemoryObjectDeclaration(DecorationClassMemoryObjectDeclaration {
-            Restrict(DecorationRestrict),
-            Aliased(DecorationAliased),
-        }),
-        /// decorations for variables or struct members
-        VariableOrStructMember(DecorationClassVariableOrStructMember {
-            Invariant(DecorationInvariant),
-            Location(DecorationLocation),
-        }),
-        /// decorations for objects
-        Object(DecorationClassObject {
-            Uniform(DecorationUniform),
-            UniformId(DecorationUniformId),
-            NoContraction(DecorationNoContraction),
-            NoSignedWrap(DecorationNoSignedWrap),
-            NoUnsignedWrap(DecorationNoUnsignedWrap),
-            NonUniform(DecorationNonUniform),
-        }),
-        /// decorations for variables
-        Variable(DecorationClassVariable {
-            Index(DecorationIndex),
-            Binding(DecorationBinding),
-            DescriptorSet(DecorationDescriptorSet),
-            InputAttachmentIndex(DecorationInputAttachmentIndex),
-            RestrictPointer(DecorationRestrictPointer),
-            AliasedPointer(DecorationAliasedPointer),
-        }),
-    }
-}
 
 #[derive(Clone, Debug, Default)]
 pub(crate) struct DecorationsAndMemberDecorations {

@@ -287,6 +287,11 @@ impl_errors! {
     pub struct VariableResultTypeMustBePointer {
         pub instruction: spirv_parser::Instruction,
     }
+
+    #[display = "RelaxedPrecision decoration not allowed:\n{instruction}"]
+    pub struct RelaxedPrecisionDecorationNotAllowed {
+        pub instruction: spirv_parser::Instruction,
+    }
 }
 
 pub(crate) type TranslationResult<T> = Result<T, TranslationError>;

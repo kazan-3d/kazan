@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 // See Notices.txt for copyright information
 
+use crate::decorations::DecorationClass;
+use crate::decorations::DecorationClassMisc;
+use crate::decorations::DecorationClassStruct;
 use crate::errors::BuiltInAndNonBuiltInNotAllowedInSameStruct;
 use crate::errors::DecorationNotAllowedOnInstruction;
 use crate::errors::MemberDecorationIndexOutOfBounds;
 use crate::errors::MemberDecorationNotAllowed;
 use crate::errors::TranslationResult;
-use crate::parse::annotations::DecorationClass;
-use crate::parse::annotations::DecorationClassMisc;
-use crate::parse::annotations::DecorationClassStruct;
 use crate::parse::annotations::DecorationsAndMemberDecorations;
 use crate::parse::ParseInstruction;
 use crate::parse::TranslationStateParsingTypesConstantsAndGlobals;

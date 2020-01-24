@@ -51,19 +51,44 @@ mod unimplemented_instructions;
 mod variables;
 
 use crate::errors::InvalidSPIRVInstructionInSection;
+use crate::errors::SPIRVIdAlreadyDefined;
+use crate::errors::SPIRVIdNotDefined;
 use crate::parse::annotations::TranslationStateParsedAnnotations;
 use crate::types::SPIRVType;
+use crate::values::SPIRVValue;
 use crate::SPIRVInstructionsLocation;
 use crate::TranslationResult;
 use crate::TranslationStateBase;
 use spirv_id_map::IdMap;
 use spirv_parser::IdRef;
+use spirv_parser::IdResult;
 use spirv_parser::Instruction;
 
 decl_translation_state! {
     pub(crate) struct TranslationStateParseBaseTypesConstantsAndGlobals<'g, 'i> {
         base: annotations::TranslationStateParsedAnnotations<'g, 'i>,
         types: IdMap<IdRef, SPIRVType<'g>>,
+        values: IdMap<IdRef, SPIRVValue<'g>>,
+    }
+}
+
+impl<'g, 'i> TranslationStateParseBaseTypesConstantsAndGlobals<'g, 'i> {
+    fn define_value(
+        &mut self,
+        id_result: IdResult,
+        ty: impl Into<SPIRVValue<'g>>,
+    ) -> TranslationResult<()> {
+        if let spirv_id_map::Vacant(entry) = self.values.entry(id_result.0)? {
+            entry.insert(ty.into());
+            Ok(())
+        } else {
+            Err(SPIRVIdAlreadyDefined { id_result }.into())
+        }
+    }
+    pub(crate) fn get_value(&self, type_id: IdRef) -> TranslationResult<&SPIRVValue<'g>> {
+        self.values
+            .get(type_id)?
+            .ok_or_else(|| SPIRVIdNotDefined { id: type_id }.into())
     }
 }
 
@@ -86,6 +111,7 @@ impl<'g, 'i> TranslationStateParsedAnnotations<'g, 'i> {
         let mut state = TranslationStateParsingTypesConstantsAndGlobals {
             base: TranslationStateParseBaseTypesConstantsAndGlobals {
                 types: IdMap::new(&self.spirv_header),
+                values: IdMap::new(&self.spirv_header),
                 base: self,
             },
         };
