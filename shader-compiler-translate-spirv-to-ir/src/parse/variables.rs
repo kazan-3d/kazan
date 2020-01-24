@@ -4,15 +4,18 @@
 use crate::errors::decoration_not_allowed;
 use crate::errors::DecorationNotAllowedOnInstruction;
 use crate::errors::TranslationResult;
+use crate::errors::VariableResultTypeMustBePointer;
 use crate::parse::annotations::DecorationClass;
 use crate::parse::annotations::DecorationClassMemoryObjectDeclaration;
 use crate::parse::annotations::DecorationClassMemoryObjectDeclarationOrStructMember;
+use crate::parse::annotations::DecorationClassMisc;
 use crate::parse::annotations::DecorationClassObject;
 use crate::parse::annotations::DecorationClassVariableOrStructMember;
 use crate::parse::ParseInstruction;
 use crate::parse::TranslationStateParsingTypesConstantsAndGlobals;
 use crate::TranslationStateBase;
 use alloc::vec::Vec;
+use spirv_parser::DecorationBuiltIn;
 use spirv_parser::DecorationComponent;
 use spirv_parser::DecorationLocation;
 use spirv_parser::DecorationUniformId;
@@ -220,7 +223,13 @@ impl ParseInstruction for OpVariable {
             storage_class,
             initializer,
         } = *self;
-        let result_type = state.get_type(id_result_type.0)?.clone();
+        let result_type = state
+            .get_type(id_result_type.0)?
+            .pointer()
+            .ok_or_else(|| VariableResultTypeMustBePointer {
+                instruction: self.clone().into(),
+            })?
+            .clone();
         let mut memory_object_declaration_or_struct_member_decorations = Vec::new();
         let mut memory_object_declaration_decorations = Vec::new();
         let mut variable_or_struct_member_decorations = Vec::new();
@@ -228,7 +237,10 @@ impl ParseInstruction for OpVariable {
         for decoration in state.take_decorations(id_result)? {
             match decoration {
                 DecorationClass::Ignored(_) => {}
-                DecorationClass::Invalid(_) => {
+                DecorationClass::Invalid(_)
+                | DecorationClass::Misc(DecorationClassMisc::SpecId(_))
+                | DecorationClass::Misc(DecorationClassMisc::FPRoundingMode(_))
+                | DecorationClass::Misc(DecorationClassMisc::ArrayStride(_)) => {
                     return Err(DecorationNotAllowedOnInstruction {
                         decoration: decoration.into(),
                         instruction: self.clone().into(),
@@ -245,7 +257,10 @@ impl ParseInstruction for OpVariable {
                 DecorationClass::VariableOrStructMember(v) => {
                     variable_or_struct_member_decorations.push(v);
                 }
-                DecorationClass::Misc(_) => todo!(),
+                DecorationClass::Misc(DecorationClassMisc::RelaxedPrecision(_)) => todo!(),
+                DecorationClass::Misc(DecorationClassMisc::BuiltIn(DecorationBuiltIn {
+                    built_in,
+                })) => todo!(),
                 DecorationClass::Object(v) => {
                     object_decorations.push(v);
                 }

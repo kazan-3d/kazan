@@ -60,4 +60,7 @@ impl<'g> GenericSPIRVType<'g> for StructType<'g> {
     ) -> TranslationResult<Option<Interned<'g, shader_compiler_ir::Type<'g>>>> {
         todo!()
     }
+    fn get_relaxed_precision_type(&self) -> Option<SPIRVType<'g>> {
+        None
+    }
 }

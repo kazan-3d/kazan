@@ -47,6 +47,7 @@ pub(crate) trait GenericSPIRVType<'g>: Clone + Into<SPIRVType<'g>> {
             .into()
         })
     }
+    fn get_relaxed_precision_type(&self) -> Option<SPIRVType<'g>>;
 }
 
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
@@ -83,6 +84,25 @@ impl<'g> GenericSPIRVType<'g> for IntegerType {
     ) -> TranslationResult<Option<Interned<'g, shader_compiler_ir::Type<'g>>>> {
         Ok(Some(self.ir_type.intern(state.global_state)))
     }
+    fn get_relaxed_precision_type(&self) -> Option<SPIRVType<'g>> {
+        let IntegerType {
+            ir_type,
+            signedness,
+        } = *self;
+        match ir_type {
+            shader_compiler_ir::IntegerType::Int32
+            | shader_compiler_ir::IntegerType::RelaxedInt32 => Some(
+                IntegerType {
+                    ir_type: shader_compiler_ir::IntegerType::RelaxedInt32,
+                    signedness,
+                }
+                .into(),
+            ),
+            shader_compiler_ir::IntegerType::Int8
+            | shader_compiler_ir::IntegerType::Int16
+            | shader_compiler_ir::IntegerType::Int64 => None,
+        }
+    }
 }
 
 impl<'g> GenericSPIRVType<'g> for FloatType {
@@ -92,6 +112,14 @@ impl<'g> GenericSPIRVType<'g> for FloatType {
     ) -> TranslationResult<Option<Interned<'g, shader_compiler_ir::Type<'g>>>> {
         Ok(Some(self.intern(state.global_state)))
     }
+    fn get_relaxed_precision_type(&self) -> Option<SPIRVType<'g>> {
+        match self {
+            FloatType::Float32 | FloatType::RelaxedFloat32 => {
+                Some(FloatType::RelaxedFloat32.into())
+            }
+            FloatType::Float16 | FloatType::Float64 => None,
+        }
+    }
 }
 
 impl<'g> GenericSPIRVType<'g> for BoolType {
@@ -100,6 +128,9 @@ impl<'g> GenericSPIRVType<'g> for BoolType {
         state: &mut GetIrTypeState<'g>,
     ) -> TranslationResult<Option<Interned<'g, shader_compiler_ir::Type<'g>>>> {
         Ok(Some(self.intern(state.global_state)))
+    }
+    fn get_relaxed_precision_type(&self) -> Option<SPIRVType<'g>> {
+        None
     }
 }
 
@@ -138,6 +169,13 @@ macro_rules! impl_scalar_type {
                 match self {
                     $(
                         Self::$member_name(ty) => ty.get_ir_type_with_state(state),
+                    )+
+                }
+            }
+            fn get_relaxed_precision_type(&self) -> Option<SPIRVType<'g>> {
+                match self {
+                    $(
+                        Self::$member_name(ty) => ty.get_relaxed_precision_type(),
                     )+
                 }
             }
@@ -190,6 +228,9 @@ impl<'g> GenericSPIRVType<'g> for VoidType {
         _state: &mut GetIrTypeState<'g>,
     ) -> TranslationResult<Option<Interned<'g, shader_compiler_ir::Type<'g>>>> {
         Ok(None)
+    }
+    fn get_relaxed_precision_type(&self) -> Option<SPIRVType<'g>> {
+        None
     }
 }
 
@@ -249,6 +290,9 @@ impl<'g> GenericSPIRVType<'g> for FunctionType<'g> {
                 .intern(state.global_state),
         ))
     }
+    fn get_relaxed_precision_type(&self) -> Option<SPIRVType<'g>> {
+        None
+    }
 }
 
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
@@ -280,6 +324,23 @@ impl<'g> GenericSPIRVType<'g> for VectorType {
             }
             .intern(state.global_state),
         ))
+    }
+    fn get_relaxed_precision_type(&self) -> Option<SPIRVType<'g>> {
+        let VectorType {
+            component_type,
+            component_count,
+        } = *self;
+        let component_type = component_type
+            .get_relaxed_precision_type()?
+            .scalar()
+            .expect("known to be a scalar type");
+        Some(
+            VectorType {
+                component_type,
+                component_count,
+            }
+            .into(),
+        )
     }
 }
 
@@ -333,6 +394,9 @@ impl<'g> GenericSPIRVType<'g> for PointerType<'g> {
         state: &mut GetIrTypeState<'g>,
     ) -> TranslationResult<Option<Interned<'g, shader_compiler_ir::Type<'g>>>> {
         todo!()
+    }
+    fn get_relaxed_precision_type(&self) -> Option<SPIRVType<'g>> {
+        None
     }
 }
 
@@ -398,6 +462,17 @@ impl<'g> GenericSPIRVType<'g> for SPIRVType<'g> {
             SPIRVType::Vector(ty) => ty.get_ir_type_with_state(state),
             SPIRVType::Struct(ty) => ty.get_ir_type_with_state(state),
             SPIRVType::Pointer(ty) => ty.get_ir_type_with_state(state),
+            SPIRVType::_Uninhabited(v) => v.into(),
+        }
+    }
+    fn get_relaxed_precision_type(&self) -> Option<SPIRVType<'g>> {
+        match self {
+            SPIRVType::Scalar(ty) => ty.get_relaxed_precision_type(),
+            SPIRVType::Void(ty) => ty.get_relaxed_precision_type(),
+            SPIRVType::Function(ty) => ty.get_relaxed_precision_type(),
+            SPIRVType::Vector(ty) => ty.get_relaxed_precision_type(),
+            SPIRVType::Struct(ty) => ty.get_relaxed_precision_type(),
+            SPIRVType::Pointer(ty) => ty.get_relaxed_precision_type(),
             SPIRVType::_Uninhabited(v) => v.into(),
         }
     }

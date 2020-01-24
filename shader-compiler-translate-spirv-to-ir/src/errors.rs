@@ -256,6 +256,13 @@ impl_error! {
     }
 }
 
+impl_error! {
+    #[display = "OpVariable's result type must be OpTypePointer:\n{instruction}"]
+    pub struct VariableResultTypeMustBePointer {
+        pub instruction: spirv_parser::Instruction,
+    }
+}
+
 macro_rules! impl_translation_error {
     ($($error:ident($wrapped_error:ty),)+) => {
         $(
@@ -314,6 +321,7 @@ impl_translation_error! {
     MemberDecorationIndexOutOfBounds(MemberDecorationIndexOutOfBounds),
     MemberDecorationNotAllowed(MemberDecorationNotAllowed),
     BuiltInAndNonBuiltInNotAllowedInSameStruct(BuiltInAndNonBuiltInNotAllowedInSameStruct),
+    VariableResultTypeMustBePointer(VariableResultTypeMustBePointer),
 }
 
 pub(crate) type TranslationResult<T> = Result<T, TranslationError>;
