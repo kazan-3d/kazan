@@ -89,7 +89,7 @@ impl_spirv_enum_partition! {
             Aliased(DecorationAliased),
         }),
         /// decorations for variables or struct members
-        VariableOrStructMember(DecorationClassVariableOrBlockStructMember {
+        VariableOrStructMember(DecorationClassVariableOrStructMember {
             Invariant(DecorationInvariant),
             Location(DecorationLocation),
         }),

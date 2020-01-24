@@ -227,6 +227,27 @@ impl_error! {
     }
 }
 
+pub(crate) fn decoration_not_allowed(
+    member_index: Option<u32>,
+    decoration: Decoration,
+    instruction: spirv_parser::Instruction,
+) -> TranslationError {
+    if let Some(member_index) = member_index {
+        MemberDecorationNotAllowed {
+            member_index,
+            decoration,
+            instruction,
+        }
+        .into()
+    } else {
+        DecorationNotAllowedOnInstruction {
+            decoration,
+            instruction,
+        }
+        .into()
+    }
+}
+
 impl_error! {
     #[display = "BuiltIn and non-BuiltIn struct members are not allowed in the same struct: member index {member_index}:\n{instruction}"]
     pub struct BuiltInAndNonBuiltInNotAllowedInSameStruct {
