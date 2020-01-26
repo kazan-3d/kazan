@@ -575,6 +575,7 @@ impl<'g> ToText<'g> for Const<'g> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::DataPointerType;
     use crate::FunctionPointerType;
     use alloc::string::ToString;
 
@@ -641,21 +642,13 @@ mod tests {
         );
         test_const!(
             global_state,
-            "undef *i8",
-            IntegerType::Int8
-                .intern(&global_state)
-                .pointer()
-                .intern(&global_state)
-                .undef()
+            "undef data_ptr",
+            DataPointerType.intern(&global_state).undef()
         );
+        test_const!(global_state, "null data_ptr", DataPointerType.null());
         test_const!(
             global_state,
-            "null *i8",
-            IntegerType::Int8.intern(&global_state).pointer().null()
-        );
-        test_const!(
-            global_state,
-            "null *fn[] -> !",
+            "null fn[] -> !",
             FunctionPointerType {
                 arguments: vec![],
                 returns: Uninhabited

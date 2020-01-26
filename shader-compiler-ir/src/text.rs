@@ -405,6 +405,7 @@ keywords! {
     False = "false",
     Const = "const",
     Null = "null",
+    DataPtr = "data_ptr",
     Fn = "fn",
 }
 

@@ -21,10 +21,6 @@ pub trait GenericType<'g>: Internable<'g, Interned = Type<'g>> {
     fn undef(&self, global_state: &'g GlobalState<'g>) -> Const<'g> {
         self.intern(global_state).undef()
     }
-    /// create a pointer to `self`
-    fn pointer(&self, global_state: &'g GlobalState<'g>) -> DataPointerType<'g> {
-        self.intern(global_state).pointer()
-    }
     /// create a new `ValueDefinition` using `self` as the new value's type
     fn new_value_definition<Name: Internable<'g, Interned = str>>(
         &self,
@@ -140,36 +136,33 @@ impl From<BoolType> for Type<'_> {
 }
 
 /// a pointer type
-#[derive(Clone, Eq, PartialEq, Hash)]
-pub struct DataPointerType<'g> {
-    /// the type that this type points to
-    pub pointee: Interned<'g, Type<'g>>,
-}
+#[derive(Copy, Clone, Eq, PartialEq, Hash)]
+pub struct DataPointerType;
 
-impl<'g> Internable<'g> for DataPointerType<'g> {
+impl<'g> Internable<'g> for DataPointerType {
     type Interned = Type<'g>;
     fn intern(&self, global_state: &'g GlobalState<'g>) -> Interned<'g, Type<'g>> {
         Type::from(self.clone()).intern(global_state)
     }
 }
 
-impl<'g> GenericType<'g> for DataPointerType<'g> {}
+impl<'g> GenericType<'g> for DataPointerType {}
 
-impl<'g> DataPointerType<'g> {
+impl DataPointerType {
     /// create a null pointer constant
-    pub fn null(self) -> Const<'g> {
+    pub fn null<'g>(self) -> Const<'g> {
         Const::Null(self.into())
     }
 }
 
-impl<'g> From<DataPointerType<'g>> for PointerType<'g> {
-    fn from(v: DataPointerType<'g>) -> Self {
+impl<'g> From<DataPointerType> for PointerType<'g> {
+    fn from(v: DataPointerType) -> Self {
         PointerType::Data(v)
     }
 }
 
-impl<'g> From<DataPointerType<'g>> for Type<'g> {
-    fn from(v: DataPointerType<'g>) -> Self {
+impl<'g> From<DataPointerType> for Type<'g> {
+    fn from(v: DataPointerType) -> Self {
         Type::Pointer(v.into())
     }
 }
@@ -178,7 +171,7 @@ impl<'g> From<DataPointerType<'g>> for Type<'g> {
 #[derive(Clone, Eq, PartialEq, Hash)]
 pub enum PointerType<'g> {
     /// a data pointer type
-    Data(DataPointerType<'g>),
+    Data(DataPointerType),
     /// a function pointer type
     Function(FunctionPointerType<'g>),
 }
@@ -504,13 +497,11 @@ impl<'g> ToText<'g> for VectorType<'g> {
     }
 }
 
-impl<'g> FromText<'g> for DataPointerType<'g> {
+impl<'g> FromText<'g> for DataPointerType {
     type Parsed = Self;
     fn from_text(state: &mut FromTextState<'g, '_>) -> Result<Self, FromTextError> {
-        state.parse_punct_token_or_error(Punctuation::Asterisk, "expected data pointer type")?;
-        Ok(DataPointerType {
-            pointee: Type::from_text(state)?,
-        })
+        state.parse_keyword_token_or_error(Keyword::DataPtr, "expected data_ptr type")?;
+        Ok(DataPointerType)
     }
 }
 
@@ -518,7 +509,6 @@ impl<'g> FromText<'g> for PointerType<'g> {
     type Parsed = Self;
     fn from_text(state: &mut FromTextState<'g, '_>) -> Result<Self, FromTextError> {
         let start_location = state.location;
-        state.parse_punct_token_or_error(Punctuation::Asterisk, "expected pointer type")?;
         let keyword = state.peek_token()?.kind.keyword();
         state.location = start_location;
         if keyword == Some(Keyword::Fn) {
@@ -529,12 +519,11 @@ impl<'g> FromText<'g> for PointerType<'g> {
     }
 }
 
-impl_display_as_to_text!(<'g> DataPointerType<'g>);
+impl_display_as_to_text!(DataPointerType);
 
-impl<'g> ToText<'g> for DataPointerType<'g> {
+impl<'g> ToText<'g> for DataPointerType {
     fn to_text(&self, state: &mut ToTextState<'g, '_>) -> fmt::Result {
-        write!(state, "*")?;
-        self.pointee.to_text(state)
+        write!(state, "data_ptr")
     }
 }
 
@@ -572,8 +561,6 @@ impl<'g> ToText<'g> for OpaqueType<'g> {
 impl<'g> FromText<'g> for FunctionPointerType<'g> {
     type Parsed = Self;
     fn from_text(state: &mut FromTextState<'g, '_>) -> Result<Self, FromTextError> {
-        state
-            .parse_punct_token_or_error(Punctuation::Asterisk, "expected function pointer type")?;
         state.parse_keyword_token_or_error(Keyword::Fn, "expected function pointer type")?;
         let arguments = Vec::<Type>::from_text(state)?;
         state.parse_punct_token_or_error(
@@ -590,7 +577,7 @@ impl_display_as_to_text!(<'g> FunctionPointerType<'g>);
 impl<'g> ToText<'g> for FunctionPointerType<'g> {
     fn to_text(&self, state: &mut ToTextState<'g, '_>) -> fmt::Result {
         let Self { arguments, returns } = self;
-        write!(state, "*fn")?;
+        write!(state, "fn")?;
         arguments.to_text(state)?;
         write!(state, " -> ")?;
         returns.to_text(state)
@@ -660,10 +647,6 @@ impl<'g> ToText<'g> for Type<'g> {
 }
 
 impl<'g> Interned<'g, Type<'g>> {
-    /// create a pointer to `self`
-    pub fn pointer(self) -> DataPointerType<'g> {
-        DataPointerType { pointee: self }
-    }
     /// create an `undef` constant
     pub fn undef(self) -> Const<'g> {
         Const::Undef(self)
@@ -700,11 +683,7 @@ mod tests {
         test_type!(global_state, "rf32", FloatType::RelaxedFloat32);
         test_type!(global_state, "f64", FloatType::Float64);
         test_type!(global_state, "bool", BoolType);
-        test_type!(
-            global_state,
-            "*i8",
-            IntegerType::Int8.intern(&global_state).pointer()
-        );
+        test_type!(global_state, "data_ptr", DataPointerType);
         test_type!(
             global_state,
             "<4 x f16>",
@@ -725,20 +704,17 @@ mod tests {
         );
         test_type!(
             global_state,
-            "(<vscale x 7 x ((* bool))>)",
+            "(<vscale x 7 x ((data_ptr))>)",
             VectorType {
                 len: 7,
                 scalable: true,
-                element: BoolType
-                    .intern(&global_state)
-                    .pointer()
-                    .intern(&global_state)
+                element: DataPointerType.intern(&global_state)
             },
-            "<vscale x 7 x *bool>"
+            "<vscale x 7 x data_ptr>"
         );
         test_type!(
             global_state,
-            "*fn[] -> []",
+            "fn[] -> []",
             FunctionPointerType {
                 arguments: vec![],
                 returns: Inhabited(vec![]),
@@ -746,7 +722,7 @@ mod tests {
         );
         test_type!(
             global_state,
-            "*fn[] -> !",
+            "fn[] -> !",
             FunctionPointerType {
                 arguments: vec![],
                 returns: Uninhabited,
@@ -754,7 +730,7 @@ mod tests {
         );
         test_type!(
             global_state,
-            "*fn[i8] -> !",
+            "fn[i8] -> !",
             FunctionPointerType {
                 arguments: vec![IntegerType::Int8.intern(&global_state)],
                 returns: Uninhabited,
@@ -762,7 +738,7 @@ mod tests {
         );
         test_type!(
             global_state,
-            "*fn[i8, i16] -> !",
+            "fn[i8, i16] -> !",
             FunctionPointerType {
                 arguments: vec![
                     IntegerType::Int8.intern(&global_state),
@@ -773,16 +749,13 @@ mod tests {
         );
         test_type!(
             global_state,
-            "*fn[i8, i16] -> [*f32]",
+            "fn[i8, i16] -> [data_ptr]",
             FunctionPointerType {
                 arguments: vec![
                     IntegerType::Int8.intern(&global_state),
                     IntegerType::Int16.intern(&global_state),
                 ],
-                returns: Inhabited(vec![FloatType::Float32
-                    .intern(&global_state)
-                    .pointer()
-                    .intern(&global_state)]),
+                returns: Inhabited(vec![DataPointerType.intern(&global_state)]),
             }
         );
         // FIXME: add tests for opaque types
