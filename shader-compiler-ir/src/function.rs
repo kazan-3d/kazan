@@ -310,7 +310,7 @@ mod tests {
                 "fn function1[] -> ! {\n",
                 "    block1 {\n",
                 "        loop loop1[\"\"0 : fn function1] -> ! {\n",
-                "            -> [loop_var : *fn[] -> !];\n",
+                "            -> [loop_var : fn[] -> !];\n",
                 "            block2 {\n",
                 "                continue loop1[loop_var];\n",
                 "            }\n",

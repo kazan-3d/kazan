@@ -618,12 +618,8 @@ impl<'g> FromText<'g> for Type<'g> {
             TokenKind::Punct(Punctuation::LessThan) => {
                 VectorType::from_text(state)?.intern(state.global_state())
             }
-            TokenKind::Punct(Punctuation::Asterisk) => {
+            TokenKind::Keyword(Keyword::Fn) | TokenKind::Keyword(Keyword::DataPtr) => {
                 PointerType::from_text(state)?.intern(state.global_state())
-            }
-            // TODO: add OpaqueType
-            TokenKind::Keyword(Keyword::Fn) => {
-                state.error_at_peek_token("missing `*` before `fn`")?.into()
             }
             _ => state.error_at_peek_token("expected type")?.into(),
         };
