@@ -6,6 +6,7 @@
 use crate::prelude::*;
 use crate::IdRef;
 use crate::OnceCell;
+use crate::StructType;
 use alloc::string::String;
 use alloc::string::ToString;
 use alloc::vec::Vec;
@@ -406,6 +407,11 @@ keywords! {
     Const = "const",
     Null = "null",
     DataPtr = "data_ptr",
+    Struct = "struct",
+    Fixed = "fixed",
+    Variable = "variable",
+    Align = "align",
+    Size = "size",
     TargetProperties = "target_properties",
     Fn = "fn",
 }
@@ -898,6 +904,7 @@ pub struct FromTextState<'g, 't> {
     blocks: HashMap<NamedId<'g>, FromTextSymbol<'g, BlockData<'g>>>,
     loops: HashMap<NamedId<'g>, FromTextSymbol<'g, LoopData<'g>>>,
     functions: HashMap<NamedId<'g>, FromTextSymbol<'g, FunctionData<'g>>>,
+    pub(crate) structs: HashMap<u64, StructType<'g>>,
     parent_scopes: Vec<FromTextScopeId>,
     /// the scope id that defines what is currently visible.
     /// A scope is visible if it is either `self.scope_stack_top` or
@@ -972,6 +979,7 @@ impl<'g, 't> FromTextState<'g, 't> {
             blocks: HashMap::new(),
             loops: HashMap::new(),
             functions: HashMap::new(),
+            structs: HashMap::new(),
             parent_scopes: vec![FromTextScopeId::ROOT],
             scope_stack_top: FromTextScopeId::ROOT,
         }
@@ -1447,6 +1455,7 @@ pub struct ToTextState<'g, 'w> {
     blocks: NameMap<'g, BlockData<'g>>,
     loops: NameMap<'g, LoopData<'g>>,
     functions: NameMap<'g, FunctionData<'g>>,
+    struct_type_ids: HashMap<StructType<'g>, usize>,
     is_fragment: bool,
 }
 
@@ -1494,6 +1503,7 @@ impl<'g, 'w> ToTextState<'g, 'w> {
             blocks: NameMap::new(),
             loops: NameMap::new(),
             functions: NameMap::new(),
+            struct_type_ids: HashMap::new(),
             is_fragment,
         }
     }
@@ -1520,6 +1530,15 @@ impl<'g, 'w> ToTextState<'g, 'w> {
         value: IdRef<'g, FunctionData<'g>>,
     ) -> NewOrOld<NamedId<'g>> {
         self.functions.get(value)
+    }
+    pub(crate) fn get_struct_type_id(&mut self, struct_type: &StructType<'g>) -> NewOrOld<usize> {
+        let next_id = self.struct_type_ids.len();
+        if let Some(retval) = self.struct_type_ids.get(struct_type) {
+            NewOrOld::Old(*retval)
+        } else {
+            self.struct_type_ids.insert(struct_type.clone(), next_id);
+            NewOrOld::New(next_id)
+        }
     }
     /// indent the text produced by the passed-in function by 1 unit (`Self::INDENT_MULTIPLE` spaces).
     ///

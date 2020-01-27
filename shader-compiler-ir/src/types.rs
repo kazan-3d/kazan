@@ -6,12 +6,14 @@ use crate::text::FromTextError;
 use crate::text::FromTextState;
 use crate::text::IntegerToken;
 use crate::text::Keyword;
+use crate::text::NewOrOld;
 use crate::text::Punctuation;
 use crate::text::ToTextState;
 use crate::text::TokenKind;
 use alloc::vec::Vec;
 use core::convert::TryInto;
 use core::fmt;
+use core::num::NonZeroU32;
 use core::ops::Deref;
 use core::ops::DerefMut;
 
@@ -272,6 +274,100 @@ impl<'g> FunctionPointerType<'g> {
     }
 }
 
+/// a struct/union member
+#[derive(Clone, Eq, PartialEq, Hash)]
+pub struct StructMember<'g> {
+    /// the number of bytes from the start of the struct that this member starts at
+    pub offset: u32,
+    /// the type of this member
+    pub member_type: Interned<'g, Type<'g>>,
+}
+
+impl_display_as_to_text!(<'g> StructMember<'g>);
+
+/// a struct/union's size in bytes
+#[derive(Copy, Clone, Eq, PartialEq, Hash)]
+pub enum StructSize {
+    /// a variable-sized struct/union
+    Variable {
+        /// the size in bytes of the fixed-sized part of the struct/union
+        fixed_part_size: u32,
+    },
+    /// a fixed-sized struct/union
+    Fixed {
+        /// the size in bytes of the struct/union
+        size: u32,
+    },
+}
+
+impl_display_as_to_text!(StructSize);
+
+/// a type's alignment in bytes -- must be a power of 2
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
+#[repr(transparent)]
+pub struct Alignment(NonZeroU32);
+
+impl Default for Alignment {
+    fn default() -> Alignment {
+        Alignment(NonZeroU32::new(1).expect("known to be non-zero"))
+    }
+}
+
+impl Alignment {
+    /// create a new `Alignment` if the passed-in integer is a power-of-two, otherwise return `None`.
+    pub fn new(alignment: u32) -> Option<Self> {
+        if alignment.is_power_of_two() {
+            // safety: alignment was just checked to be a power-of-two
+            unsafe { Some(Self::new_unchecked(alignment)) }
+        } else {
+            None
+        }
+    }
+    /// create a new `Alignment` without checking that it is a power-of-two.
+    ///
+    /// # Safety
+    ///
+    /// `alignment` must be a power-of-two.
+    pub const unsafe fn new_unchecked(alignment: u32) -> Self {
+        // safety: all powers of two are non-zero
+        Alignment(NonZeroU32::new_unchecked(alignment))
+    }
+    /// gets the alignment in bytes.
+    pub const fn get(self) -> u32 {
+        self.0.get()
+    }
+}
+
+impl_display_as_to_text!(Alignment);
+
+/// a struct/union
+#[derive(Clone, Eq, PartialEq, Hash)]
+pub struct StructType<'g> {
+    /// the size of this struct/union
+    pub size: StructSize,
+    /// the alignment of this struct/union
+    pub alignment: Alignment,
+    /// the members of this struct, not necessarily sorted by offset
+    pub members: Vec<StructMember<'g>>,
+}
+
+impl<'g> From<StructType<'g>> for Type<'g> {
+    fn from(v: StructType<'g>) -> Self {
+        Type::Struct(v)
+    }
+}
+
+impl<'g> Internable<'g> for StructType<'g> {
+    type Interned = Type<'g>;
+    fn intern(&self, global_state: &'g GlobalState<'g>) -> Interned<'g, Type<'g>> {
+        Type::from(self.clone()).intern(global_state)
+    }
+}
+
+impl<'g> GenericType<'g> for StructType<'g> {}
+
+impl_display_as_to_text!(<'g> StructType<'g>);
+
 /// an IR type
 #[derive(Clone, Eq, PartialEq, Hash)]
 pub enum Type<'g> {
@@ -287,6 +383,8 @@ pub enum Type<'g> {
     Vector(VectorType<'g>),
     /// an opaque type
     Opaque(OpaqueType<'g>),
+    /// a struct/union type
+    Struct(StructType<'g>),
 }
 
 impl<'g> GenericType<'g> for Type<'g> {}
@@ -584,6 +682,268 @@ impl<'g> ToText<'g> for FunctionPointerType<'g> {
     }
 }
 
+impl<'g> FromText<'g> for StructSize {
+    type Parsed = Self;
+    fn from_text(state: &mut FromTextState<'g, '_>) -> Result<Self, FromTextError> {
+        fn parse_value<F: FnOnce(u32) -> StructSize>(
+            state: &mut FromTextState<'_, '_>,
+            f: F,
+        ) -> Result<StructSize, FromTextError> {
+            state.parse_token()?;
+            match state.peek_token()?.kind.integer() {
+                Some(IntegerToken {
+                    value: _,
+                    suffix: Some(_),
+                }) => state
+                    .error_at_peek_token("suffix not allowed on struct size")?
+                    .into(),
+                Some(IntegerToken {
+                    value,
+                    suffix: None,
+                }) => {
+                    if let Ok(value) = value.try_into() {
+                        state.parse_token()?;
+                        Ok(f(value))
+                    } else {
+                        state.error_at_peek_token("struct size overflow")?.into()
+                    }
+                }
+                None => state
+                    .error_at_peek_token("missing struct size: must be an integer")?
+                    .into(),
+            }
+        }
+        match state.peek_token()?.kind.keyword() {
+            Some(Keyword::Fixed) => parse_value(state, |v| StructSize::Fixed { size: v }),
+            Some(Keyword::Variable) => {
+                parse_value(state, |v| StructSize::Variable { fixed_part_size: v })
+            }
+            _ => state
+                .error_at_peek_token("missing struct size kind: must be `fixed` or `variable`")?
+                .into(),
+        }
+    }
+}
+
+impl<'g> ToText<'g> for StructSize {
+    fn to_text(&self, state: &mut ToTextState<'g, '_>) -> fmt::Result {
+        match *self {
+            StructSize::Fixed { size } => write!(state, "fixed {:#X}", size),
+            StructSize::Variable { fixed_part_size } => {
+                write!(state, "variable {:#X}", fixed_part_size)
+            }
+        }
+    }
+}
+
+impl<'g> FromText<'g> for Alignment {
+    type Parsed = Self;
+    fn from_text(state: &mut FromTextState<'g, '_>) -> Result<Self, FromTextError> {
+        state.parse_keyword_token_or_error(
+            Keyword::Align,
+            "missing alignment: must be of the form `align: 16`",
+        )?;
+        state.parse_punct_token_or_error(
+            Punctuation::Colon,
+            "missing colon after `align` keyword: must be of the form `align: 16`",
+        )?;
+        match state.peek_token()?.kind.integer() {
+            Some(IntegerToken {
+                value: _,
+                suffix: Some(_),
+            }) => state
+                .error_at_peek_token("suffix not allowed on alignment value")?
+                .into(),
+            Some(IntegerToken {
+                value,
+                suffix: None,
+            }) => {
+                if let Ok(value) = value.try_into() {
+                    if let Some(retval) = Alignment::new(value) {
+                        state.parse_token()?;
+                        Ok(retval)
+                    } else {
+                        state
+                            .error_at_peek_token("alignment must be an integer power-of-two")?
+                            .into()
+                    }
+                } else {
+                    state
+                        .error_at_peek_token("alignment value overflow")?
+                        .into()
+                }
+            }
+            None => state
+                .error_at_peek_token("missing alignment value: must be an integer power-of-two")?
+                .into(),
+        }
+    }
+}
+
+impl<'g> ToText<'g> for Alignment {
+    fn to_text(&self, state: &mut ToTextState<'g, '_>) -> fmt::Result {
+        write!(state, "align: {:#X}", self.get())
+    }
+}
+
+impl<'g> FromText<'g> for StructMember<'g> {
+    type Parsed = Self;
+    fn from_text(state: &mut FromTextState<'g, '_>) -> Result<Self, FromTextError> {
+        match state.peek_token()?.kind.integer() {
+            Some(IntegerToken {
+                value: _,
+                suffix: Some(_),
+            }) => state
+                .error_at_peek_token("suffix not allowed on struct member offset")?
+                .into(),
+            Some(IntegerToken {
+                value,
+                suffix: None,
+            }) => {
+                if let Ok(offset) = value.try_into() {
+                    state.parse_token()?;
+                    state.parse_punct_token_or_error(
+                        Punctuation::Colon,
+                        "missing colon between struct member's offset and type",
+                    )?;
+                    let member_type = Type::from_text(state)?;
+                    Ok(StructMember {
+                        offset,
+                        member_type,
+                    })
+                } else {
+                    state
+                        .error_at_peek_token("struct member offset overflow")?
+                        .into()
+                }
+            }
+            None => state
+                .error_at_peek_token("missing struct member offset: must be an integer")?
+                .into(),
+        }
+    }
+}
+
+impl<'g> ToText<'g> for StructMember<'g> {
+    fn to_text(&self, state: &mut ToTextState<'g, '_>) -> fmt::Result {
+        let StructMember {
+            offset,
+            member_type,
+        } = *self;
+        write!(state, "{:#X}: ", offset)?;
+        member_type.to_text(state)
+    }
+}
+
+impl<'g> FromText<'g> for StructType<'g> {
+    type Parsed = Self;
+    fn from_text(state: &mut FromTextState<'g, '_>) -> Result<Self, FromTextError> {
+        use hashbrown::hash_map::Entry::*;
+        state.parse_keyword_token_or_error(Keyword::Struct, "missing struct keyword")?;
+        let id = match state.peek_token()?.kind.integer() {
+            Some(IntegerToken {
+                value: _,
+                suffix: Some(_),
+            }) => state
+                .error_at_peek_token("suffix not allowed on struct id")?
+                .into(),
+            Some(IntegerToken {
+                value,
+                suffix: None,
+            }) => value,
+            None => state
+                .error_at_peek_token("missing alignment value: must be an integer power-of-two")?
+                .into(),
+        };
+        let id_location = state.parse_token()?.span;
+        state.parse_parenthesized(
+            Punctuation::LCurlyBrace,
+            "struct body is missing opening curly brace ('{')",
+            Punctuation::RCurlyBrace,
+            "struct body is missing closing curly brace ('}')",
+            |state| {
+                if state.peek_token()?.kind.punct() == Some(Punctuation::RCurlyBrace) {
+                    if let Some(retval) = state.structs.get(&id) {
+                        Ok(retval.clone())
+                    } else {
+                        state.error_at(id_location, "struct id not defined")?.into()
+                    }
+                } else {
+                    state.parse_keyword_token_or_error(
+                        Keyword::Size,
+                        "missing struct size keyword (`size`)",
+                    )?;
+                    state.parse_punct_token_or_error(
+                        Punctuation::Colon,
+                        "missing colon between struct size keyword and struct size",
+                    )?;
+                    let size = StructSize::from_text(state)?;
+                    state.parse_punct_token_or_error(
+                        Punctuation::Comma,
+                        "missing comma after struct size",
+                    )?;
+                    let alignment = Alignment::from_text(state)?;
+                    state.parse_punct_token_or_error(
+                        Punctuation::Comma,
+                        "missing comma after struct alignment",
+                    )?;
+                    let mut members = Vec::new();
+                    while Some(Punctuation::RCurlyBrace) != state.peek_token()?.kind.punct() {
+                        members.push(StructMember::from_text(state)?);
+                        state.parse_punct_token_or_error(
+                            Punctuation::Comma,
+                            "missing comma after struct member",
+                        )?;
+                    }
+                    let retval = StructType {
+                        size,
+                        alignment,
+                        members,
+                    };
+                    match state.structs.entry(id) {
+                        Occupied(_) => state
+                            .error_at(id_location, "struct id already defined")?
+                            .into(),
+                        Vacant(entry) => {
+                            entry.insert(retval.clone());
+                            Ok(retval)
+                        }
+                    }
+                }
+            },
+        )
+    }
+}
+
+impl<'g> ToText<'g> for StructType<'g> {
+    fn to_text(&self, state: &mut ToTextState<'g, '_>) -> fmt::Result {
+        match state.get_struct_type_id(self) {
+            NewOrOld::Old(id) => write!(state, "struct {} {{}}", id),
+            NewOrOld::New(id) => {
+                writeln!(state, "struct {} {{", id)?;
+                state.indent(|state| -> fmt::Result {
+                    let StructType {
+                        size,
+                        alignment,
+                        ref members,
+                    } = *self;
+                    write!(state, "size: ")?;
+                    size.to_text(state)?;
+                    writeln!(state, ",")?;
+                    alignment.to_text(state)?;
+                    writeln!(state, ",")?;
+                    for member in members {
+                        member.to_text(state)?;
+                        writeln!(state, ",")?;
+                    }
+                    Ok(())
+                })?;
+                write!(state, "}}")
+            }
+        }
+    }
+}
+
 impl<'g> FromText<'g> for Type<'g> {
     type Parsed = Interned<'g, Type<'g>>;
     fn from_text(
@@ -621,6 +981,9 @@ impl<'g> FromText<'g> for Type<'g> {
             TokenKind::Keyword(Keyword::Fn) | TokenKind::Keyword(Keyword::DataPtr) => {
                 PointerType::from_text(state)?.intern(state.global_state())
             }
+            TokenKind::Keyword(Keyword::Struct) => {
+                StructType::from_text(state)?.intern(state.global_state())
+            }
             _ => state.error_at_peek_token("expected type")?.into(),
         };
         Ok(retval)
@@ -638,6 +1001,7 @@ impl<'g> ToText<'g> for Type<'g> {
             Type::Pointer(v) => v.to_text(state),
             Type::Vector(v) => v.to_text(state),
             Type::Opaque(v) => v.to_text(state),
+            Type::Struct(v) => v.to_text(state),
         }
     }
 }
@@ -658,14 +1022,14 @@ mod tests {
     fn test_type_from_to_text() {
         let global_state = GlobalState::new();
         macro_rules! test_type {
-            ($global_state:ident, $text:literal, $type:expr, $formatted_text:literal) => {
+            ($global_state:ident, $text:expr, $type:expr, $formatted_text:expr) => {
                 let parsed_type = Type::parse("", $text, &$global_state).unwrap();
                 let expected_type = $type.intern(&$global_state);
                 assert_eq!(parsed_type, expected_type);
                 let text = expected_type.display().to_string();
                 assert_eq!($formatted_text, text);
             };
-            ($global_state:ident, $text:literal, $type:expr) => {
+            ($global_state:ident, $text:expr, $type:expr) => {
                 test_type!($global_state, $text, $type, $text);
             };
         }
@@ -752,6 +1116,100 @@ mod tests {
                     IntegerType::Int16.intern(&global_state),
                 ],
                 returns: Inhabited(vec![DataPointerType.intern(&global_state)]),
+            }
+        );
+        test_type!(
+            global_state,
+            concat!(
+                "struct 0 {\n",
+                "    size: fixed 0x10,\n",
+                "    align: 0x4,\n",
+                "    0x0: i32,\n",
+                "    0x4: i32,\n",
+                "    0x8: i32,\n",
+                "    0xC: i32,\n",
+                "}"
+            ),
+            StructType {
+                size: StructSize::Fixed { size: 0x10 },
+                alignment: Alignment::new(0x4).unwrap(),
+                members: vec![
+                    StructMember {
+                        offset: 0x0,
+                        member_type: IntegerType::Int32.intern(&global_state)
+                    },
+                    StructMember {
+                        offset: 0x4,
+                        member_type: IntegerType::Int32.intern(&global_state)
+                    },
+                    StructMember {
+                        offset: 0x8,
+                        member_type: IntegerType::Int32.intern(&global_state)
+                    },
+                    StructMember {
+                        offset: 0xC,
+                        member_type: IntegerType::Int32.intern(&global_state)
+                    }
+                ]
+            }
+        );
+        test_type!(
+            global_state,
+            concat!(
+                "struct 0 {\n",
+                "    size: fixed 0x1,\n",
+                "    align: 0x1,\n",
+                "    0x0: struct 1 {\n",
+                "        size: fixed 0x0,\n",
+                "        align: 0x1,\n",
+                "    },\n",
+                "    0x1: struct 1 {},\n",
+                "    0x0: i8,\n",
+                "}"
+            ),
+            StructType {
+                size: StructSize::Fixed { size: 0x1 },
+                alignment: Alignment::new(0x1).unwrap(),
+                members: vec![
+                    StructMember {
+                        offset: 0x0,
+                        member_type: StructType {
+                            size: StructSize::Fixed { size: 0x0 },
+                            alignment: Alignment::new(0x1).unwrap(),
+                            members: vec![]
+                        }
+                        .intern(&global_state)
+                    },
+                    StructMember {
+                        offset: 0x1,
+                        member_type: StructType {
+                            size: StructSize::Fixed { size: 0x0 },
+                            alignment: Alignment::new(0x1).unwrap(),
+                            members: vec![]
+                        }
+                        .intern(&global_state)
+                    },
+                    StructMember {
+                        offset: 0x0,
+                        member_type: IntegerType::Int8.intern(&global_state)
+                    }
+                ]
+            }
+        );
+        test_type!(
+            global_state,
+            concat!(
+                "struct 0 {\n",
+                "    size: variable 0x0,\n",
+                "    align: 0x4,\n",
+                "}"
+            ),
+            StructType {
+                size: StructSize::Variable {
+                    fixed_part_size: 0x0
+                },
+                alignment: Alignment::new(0x4).unwrap(),
+                members: vec![]
             }
         );
         // FIXME: add tests for opaque types
