@@ -5,6 +5,7 @@ use crate::prelude::*;
 use crate::text::FromTextError;
 use crate::text::FromTextState;
 use crate::text::ToTextState;
+use crate::TargetProperties;
 use alloc::string::String;
 use core::fmt;
 use core::hash::Hash;
@@ -21,6 +22,7 @@ pub struct GlobalState<'g> {
     location_interner: intern::Interner<'g, Location<'g>>,
     type_interner: intern::Interner<'g, Type<'g>>,
     const_interner: intern::Interner<'g, Const<'g>>,
+    target_properties_interner: intern::Interner<'g, TargetProperties>,
     value_arena: Arena<Value<'g>>,
     block_arena: Arena<BlockData<'g>>,
     loop_arena: Arena<LoopData<'g>>,
@@ -35,6 +37,7 @@ impl<'g> GlobalState<'g> {
             location_interner: intern::Interner::new(),
             type_interner: intern::Interner::new(),
             const_interner: intern::Interner::new(),
+            target_properties_interner: intern::Interner::new(),
             value_arena: Arena::new(),
             block_arena: Arena::new(),
             loop_arena: Arena::new(),
@@ -298,5 +301,12 @@ impl<'g> Internable<'g> for Type<'g> {
     type Interned = Type<'g>;
     fn intern(&self, global_state: &'g GlobalState<'g>) -> Interned<'g, Type<'g>> {
         global_state.type_interner.intern(self)
+    }
+}
+
+impl<'g> Internable<'g> for TargetProperties {
+    type Interned = TargetProperties;
+    fn intern(&self, global_state: &'g GlobalState<'g>) -> Interned<'g, TargetProperties> {
+        global_state.target_properties_interner.intern(self)
     }
 }

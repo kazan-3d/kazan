@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 // See Notices.txt for copyright information
-#![warn(missing_docs)]
+#![deny(missing_docs)]
 #![no_std]
 
 //! Shader Compiler Intermediate Representation
@@ -21,6 +21,7 @@ mod debug_info;
 mod function;
 mod global_state;
 mod instructions_impl;
+mod target_properties;
 mod types;
 mod values;
 
@@ -30,6 +31,7 @@ pub use crate::debug_info::*;
 pub use crate::function::*;
 pub use crate::global_state::*;
 pub use crate::instructions_impl::*;
+pub use crate::target_properties::*;
 pub use crate::types::*;
 pub use crate::values::*;
 pub use once_cell::unsync::OnceCell;

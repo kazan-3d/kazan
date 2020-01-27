@@ -406,6 +406,7 @@ keywords! {
     Const = "const",
     Null = "null",
     DataPtr = "data_ptr",
+    TargetProperties = "target_properties",
     Fn = "fn",
 }
 
