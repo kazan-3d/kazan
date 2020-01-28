@@ -14,13 +14,13 @@ use crate::errors::RelaxedPrecisionDecorationNotAllowed;
 use crate::errors::TranslationResult;
 use crate::errors::VariableResultTypeMustBePointer;
 use crate::parse::ParseInstruction;
+use crate::parse::TranslationStateParsingFunctionBodies;
 use crate::parse::TranslationStateParsingTypesConstantsAndGlobals;
 use crate::types::GenericSPIRVType;
 use crate::types::PointerType;
 use crate::types::PointerTypeData;
 use crate::values::SPIRVVariable;
 use crate::values::SPIRVVariableData;
-use crate::TranslationStateBase;
 use alloc::vec::Vec;
 use spirv_parser::DecorationBinding;
 use spirv_parser::DecorationBuiltIn;
@@ -170,12 +170,14 @@ impl ParseInstruction for OpVariable {
                 memory_object_declaration,
                 variable_or_struct_member,
                 object,
+                storage_class,
+                initializer,
             }),
         )
     }
     fn parse_in_function_body<'g, 'i>(
         &'i self,
-        _state: &mut TranslationStateBase<'g, 'i>,
+        _state: &mut TranslationStateParsingFunctionBodies<'g, 'i>,
     ) -> TranslationResult<()> {
         todo!()
     }

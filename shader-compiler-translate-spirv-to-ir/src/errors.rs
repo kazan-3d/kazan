@@ -292,6 +292,26 @@ impl_errors! {
     pub struct RelaxedPrecisionDecorationNotAllowed {
         pub instruction: spirv_parser::Instruction,
     }
+
+    #[display = "specialization constant missing SpecId decoration:\n{instruction}"]
+    pub struct SpecializationConstantMissingSpecId {
+        pub instruction: spirv_parser::Instruction,
+    }
+
+    #[display = "constant's result type must be OpTypeBool:\n{instruction}"]
+    pub struct ConstantResultTypeMustBeBool {
+        pub instruction: spirv_parser::Instruction,
+    }
+
+    #[display = "constant's result type must be OpTypeInt or OpTypeFloat:\n{instruction}"]
+    pub struct ConstantResultTypeMustBeIntOrFloat {
+        pub instruction: spirv_parser::Instruction,
+    }
+
+    #[display = "constant's value is too big/small:\n{instruction}"]
+    pub struct ConstantValueTooBigSmall {
+        pub instruction: spirv_parser::Instruction,
+    }
 }
 
 pub(crate) type TranslationResult<T> = Result<T, TranslationError>;

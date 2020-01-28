@@ -56,7 +56,7 @@ impl<'g> From<StructType<'g>> for SPIRVType<'g> {
 impl<'g> GenericSPIRVType<'g> for StructType<'g> {
     fn get_ir_type_with_state(
         &self,
-        state: &mut GetIrTypeState<'g>,
+        _state: &mut GetIrTypeState<'g>,
     ) -> TranslationResult<Option<Interned<'g, shader_compiler_ir::Type<'g>>>> {
         todo!()
     }

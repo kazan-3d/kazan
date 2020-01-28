@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 // See Notices.txt for copyright information
 
+use crate::constants::SPIRVConstant;
 use crate::decorations::MemoryObjectDeclaration;
 use crate::decorations::MemoryObjectDeclarationOrStructMember;
 use crate::decorations::SPIRVObject;
@@ -12,6 +13,7 @@ use alloc::rc::Rc;
 use core::ops::Deref;
 use shader_compiler_ir::GlobalState;
 use spirv_parser::BuiltIn;
+use spirv_parser::StorageClass;
 
 pub(crate) trait GenericSPIRVValue<'g>: Clone + Into<SPIRVValue<'g>> {
     fn get_type(&self) -> SPIRVType<'g>;
@@ -33,6 +35,8 @@ pub(crate) struct SPIRVVariableData<'g> {
     pub(crate) memory_object_declaration: MemoryObjectDeclaration,
     pub(crate) variable_or_struct_member: VariableOrStructMember,
     pub(crate) object: SPIRVObject,
+    pub(crate) storage_class: StorageClass,
+    pub(crate) initializer: Option<spirv_parser::IdRef>,
 }
 
 impl_decoration_aspect_members! {
@@ -73,7 +77,7 @@ impl<'g> GenericSPIRVValue<'g> for SPIRVVariable<'g> {
     }
     fn get_ir_value(
         &self,
-        global_state: &'g GlobalState<'g>,
+        _global_state: &'g GlobalState<'g>,
     ) -> TranslationResult<shader_compiler_ir::IdRef<'g, shader_compiler_ir::Value<'g>>> {
         todo!()
     }
@@ -82,12 +86,14 @@ impl<'g> GenericSPIRVValue<'g> for SPIRVVariable<'g> {
 #[derive(Clone, Debug)]
 pub(crate) enum SPIRVValue<'g> {
     Variable(SPIRVVariable<'g>),
+    Constant(SPIRVConstant<'g>),
 }
 
 impl<'g> GenericSPIRVValue<'g> for SPIRVValue<'g> {
     fn get_type(&self) -> SPIRVType<'g> {
         match self {
             Self::Variable(v) => v.get_type(),
+            Self::Constant(v) => v.get_type(),
         }
     }
     fn get_ir_value(
@@ -96,6 +102,7 @@ impl<'g> GenericSPIRVValue<'g> for SPIRVValue<'g> {
     ) -> TranslationResult<shader_compiler_ir::IdRef<'g, shader_compiler_ir::Value<'g>>> {
         match self {
             Self::Variable(v) => v.get_ir_value(global_state),
+            Self::Constant(v) => v.get_ir_value(global_state),
         }
     }
 }

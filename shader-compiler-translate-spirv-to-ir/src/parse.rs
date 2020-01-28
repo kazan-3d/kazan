@@ -104,6 +104,12 @@ decl_translation_state! {
     }
 }
 
+decl_translation_state! {
+    pub(crate) struct TranslationStateParsingFunctionBodies<'g, 'i> {
+        base: TranslationStateParsedTypesConstantsAndGlobals<'g, 'i>,
+    }
+}
+
 impl<'g, 'i> TranslationStateParsedAnnotations<'g, 'i> {
     pub(crate) fn parse_types_constants_globals_section(
         self,
@@ -144,7 +150,7 @@ pub(crate) trait ParseInstruction: Clone + Into<Instruction> {
     }
     fn parse_in_function_body<'g, 'i>(
         &'i self,
-        _state: &mut TranslationStateBase<'g, 'i>,
+        _state: &mut TranslationStateParsingFunctionBodies<'g, 'i>,
     ) -> TranslationResult<()> {
         Err(InvalidSPIRVInstructionInSection {
             instruction: self.clone().into(),
@@ -163,7 +169,7 @@ impl ParseInstruction for Instruction {
     }
     fn parse_in_function_body<'g, 'i>(
         &'i self,
-        state: &mut TranslationStateBase<'g, 'i>,
+        state: &mut TranslationStateParsingFunctionBodies<'g, 'i>,
     ) -> TranslationResult<()> {
         instruction_dispatch!(self, v, v.parse_in_function_body(state))
     }

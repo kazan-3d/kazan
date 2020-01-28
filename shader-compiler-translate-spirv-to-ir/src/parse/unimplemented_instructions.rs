@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 // See Notices.txt for copyright information
 
-use super::ParseInstruction;
-use super::TranslationStateParsingTypesConstantsAndGlobals;
+use crate::parse::ParseInstruction;
+use crate::parse::TranslationStateParsingFunctionBodies;
+use crate::parse::TranslationStateParsingTypesConstantsAndGlobals;
 use crate::TranslationResult;
-use crate::TranslationStateBase;
 
 macro_rules! unimplemented_instruction {
     ($opname:ident) => {
@@ -17,7 +17,7 @@ macro_rules! unimplemented_instruction {
             }
             fn parse_in_function_body<'g, 'i>(
                 &'i self,
-                _state: &mut TranslationStateBase<'g, 'i>,
+                _state: &mut TranslationStateParsingFunctionBodies<'g, 'i>,
             ) -> TranslationResult<()> {
                 todo!(concat!("unimplemented instruction: ", stringify!($opname)))
             }
@@ -29,19 +29,6 @@ unimplemented_instruction!(OpNop);
 unimplemented_instruction!(OpUndef);
 unimplemented_instruction!(OpLine);
 unimplemented_instruction!(OpExtInst);
-unimplemented_instruction!(OpConstantTrue);
-unimplemented_instruction!(OpConstantFalse);
-unimplemented_instruction!(OpConstant32);
-unimplemented_instruction!(OpConstant64);
-unimplemented_instruction!(OpConstantComposite);
-unimplemented_instruction!(OpConstantSampler);
-unimplemented_instruction!(OpConstantNull);
-unimplemented_instruction!(OpSpecConstantTrue);
-unimplemented_instruction!(OpSpecConstantFalse);
-unimplemented_instruction!(OpSpecConstant32);
-unimplemented_instruction!(OpSpecConstant64);
-unimplemented_instruction!(OpSpecConstantComposite);
-unimplemented_instruction!(OpSpecConstantOp);
 unimplemented_instruction!(OpFunction);
 unimplemented_instruction!(OpFunctionParameter);
 unimplemented_instruction!(OpFunctionEnd);
@@ -280,7 +267,6 @@ unimplemented_instruction!(OpAtomicFlagTestAndSet);
 unimplemented_instruction!(OpAtomicFlagClear);
 unimplemented_instruction!(OpImageSparseRead);
 unimplemented_instruction!(OpSizeOf);
-unimplemented_instruction!(OpConstantPipeStorage);
 unimplemented_instruction!(OpCreatePipeFromPipeStorage);
 unimplemented_instruction!(OpGetKernelLocalSizeForSubgroupCount);
 unimplemented_instruction!(OpGetKernelMaxNumSubgroups);
