@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 // See Notices.txt for copyright information
 
+use crate::parse::functions::TranslationStateParsingFunctionBodies;
 use crate::parse::ParseInstruction;
-use crate::parse::TranslationStateParsingFunctionBodies;
 use crate::parse::TranslationStateParsingTypesConstantsAndGlobals;
 use crate::TranslationResult;
 
@@ -29,9 +29,6 @@ unimplemented_instruction!(OpNop);
 unimplemented_instruction!(OpUndef);
 unimplemented_instruction!(OpLine);
 unimplemented_instruction!(OpExtInst);
-unimplemented_instruction!(OpFunction);
-unimplemented_instruction!(OpFunctionParameter);
-unimplemented_instruction!(OpFunctionEnd);
 unimplemented_instruction!(OpFunctionCall);
 unimplemented_instruction!(OpImageTexelPointer);
 unimplemented_instruction!(OpLoad);

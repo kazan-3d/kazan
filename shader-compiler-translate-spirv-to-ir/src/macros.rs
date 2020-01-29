@@ -93,3 +93,34 @@ macro_rules! impl_decoration_aspect_members {
         )+
     };
 }
+
+macro_rules! decl_translation_state {
+    (
+        $vis:vis struct $state_name:ident<$g:lifetime, $i:lifetime> {
+            base: $base_type:ty,
+            $(
+                $member_name:ident: $member_type:ty,
+            )*
+        }
+    ) => {
+        $vis struct $state_name<$g, $i> {
+            $vis base: $base_type,
+            $(
+                $vis $member_name: $member_type,
+            )*
+        }
+
+        impl<$g, $i> core::ops::Deref for $state_name<$g, $i> {
+            type Target = $base_type;
+            fn deref(&self) -> &Self::Target {
+                &self.base
+            }
+        }
+
+        impl<$g, $i> core::ops::DerefMut for $state_name<$g, $i> {
+            fn deref_mut(&mut self) -> &mut Self::Target {
+                &mut self.base
+            }
+        }
+    };
+}

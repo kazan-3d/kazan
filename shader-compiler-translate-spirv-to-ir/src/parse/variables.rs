@@ -13,8 +13,8 @@ use crate::errors::DecorationNotAllowedOnInstruction;
 use crate::errors::RelaxedPrecisionDecorationNotAllowed;
 use crate::errors::TranslationResult;
 use crate::errors::VariableResultTypeMustBePointer;
+use crate::parse::functions::TranslationStateParsingFunctionBodies;
 use crate::parse::ParseInstruction;
-use crate::parse::TranslationStateParsingFunctionBodies;
 use crate::parse::TranslationStateParsingTypesConstantsAndGlobals;
 use crate::types::GenericSPIRVType;
 use crate::types::PointerType;
@@ -118,11 +118,14 @@ impl ParseInstruction for OpVariable {
                                 instruction: self.clone().into(),
                             }
                         })?;
-                    result_type = PointerType::new(PointerTypeData {
-                        pointee_type,
-                        storage_class,
-                        array_stride,
-                    });
+                    result_type = PointerType::new(
+                        result_type.id(),
+                        PointerTypeData {
+                            pointee_type,
+                            storage_class,
+                            array_stride,
+                        },
+                    );
                 }
                 DecorationClass::Misc(DecorationClassMisc::BuiltIn(DecorationBuiltIn {
                     built_in: v,

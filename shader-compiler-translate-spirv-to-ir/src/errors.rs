@@ -312,6 +312,16 @@ impl_errors! {
     pub struct ConstantValueTooBigSmall {
         pub instruction: spirv_parser::Instruction,
     }
+
+    #[display = "function's function type is not an OpTypeFunction:\n{instruction}"]
+    pub struct FunctionsFunctionTypeIsNotOpTypeFunction {
+        pub instruction: spirv_parser::Instruction,
+    }
+
+    #[display = "function's result type must match the function type's return type:\n{instruction}"]
+    pub struct FunctionsResultTypeMustMatchFunctionTypesReturnType {
+        pub instruction: spirv_parser::Instruction,
+    }
 }
 
 pub(crate) type TranslationResult<T> = Result<T, TranslationError>;

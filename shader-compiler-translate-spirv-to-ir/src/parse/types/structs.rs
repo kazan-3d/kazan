@@ -136,6 +136,7 @@ impl ParseInstruction for OpTypeStruct {
         state.define_type(
             id_result,
             StructType::new(StructTypeData {
+                id: id_result.0,
                 kind: struct_kind,
                 members,
             }),

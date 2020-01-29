@@ -1,37 +1,6 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 // See Notices.txt for copyright information
 
-macro_rules! decl_translation_state {
-    (
-        $vis:vis struct $state_name:ident<$g:lifetime, $i:lifetime> {
-            base: $base_type:ty,
-            $(
-                $member_name:ident: $member_type:ty,
-            )*
-        }
-    ) => {
-        $vis struct $state_name<$g, $i> {
-            $vis base: $base_type,
-            $(
-                $vis $member_name: $member_type,
-            )*
-        }
-
-        impl<$g, $i> core::ops::Deref for $state_name<$g, $i> {
-            type Target = $base_type;
-            fn deref(&self) -> &Self::Target {
-                &self.base
-            }
-        }
-
-        impl<$g, $i> core::ops::DerefMut for $state_name<$g, $i> {
-            fn deref_mut(&mut self) -> &mut Self::Target {
-                &mut self.base
-            }
-        }
-    };
-}
-
 #[macro_use]
 pub(crate) mod instruction_dispatch;
 
@@ -45,6 +14,7 @@ mod entry_point;
 mod execution_mode;
 mod ext_inst_import;
 mod extension;
+mod functions;
 mod memory_model;
 mod types;
 mod unimplemented_instructions;
@@ -54,6 +24,8 @@ use crate::errors::InvalidSPIRVInstructionInSection;
 use crate::errors::SPIRVIdAlreadyDefined;
 use crate::errors::SPIRVIdNotDefined;
 use crate::parse::annotations::TranslationStateParsedAnnotations;
+use crate::parse::functions::TranslationStateParsedFunctions;
+use crate::parse::functions::TranslationStateParsingFunctionBodies;
 use crate::types::SPIRVType;
 use crate::values::SPIRVValue;
 use crate::SPIRVInstructionsLocation;
@@ -101,12 +73,6 @@ decl_translation_state! {
 decl_translation_state! {
     pub(crate) struct TranslationStateParsedTypesConstantsAndGlobals<'g, 'i> {
         base: TranslationStateParseBaseTypesConstantsAndGlobals<'g, 'i>,
-    }
-}
-
-decl_translation_state! {
-    pub(crate) struct TranslationStateParsingFunctionBodies<'g, 'i> {
-        base: TranslationStateParsedTypesConstantsAndGlobals<'g, 'i>,
     }
 }
 
@@ -187,7 +153,7 @@ impl<'g, 'i> TranslationStateBase<'g, 'i> {
             Ok(None)
         }
     }
-    pub(crate) fn parse(self) -> TranslationResult<()> {
+    pub(crate) fn parse(self) -> TranslationResult<TranslationStateParsedFunctions<'g, 'i>> {
         self.parse_capability_section()?
             .parse_extension_section()?
             .parse_ext_inst_import_section()?
@@ -198,9 +164,7 @@ impl<'g, 'i> TranslationStateBase<'g, 'i> {
             .parse_debug_names_section()?
             .parse_debug_module_processed_section()?
             .parse_annotations_section()?
-            .parse_types_constants_globals_section()?;
-        todo!()
-        // TODO: function declarations section
-        // TODO: function definitions section
+            .parse_types_constants_globals_section()?
+            .parse_functions_section()
     }
 }

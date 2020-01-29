@@ -129,8 +129,7 @@ impl<'g, 'i> TranslationStateBase<'g, 'i> {
         }
     }
     fn translate(self) -> Result<TranslatedSPIRVShader<'g>, TranslationError> {
-        self.parse()?;
-        todo!()
+        self.parse()?.translate()
     }
 }
 

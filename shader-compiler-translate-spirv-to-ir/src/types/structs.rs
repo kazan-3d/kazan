@@ -26,11 +26,20 @@ pub(crate) struct StructMember<'g> {
 
 #[derive(Debug)]
 pub(crate) struct StructTypeData<'g> {
+    pub(crate) id: spirv_parser::IdRef,
     pub(crate) kind: StructKind,
     pub(crate) members: Vec<StructMember<'g>>,
 }
 
-#[derive(Clone, Debug)]
+impl PartialEq<StructTypeData<'_>> for StructTypeData<'_> {
+    fn eq(&self, rhs: &StructTypeData<'_>) -> bool {
+        self.id == rhs.id
+    }
+}
+
+impl Eq for StructTypeData<'_> {}
+
+#[derive(Clone, Eq, PartialEq, Debug)]
 pub(crate) struct StructType<'g>(Rc<StructTypeData<'g>>);
 
 impl<'g> StructType<'g> {

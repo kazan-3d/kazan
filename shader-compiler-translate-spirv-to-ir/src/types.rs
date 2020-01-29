@@ -22,7 +22,7 @@ pub(crate) struct GetIrTypeState<'g> {
     global_state: &'g GlobalState<'g>,
 }
 
-pub(crate) trait GenericSPIRVType<'g>: Clone + Into<SPIRVType<'g>> {
+pub(crate) trait GenericSPIRVType<'g>: Eq + Clone + Into<SPIRVType<'g>> {
     fn get_ir_type_with_state(
         &self,
         state: &mut GetIrTypeState<'g>,
@@ -234,13 +234,13 @@ impl<'g> GenericSPIRVType<'g> for VoidType {
     }
 }
 
-#[derive(Debug)]
+#[derive(Eq, PartialEq, Debug)]
 pub(crate) struct FunctionTypeData<'g> {
     pub(crate) parameter_types: Vec<SPIRVType<'g>>,
     pub(crate) return_type: SPIRVType<'g>,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Eq, PartialEq, Debug)]
 pub(crate) struct FunctionType<'g>(Rc<FunctionTypeData<'g>>);
 
 impl<'g> FunctionType<'g> {
@@ -352,23 +352,35 @@ pub(crate) struct PointerTypeData<'g> {
 }
 
 #[derive(Clone, Debug)]
-pub(crate) struct PointerType<'g>(Rc<OnceCell<PointerTypeData<'g>>>);
+pub(crate) struct PointerType<'g> {
+    id: spirv_parser::IdRef,
+    data: Rc<OnceCell<PointerTypeData<'g>>>,
+}
 
 impl<'g> PointerType<'g> {
-    pub(crate) fn new(v: PointerTypeData<'g>) -> Self {
-        Self(Rc::new(OnceCell::from(v)))
+    pub(crate) fn new(id: spirv_parser::IdRef, v: PointerTypeData<'g>) -> Self {
+        Self {
+            id,
+            data: Rc::new(OnceCell::from(v)),
+        }
     }
-    pub(crate) fn new_forward_declaration() -> Self {
-        Self(Rc::new(OnceCell::new()))
+    pub(crate) fn new_forward_declaration(id: spirv_parser::IdRef) -> Self {
+        Self {
+            id,
+            data: Rc::new(OnceCell::new()),
+        }
+    }
+    pub(crate) fn id(&self) -> spirv_parser::IdRef {
+        self.id
     }
     pub(crate) fn get(&self) -> Option<&PointerTypeData<'g>> {
-        self.0.get()
+        self.data.get()
     }
     pub(crate) fn resolve_forward_declaration(
         &self,
         v: PointerTypeData<'g>,
     ) -> Result<(), PointerTypeData<'g>> {
-        self.0.set(v)
+        self.data.set(v)
     }
 }
 
@@ -390,7 +402,15 @@ impl<'g> GenericSPIRVType<'g> for PointerType<'g> {
     }
 }
 
-#[derive(Clone, Debug)]
+impl PartialEq<PointerType<'_>> for PointerType<'_> {
+    fn eq(&self, rhs: &PointerType<'_>) -> bool {
+        self.id == rhs.id
+    }
+}
+
+impl Eq for PointerType<'_> {}
+
+#[derive(Clone, Eq, PartialEq, Debug)]
 pub(crate) enum SPIRVType<'g> {
     Scalar(ScalarType),
     Void(VoidType),

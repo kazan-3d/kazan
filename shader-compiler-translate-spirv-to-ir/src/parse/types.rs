@@ -223,7 +223,7 @@ impl ParseInstruction for OpTypeForwardPointer {
         } = *self;
         state.define_type(
             IdResult(pointer_type),
-            PointerType::new_forward_declaration(),
+            PointerType::new_forward_declaration(pointer_type),
         )
     }
 }
@@ -270,7 +270,7 @@ impl ParseInstruction for OpTypePointer {
         let pointer_type = state
             .types
             .entry(id_result.0)?
-            .or_insert_with(|| PointerType::new_forward_declaration().into());
+            .or_insert_with(|| PointerType::new_forward_declaration(id_result.0).into());
         if let Some(pointer_type) = pointer_type.pointer() {
             pointer_type
                 .resolve_forward_declaration(PointerTypeData {
