@@ -35,10 +35,64 @@ impl<'g> CodeIO<'g> for FunctionEntry<'g> {
     }
 }
 
+/// function inlining hint
+#[derive(Copy, Clone, Eq, PartialEq, Hash)]
+pub enum InliningHint {
+    /// no request to inline or not.
+    None,
+    /// strong request to inline this function, to the extent possible.
+    ///
+    /// This is the equivalent of LLVM's `alwaysinline`.
+    Inline,
+    /// strong request to not inline this function, to the extent possible
+    ///
+    /// This is different than LLVM's `noinline` because inlining is still permitted, though discouraged.
+    DontInline,
+}
+
+impl_display_as_to_text!(InliningHint);
+
+impl<'g> FromText<'g> for InliningHint {
+    type Parsed = Self;
+    fn from_text(state: &mut FromTextState<'g, '_>) -> Result<Self, FromTextError> {
+        let retval = match state.peek_token()?.kind.keyword() {
+            Some(Keyword::None) => InliningHint::None,
+            Some(Keyword::Inline) => InliningHint::Inline,
+            Some(Keyword::DontInline) => InliningHint::DontInline,
+            _ => state.error_at_peek_token("expected inlining hint")?.into(),
+        };
+        state.parse_token()?;
+        Ok(retval)
+    }
+}
+
+impl<'g> ToText<'g> for InliningHint {
+    fn to_text(&self, state: &mut ToTextState<'g, '_>) -> fmt::Result {
+        match self {
+            InliningHint::None => write!(state, "none"),
+            InliningHint::Inline => write!(state, "inline"),
+            InliningHint::DontInline => write!(state, "dont_inline"),
+        }
+    }
+}
+
+impl_struct_with_default_from_to_text! {
+    /// optimization hints for a function
+    #[name_keyword = hints]
+    #[from_text(state <'g> FunctionHints, retval => Ok(retval))]
+    #[derive(Copy, Clone, Eq, PartialEq, Hash)]
+    pub struct FunctionHints {
+        /// function inlining hint
+        inlining_hint: InliningHint = InliningHint::None,
+    }
+}
+
 /// the struct storing the data for a `Function`
 pub struct FunctionData<'g> {
     /// the name of the `Function` -- doesn't need to be unique
     pub name: Interned<'g, str>,
+    /// optimization hints for the `Function`
+    pub hints: FunctionHints,
     /// the type of a pointer to this function
     pub function_type: FunctionPointerType<'g>,
     /// the function entry, holds the `ValueDefinition`s for the function's arguments
@@ -78,6 +132,7 @@ impl<'g> Function<'g> {
     /// the type is made from `argument_definitions` and from `body.result_definitions`.
     pub fn new(
         name: impl Internable<'g, Interned = str>,
+        hints: FunctionHints,
         argument_definitions: Vec<ValueDefinition<'g>>,
         body: Block<'g>,
         global_state: &'g GlobalState<'g>,
@@ -92,6 +147,7 @@ impl<'g> Function<'g> {
         Function {
             value: global_state.alloc(FunctionData {
                 name: name.intern(global_state),
+                hints,
                 function_type,
                 entry: FunctionEntry {
                     argument_definitions,
@@ -171,12 +227,18 @@ impl<'g> FromText<'g> for Function<'g> {
             Punctuation::RCurlyBrace,
             missing_closing_brace,
             |state| -> Result<_, _> {
+                let hints = FunctionHints::from_text(state)?;
                 let block_name = ParsedBlockNameDefinition::from_text(state)?;
                 let block =
                     Block::without_body(block_name.name, result_definitions, state.global_state());
                 let block_value = block.value();
-                let function =
-                    Function::new(name.name, argument_definitions, block, state.global_state());
+                let function = Function::new(
+                    name.name,
+                    hints,
+                    argument_definitions,
+                    block,
+                    state.global_state(),
+                );
                 if state
                     .insert_symbol(
                         name,
@@ -205,6 +267,7 @@ impl<'g> ToText<'g> for Function<'g> {
         name.to_text(state)?;
         let FunctionData {
             name: _name,
+            hints,
             function_type,
             entry: FunctionEntry {
                 argument_definitions,
@@ -216,6 +279,8 @@ impl<'g> ToText<'g> for Function<'g> {
         function_type.returns.to_text(state)?;
         writeln!(state, " {{")?;
         state.indent(|state| {
+            hints.to_text(state)?;
+            writeln!(state)?;
             Block::name_definition_to_text(body.value(), state)?;
             write!(state, " ")?;
             body.body_to_text(state)?;
@@ -249,7 +314,15 @@ mod tests {
         }
 
         let block1 = Block::without_body("block1", Uninhabited, global_state);
-        let function1 = Function::new("function1", vec![], block1, global_state);
+        let function1 = Function::new(
+            "function1",
+            FunctionHints {
+                inlining_hint: InliningHint::Inline,
+            },
+            vec![],
+            block1,
+            global_state,
+        );
         let mut block1_body = Vec::new();
         let block2 = Block::without_body("block2", Uninhabited, global_state);
         let mut block2_body = Vec::new();
@@ -265,6 +338,9 @@ mod tests {
             global_state,
             concat!(
                 "fn function1[] -> ! {\n",
+                "    hints {\n",
+                "        inlining_hint: inline,\n",
+                "    }\n",
                 "    block1 {\n",
                 "        loop loop1[] -> ! {\n",
                 "            -> [];\n",
@@ -280,7 +356,13 @@ mod tests {
         );
 
         let block1 = Block::without_body("block1", Uninhabited, global_state);
-        let function1 = Function::new("function1", vec![], block1, global_state);
+        let function1 = Function::new(
+            "function1",
+            FunctionHints::default(),
+            vec![],
+            block1,
+            global_state,
+        );
         let mut block1_body = Vec::new();
         let block2 = Block::without_body("block2", Uninhabited, global_state);
         let mut block2_body = Vec::new();
@@ -308,6 +390,9 @@ mod tests {
             global_state,
             concat!(
                 "fn function1[] -> ! {\n",
+                "    hints {\n",
+                "        inlining_hint: none,\n",
+                "    }\n",
                 "    block1 {\n",
                 "        loop loop1[\"\"0 : fn function1] -> ! {\n",
                 "            -> [loop_var : fn[] -> !];\n",

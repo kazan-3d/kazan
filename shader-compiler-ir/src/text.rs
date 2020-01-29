@@ -39,6 +39,101 @@ macro_rules! impl_display_as_to_text {
     };
 }
 
+macro_rules! impl_struct_with_default_from_to_text {
+    (
+        $(#[doc = $struct_doc:expr])*
+        #[name_keyword = $name_keyword:ident]
+        #[from_text($state:ident <$g:lifetime> $parsed_type:ty, $retval:ident => $into_parsed_type:expr)]
+        $(#[$struct_meta:meta])*
+        $vis:vis struct $struct_name:ident {
+            $(
+                $(#[doc = $doc:expr])+
+                $member:ident:$member_ty:ty = $member_init:expr,
+            )+
+        }
+    ) => {
+        $(#[doc = $struct_doc])*
+        #[derive(Clone, Eq, PartialEq, Hash)]
+        $vis struct $struct_name {
+            $(
+                $(#[doc = $doc])+
+                $vis $member: $member_ty,
+            )+
+        }
+
+        impl_display_as_to_text!($struct_name);
+
+        impl Default for $struct_name {
+            fn default() -> Self {
+                $struct_name {
+                    $(
+                        $member: $member_init,
+                    )+
+                }
+            }
+        }
+
+        impl<'g> crate::text::FromText<'g> for $struct_name {
+            type Parsed = $parsed_type;
+            fn from_text($state: &mut crate::text::FromTextState<'g, '_>) -> Result<Self::Parsed, crate::text::FromTextError> {
+                if let Some(stringify!($name_keyword)) = $state.peek_token()?.kind.raw_identifier() {
+                    $state.parse_token()?;
+                } else {
+                    $state.error_at_peek_token(concat!("missing ", stringify!($name_keyword)))?;
+                }
+                $state.parse_parenthesized(
+                    crate::text::Punctuation::LCurlyBrace,
+                    "missing opening curly brace ('{')",
+                    crate::text::Punctuation::RCurlyBrace,
+                    "missing closing curly brace ('}')",
+                    |$state| -> Result<Self::Parsed, crate::text::FromTextError> {
+                        let mut $retval = Self::default();
+                        struct Specified {
+                            $($member: bool,)+
+                        }
+                        let mut specified = Specified {
+                            $($member: false,)+
+                        };
+                        while let Some(ident) = $state.peek_token()?.kind.raw_identifier() {
+                            match ident {
+                                $(
+                                    stringify!($member) => {
+                                        if specified.$member {
+                                            $state.error_at_peek_token(concat!("duplicate field: ", stringify!($member), " already specified"))?;
+                                        }
+                                        specified.$member = true;
+                                        $state.parse_token()?;
+                                        $state.parse_punct_token_or_error(crate::text::Punctuation::Colon, "missing colon (':') after field name")?;
+                                        $retval.$member = <$member_ty>::from_text($state)?;
+                                    }
+                                )+
+                                _ => $state.error_at_peek_token("unknown field name")?.into(),
+                            }
+                            $state.parse_punct_token_or_error(crate::text::Punctuation::Comma, "missing comma (',') after field value")?;
+                        }
+                        $into_parsed_type
+                    },
+                )
+            }
+        }
+
+        impl<'g> crate::text::ToText<'g> for $struct_name {
+            fn to_text(&self, state: &mut crate::text::ToTextState<'g, '_>) -> core::fmt::Result {
+                writeln!(state, concat!(stringify!($name_keyword), " {{"))?;
+                state.indent(|state| -> core::fmt::Result {
+                    $(
+                        write!(state, concat!(stringify!($member), ": "))?;
+                        self.$member.to_text(state)?;
+                        writeln!(state, ",")?;
+                    )+
+                    Ok(())
+                })?;
+                write!(state, "}}")
+            }
+        }
+    };
+}
+
 /// the struct managing the source code for `FromText`.
 #[derive(Debug)]
 pub struct FromTextSourceCode<'a> {
@@ -412,8 +507,10 @@ keywords! {
     Variable = "variable",
     Align = "align",
     Size = "size",
-    TargetProperties = "target_properties",
     Fn = "fn",
+    Inline = "inline",
+    DontInline = "dont_inline",
+    None = "none",
 }
 
 keywords! {
