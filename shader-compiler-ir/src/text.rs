@@ -416,28 +416,31 @@ pub struct ParseKeywordError;
 macro_rules! keywords {
     (
         $(#[doc = $keyword_enum_doc:literal])*
-        $keyword_enum:ident,
-        $(#[doc = $doc1:expr] $name1:ident = $text1:literal,)*
-        $name2:ident = $text2:literal,
-        $($(#[doc = $doc3:expr])* $name3:ident = $text3:literal,)*
+        $vis:vis enum $keyword_enum:ident {
+            $(#[doc = $doc1:expr] $name1:ident = $text1:literal,)*
+            $name2:ident = $text2:literal,
+            $($(#[doc = $doc3:expr])* $name3:ident = $text3:literal,)*
+        }
     ) => {
         keywords! {
             $(#[doc = $keyword_enum_doc])*
-            $keyword_enum,
-            $(#[doc = $doc1] $name1 = $text1,)*
-            #[doc = concat!("The keyword \"", $text2, "\"")]
-            $name2 = $text2,
-            $($(#[doc = $doc3])* $name3 = $text3,)*
+            $vis enum $keyword_enum {
+                $(#[doc = $doc1] $name1 = $text1,)*
+                #[doc = concat!("The keyword \"", $text2, "\"")]
+                $name2 = $text2,
+                $($(#[doc = $doc3])* $name3 = $text3,)*
+            }
         }
     };
     (
         $(#[doc = $keyword_enum_doc:literal])*
-        $keyword_enum:ident,
-        $(#[doc = $doc:expr] $name:ident = $text:literal,)+
+        $vis:vis enum $keyword_enum:ident {
+            $(#[doc = $doc:expr] $name:ident = $text:literal,)+
+        }
     ) => {
         $(#[doc = $keyword_enum_doc])*
         #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
-        pub enum $keyword_enum {
+        $vis enum $keyword_enum {
             $(
                 #[doc = $doc]
                 $name,
@@ -483,71 +486,78 @@ macro_rules! keywords {
 
 keywords! {
     /// a keyword
-    Keyword,
-    I8 = "i8",
-    I16 = "i16",
-    I32 = "i32",
-    RI32 = "ri32",
-    I64 = "i64",
-    F16 = "f16",
-    F32 = "f32",
-    RF32 = "rf32",
-    F64 = "f64",
-    Bool = "bool",
-    X = "x",
-    VScale = "vscale",
-    Undef = "undef",
-    True = "true",
-    False = "false",
-    Const = "const",
-    Null = "null",
-    DataPtr = "data_ptr",
-    Struct = "struct",
-    Fixed = "fixed",
-    Variable = "variable",
-    Align = "align",
-    Size = "size",
-    Fn = "fn",
-    Inline = "inline",
-    DontInline = "dont_inline",
-    None = "none",
+    pub enum Keyword {
+        Align = "align",
+        Bool = "bool",
+        Const = "const",
+        DataPtr = "data_ptr",
+        DontInline = "dont_inline",
+        F16 = "f16",
+        F32 = "f32",
+        F64 = "f64",
+        False = "false",
+        Fixed = "fixed",
+        Fn = "fn",
+        I16 = "i16",
+        I32 = "i32",
+        I64 = "i64",
+        I8 = "i8",
+        Inline = "inline",
+        None = "none",
+        Normal = "normal",
+        Null = "null",
+        Pure = "pure",
+        RF32 = "rf32",
+        RI32 = "ri32",
+        Size = "size",
+        Struct = "struct",
+        True = "true",
+        Undef = "undef",
+        Variable = "variable",
+        VScale = "vscale",
+        X = "x",
+    }
 }
 
 keywords! {
     /// an integer suffix
-    IntegerSuffix,
-    I8 = "i8",
-    I16 = "i16",
-    I32 = "i32",
-    RI32 = "ri32",
-    I64 = "i64",
+    pub enum IntegerSuffix {
+        I8 = "i8",
+        I16 = "i16",
+        I32 = "i32",
+        RI32 = "ri32",
+        I64 = "i64",
+    }
 }
 
 macro_rules! punctuation {
     (
         $(#[doc = $enum_doc:literal])*
-        $enum:ident,
-        $(#[doc = $doc1:expr] $name1:ident = $text1:literal,)*
-        $name2:ident = $text2:literal,
-        $($(#[doc = $doc3:expr])* $name3:ident = $text3:literal,)*
+        $vis:vis enum $enum:ident {
+            $(#[doc = $doc1:expr] $name1:ident = $text1:literal,)*
+            $name2:ident = $text2:literal,
+            $($(#[doc = $doc3:expr])* $name3:ident = $text3:literal,)*
+        }
     ) => {
         punctuation! {
             $(#[doc = $enum_doc])*
-            $enum,
-            $(#[doc = $doc1] $name1 = $text1,)*
-            #[doc = concat!("The punctuation \"", $text2, "\"")]
-            $name2 = $text2,
-            $($(#[doc = $doc3])* $name3 = $text3,)*
+            $vis enum $enum {
+                $(#[doc = $doc1] $name1 = $text1,)*
+                #[doc = concat!("The punctuation \"", $text2, "\"")]
+                $name2 = $text2,
+                $($(#[doc = $doc3])* $name3 = $text3,)*
+            }
         }
     };
     (
         $(#[doc = $enum_doc:literal])*
-        $enum:ident,
-        $(#[doc = $doc:expr] $name:ident = $text:literal,)+
+        $vis:vis enum $enum:ident {
+            $(#[doc = $doc:expr] $name:ident = $text:literal,)+
+        }
     ) => {
         $(#[doc = $enum_doc])*
         #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
-        pub enum $enum {
+        $vis enum $enum {
             $(
                 #[doc = $doc]
                 $name,
@@ -593,35 +603,36 @@ macro_rules! punctuation {
 
 punctuation! {
     /// a punctuation character or character sequence
-    Punctuation,
-    ExMark = "!",
-    Dollar = "$",
-    Percent = "%",
-    Ampersand = "&",
-    LParen = "(",
-    RParen = ")",
-    Asterisk = "*",
-    Plus = "+",
-    Comma = ",",
-    Minus = "-",
-    Period = ".",
-    Slash = "/",
-    Colon = ":",
-    Semicolon = ";",
-    LessThan = "<",
-    Equal = "=",
-    GreaterThan = ">",
-    QMark = "?",
-    At = "@",
-    LSquareBracket = "[",
-    RSquareBracket = "]",
-    Caret = "^",
-    Underscore = "_",
-    LCurlyBrace = "{",
-    VBar = "|",
-    RCurlyBrace = "}",
-    Tilde = "~",
-    Arrow = "->",
+    pub enum Punctuation {
+        ExMark = "!",
+        Dollar = "$",
+        Percent = "%",
+        Ampersand = "&",
+        LParen = "(",
+        RParen = ")",
+        Asterisk = "*",
+        Plus = "+",
+        Comma = ",",
+        Minus = "-",
+        Period = ".",
+        Slash = "/",
+        Colon = ":",
+        Semicolon = ";",
+        LessThan = "<",
+        Equal = "=",
+        GreaterThan = ">",
+        QMark = "?",
+        At = "@",
+        LSquareBracket = "[",
+        RSquareBracket = "]",
+        Caret = "^",
+        Underscore = "_",
+        LCurlyBrace = "{",
+        VBar = "|",
+        RCurlyBrace = "}",
+        Tilde = "~",
+        Arrow = "->",
+    }
 }
 
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]

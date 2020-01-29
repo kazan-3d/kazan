@@ -50,6 +50,12 @@ pub enum InliningHint {
     DontInline,
 }
 
+impl Default for InliningHint {
+    fn default() -> Self {
+        InliningHint::None
+    }
+}
+
 impl_display_as_to_text!(InliningHint);
 
 impl<'g> FromText<'g> for InliningHint {
@@ -59,7 +65,11 @@ impl<'g> FromText<'g> for InliningHint {
             Some(Keyword::None) => InliningHint::None,
             Some(Keyword::Inline) => InliningHint::Inline,
             Some(Keyword::DontInline) => InliningHint::DontInline,
-            _ => state.error_at_peek_token("expected inlining hint")?.into(),
+            _ => state
+                .error_at_peek_token(
+                    "expected inlining hint (one of `none`, `inline`, or `dont_inline`)",
+                )?
+                .into(),
         };
         state.parse_token()?;
         Ok(retval)
@@ -76,6 +86,61 @@ impl<'g> ToText<'g> for InliningHint {
     }
 }
 
+/// function side-effects
+#[derive(Copy, Clone, Eq, PartialEq, Hash)]
+pub enum FunctionSideEffects {
+    /// The function is a normal function -- can read and modify all visible memory and have side-effects.
+    Normal,
+    /// Compiler can assume this function has no side effect, but might read global
+    /// memory or read through dereferenced function parameters. Always computes the
+    /// same result for the same argument values.
+    ///
+    /// Same as SPIR-V's `FunctionControl::Pure` or LLVM's `readonly`
+    Pure,
+    /// Compiler can assume this function has no side effects, and will not access
+    /// global memory or dereference function parameters. Always computes the same
+    /// result for the same argument values.
+    ///
+    /// Same as SPIR-V's `FunctionControl::Const` or LLVM's `readnone`
+    Const,
+}
+
+impl Default for FunctionSideEffects {
+    fn default() -> Self {
+        FunctionSideEffects::Normal
+    }
+}
+
+impl_display_as_to_text!(FunctionSideEffects);
+
+impl<'g> FromText<'g> for FunctionSideEffects {
+    type Parsed = Self;
+    fn from_text(state: &mut FromTextState<'g, '_>) -> Result<Self, FromTextError> {
+        let retval = match state.peek_token()?.kind.keyword() {
+            Some(Keyword::Normal) => FunctionSideEffects::Normal,
+            Some(Keyword::Pure) => FunctionSideEffects::Pure,
+            Some(Keyword::Const) => FunctionSideEffects::Const,
+            _ => state
+                .error_at_peek_token(
+                    "expected function side-effects (one of `normal`, `pure`, or `const`)",
+                )?
+                .into(),
+        };
+        state.parse_token()?;
+        Ok(retval)
+    }
+}
+
+impl<'g> ToText<'g> for FunctionSideEffects {
+    fn to_text(&self, state: &mut ToTextState<'g, '_>) -> fmt::Result {
+        match self {
+            FunctionSideEffects::Normal => write!(state, "normal"),
+            FunctionSideEffects::Pure => write!(state, "pure"),
+            FunctionSideEffects::Const => write!(state, "const"),
+        }
+    }
+}
+
 impl_struct_with_default_from_to_text! {
     /// optimization hints for a function
     #[name_keyword = hints]
@@ -83,7 +148,9 @@ impl_struct_with_default_from_to_text! {
     #[derive(Copy, Clone, Eq, PartialEq, Hash)]
     pub struct FunctionHints {
         /// function inlining hint
-        inlining_hint: InliningHint = InliningHint::None,
+        inlining_hint: InliningHint = InliningHint::default(),
+        /// function side-effects
+        side_effects: FunctionSideEffects = FunctionSideEffects::default(),
     }
 }
 
@@ -318,6 +385,7 @@ mod tests {
             "function1",
             FunctionHints {
                 inlining_hint: InliningHint::Inline,
+                side_effects: FunctionSideEffects::Const,
             },
             vec![],
             block1,
@@ -340,6 +408,7 @@ mod tests {
                 "fn function1[] -> ! {\n",
                 "    hints {\n",
                 "        inlining_hint: inline,\n",
+                "        side_effects: const,\n",
                 "    }\n",
                 "    block1 {\n",
                 "        loop loop1[] -> ! {\n",
@@ -392,6 +461,7 @@ mod tests {
                 "fn function1[] -> ! {\n",
                 "    hints {\n",
                 "        inlining_hint: none,\n",
+                "        side_effects: normal,\n",
                 "    }\n",
                 "    block1 {\n",
                 "        loop loop1[\"\"0 : fn function1] -> ! {\n",
