@@ -19,7 +19,7 @@ mod values;
 pub use crate::errors::*;
 
 use alloc::vec::Vec;
-use core::{fmt, iter, slice};
+use core::{fmt, slice};
 use shader_compiler_ir::GlobalState;
 use spirv_parser::ExecutionModel;
 
@@ -89,8 +89,21 @@ decl_specialization_resolver! {
 #[derive(Default)]
 pub struct DefaultSpecializationResolver;
 
-#[derive(Debug, Clone)]
-struct SPIRVInstructionsLocation<'i>(iter::Enumerate<slice::Iter<'i, spirv_parser::Instruction>>);
+#[derive(Clone, Debug)]
+struct SPIRVInstructionsLocation<'i> {
+    index: usize,
+    iter: slice::Iter<'i, spirv_parser::Instruction>,
+}
+
+impl<'i> Iterator for SPIRVInstructionsLocation<'i> {
+    type Item = (&'i spirv_parser::Instruction, Self);
+    fn next(&mut self) -> Option<Self::Item> {
+        let location = self.clone();
+        let instruction = self.iter.next()?;
+        self.index += 1;
+        Some((instruction, location))
+    }
+}
 
 struct TranslationStateBase<'g, 'i> {
     global_state: &'g GlobalState<'g>,
@@ -121,9 +134,10 @@ impl<'g, 'i> TranslationStateBase<'g, 'i> {
             entry_point_execution_model,
             spirv_header,
             spirv_instructions,
-            spirv_instructions_location: SPIRVInstructionsLocation(
-                spirv_instructions.iter().enumerate(),
-            ),
+            spirv_instructions_location: SPIRVInstructionsLocation {
+                index: 0,
+                iter: spirv_instructions.iter(),
+            },
         }
     }
     fn translate(self) -> Result<TranslatedSPIRVShader<'g>, TranslationError> {

@@ -7,6 +7,7 @@ pub(crate) mod instruction_dispatch;
 mod annotations;
 mod capability;
 mod constants;
+mod debug_locations;
 mod debug_module_processed;
 mod debug_names;
 mod debug_strings_sources;
@@ -30,6 +31,7 @@ use crate::{
     values::SPIRVValue,
     SPIRVInstructionsLocation, TranslationResult, TranslationStateBase,
 };
+use alloc::vec::Vec;
 use spirv_id_map::IdMap;
 use spirv_parser::{IdRef, IdResult, Instruction};
 
@@ -38,6 +40,7 @@ decl_translation_state! {
         base: annotations::TranslationStateParsedAnnotations<'g, 'i>,
         types: IdMap<IdRef, SPIRVType<'g>>,
         values: IdMap<IdRef, SPIRVValue<'g>>,
+        debug_locations: Vec<Option<shader_compiler_ir::Interned<'g, shader_compiler_ir::Location<'g>>>>,
     }
 }
 
@@ -81,6 +84,7 @@ impl<'g, 'i> TranslationStateParsedAnnotations<'g, 'i> {
             base: TranslationStateParseBaseTypesConstantsAndGlobals {
                 types: IdMap::new(&self.spirv_header),
                 values: IdMap::new(&self.spirv_header),
+                debug_locations: Vec::with_capacity(self.spirv_instructions.len()),
                 base: self,
             },
         };
@@ -142,9 +146,8 @@ impl<'g, 'i> TranslationStateBase<'g, 'i> {
     fn get_instruction_and_location(
         &mut self,
     ) -> TranslationResult<Option<(&'i Instruction, SPIRVInstructionsLocation<'i>)>> {
-        let location = self.spirv_instructions_location.clone();
-        if let Some((index, instruction)) = self.spirv_instructions_location.0.next() {
-            write!(self.debug_output, "{:05}: {}", index, instruction)?;
+        if let Some((instruction, location)) = self.spirv_instructions_location.next() {
+            write!(self.debug_output, "{:05}: {}", location.index, instruction)?;
             Ok(Some((instruction, location)))
         } else {
             Ok(None)

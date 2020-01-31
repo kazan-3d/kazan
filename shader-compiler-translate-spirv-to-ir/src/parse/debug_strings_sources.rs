@@ -2,7 +2,7 @@
 // See Notices.txt for copyright information
 
 use crate::{
-    errors::SPIRVIdAlreadyDefined,
+    errors::{SPIRVIdAlreadyDefined, SPIRVIdNotDefined},
     parse::{execution_mode::TranslationStateParsedExecutionModes, ParseInstruction},
     TranslationResult,
 };
@@ -30,6 +30,12 @@ impl<'g, 'i> TranslationStateParsedDebugStringsSources<'g, 'i> {
         } else {
             Err(SPIRVIdAlreadyDefined { id_result }.into())
         }
+    }
+    pub(crate) fn get_debug_string(&self, id: IdRef) -> TranslationResult<Interned<'g, str>> {
+        self.debug_strings
+            .get(id)?
+            .copied()
+            .ok_or_else(|| SPIRVIdNotDefined { id }.into())
     }
 }
 

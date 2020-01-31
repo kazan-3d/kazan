@@ -30,7 +30,6 @@ macro_rules! unimplemented_instruction {
 
 unimplemented_instruction!(OpNop);
 unimplemented_instruction!(OpUndef);
-unimplemented_instruction!(OpLine);
 unimplemented_instruction!(OpExtInst);
 unimplemented_instruction!(OpFunctionCall);
 unimplemented_instruction!(OpImageTexelPointer);
@@ -262,7 +261,6 @@ unimplemented_instruction!(OpImageSparseFetch);
 unimplemented_instruction!(OpImageSparseGather);
 unimplemented_instruction!(OpImageSparseDrefGather);
 unimplemented_instruction!(OpImageSparseTexelsResident);
-unimplemented_instruction!(OpNoLine);
 unimplemented_instruction!(OpAtomicFlagTestAndSet);
 unimplemented_instruction!(OpAtomicFlagClear);
 unimplemented_instruction!(OpImageSparseRead);
