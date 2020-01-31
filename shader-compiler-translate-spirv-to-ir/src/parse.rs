@@ -48,19 +48,19 @@ impl<'g, 'i> TranslationStateParseBaseTypesConstantsAndGlobals<'g, 'i> {
     fn define_value(
         &mut self,
         id_result: IdResult,
-        ty: impl Into<SPIRVValue<'g>>,
+        v: impl Into<SPIRVValue<'g>>,
     ) -> TranslationResult<()> {
         if let spirv_id_map::Vacant(entry) = self.values.entry(id_result.0)? {
-            entry.insert(ty.into());
+            entry.insert(v.into());
             Ok(())
         } else {
             Err(SPIRVIdAlreadyDefined { id_result }.into())
         }
     }
-    pub(crate) fn get_value(&self, type_id: IdRef) -> TranslationResult<&SPIRVValue<'g>> {
+    pub(crate) fn get_value(&self, value_id: IdRef) -> TranslationResult<&SPIRVValue<'g>> {
         self.values
-            .get(type_id)?
-            .ok_or_else(|| SPIRVIdNotDefined { id: type_id }.into())
+            .get(value_id)?
+            .ok_or_else(|| SPIRVIdNotDefined { id: value_id }.into())
     }
 }
 

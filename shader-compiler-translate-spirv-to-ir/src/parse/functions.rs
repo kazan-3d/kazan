@@ -9,8 +9,8 @@ use crate::{
         FunctionsResultTypeMustMatchFunctionTypesReturnType,
         InlineAndDontInlineAreNotAllowedTogether, InstructionNotValidBeforeLabel,
         InvalidSPIRVInstructionInSection, RelaxedPrecisionDecorationNotAllowed,
-        TooFewOpFunctionParameterInstructions, TooManyOpFunctionParameterInstructions,
-        TranslationResult,
+        SPIRVIdAlreadyDefined, TooFewOpFunctionParameterInstructions,
+        TooManyOpFunctionParameterInstructions, TranslationResult,
     },
     parse::{ParseInstruction, TranslationStateParsedTypesConstantsAndGlobals},
     types::{FunctionType, FunctionTypeData, GenericSPIRVType},
@@ -23,7 +23,7 @@ use shader_compiler_ir::{
 };
 use spirv_id_map::IdMap;
 use spirv_parser::{
-    FunctionControl, Instruction, OpFunction, OpFunctionEnd, OpFunctionParameter, OpLabel,
+    FunctionControl, IdResult, Instruction, OpFunction, OpFunctionEnd, OpFunctionParameter, OpLabel,
 };
 
 pub(crate) struct SPIRVFunctionData<'g, 'i> {
@@ -47,6 +47,21 @@ decl_translation_state! {
     pub(crate) struct TranslationStateParseFunctionsBase<'g, 'i> {
         base: TranslationStateParsedTypesConstantsAndGlobals<'g, 'i>,
         functions: IdMap<spirv_parser::IdRef, SPIRVFunction<'g, 'i>>,
+    }
+}
+
+impl<'g, 'i> TranslationStateParseFunctionsBase<'g, 'i> {
+    fn define_function(
+        &mut self,
+        id_result: IdResult,
+        v: SPIRVFunction<'g, 'i>,
+    ) -> TranslationResult<()> {
+        if let spirv_id_map::Vacant(entry) = self.functions.entry(id_result.0)? {
+            entry.insert(v);
+            Ok(())
+        } else {
+            Err(SPIRVIdAlreadyDefined { id_result }.into())
+        }
     }
 }
 
@@ -242,7 +257,8 @@ fn parse_function_header<'g, 'i>(
         body_start_location,
     }));
 
-    todo!()
+    state.define_function(id_result, function)?;
+    Ok(state)
 }
 
 impl<'g, 'i> TranslationStateParsedTypesConstantsAndGlobals<'g, 'i> {
