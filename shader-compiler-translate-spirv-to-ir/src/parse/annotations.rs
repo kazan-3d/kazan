@@ -1,30 +1,23 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 // See Notices.txt for copyright information
 
-use crate::decorations::DecorationClass;
-use crate::errors::DecorationNotAllowedOnInstruction;
-use crate::errors::MemberDecorationsAreOnlyAllowedOnStructTypes;
-use crate::errors::SPIRVIdAlreadyDefined;
-use crate::errors::SPIRVIdNotDefined;
-use crate::parse::debug_module_processed::TranslationStateParsedDebugModuleProcessed;
-use crate::parse::ParseInstruction;
-use crate::TranslationResult;
+use crate::{
+    decorations::DecorationClass,
+    errors::{
+        DecorationNotAllowedOnInstruction, MemberDecorationsAreOnlyAllowedOnStructTypes,
+        SPIRVIdAlreadyDefined, SPIRVIdNotDefined,
+    },
+    parse::{debug_module_processed::TranslationStateParsedDebugModuleProcessed, ParseInstruction},
+    TranslationResult,
+};
 use alloc::vec::Vec;
 use hashbrown::HashMap;
-use spirv_id_map::Entry::Vacant;
-use spirv_id_map::IdMap;
-use spirv_parser::Decoration;
-use spirv_parser::IdRef;
-use spirv_parser::IdResult;
-use spirv_parser::Instruction;
-use spirv_parser::OpDecorate;
-use spirv_parser::OpDecorateId;
-use spirv_parser::OpDecorateString;
-use spirv_parser::OpDecorationGroup;
-use spirv_parser::OpGroupDecorate;
-use spirv_parser::OpGroupMemberDecorate;
-use spirv_parser::OpMemberDecorate;
-use spirv_parser::OpMemberDecorateString;
+use spirv_id_map::{Entry::Vacant, IdMap};
+use spirv_parser::{
+    Decoration, IdRef, IdResult, Instruction, OpDecorate, OpDecorateId, OpDecorateString,
+    OpDecorationGroup, OpGroupDecorate, OpGroupMemberDecorate, OpMemberDecorate,
+    OpMemberDecorateString,
+};
 
 #[derive(Clone, Debug, Default)]
 pub(crate) struct DecorationsAndMemberDecorations {

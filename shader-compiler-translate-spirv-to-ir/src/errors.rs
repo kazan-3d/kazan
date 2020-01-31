@@ -2,9 +2,7 @@
 // See Notices.txt for copyright information
 use alloc::string::String;
 use core::fmt;
-use spirv_parser::Decoration;
-use spirv_parser::IdRef;
-use spirv_parser::IdResult;
+use spirv_parser::{Decoration, IdRef, IdResult};
 
 macro_rules! impl_error {
     (

@@ -1,14 +1,10 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 // See Notices.txt for copyright information
 
-use crate::errors::decoration_not_allowed;
-use crate::errors::TranslationResult;
+use crate::errors::{decoration_not_allowed, TranslationResult};
 use alloc::vec::Vec;
-use core::ops::Deref;
-use core::ops::DerefMut;
-use spirv_parser::DecorationComponent;
-use spirv_parser::DecorationLocation;
-use spirv_parser::DecorationUniformId;
+use core::ops::{Deref, DerefMut};
+use spirv_parser::{DecorationComponent, DecorationLocation, DecorationUniformId};
 
 impl_spirv_enum_partition! {
     /// partitioned form of `Decoration`

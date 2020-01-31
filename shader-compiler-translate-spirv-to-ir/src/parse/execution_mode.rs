@@ -1,19 +1,16 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 // See Notices.txt for copyright information
 
-use crate::errors::DuplicateSPIRVLocalSize;
-use crate::errors::UnsupportedSPIRVExecutionMode;
-use crate::parse::entry_point::TranslationStateParsedEntryPoints;
-use crate::parse::ParseInstruction;
-use crate::TranslationResult;
+use crate::{
+    errors::{DuplicateSPIRVLocalSize, UnsupportedSPIRVExecutionMode},
+    parse::{entry_point::TranslationStateParsedEntryPoints, ParseInstruction},
+    TranslationResult,
+};
 use core::mem;
-use spirv_parser::ExecutionMode;
-use spirv_parser::ExecutionModeLocalSize;
-use spirv_parser::ExecutionModeLocalSizeId;
-use spirv_parser::IdRef;
-use spirv_parser::Instruction;
-use spirv_parser::OpExecutionMode;
-use spirv_parser::OpExecutionModeId;
+use spirv_parser::{
+    ExecutionMode, ExecutionModeLocalSize, ExecutionModeLocalSizeId, IdRef, Instruction,
+    OpExecutionMode, OpExecutionModeId,
+};
 
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
 pub(crate) enum FragmentTestsTime {

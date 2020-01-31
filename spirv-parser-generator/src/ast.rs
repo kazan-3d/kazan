@@ -1,15 +1,12 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 // See Notices.txt for copyright information
 
-use crate::util::NameFormat::*;
-use crate::util::WordIterator;
+use crate::util::{NameFormat::*, WordIterator};
 use proc_macro2::TokenStream;
 use quote::ToTokens;
 use serde::de::{self, Deserialize, Deserializer};
 use serde_derive::Deserialize;
-use std::borrow::Cow;
-use std::fmt;
-use std::mem;
+use std::{borrow::Cow, fmt, mem};
 
 #[derive(Copy, Clone)]
 pub struct QuotedInteger(pub u32);

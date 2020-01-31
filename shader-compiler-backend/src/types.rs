@@ -4,12 +4,14 @@
 //! types in backend IR
 
 use crate::Context;
-use std::cell::UnsafeCell;
-use std::fmt::Debug;
-use std::hash::Hash;
-use std::marker::PhantomData;
-use std::ops::{Deref, DerefMut};
-use std::ptr::NonNull;
+use std::{
+    cell::UnsafeCell,
+    fmt::Debug,
+    hash::Hash,
+    marker::PhantomData,
+    ops::{Deref, DerefMut},
+    ptr::NonNull,
+};
 
 #[doc(hidden)]
 #[macro_export]

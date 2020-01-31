@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 // See Notices.txt for copyright information
 
-use std::borrow::Borrow;
-use std::iter::Iterator;
+use std::{borrow::Borrow, iter::Iterator};
 
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
 enum CharClass {

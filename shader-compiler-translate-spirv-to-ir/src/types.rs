@@ -3,19 +3,12 @@
 
 pub(crate) mod structs;
 
-use crate::errors::TranslationResult;
-use crate::errors::VoidNotAllowedHere;
-use alloc::rc::Rc;
-use alloc::vec::Vec;
-use core::borrow::Borrow;
-use core::marker::PhantomData;
-use core::ops::Deref;
+use crate::errors::{TranslationResult, VoidNotAllowedHere};
+use alloc::{rc::Rc, vec::Vec};
+use core::{borrow::Borrow, marker::PhantomData, ops::Deref};
 use once_cell::unsync::OnceCell;
-use shader_compiler_ir::prelude::*;
-use shader_compiler_ir::BoolType;
-use shader_compiler_ir::FloatType;
-use spirv_parser::IdRef;
-use spirv_parser::StorageClass;
+use shader_compiler_ir::{prelude::*, BoolType, FloatType};
+use spirv_parser::{IdRef, StorageClass};
 use structs::StructType;
 
 pub(crate) struct GetIrTypeState<'g> {

@@ -1,16 +1,12 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 // See Notices.txt for copyright information
 
-use crate::parse::ext_inst_import::TranslationStateParsedExtInstImports;
-use crate::parse::ParseInstruction;
-use crate::MissingSPIRVOpMemoryModel;
-use crate::SPIRVAddressingModelNotSupported;
-use crate::SPIRVMemoryModelNotSupported;
-use crate::TranslationResult;
-use spirv_parser::AddressingModel;
-use spirv_parser::Instruction;
-use spirv_parser::MemoryModel;
-use spirv_parser::OpMemoryModel;
+use crate::{
+    parse::{ext_inst_import::TranslationStateParsedExtInstImports, ParseInstruction},
+    MissingSPIRVOpMemoryModel, SPIRVAddressingModelNotSupported, SPIRVMemoryModelNotSupported,
+    TranslationResult,
+};
+use spirv_parser::{AddressingModel, Instruction, MemoryModel, OpMemoryModel};
 
 decl_translation_state! {
     pub(crate) struct TranslationStateParsedMemoryModel<'g, 'i> {

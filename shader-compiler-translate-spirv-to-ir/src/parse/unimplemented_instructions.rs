@@ -1,10 +1,13 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 // See Notices.txt for copyright information
 
-use crate::parse::functions::TranslationStateParsingFunctionBodies;
-use crate::parse::ParseInstruction;
-use crate::parse::TranslationStateParsingTypesConstantsAndGlobals;
-use crate::TranslationResult;
+use crate::{
+    parse::{
+        functions::TranslationStateParsingFunctionBodies, ParseInstruction,
+        TranslationStateParsingTypesConstantsAndGlobals,
+    },
+    TranslationResult,
+};
 
 macro_rules! unimplemented_instruction {
     ($opname:ident) => {

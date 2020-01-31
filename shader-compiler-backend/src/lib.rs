@@ -4,13 +4,9 @@
 
 //! Shader Compiler Backend Traits for Kazan
 
-use std::collections::HashMap;
-use std::error::Error;
-use std::fmt;
-use std::fmt::Debug;
-use std::hash::Hash;
-use std::io;
-use std::marker::PhantomData;
+use std::{
+    collections::HashMap, error::Error, fmt, fmt::Debug, hash::Hash, io, marker::PhantomData,
+};
 
 #[macro_use]
 pub mod types;

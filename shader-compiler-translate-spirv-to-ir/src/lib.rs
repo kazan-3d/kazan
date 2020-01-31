@@ -19,9 +19,7 @@ mod values;
 pub use crate::errors::*;
 
 use alloc::vec::Vec;
-use core::fmt;
-use core::iter;
-use core::slice;
+use core::{fmt, iter, slice};
 use shader_compiler_ir::GlobalState;
 use spirv_parser::ExecutionModel;
 

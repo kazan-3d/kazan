@@ -1,13 +1,12 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 // See Notices.txt for copyright information
 
-use crate::errors::TranslationResult;
-use crate::types::SPIRVType;
-use crate::values::GenericSPIRVValue;
-use crate::values::SPIRVValue;
-use shader_compiler_ir::Const;
-use shader_compiler_ir::GlobalState;
-use shader_compiler_ir::Interned;
+use crate::{
+    errors::TranslationResult,
+    types::SPIRVType,
+    values::{GenericSPIRVValue, SPIRVValue},
+};
+use shader_compiler_ir::{Const, GlobalState, Interned};
 use spirv_parser::BuiltIn;
 
 #[derive(Clone, Eq, PartialEq, Hash, Debug)]

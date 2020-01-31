@@ -1,24 +1,20 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 // See Notices.txt for copyright information
 
-use crate::decorations::DecorationClass;
-use crate::decorations::DecorationClassMisc;
-use crate::decorations::DecorationClassStruct;
-use crate::errors::BuiltInAndNonBuiltInNotAllowedInSameStruct;
-use crate::errors::DecorationNotAllowedOnInstruction;
-use crate::errors::MemberDecorationIndexOutOfBounds;
-use crate::errors::MemberDecorationNotAllowed;
-use crate::errors::TranslationResult;
-use crate::parse::annotations::DecorationsAndMemberDecorations;
-use crate::parse::ParseInstruction;
-use crate::parse::TranslationStateParsingTypesConstantsAndGlobals;
-use crate::types::structs::StructKind;
-use crate::types::structs::StructMember;
-use crate::types::structs::StructType;
-use crate::types::structs::StructTypeData;
+use crate::{
+    decorations::{DecorationClass, DecorationClassMisc, DecorationClassStruct},
+    errors::{
+        BuiltInAndNonBuiltInNotAllowedInSameStruct, DecorationNotAllowedOnInstruction,
+        MemberDecorationIndexOutOfBounds, MemberDecorationNotAllowed, TranslationResult,
+    },
+    parse::{
+        annotations::DecorationsAndMemberDecorations, ParseInstruction,
+        TranslationStateParsingTypesConstantsAndGlobals,
+    },
+    types::structs::{StructKind, StructMember, StructType, StructTypeData},
+};
 use alloc::vec::Vec;
-use spirv_parser::DecorationBuiltIn;
-use spirv_parser::OpTypeStruct;
+use spirv_parser::{DecorationBuiltIn, OpTypeStruct};
 
 impl ParseInstruction for OpTypeStruct {
     fn parse_in_types_constants_globals_section<'g, 'i>(

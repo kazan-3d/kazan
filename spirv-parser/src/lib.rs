@@ -15,9 +15,7 @@ pub use generated_parser::*;
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::io::Write;
-    use std::mem;
-    use std::slice;
+    use std::{io::Write, mem, slice};
 
     fn parse_and_dump(bytes: &[u8]) -> Result<String> {
         assert_eq!(bytes.len() % mem::size_of::<u32>(), 0);

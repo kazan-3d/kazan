@@ -1,17 +1,14 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 // See Notices.txt for copyright information
 
-use crate::parse::debug_strings_sources::TranslationStateParsedDebugStringsSources;
-use crate::parse::ParseInstruction;
-use crate::TranslationResult;
+use crate::{
+    parse::{debug_strings_sources::TranslationStateParsedDebugStringsSources, ParseInstruction},
+    TranslationResult,
+};
 use hashbrown::HashMap;
-use shader_compiler_ir::Internable;
-use shader_compiler_ir::Interned;
+use shader_compiler_ir::{Internable, Interned};
 use spirv_id_map::IdMap;
-use spirv_parser::IdRef;
-use spirv_parser::Instruction;
-use spirv_parser::OpMemberName;
-use spirv_parser::OpName;
+use spirv_parser::{IdRef, Instruction, OpMemberName, OpName};
 
 decl_translation_state! {
     pub(crate) struct TranslationStateParsedDebugNames<'g, 'i> {

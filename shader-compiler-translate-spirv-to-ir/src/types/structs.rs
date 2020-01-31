@@ -1,12 +1,11 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 // See Notices.txt for copyright information
 
-use crate::errors::TranslationResult;
-use crate::types::GenericSPIRVType;
-use crate::types::GetIrTypeState;
-use crate::types::SPIRVType;
-use alloc::rc::Rc;
-use alloc::vec::Vec;
+use crate::{
+    errors::TranslationResult,
+    types::{GenericSPIRVType, GetIrTypeState, SPIRVType},
+};
+use alloc::{rc::Rc, vec::Vec};
 use core::ops::Deref;
 use shader_compiler_ir::Interned;
 use spirv_parser::BuiltIn;

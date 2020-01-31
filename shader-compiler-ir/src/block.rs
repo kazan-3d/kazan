@@ -1,25 +1,16 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 // See Notices.txt for copyright information
 
-use crate::prelude::*;
-use crate::text::FromTextError;
-use crate::text::FromTextState;
-use crate::text::FromTextSymbol;
-use crate::text::FromTextSymbolsState;
-use crate::text::FromTextSymbolsStateBase;
-use crate::text::NamedId;
-use crate::text::Punctuation;
-use crate::text::TextSpan;
-use crate::text::ToTextState;
-use crate::text::Token;
-use crate::text::TokenKind;
-use crate::Allocate;
-use crate::IdRef;
-use crate::InstructionKind;
-use crate::OnceCell;
+use crate::{
+    prelude::*,
+    text::{
+        FromTextError, FromTextState, FromTextSymbol, FromTextSymbolsState,
+        FromTextSymbolsStateBase, NamedId, Punctuation, TextSpan, ToTextState, Token, TokenKind,
+    },
+    Allocate, IdRef, InstructionKind, OnceCell,
+};
 use alloc::vec::Vec;
-use core::fmt;
-use core::ops::Deref;
+use core::{fmt, ops::Deref};
 
 /// break out of a block.
 /// jumps to the first instruction after `self.block`.
@@ -760,8 +751,7 @@ impl<'g> CodeIO<'g> for ContinueLoop<'g> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::instructions;
-    use crate::IntegerType;
+    use crate::{instructions, IntegerType};
     use alloc::string::ToString;
 
     #[test]

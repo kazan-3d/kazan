@@ -25,15 +25,10 @@ mod target_properties;
 mod types;
 mod values;
 
-pub use crate::block::*;
-pub use crate::consts::*;
-pub use crate::debug_info::*;
-pub use crate::function::*;
-pub use crate::global_state::*;
-pub use crate::instructions_impl::*;
-pub use crate::target_properties::*;
-pub use crate::types::*;
-pub use crate::values::*;
+pub use crate::{
+    block::*, consts::*, debug_info::*, function::*, global_state::*, instructions_impl::*,
+    target_properties::*, types::*, values::*,
+};
 pub use once_cell::unsync::OnceCell;
 
 /// code structure input/output

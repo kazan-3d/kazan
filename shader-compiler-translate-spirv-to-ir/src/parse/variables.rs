@@ -1,33 +1,28 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 // See Notices.txt for copyright information
 
-use crate::decorations::DecorationAspect;
-use crate::decorations::DecorationClass;
-use crate::decorations::DecorationClassMisc;
-use crate::decorations::DecorationClassVariable;
-use crate::decorations::MemoryObjectDeclaration;
-use crate::decorations::MemoryObjectDeclarationOrStructMember;
-use crate::decorations::SPIRVObject;
-use crate::decorations::VariableOrStructMember;
-use crate::errors::DecorationNotAllowedOnInstruction;
-use crate::errors::RelaxedPrecisionDecorationNotAllowed;
-use crate::errors::TranslationResult;
-use crate::errors::VariableResultTypeMustBePointer;
-use crate::parse::functions::TranslationStateParsingFunctionBodies;
-use crate::parse::ParseInstruction;
-use crate::parse::TranslationStateParsingTypesConstantsAndGlobals;
-use crate::types::GenericSPIRVType;
-use crate::types::PointerType;
-use crate::types::PointerTypeData;
-use crate::values::SPIRVVariable;
-use crate::values::SPIRVVariableData;
+use crate::{
+    decorations::{
+        DecorationAspect, DecorationClass, DecorationClassMisc, DecorationClassVariable,
+        MemoryObjectDeclaration, MemoryObjectDeclarationOrStructMember, SPIRVObject,
+        VariableOrStructMember,
+    },
+    errors::{
+        DecorationNotAllowedOnInstruction, RelaxedPrecisionDecorationNotAllowed, TranslationResult,
+        VariableResultTypeMustBePointer,
+    },
+    parse::{
+        functions::TranslationStateParsingFunctionBodies, ParseInstruction,
+        TranslationStateParsingTypesConstantsAndGlobals,
+    },
+    types::{GenericSPIRVType, PointerType, PointerTypeData},
+    values::{SPIRVVariable, SPIRVVariableData},
+};
 use alloc::vec::Vec;
-use spirv_parser::DecorationBinding;
-use spirv_parser::DecorationBuiltIn;
-use spirv_parser::DecorationDescriptorSet;
-use spirv_parser::DecorationIndex;
-use spirv_parser::DecorationInputAttachmentIndex;
-use spirv_parser::OpVariable;
+use spirv_parser::{
+    DecorationBinding, DecorationBuiltIn, DecorationDescriptorSet, DecorationIndex,
+    DecorationInputAttachmentIndex, OpVariable,
+};
 
 impl ParseInstruction for OpVariable {
     fn parse_in_types_constants_globals_section<'g, 'i>(

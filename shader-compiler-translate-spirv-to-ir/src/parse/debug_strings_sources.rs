@@ -1,20 +1,14 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 // See Notices.txt for copyright information
 
-use crate::errors::SPIRVIdAlreadyDefined;
-use crate::parse::execution_mode::TranslationStateParsedExecutionModes;
-use crate::parse::ParseInstruction;
-use crate::TranslationResult;
-use shader_compiler_ir::Internable;
-use shader_compiler_ir::Interned;
-use spirv_id_map::IdMap;
-use spirv_id_map::Vacant;
-use spirv_parser::IdRef;
-use spirv_parser::Instruction;
-use spirv_parser::OpSource;
-use spirv_parser::OpSourceContinued;
-use spirv_parser::OpSourceExtension;
-use spirv_parser::OpString;
+use crate::{
+    errors::SPIRVIdAlreadyDefined,
+    parse::{execution_mode::TranslationStateParsedExecutionModes, ParseInstruction},
+    TranslationResult,
+};
+use shader_compiler_ir::{Internable, Interned};
+use spirv_id_map::{IdMap, Vacant};
+use spirv_parser::{IdRef, Instruction, OpSource, OpSourceContinued, OpSourceExtension, OpString};
 
 decl_translation_state! {
     pub(crate) struct TranslationStateParsedDebugStringsSources<'g, 'i> {

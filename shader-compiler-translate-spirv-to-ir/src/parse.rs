@@ -20,21 +20,18 @@ mod types;
 mod unimplemented_instructions;
 mod variables;
 
-use crate::errors::InvalidSPIRVInstructionInSection;
-use crate::errors::SPIRVIdAlreadyDefined;
-use crate::errors::SPIRVIdNotDefined;
-use crate::parse::annotations::TranslationStateParsedAnnotations;
-use crate::parse::functions::TranslationStateParsedFunctions;
-use crate::parse::functions::TranslationStateParsingFunctionBodies;
-use crate::types::SPIRVType;
-use crate::values::SPIRVValue;
-use crate::SPIRVInstructionsLocation;
-use crate::TranslationResult;
-use crate::TranslationStateBase;
+use crate::{
+    errors::{InvalidSPIRVInstructionInSection, SPIRVIdAlreadyDefined, SPIRVIdNotDefined},
+    parse::{
+        annotations::TranslationStateParsedAnnotations,
+        functions::{TranslationStateParsedFunctions, TranslationStateParsingFunctionBodies},
+    },
+    types::SPIRVType,
+    values::SPIRVValue,
+    SPIRVInstructionsLocation, TranslationResult, TranslationStateBase,
+};
 use spirv_id_map::IdMap;
-use spirv_parser::IdRef;
-use spirv_parser::IdResult;
-use spirv_parser::Instruction;
+use spirv_parser::{IdRef, IdResult, Instruction};
 
 decl_translation_state! {
     pub(crate) struct TranslationStateParseBaseTypesConstantsAndGlobals<'g, 'i> {

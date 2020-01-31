@@ -1,12 +1,11 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 // See Notices.txt for copyright information
 
-use crate::parse::capability::TranslationStateParsedCapabilities;
-use crate::parse::ParseInstruction;
-use crate::SPIRVExtensionNotSupported;
-use crate::TranslationResult;
-use spirv_parser::Instruction;
-use spirv_parser::OpExtension;
+use crate::{
+    parse::{capability::TranslationStateParsedCapabilities, ParseInstruction},
+    SPIRVExtensionNotSupported, TranslationResult,
+};
+use spirv_parser::{Instruction, OpExtension};
 
 decl_translation_state! {
     pub(crate) struct TranslationStateParsedExtensions<'g, 'i> {

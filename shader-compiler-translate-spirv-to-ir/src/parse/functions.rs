@@ -1,30 +1,22 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 // See Notices.txt for copyright information
 
-use crate::decorations::DecorationClass;
-use crate::decorations::DecorationClassMisc;
-use crate::decorations::DecorationClassObject;
-use crate::errors::DecorationNotAllowedOnInstruction;
-use crate::errors::FunctionsFunctionTypeIsNotOpTypeFunction;
-use crate::errors::FunctionsResultTypeMustMatchFunctionTypesReturnType;
-use crate::errors::InvalidSPIRVInstructionInSection;
-use crate::errors::RelaxedPrecisionDecorationNotAllowed;
-use crate::errors::TranslationResult;
-use crate::parse::ParseInstruction;
-use crate::parse::TranslationStateParsedTypesConstantsAndGlobals;
-use crate::types::FunctionType;
-use crate::types::FunctionTypeData;
-use crate::types::GenericSPIRVType;
-use crate::TranslatedSPIRVShader;
+use crate::{
+    decorations::{DecorationClass, DecorationClassMisc, DecorationClassObject},
+    errors::{
+        DecorationNotAllowedOnInstruction, FunctionsFunctionTypeIsNotOpTypeFunction,
+        FunctionsResultTypeMustMatchFunctionTypesReturnType, InvalidSPIRVInstructionInSection,
+        RelaxedPrecisionDecorationNotAllowed, TranslationResult,
+    },
+    parse::{ParseInstruction, TranslationStateParsedTypesConstantsAndGlobals},
+    types::{FunctionType, FunctionTypeData, GenericSPIRVType},
+    TranslatedSPIRVShader,
+};
 use alloc::rc::Rc;
 use core::ops::Deref;
 use once_cell::unsync::OnceCell;
 use spirv_id_map::IdMap;
-use spirv_parser::FunctionControl;
-use spirv_parser::Instruction;
-use spirv_parser::OpFunction;
-use spirv_parser::OpFunctionEnd;
-use spirv_parser::OpFunctionParameter;
+use spirv_parser::{FunctionControl, Instruction, OpFunction, OpFunctionEnd, OpFunctionParameter};
 
 #[derive(Debug)]
 pub(crate) struct SPIRVFunctionData {}

@@ -1,21 +1,20 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 // See Notices.txt for copyright information
 
-use crate::prelude::*;
-use crate::text::FromTextError;
-use crate::text::FromTextState;
-use crate::text::IntegerToken;
-use crate::text::Keyword;
-use crate::text::NewOrOld;
-use crate::text::Punctuation;
-use crate::text::ToTextState;
-use crate::text::TokenKind;
+use crate::{
+    prelude::*,
+    text::{
+        FromTextError, FromTextState, IntegerToken, Keyword, NewOrOld, Punctuation, ToTextState,
+        TokenKind,
+    },
+};
 use alloc::vec::Vec;
-use core::convert::TryInto;
-use core::fmt;
-use core::num::NonZeroU32;
-use core::ops::Deref;
-use core::ops::DerefMut;
+use core::{
+    convert::TryInto,
+    fmt,
+    num::NonZeroU32,
+    ops::{Deref, DerefMut},
+};
 
 /// extension trait for types
 pub trait GenericType<'g>: Internable<'g, Interned = Type<'g>> {

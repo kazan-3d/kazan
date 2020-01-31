@@ -1,17 +1,18 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 // See Notices.txt for copyright information
 
-use crate::prelude::*;
-use crate::text::FromTextError;
-use crate::text::FromTextState;
-use crate::text::ToTextState;
-use crate::TargetProperties;
+use crate::{
+    prelude::*,
+    text::{FromTextError, FromTextState, ToTextState},
+    TargetProperties,
+};
 use alloc::string::String;
-use core::fmt;
-use core::hash::Hash;
-use core::hash::Hasher;
-use core::ops::Deref;
-use core::ptr::NonNull;
+use core::{
+    fmt,
+    hash::{Hash, Hasher},
+    ops::Deref,
+    ptr::NonNull,
+};
 use typed_arena::Arena;
 
 mod intern;

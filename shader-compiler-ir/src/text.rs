@@ -3,22 +3,20 @@
 
 //! conversion from/to text
 
-use crate::prelude::*;
-use crate::IdRef;
-use crate::OnceCell;
-use crate::StructType;
-use alloc::string::String;
-use alloc::string::ToString;
-use alloc::vec::Vec;
-use core::borrow::Borrow;
-use core::borrow::BorrowMut;
-use core::fmt;
-use core::marker::PhantomData;
-use core::mem;
-use core::ops::Range;
-use core::str::FromStr;
-use hashbrown::hash_map::Entry;
-use hashbrown::HashMap;
+use crate::{prelude::*, IdRef, OnceCell, StructType};
+use alloc::{
+    string::{String, ToString},
+    vec::Vec,
+};
+use core::{
+    borrow::{Borrow, BorrowMut},
+    fmt,
+    marker::PhantomData,
+    mem,
+    ops::Range,
+    str::FromStr,
+};
+use hashbrown::{hash_map::Entry, HashMap};
 use unicode_width::UnicodeWidthChar;
 
 macro_rules! impl_display_as_to_text {

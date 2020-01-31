@@ -1,23 +1,23 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 // See Notices.txt for copyright information
 
-use crate::ast;
-use crate::util::{self, NameFormat::*};
-use crate::Error;
-use crate::InputFile;
-use crate::InputFileTracker;
-use crate::Options;
+use crate::{
+    ast,
+    util::{self, NameFormat::*},
+    Error, InputFile, InputFileTracker, Options,
+};
 use proc_macro2;
 use quote::quote;
 use sha2::{Digest, Sha256};
-use std::borrow::Cow;
-use std::collections::BTreeMap;
-use std::collections::BTreeSet;
-use std::fmt;
-use std::io::{self, BufRead, Cursor, Read, Write};
-use std::iter;
-use std::process::{Child, Command, ExitStatus, Stdio};
-use std::thread;
+use std::{
+    borrow::Cow,
+    collections::{BTreeMap, BTreeSet},
+    fmt,
+    io::{self, BufRead, Cursor, Read, Write},
+    iter,
+    process::{Child, Command, ExitStatus, Stdio},
+    thread,
+};
 use which;
 
 #[derive(Debug)]
@@ -207,15 +207,12 @@ pub(crate) fn generate(
         &mut out,
         "{}",
         stringify!(
-            use alloc::borrow::Cow;
-            use core::fmt;
-            use core::mem;
-            use core::ops::Deref;
-            use core::result;
-            use core::str::Utf8Error;
-            use alloc::string::FromUtf8Error;
-            use alloc::string::String;
-            use alloc::vec::Vec;
+            use alloc::{
+                borrow::Cow,
+                string::{FromUtf8Error, String},
+                vec::Vec,
+            };
+            use core::{fmt, mem, ops::Deref, result, str::Utf8Error};
         )
     )?;
     writeln!(
@@ -2008,10 +2005,12 @@ pub(crate) fn generate(
             quote! {
                 #[cfg(test)]
                 mod input_file_tests {
-                    use std::fs;
-                    use std::io::{BufRead, BufReader};
-                    use sha2::{Sha256, Digest};
-                    use std::path::Path;
+                    use sha2::{Digest, Sha256};
+                    use std::{
+                        fs,
+                        io::{BufRead, BufReader},
+                        path::Path,
+                    };
 
                     /// note: using lines() to prevent line-endings from affecting hash when checked out on windows vs. unix
                     fn input_file_test(path: &str, digest: &[u8]) {

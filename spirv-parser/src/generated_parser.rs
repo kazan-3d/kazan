@@ -24,15 +24,12 @@
 // LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
 // FROM,OUT OF OR IN CONNECTION WITH THE MATERIALS OR THE USE OR OTHER DEALINGS
 // IN THE MATERIALS.
-use alloc::borrow::Cow;
-use alloc::string::FromUtf8Error;
-use alloc::string::String;
-use alloc::vec::Vec;
-use core::fmt;
-use core::mem;
-use core::ops::Deref;
-use core::result;
-use core::str::Utf8Error;
+use alloc::{
+    borrow::Cow,
+    string::{FromUtf8Error, String},
+    vec::Vec,
+};
+use core::{fmt, mem, ops::Deref, result, str::Utf8Error};
 macro_rules! split_fn {
     ($body:expr) => {
         (|| $body)()
@@ -36835,9 +36832,11 @@ impl fmt::Display for ExtensionInstructionSet {
 #[cfg(test)]
 mod input_file_tests {
     use sha2::{Digest, Sha256};
-    use std::fs;
-    use std::io::{BufRead, BufReader};
-    use std::path::Path;
+    use std::{
+        fs,
+        io::{BufRead, BufReader},
+        path::Path,
+    };
     #[doc = r" note: using lines() to prevent line-endings from affecting hash when checked out on windows vs. unix"]
     fn input_file_test(path: &str, digest: &[u8]) {
         let path = Path::new(env!("CARGO_MANIFEST_DIR")).join(path);
@@ -36863,13 +36862,10 @@ mod input_file_tests {
     fn input_file_tests() {
         println!("checking that generated code is up to date -- update by running:");
         println!("cargo build --features=spirv-parser-generator");
-        input_file_test ( "../spirv-parser-generator/src/ast.rs" , b"A\xDF\x03\xF41\xF3\xD2\xCB)\xF0\xB3\xB8t\xF9N\x1B\xDB\xAB\xE3\xAFq\x0BDu\x8E\xE1\xEF\xEARf\xEC\xF7" ) ;
-        input_file_test ( "../spirv-parser-generator/src/generate.rs" , b"\xAFSnh\xC7\xD1\xDF\xFC0n\x9B\xA0\xA0\xE2g\x0F\xB7\x07\xC2\xE3\xBBW\x90\t<\xE5\xD5\xDF\x1E\xEA\xBD\xD8" ) ;
-        input_file_test(
-            "../spirv-parser-generator/src/lib.rs",
-            b"\x888%yc\xB7\x1F5\xE8\xC6\xFDI\xA7\xA7e\xC4\x08\x91Ub\x07\0|\xF6j\x9C\xCA/\xF6Kb\xD0",
-        );
-        input_file_test ( "../spirv-parser-generator/src/util.rs" , b"\xB6\x92f\xB0*\x8D\xB4\xA7\xA0\x194\x12\xCC\xCDg\x8B\xDB\xB3\xCA\xF4\xE2)\xDE\xE3\x03Hw]\x13\xB1w\xEB" ) ;
+        input_file_test ( "../spirv-parser-generator/src/ast.rs" , b"b\x82\xCC\x9DRo\xC8W\xBC\x81}\x96\xF2\xB2\xF9\xAB\x1DO4h\xB1\xD8\xAF\xE0\x1Cc\x95\xD1\xB5\x94\xE1A" ) ;
+        input_file_test ( "../spirv-parser-generator/src/generate.rs" , b"\xFC\xB6#~\x12<\x83c\xB34\x7F\x0F\xCB\xD7\"\xE7\x8B\xB3\xB1\xAC\x92\xD3\xCAk\xAE2\x05\xEEOGo#" ) ;
+        input_file_test ( "../spirv-parser-generator/src/lib.rs" , b"\xED\xEA6\x8E\x83=*W\xCF3jN\xFC\xD6t\x8E(\xA5V\xFF#\x0F\xE4R\xE2\x8B~s\x15\x1C\xE6\xA5" ) ;
+        input_file_test ( "../spirv-parser-generator/src/util.rs" , b"\xA5\x0C;C\x02\x06o9*\x1B\x0B\xDB+\x11\xEA\xB9\xB5\xC3\x91\x954\xD2\xF9\xD8B\x97\xBF\xA4?F\x8F\xDD" ) ;
         input_file_test ( "../spirv-parser-generator/Cargo.toml" , b"\xB2\xBB?\xE5\xB5\xB3\xED\x96]\x8Cj\xDDM+\xB0\xFB\xC9\xBB\xAB\xF8\tH\x02\xFF\xA7\x05\xD3\x0E\xDE\x98\r\x02" ) ;
         input_file_test ( "../external/SPIRV-Headers/include/spirv/unified1/spirv.core.grammar.json" , b"\xA0\xE8!\x91\xFBV\x81\x041Ra\xCB\xCE\r6\xBC\xCCD\xAE34\xECT\x82\xC0\x150S\x97\xEF\x06\xA5" ) ;
         input_file_test(

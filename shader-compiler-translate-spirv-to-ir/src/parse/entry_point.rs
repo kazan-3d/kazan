@@ -1,16 +1,13 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 // See Notices.txt for copyright information
 
-use crate::parse::memory_model::TranslationStateParsedMemoryModel;
-use crate::parse::ParseInstruction;
-use crate::DuplicateSPIRVEntryPoint;
-use crate::MatchingSPIRVEntryPointNotFound;
-use crate::TranslationResult;
+use crate::{
+    parse::{memory_model::TranslationStateParsedMemoryModel, ParseInstruction},
+    DuplicateSPIRVEntryPoint, MatchingSPIRVEntryPointNotFound, TranslationResult,
+};
 use alloc::string::ToString;
 use hashbrown::HashSet;
-use spirv_parser::IdRef;
-use spirv_parser::Instruction;
-use spirv_parser::OpEntryPoint;
+use spirv_parser::{IdRef, Instruction, OpEntryPoint};
 
 struct EntryPoint {
     id: IdRef,

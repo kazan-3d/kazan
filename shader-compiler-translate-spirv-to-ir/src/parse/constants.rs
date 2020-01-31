@@ -1,61 +1,38 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 // See Notices.txt for copyright information
 
-use crate::constants::SPIRVConstant;
-use crate::constants::SPIRVConstantValue;
-use crate::decorations::DecorationClass;
-use crate::decorations::DecorationClassMisc;
-use crate::errors::ConstantResultTypeMustBeBool;
-use crate::errors::ConstantResultTypeMustBeIntOrFloat;
-use crate::errors::ConstantValueTooBigSmall;
-use crate::errors::DecorationNotAllowedOnInstruction;
-use crate::errors::RelaxedPrecisionDecorationNotAllowed;
-use crate::errors::SpecializationConstantMissingSpecId;
-use crate::errors::TranslationResult;
-use crate::errors::UnsupportedSPIRVType;
-use crate::parse::functions::TranslationStateParsingFunctionBodies;
-use crate::parse::ParseInstruction;
-use crate::parse::TranslationStateParseBaseTypesConstantsAndGlobals;
-use crate::parse::TranslationStateParsingTypesConstantsAndGlobals;
-use crate::types::GenericSPIRVType;
-use crate::types::IntegerType;
-use crate::types::ScalarType;
-use crate::types::Signedness;
-use crate::SpecializationResolutionFailed;
-use crate::SpecializationResolver;
-use crate::TranslationStateBase;
-use crate::UnresolvedSpecialization;
+use crate::{
+    constants::{SPIRVConstant, SPIRVConstantValue},
+    decorations::{DecorationClass, DecorationClassMisc},
+    errors::{
+        ConstantResultTypeMustBeBool, ConstantResultTypeMustBeIntOrFloat, ConstantValueTooBigSmall,
+        DecorationNotAllowedOnInstruction, RelaxedPrecisionDecorationNotAllowed,
+        SpecializationConstantMissingSpecId, TranslationResult, UnsupportedSPIRVType,
+    },
+    parse::{
+        functions::TranslationStateParsingFunctionBodies, ParseInstruction,
+        TranslationStateParseBaseTypesConstantsAndGlobals,
+        TranslationStateParsingTypesConstantsAndGlobals,
+    },
+    types::{GenericSPIRVType, IntegerType, ScalarType, Signedness},
+    SpecializationResolutionFailed, SpecializationResolver, TranslationStateBase,
+    UnresolvedSpecialization,
+};
 use alloc::vec::Vec;
-use core::convert::TryFrom;
-use core::convert::TryInto;
-use core::mem;
-use core::num::TryFromIntError;
-use shader_compiler_ir::BoolType;
-use shader_compiler_ir::Const;
-use shader_compiler_ir::FloatType;
-use shader_compiler_ir::Internable;
-use shader_compiler_ir::Interned;
-use shader_compiler_ir::RelaxedFloat32;
-use shader_compiler_ir::RelaxedInt32;
-use spirv_parser::DecorationBuiltIn;
-use spirv_parser::DecorationSpecId;
-use spirv_parser::IdResult;
-use spirv_parser::IdResultType;
-use spirv_parser::Instruction;
-use spirv_parser::OpConstant32;
-use spirv_parser::OpConstant64;
-use spirv_parser::OpConstantComposite;
-use spirv_parser::OpConstantFalse;
-use spirv_parser::OpConstantNull;
-use spirv_parser::OpConstantPipeStorage;
-use spirv_parser::OpConstantSampler;
-use spirv_parser::OpConstantTrue;
-use spirv_parser::OpSpecConstant32;
-use spirv_parser::OpSpecConstant64;
-use spirv_parser::OpSpecConstantComposite;
-use spirv_parser::OpSpecConstantFalse;
-use spirv_parser::OpSpecConstantOp;
-use spirv_parser::OpSpecConstantTrue;
+use core::{
+    convert::{TryFrom, TryInto},
+    mem,
+    num::TryFromIntError,
+};
+use shader_compiler_ir::{
+    BoolType, Const, FloatType, Internable, Interned, RelaxedFloat32, RelaxedInt32,
+};
+use spirv_parser::{
+    DecorationBuiltIn, DecorationSpecId, IdResult, IdResultType, Instruction, OpConstant32,
+    OpConstant64, OpConstantComposite, OpConstantFalse, OpConstantNull, OpConstantPipeStorage,
+    OpConstantSampler, OpConstantTrue, OpSpecConstant32, OpSpecConstant64, OpSpecConstantComposite,
+    OpSpecConstantFalse, OpSpecConstantOp, OpSpecConstantTrue,
+};
 
 trait ParseConstantInstruction: ParseInstruction {
     fn parse_constant<'g, 'i>(

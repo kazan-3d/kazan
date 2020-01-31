@@ -4,15 +4,14 @@
 // allow unneeded_field_pattern to ensure fields aren't accidently missed
 #![allow(clippy::unneeded_field_pattern)]
 
-use std::collections::BTreeMap;
-use std::error;
-use std::fmt;
-use std::fs;
-use std::fs::File;
-use std::io;
-use std::path::Path;
-use std::path::PathBuf;
-use std::rc::Rc;
+use std::{
+    collections::BTreeMap,
+    error, fmt, fs,
+    fs::File,
+    io,
+    path::{Path, PathBuf},
+    rc::Rc,
+};
 
 mod ast;
 mod generate;

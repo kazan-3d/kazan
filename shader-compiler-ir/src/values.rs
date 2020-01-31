@@ -1,23 +1,15 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 // See Notices.txt for copyright information
 
-use crate::prelude::*;
-use crate::text::FromTextError;
-use crate::text::FromTextScopeId;
-use crate::text::FromTextState;
-use crate::text::FromTextSymbol;
-use crate::text::FromTextSymbolsState;
-use crate::text::FromTextSymbolsStateBase;
-use crate::text::NamedId;
-use crate::text::NewOrOld;
-use crate::text::Punctuation;
-use crate::text::ToTextState;
-use crate::text::TokenKind;
-use crate::Allocate;
-use crate::IdRef;
-use crate::OnceCell;
-use core::fmt;
-use core::ops::Deref;
+use crate::{
+    prelude::*,
+    text::{
+        FromTextError, FromTextScopeId, FromTextState, FromTextSymbol, FromTextSymbolsState,
+        FromTextSymbolsStateBase, NamedId, NewOrOld, Punctuation, ToTextState, TokenKind,
+    },
+    Allocate, IdRef, OnceCell,
+};
+use core::{fmt, ops::Deref};
 
 /// the definition of a SSA value -- the point at which the value is assigned to
 #[derive(Eq, PartialEq, Hash)]

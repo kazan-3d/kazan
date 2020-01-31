@@ -1,24 +1,16 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 // See Notices.txt for copyright information
 
-use crate::prelude::*;
-use crate::text::FromTextError;
-use crate::text::FromTextScopeId;
-use crate::text::FromTextState;
-use crate::text::FromTextSymbol;
-use crate::text::FromTextSymbolsState;
-use crate::text::FromTextSymbolsStateBase;
-use crate::text::Keyword;
-use crate::text::NamedId;
-use crate::text::Punctuation;
-use crate::text::ToTextState;
-use crate::Allocate;
-use crate::FunctionPointerType;
-use crate::IdRef;
-use crate::ParsedBlockNameDefinition;
+use crate::{
+    prelude::*,
+    text::{
+        FromTextError, FromTextScopeId, FromTextState, FromTextSymbol, FromTextSymbolsState,
+        FromTextSymbolsStateBase, Keyword, NamedId, Punctuation, ToTextState,
+    },
+    Allocate, FunctionPointerType, IdRef, ParsedBlockNameDefinition,
+};
 use alloc::vec::Vec;
-use core::fmt;
-use core::ops::Deref;
+use core::{fmt, ops::Deref};
 
 /// the function entry, holds the `ValueDefinition`s for the function's arguments
 pub struct FunctionEntry<'g> {

@@ -6,12 +6,11 @@
 use crate::global_state::Interned;
 use ahash::ABuildHasher;
 use alloc::boxed::Box;
-use core::cell::Cell;
-use core::cell::RefCell;
-use core::hash::BuildHasher;
-use core::hash::Hash;
-use core::hash::Hasher;
-use core::mem;
+use core::{
+    cell::{Cell, RefCell},
+    hash::{BuildHasher, Hash, Hasher},
+    mem,
+};
 use typed_arena::Arena;
 
 pub(super) trait InternStorage {
@@ -134,9 +133,10 @@ impl<'g, T: Hash + Eq + InternStorage + ?Sized> Interner<'g, T> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use alloc::collections::btree_map::{BTreeMap, Entry};
-    use alloc::string::String;
-    use alloc::string::ToString;
+    use alloc::{
+        collections::btree_map::{BTreeMap, Entry},
+        string::{String, ToString},
+    };
 
     #[test]
     fn test_interner() {

@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 // See Notices.txt for copyright information
 
-use crate::parse::debug_names::TranslationStateParsedDebugNames;
-use crate::parse::ParseInstruction;
-use crate::TranslationResult;
-use spirv_parser::Instruction;
-use spirv_parser::OpModuleProcessed;
+use crate::{
+    parse::{debug_names::TranslationStateParsedDebugNames, ParseInstruction},
+    TranslationResult,
+};
+use spirv_parser::{Instruction, OpModuleProcessed};
 
 decl_translation_state! {
     pub(crate) struct TranslationStateParsedDebugModuleProcessed<'g, 'i> {

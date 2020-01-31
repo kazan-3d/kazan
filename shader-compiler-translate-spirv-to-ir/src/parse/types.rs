@@ -3,40 +3,28 @@
 
 mod structs;
 
-use crate::decorations::DecorationClass;
-use crate::decorations::DecorationClassMisc;
-use crate::errors::DecorationNotAllowedOnInstruction;
-use crate::errors::InvalidFloatTypeBitWidth;
-use crate::errors::InvalidIntegerType;
-use crate::errors::InvalidVectorComponentCount;
-use crate::errors::InvalidVectorComponentType;
-use crate::errors::SPIRVIdAlreadyDefined;
-use crate::errors::SPIRVIdNotDefined;
-use crate::errors::TranslationResult;
-use crate::errors::UnsupportedSPIRVType;
-use crate::errors::VoidNotAllowedHere;
-use crate::parse::ParseInstruction;
-use crate::parse::TranslationStateParseBaseTypesConstantsAndGlobals;
-use crate::parse::TranslationStateParsingTypesConstantsAndGlobals;
-use crate::types::FunctionType;
-use crate::types::FunctionTypeData;
-use crate::types::IntegerType;
-use crate::types::PointerType;
-use crate::types::PointerTypeData;
-use crate::types::SPIRVType;
-use crate::types::Signedness;
-use crate::types::VectorType;
-use crate::types::VoidType;
-use shader_compiler_ir::BoolType;
-use shader_compiler_ir::FloatType;
+use crate::{
+    decorations::{DecorationClass, DecorationClassMisc},
+    errors::{
+        DecorationNotAllowedOnInstruction, InvalidFloatTypeBitWidth, InvalidIntegerType,
+        InvalidVectorComponentCount, InvalidVectorComponentType, SPIRVIdAlreadyDefined,
+        SPIRVIdNotDefined, TranslationResult, UnsupportedSPIRVType, VoidNotAllowedHere,
+    },
+    parse::{
+        ParseInstruction, TranslationStateParseBaseTypesConstantsAndGlobals,
+        TranslationStateParsingTypesConstantsAndGlobals,
+    },
+    types::{
+        FunctionType, FunctionTypeData, IntegerType, PointerType, PointerTypeData, SPIRVType,
+        Signedness, VectorType, VoidType,
+    },
+};
+use shader_compiler_ir::{BoolType, FloatType};
 use spirv_id_map::Entry::Vacant;
-use spirv_parser::DecorationArrayStride;
-use spirv_parser::IdRef;
-use spirv_parser::IdResult;
 use spirv_parser::{
-    OpTypeArray, OpTypeBool, OpTypeFloat, OpTypeForwardPointer, OpTypeFunction, OpTypeImage,
-    OpTypeInt, OpTypeMatrix, OpTypePointer, OpTypeRuntimeArray, OpTypeSampledImage, OpTypeSampler,
-    OpTypeVector, OpTypeVoid,
+    DecorationArrayStride, IdRef, IdResult, OpTypeArray, OpTypeBool, OpTypeFloat,
+    OpTypeForwardPointer, OpTypeFunction, OpTypeImage, OpTypeInt, OpTypeMatrix, OpTypePointer,
+    OpTypeRuntimeArray, OpTypeSampledImage, OpTypeSampler, OpTypeVector, OpTypeVoid,
 };
 
 impl<'g, 'i> TranslationStateParseBaseTypesConstantsAndGlobals<'g, 'i> {

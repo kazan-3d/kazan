@@ -1,9 +1,7 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 // See Notices.txt for copyright information
 
-use crate::IntegerType;
-use crate::Internable;
-use crate::Interned;
+use crate::{IntegerType, Internable, Interned};
 
 impl_struct_with_default_from_to_text! {
     /// the configuration of a target machine
@@ -18,9 +16,7 @@ impl_struct_with_default_from_to_text! {
 
 #[cfg(test)]
 mod tests {
-    use crate::prelude::*;
-    use crate::IntegerType;
-    use crate::TargetProperties;
+    use crate::{prelude::*, IntegerType, TargetProperties};
     use alloc::string::ToString;
 
     #[test]

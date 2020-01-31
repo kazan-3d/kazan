@@ -1,19 +1,19 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 // See Notices.txt for copyright information
 
-use crate::constants::SPIRVConstant;
-use crate::decorations::MemoryObjectDeclaration;
-use crate::decorations::MemoryObjectDeclarationOrStructMember;
-use crate::decorations::SPIRVObject;
-use crate::decorations::VariableOrStructMember;
-use crate::errors::TranslationResult;
-use crate::types::PointerType;
-use crate::types::SPIRVType;
+use crate::{
+    constants::SPIRVConstant,
+    decorations::{
+        MemoryObjectDeclaration, MemoryObjectDeclarationOrStructMember, SPIRVObject,
+        VariableOrStructMember,
+    },
+    errors::TranslationResult,
+    types::{PointerType, SPIRVType},
+};
 use alloc::rc::Rc;
 use core::ops::Deref;
 use shader_compiler_ir::GlobalState;
-use spirv_parser::BuiltIn;
-use spirv_parser::StorageClass;
+use spirv_parser::{BuiltIn, StorageClass};
 
 pub(crate) trait GenericSPIRVValue<'g>: Clone + Into<SPIRVValue<'g>> {
     fn get_type(&self) -> SPIRVType<'g>;

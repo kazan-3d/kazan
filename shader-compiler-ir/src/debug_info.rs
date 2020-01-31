@@ -1,14 +1,11 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 // See Notices.txt for copyright information
 
-use crate::prelude::*;
-use crate::text::FromTextError;
-use crate::text::FromTextState;
-use crate::text::IntegerToken;
-use crate::text::Punctuation;
-use crate::text::ToTextState;
-use core::convert::TryInto;
-use core::fmt;
+use crate::{
+    prelude::*,
+    text::{FromTextError, FromTextState, IntegerToken, Punctuation, ToTextState},
+};
+use core::{convert::TryInto, fmt};
 
 /// a debug location
 #[derive(Copy, Clone, Eq, PartialEq, Hash)]

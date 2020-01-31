@@ -1,23 +1,16 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 // See Notices.txt for copyright information
 
-use crate::prelude::*;
-use crate::text::FromTextError;
-use crate::text::FromTextState;
-use crate::text::IntegerSuffix;
-use crate::text::IntegerToken;
-use crate::text::Keyword;
-use crate::text::Punctuation;
-use crate::text::ToTextState;
-use crate::text::TokenKind;
-use crate::BoolType;
-use crate::FloatType;
-use crate::IntegerType;
-use crate::PointerType;
-use crate::VectorType;
+use crate::{
+    prelude::*,
+    text::{
+        FromTextError, FromTextState, IntegerSuffix, IntegerToken, Keyword, Punctuation,
+        ToTextState, TokenKind,
+    },
+    BoolType, FloatType, IntegerType, PointerType, VectorType,
+};
 use alloc::vec::Vec;
-use core::convert::TryInto;
-use core::fmt;
+use core::{convert::TryInto, fmt};
 
 /// a constant integer
 #[derive(Copy, Clone, Eq, PartialEq, Hash)]
@@ -575,8 +568,7 @@ impl<'g> ToText<'g> for Const<'g> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::DataPointerType;
-    use crate::FunctionPointerType;
+    use crate::{DataPointerType, FunctionPointerType};
     use alloc::string::ToString;
 
     #[test]

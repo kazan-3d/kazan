@@ -5,17 +5,9 @@
 
 extern crate alloc;
 
-use alloc::boxed::Box;
-use alloc::vec;
-use core::borrow::Borrow;
-use core::convert::TryFrom;
-use core::fmt;
-use core::iter;
-use core::marker::PhantomData;
-use core::mem;
-use core::slice;
-use spirv_parser::Header;
-use spirv_parser::IdRef;
+use alloc::{boxed::Box, vec};
+use core::{borrow::Borrow, convert::TryFrom, fmt, iter, marker::PhantomData, mem, slice};
+use spirv_parser::{Header, IdRef};
 
 #[derive(Clone, Eq, PartialEq, Hash, Debug)]
 pub struct IdOutOfBounds;
@@ -432,8 +424,7 @@ pub enum Entry<'a, K: Id, V> {
     Occupied(OccupiedEntry<'a, K, V>),
 }
 
-pub use Entry::Occupied;
-pub use Entry::Vacant;
+pub use Entry::{Occupied, Vacant};
 
 impl<'a, K: Id, V> Entry<'a, K, V> {
     pub fn key(&self) -> K {
