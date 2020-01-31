@@ -3,7 +3,7 @@
 
 use crate::{
     parse::{
-        functions::TranslationStateParsingFunctionBodies, ParseInstruction,
+        functions::TranslationStateParsingFunctionBody, ParseInstruction,
         TranslationStateParsingTypesConstantsAndGlobals,
     },
     TranslationResult,
@@ -20,7 +20,7 @@ macro_rules! unimplemented_instruction {
             }
             fn parse_in_function_body<'g, 'i>(
                 &'i self,
-                _state: &mut TranslationStateParsingFunctionBodies<'g, 'i>,
+                _state: &mut TranslationStateParsingFunctionBody<'g, 'i>,
             ) -> TranslationResult<()> {
                 todo!(concat!("unimplemented instruction: ", stringify!($opname)))
             }

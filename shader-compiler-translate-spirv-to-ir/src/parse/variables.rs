@@ -12,7 +12,7 @@ use crate::{
         VariableResultTypeMustBePointer,
     },
     parse::{
-        functions::TranslationStateParsingFunctionBodies, ParseInstruction,
+        functions::TranslationStateParsingFunctionBody, ParseInstruction,
         TranslationStateParsingTypesConstantsAndGlobals,
     },
     types::{GenericSPIRVType, PointerType, PointerTypeData},
@@ -175,7 +175,7 @@ impl ParseInstruction for OpVariable {
     }
     fn parse_in_function_body<'g, 'i>(
         &'i self,
-        _state: &mut TranslationStateParsingFunctionBodies<'g, 'i>,
+        _state: &mut TranslationStateParsingFunctionBody<'g, 'i>,
     ) -> TranslationResult<()> {
         todo!()
     }

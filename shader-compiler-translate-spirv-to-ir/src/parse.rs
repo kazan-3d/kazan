@@ -24,7 +24,7 @@ use crate::{
     errors::{InvalidSPIRVInstructionInSection, SPIRVIdAlreadyDefined, SPIRVIdNotDefined},
     parse::{
         annotations::TranslationStateParsedAnnotations,
-        functions::{TranslationStateParsedFunctions, TranslationStateParsingFunctionBodies},
+        functions::{TranslationStateParsedFunctions, TranslationStateParsingFunctionBody},
     },
     types::SPIRVType,
     values::SPIRVValue,
@@ -113,7 +113,7 @@ pub(crate) trait ParseInstruction: Clone + Into<Instruction> {
     }
     fn parse_in_function_body<'g, 'i>(
         &'i self,
-        _state: &mut TranslationStateParsingFunctionBodies<'g, 'i>,
+        _state: &mut TranslationStateParsingFunctionBody<'g, 'i>,
     ) -> TranslationResult<()> {
         Err(InvalidSPIRVInstructionInSection {
             instruction: self.clone().into(),
@@ -132,7 +132,7 @@ impl ParseInstruction for Instruction {
     }
     fn parse_in_function_body<'g, 'i>(
         &'i self,
-        state: &mut TranslationStateParsingFunctionBodies<'g, 'i>,
+        state: &mut TranslationStateParsingFunctionBody<'g, 'i>,
     ) -> TranslationResult<()> {
         instruction_dispatch!(self, v, v.parse_in_function_body(state))
     }

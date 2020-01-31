@@ -19,6 +19,16 @@ decl_translation_state! {
 }
 
 impl<'g, 'i> TranslationStateParsedDebugNames<'g, 'i> {
+    pub(crate) fn get_debug_name(&self, id: IdRef) -> TranslationResult<Option<Interned<'g, str>>> {
+        Ok(self.debug_names.get(id)?.copied())
+    }
+    pub(crate) fn get_or_make_debug_name(&self, id: IdRef) -> TranslationResult<Interned<'g, str>> {
+        if let Some(retval) = self.get_debug_name(id)? {
+            Ok(retval)
+        } else {
+            Ok(format!("id_{}", id.0).intern(self.global_state))
+        }
+    }
     fn parse_name_instruction(&mut self, instruction: &'i OpName) -> TranslationResult<()> {
         let OpName { target, ref name } = *instruction;
         let name = name.intern(self.global_state);

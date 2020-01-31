@@ -320,6 +320,41 @@ impl_errors! {
     pub struct FunctionsResultTypeMustMatchFunctionTypesReturnType {
         pub instruction: spirv_parser::Instruction,
     }
+
+    #[display = "Inline and DontInline are not allowed together:\n{instruction}"]
+    pub struct InlineAndDontInlineAreNotAllowedTogether {
+        pub instruction: spirv_parser::Instruction,
+    }
+
+    #[display = "Const and Pure are not allowed together:\n{instruction}"]
+    pub struct ConstAndPureAreNotAllowedTogether {
+        pub instruction: spirv_parser::Instruction,
+    }
+
+    #[display = "there are too few OpFunctionParameter instructions to match the function type's \
+        parameter count:\nthere should be {expected_count} parameters, there is only {actual_count}:\n{instruction}"]
+    pub struct TooFewOpFunctionParameterInstructions {
+        pub expected_count: u32,
+        pub actual_count: u32,
+        pub instruction: spirv_parser::Instruction,
+    }
+
+    #[display = "there are too many OpFunctionParameter instructions to match the function type's \
+        parameter count: there should be {expected_count} parameters:\n{instruction}"]
+    pub struct TooManyOpFunctionParameterInstructions {
+        pub expected_count: u32,
+        pub instruction: spirv_parser::Instruction,
+    }
+
+    #[display = "OpFunction must have a body: function declarations are not supported\n{instruction}"]
+    pub struct FunctionMustHaveABody {
+        pub instruction: spirv_parser::Instruction,
+    }
+
+    #[display = "instruction not valid before OpLabel starts next block:\n{instruction}"]
+    pub struct InstructionNotValidBeforeLabel {
+        pub instruction: spirv_parser::Instruction,
+    }
 }
 
 pub(crate) type TranslationResult<T> = Result<T, TranslationError>;

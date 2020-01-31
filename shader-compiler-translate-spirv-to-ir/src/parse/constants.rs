@@ -10,7 +10,7 @@ use crate::{
         SpecializationConstantMissingSpecId, TranslationResult, UnsupportedSPIRVType,
     },
     parse::{
-        functions::TranslationStateParsingFunctionBodies, ParseInstruction,
+        functions::TranslationStateParsingFunctionBody, ParseInstruction,
         TranslationStateParseBaseTypesConstantsAndGlobals,
         TranslationStateParsingTypesConstantsAndGlobals,
     },
@@ -52,7 +52,7 @@ macro_rules! impl_parse_constant {
             }
             fn parse_in_function_body<'g, 'i>(
                 &'i self,
-                state: &mut TranslationStateParsingFunctionBodies<'g, 'i>,
+                state: &mut TranslationStateParsingFunctionBody<'g, 'i>,
             ) -> TranslationResult<()> {
                 self.parse_constant(state)
             }
