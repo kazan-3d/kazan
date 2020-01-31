@@ -11,8 +11,8 @@ use proc_macro2;
 use quote::quote;
 use sha2::{Digest, Sha256};
 use std::borrow::Cow;
-use std::collections::HashMap;
-use std::collections::HashSet;
+use std::collections::BTreeMap;
+use std::collections::BTreeSet;
 use std::fmt;
 use std::io::{self, BufRead, Cursor, Read, Write};
 use std::iter;
@@ -143,7 +143,7 @@ struct ParsedExtensionInstructionSet {
 #[allow(clippy::cognitive_complexity)]
 pub(crate) fn generate(
     core_grammar: ast::CoreGrammar,
-    parsed_extension_instruction_sets: HashMap<
+    parsed_extension_instruction_sets: BTreeMap<
         super::ExtensionInstructionSet,
         ast::ExtensionInstructionSet,
     >,
@@ -182,7 +182,7 @@ pub(crate) fn generate(
     )?;
     writeln!(&mut out, "// cargo build --features=spirv-parser-generator")?;
     {
-        let mut copyright_set = HashSet::new();
+        let mut copyright_set = BTreeSet::new();
         for copyright in iter::once(&core_grammar_copyright).chain(
             parsed_extension_instruction_sets
                 .iter()

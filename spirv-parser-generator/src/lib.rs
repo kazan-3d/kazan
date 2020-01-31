@@ -4,7 +4,7 @@
 // allow unneeded_field_pattern to ensure fields aren't accidently missed
 #![allow(clippy::unneeded_field_pattern)]
 
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::error;
 use std::fmt;
 use std::fs;
@@ -20,10 +20,10 @@ mod util;
 
 pub const SPIRV_CORE_GRAMMAR_JSON_FILE_NAME: &str = "spirv.core.grammar.json";
 
-#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub enum ExtensionInstructionSet {
-    GLSLStd450,
-    OpenCLStd,
+    OpenCLStd = 0,
+    GLSLStd450 = 1,
 }
 
 impl ExtensionInstructionSet {
@@ -124,7 +124,7 @@ impl Default for Options {
 
 pub struct Input {
     spirv_core_grammar_json_path: (PathBuf, String),
-    extension_instruction_sets: HashMap<ExtensionInstructionSet, (PathBuf, String)>,
+    extension_instruction_sets: BTreeMap<ExtensionInstructionSet, (PathBuf, String)>,
     options: Options,
 }
 
@@ -205,7 +205,7 @@ impl Input {
     pub fn new(spirv_core_grammar_json_path: (PathBuf, String)) -> Input {
         Input {
             spirv_core_grammar_json_path,
-            extension_instruction_sets: HashMap::new(),
+            extension_instruction_sets: BTreeMap::new(),
             options: Options::default(),
         }
     }
@@ -233,7 +233,7 @@ impl Input {
         let mut core_grammar: ast::CoreGrammar =
             serde_json::from_reader(&**input_files.open(spirv_core_grammar_json_path)?)?;
         core_grammar.fixup()?;
-        let mut parsed_extension_instruction_sets: HashMap<
+        let mut parsed_extension_instruction_sets: BTreeMap<
             ExtensionInstructionSet,
             ast::ExtensionInstructionSet,
         > = Default::default();

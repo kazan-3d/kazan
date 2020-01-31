@@ -36864,15 +36864,18 @@ mod input_file_tests {
         println!("checking that generated code is up to date -- update by running:");
         println!("cargo build --features=spirv-parser-generator");
         input_file_test ( "../spirv-parser-generator/src/ast.rs" , b"A\xDF\x03\xF41\xF3\xD2\xCB)\xF0\xB3\xB8t\xF9N\x1B\xDB\xAB\xE3\xAFq\x0BDu\x8E\xE1\xEF\xEARf\xEC\xF7" ) ;
-        input_file_test ( "../spirv-parser-generator/src/generate.rs" , b"\xAEa\x0B\xFF\x04\xFD\xE7\xEE\xA6\xFCDk\xE1m\xB5p\x12\xC6\x8B\xB3\xF1\xA6[\xC30\x8C\x0Ee\x96P\xD2{" ) ;
-        input_file_test ( "../spirv-parser-generator/src/lib.rs" , b"\xEC\xF6`\xB8\x8C\x90\xE8/\r1\xE3\xE2\xC9\xD8\xBF\x8B?6b\x99{\x9D\xB2Y\xE8H\xF1g\xE9B\xA7\xF2" ) ;
+        input_file_test ( "../spirv-parser-generator/src/generate.rs" , b"\xAFSnh\xC7\xD1\xDF\xFC0n\x9B\xA0\xA0\xE2g\x0F\xB7\x07\xC2\xE3\xBBW\x90\t<\xE5\xD5\xDF\x1E\xEA\xBD\xD8" ) ;
+        input_file_test(
+            "../spirv-parser-generator/src/lib.rs",
+            b"\x888%yc\xB7\x1F5\xE8\xC6\xFDI\xA7\xA7e\xC4\x08\x91Ub\x07\0|\xF6j\x9C\xCA/\xF6Kb\xD0",
+        );
         input_file_test ( "../spirv-parser-generator/src/util.rs" , b"\xB6\x92f\xB0*\x8D\xB4\xA7\xA0\x194\x12\xCC\xCDg\x8B\xDB\xB3\xCA\xF4\xE2)\xDE\xE3\x03Hw]\x13\xB1w\xEB" ) ;
         input_file_test ( "../spirv-parser-generator/Cargo.toml" , b"\xB2\xBB?\xE5\xB5\xB3\xED\x96]\x8Cj\xDDM+\xB0\xFB\xC9\xBB\xAB\xF8\tH\x02\xFF\xA7\x05\xD3\x0E\xDE\x98\r\x02" ) ;
         input_file_test ( "../external/SPIRV-Headers/include/spirv/unified1/spirv.core.grammar.json" , b"\xA0\xE8!\x91\xFBV\x81\x041Ra\xCB\xCE\r6\xBC\xCCD\xAE34\xECT\x82\xC0\x150S\x97\xEF\x06\xA5" ) ;
-        input_file_test ( "../external/SPIRV-Headers/include/spirv/unified1/extinst.glsl.std.450.grammar.json" , b";\xCFx\xC1;q\xA9\xEB\xBAQ\xE8\x90\xC5_A\xA5\xE0\xF4{\xA2\x83\xBC|\x08\xFD~\x13D\xEA_G\xA6" ) ;
         input_file_test(
             "../external/SPIRV-Headers/include/spirv/unified1/extinst.opencl.std.100.grammar.json",
             b"\xB6\xBE2H\xAF\x8EaP3.\xC5\xD9\xDF.W\x8B6MX\x8Cv%3\x83\x1BuP\xF6\x07\xA7?\xF8",
         );
+        input_file_test ( "../external/SPIRV-Headers/include/spirv/unified1/extinst.glsl.std.450.grammar.json" , b";\xCFx\xC1;q\xA9\xEB\xBAQ\xE8\x90\xC5_A\xA5\xE0\xF4{\xA2\x83\xBC|\x08\xFD~\x13D\xEA_G\xA6" ) ;
     }
 }
