@@ -4,10 +4,11 @@
 use crate::{
     constants::SPIRVConstant,
     decorations::{
-        MemoryObjectDeclaration, MemoryObjectDeclarationOrStructMember, SPIRVObject,
-        VariableOrStructMember,
+        GetDecorationAspect, MemoryObjectDeclaration, MemoryObjectDeclarationOrStructMember,
+        SPIRVObject, VariableOrStructMember,
     },
     errors::TranslationResult,
+    functions::SPIRVFunctionParameter,
     types::{PointerType, SPIRVType},
 };
 use alloc::rc::Rc;
@@ -15,12 +16,14 @@ use core::ops::Deref;
 use shader_compiler_ir::GlobalState;
 use spirv_parser::{BuiltIn, StorageClass};
 
-pub(crate) trait GenericSPIRVValue<'g>: Clone + Into<SPIRVValue<'g>> {
+pub(crate) trait GenericSPIRVValue<'g>:
+    Clone + Into<SPIRVValue<'g>> + GetDecorationAspect<SPIRVObject>
+{
     fn get_type(&self) -> SPIRVType<'g>;
     fn get_ir_value(
         &self,
         global_state: &'g GlobalState<'g>,
-    ) -> TranslationResult<shader_compiler_ir::IdRef<'g, shader_compiler_ir::Value<'g>>>;
+    ) -> TranslationResult<shader_compiler_ir::ValueUse<'g>>;
 }
 
 #[derive(Debug)]
@@ -65,12 +68,6 @@ impl<'g> Deref for SPIRVVariable<'g> {
     }
 }
 
-impl<'g> From<SPIRVVariable<'g>> for SPIRVValue<'g> {
-    fn from(v: SPIRVVariable<'g>) -> Self {
-        Self::Variable(v)
-    }
-}
-
 impl<'g> GenericSPIRVValue<'g> for SPIRVVariable<'g> {
     fn get_type(&self) -> SPIRVType<'g> {
         self.result_type.clone().into()
@@ -78,31 +75,66 @@ impl<'g> GenericSPIRVValue<'g> for SPIRVVariable<'g> {
     fn get_ir_value(
         &self,
         _global_state: &'g GlobalState<'g>,
-    ) -> TranslationResult<shader_compiler_ir::IdRef<'g, shader_compiler_ir::Value<'g>>> {
+    ) -> TranslationResult<shader_compiler_ir::ValueUse<'g>> {
         todo!()
     }
 }
 
-#[derive(Clone, Debug)]
-pub(crate) enum SPIRVValue<'g> {
-    Variable(SPIRVVariable<'g>),
-    Constant(SPIRVConstant<'g>),
+macro_rules! impl_spirv_value {
+    (
+        $vis:vis enum $name:ident<$g:lifetime> {
+            $(
+                $(#[doc = $enumerant_doc:expr])*
+                $enumerant_name:ident($enumerant_type:ty),
+            )+
+        }
+    ) => {
+        #[derive(Clone, Debug)]
+        $vis enum $name<$g> {
+            $(
+                $(#[doc = $enumerant_doc])*
+                $enumerant_name($enumerant_type),
+            )+
+        }
+
+        $(
+            impl<$g> From<$enumerant_type> for $name<$g> {
+                fn from(v: $enumerant_type) -> Self {
+                    Self::$enumerant_name(v)
+                }
+            }
+        )+
+
+        impl<$g> GetDecorationAspect<SPIRVObject> for $name<$g> {
+            fn get_decoration_aspect_impl(&self) -> &SPIRVObject {
+                match self {
+                    $(Self::$enumerant_name(v) => v.get_decoration_aspect_impl(),)+
+                }
+            }
+        }
+
+        impl<$g> GenericSPIRVValue<$g> for $name<$g> {
+            fn get_type(&self) -> SPIRVType<$g> {
+                match self {
+                    $(Self::$enumerant_name(v) => v.get_type(),)+
+                }
+            }
+            fn get_ir_value(
+                &self,
+                global_state: &$g GlobalState<$g>,
+            ) -> TranslationResult<shader_compiler_ir::ValueUse<'g>> {
+                match self {
+                    $(Self::$enumerant_name(v) => v.get_ir_value(global_state),)+
+                }
+            }
+        }
+    };
 }
 
-impl<'g> GenericSPIRVValue<'g> for SPIRVValue<'g> {
-    fn get_type(&self) -> SPIRVType<'g> {
-        match self {
-            Self::Variable(v) => v.get_type(),
-            Self::Constant(v) => v.get_type(),
-        }
-    }
-    fn get_ir_value(
-        &self,
-        global_state: &'g GlobalState<'g>,
-    ) -> TranslationResult<shader_compiler_ir::IdRef<'g, shader_compiler_ir::Value<'g>>> {
-        match self {
-            Self::Variable(v) => v.get_ir_value(global_state),
-            Self::Constant(v) => v.get_ir_value(global_state),
-        }
+impl_spirv_value! {
+    pub(crate) enum SPIRVValue<'g> {
+        Variable(SPIRVVariable<'g>),
+        Constant(SPIRVConstant<'g>),
+        FunctionParameter(SPIRVFunctionParameter<'g>),
     }
 }

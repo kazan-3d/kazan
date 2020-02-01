@@ -29,7 +29,7 @@ use crate::{
     },
     types::SPIRVType,
     values::SPIRVValue,
-    SPIRVInstructionsLocation, TranslationResult, TranslationStateBase,
+    SPIRVInstructionLocation, TranslationResult, TranslationStateBase,
 };
 use alloc::vec::Vec;
 use spirv_id_map::IdMap;
@@ -92,7 +92,7 @@ impl<'g, 'i> TranslationStateParsedAnnotations<'g, 'i> {
             state.debug_output,
             "parsing types/constants/globals section"
         )?;
-        while let Some((instruction, location)) = state.get_instruction_and_location()? {
+        while let Some((instruction, location)) = state.next_instruction_and_location()? {
             if let Instruction::Function(_) = instruction {
                 state.spirv_instructions_location = location;
                 break;
@@ -143,15 +143,20 @@ impl ParseInstruction for Instruction {
 }
 
 impl<'g, 'i> TranslationStateBase<'g, 'i> {
-    fn get_instruction_and_location(
+    fn next_instruction_and_location(
         &mut self,
-    ) -> TranslationResult<Option<(&'i Instruction, SPIRVInstructionsLocation<'i>)>> {
+    ) -> TranslationResult<Option<(&'i Instruction, SPIRVInstructionLocation<'i>)>> {
         if let Some((instruction, location)) = self.spirv_instructions_location.next() {
             write!(self.debug_output, "{:05}: {}", location.index, instruction)?;
             Ok(Some((instruction, location)))
         } else {
             Ok(None)
         }
+    }
+    fn next_instruction(&mut self) -> TranslationResult<Option<&'i Instruction>> {
+        Ok(self
+            .next_instruction_and_location()?
+            .map(|(instruction, _)| instruction))
     }
     pub(crate) fn parse(self) -> TranslationResult<TranslationStateParsedFunctions<'g, 'i>> {
         self.parse_capability_section()?

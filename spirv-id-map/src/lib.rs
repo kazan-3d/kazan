@@ -81,6 +81,14 @@ impl<K: Id, V> IdMap<K, V> {
             _phantom: PhantomData,
         }
     }
+    pub fn with_same_bound<V2>(other: &IdMap<K, V2>) -> Self {
+        let values = other.values.iter().map(|_| None).collect();
+        Self {
+            values,
+            len: 0,
+            _phantom: PhantomData,
+        }
+    }
     pub fn new<T: Borrow<Header>>(header: T) -> Self {
         Self::with_bound(header.borrow().bound)
     }

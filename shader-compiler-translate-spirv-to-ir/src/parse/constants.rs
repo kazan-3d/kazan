@@ -112,7 +112,7 @@ fn parse_constant_bool<'g, 'i, I: Fn() -> Instruction>(
                 }
                 .into());
             }
-            DecorationClass::Misc(DecorationClassMisc::RelaxedPrecision(_)) => {
+            DecorationClass::RelaxedPrecision(_) => {
                 return Err(RelaxedPrecisionDecorationNotAllowed {
                     instruction: instruction(),
                 }
@@ -272,9 +272,7 @@ fn parse_constant_scalar<'g, 'i, I: Fn() -> Instruction>(
                 }
                 .into());
             }
-            DecorationClass::Misc(DecorationClassMisc::RelaxedPrecision(_)) => {
-                relaxed_precision = true
-            }
+            DecorationClass::RelaxedPrecision(_) => relaxed_precision = true,
             DecorationClass::Misc(DecorationClassMisc::BuiltIn(DecorationBuiltIn {
                 built_in: v,
             })) => built_in = Some(v),

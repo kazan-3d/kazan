@@ -4,8 +4,7 @@
 use crate::{
     decorations::DecorationClass,
     errors::{
-        DecorationNotAllowedOnInstruction, MemberDecorationsAreOnlyAllowedOnStructTypes,
-        SPIRVIdAlreadyDefined, SPIRVIdNotDefined,
+        MemberDecorationsAreOnlyAllowedOnStructTypes, SPIRVIdAlreadyDefined, SPIRVIdNotDefined,
     },
     parse::{debug_module_processed::TranslationStateParsedDebugModuleProcessed, ParseInstruction},
     TranslationResult,
@@ -50,33 +49,6 @@ impl<'g, 'i> TranslationStateParsedAnnotations<'g, 'i> {
             }
         }
         Ok(decorations)
-    }
-    pub(crate) fn error_if_any_decorations<I: FnOnce() -> Instruction>(
-        &mut self,
-        target: IdResult,
-        instruction: I,
-    ) -> TranslationResult<()> {
-        for decoration in self.take_decorations(target)? {
-            match decoration {
-                DecorationClass::Ignored(_) => {}
-                DecorationClass::Invalid(_)
-                | DecorationClass::MemoryObjectDeclaration(_)
-                | DecorationClass::MemoryObjectDeclarationOrStructMember(_)
-                | DecorationClass::Misc(_)
-                | DecorationClass::Object(_)
-                | DecorationClass::Struct(_)
-                | DecorationClass::StructMember(_)
-                | DecorationClass::Variable(_)
-                | DecorationClass::VariableOrStructMember(_) => {
-                    return Err(DecorationNotAllowedOnInstruction {
-                        decoration: decoration.into(),
-                        instruction: instruction(),
-                    }
-                    .into());
-                }
-            }
-        }
-        Ok(())
     }
     pub(crate) fn take_decorations_for_struct_type(
         &mut self,
@@ -192,7 +164,7 @@ impl<'g, 'i> TranslationStateParsedDebugModuleProcessed<'g, 'i> {
             },
         };
         writeln!(state.debug_output, "parsing annotations section")?;
-        while let Some((instruction, location)) = state.get_instruction_and_location()? {
+        while let Some((instruction, location)) = state.next_instruction_and_location()? {
             match *instruction {
                 Instruction::Decorate(OpDecorate {
                     target,

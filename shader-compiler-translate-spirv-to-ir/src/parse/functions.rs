@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 // See Notices.txt for copyright information
 
+mod cfg;
+
 use crate::{
-    decorations::{DecorationClass, DecorationClassMisc},
+    decorations::DecorationClass,
     errors::{
         ConstAndPureAreNotAllowedTogether, DecorationNotAllowedOnInstruction,
         FunctionMustHaveABody, FunctionsFunctionTypeIsNotOpTypeFunction,
@@ -12,12 +14,13 @@ use crate::{
         SPIRVIdAlreadyDefined, TooFewOpFunctionParameterInstructions,
         TooManyOpFunctionParameterInstructions, TranslationResult,
     },
+    functions::{SPIRVFunction, SPIRVFunctionData},
     parse::{ParseInstruction, TranslationStateParsedTypesConstantsAndGlobals},
-    types::{FunctionType, FunctionTypeData, GenericSPIRVType},
-    SPIRVInstructionsLocation, TranslatedSPIRVShader,
+    types::GenericSPIRVType,
+    TranslatedSPIRVShader,
 };
-use alloc::{rc::Rc, vec::Vec};
-use core::{cell::RefCell, ops::Deref};
+use alloc::vec::Vec;
+use core::cell::RefCell;
 use shader_compiler_ir::{
     Block, Function, FunctionHints, FunctionSideEffects, Inhabited, InliningHint, ValueDefinition,
 };
@@ -25,23 +28,6 @@ use spirv_id_map::IdMap;
 use spirv_parser::{
     FunctionControl, IdResult, Instruction, OpFunction, OpFunctionEnd, OpFunctionParameter, OpLabel,
 };
-
-pub(crate) struct SPIRVFunctionData<'g, 'i> {
-    pub(crate) ir_function: RefCell<Option<shader_compiler_ir::Function<'g>>>,
-    pub(crate) ir_value: shader_compiler_ir::IdRef<'g, shader_compiler_ir::FunctionData<'g>>,
-    /// first instruction after last OpFunctionParameter
-    pub(crate) body_start_location: SPIRVInstructionsLocation<'i>,
-}
-
-#[derive(Clone)]
-pub(crate) struct SPIRVFunction<'g, 'i>(Rc<SPIRVFunctionData<'g, 'i>>);
-
-impl<'g, 'i> Deref for SPIRVFunction<'g, 'i> {
-    type Target = SPIRVFunctionData<'g, 'i>;
-    fn deref(&self) -> &SPIRVFunctionData<'g, 'i> {
-        &self.0
-    }
-}
 
 decl_translation_state! {
     pub(crate) struct TranslationStateParseFunctionsBase<'g, 'i> {
@@ -101,10 +87,7 @@ fn parse_function_header<'g, 'i>(
             DecorationClass::Invalid(_)
             | DecorationClass::MemoryObjectDeclaration(_)
             | DecorationClass::MemoryObjectDeclarationOrStructMember(_)
-            | DecorationClass::Misc(DecorationClassMisc::ArrayStride(_))
-            | DecorationClass::Misc(DecorationClassMisc::BuiltIn(_))
-            | DecorationClass::Misc(DecorationClassMisc::FPRoundingMode(_))
-            | DecorationClass::Misc(DecorationClassMisc::SpecId(_))
+            | DecorationClass::Misc(_)
             | DecorationClass::Object(_)
             | DecorationClass::Struct(_)
             | DecorationClass::StructMember(_)
@@ -116,12 +99,10 @@ fn parse_function_header<'g, 'i>(
                 }
                 .into());
             }
-            DecorationClass::Misc(DecorationClassMisc::RelaxedPrecision(_)) => {
-                relaxed_precision = true
-            }
+            DecorationClass::RelaxedPrecision(_) => relaxed_precision = true,
         }
     }
-    let mut function_type = state
+    let function_type = state
         .get_type(function_type)?
         .function()
         .ok_or_else(|| FunctionsFunctionTypeIsNotOpTypeFunction {
@@ -181,8 +162,34 @@ fn parse_function_header<'g, 'i>(
         .enumerate()
         .map(|(parameter_index, parameter_type)| {
             if let Some((Instruction::FunctionParameter(instruction), _)) =
-                state.get_instruction_and_location()?
+                state.next_instruction_and_location()?
             {
+                let OpFunctionParameter {
+                    id_result,
+                    id_result_type,
+                } = *instruction;
+                let mut object_decorations = Vec::new();
+                for decoration in state.take_decorations(id_result)? {
+                    match decoration {
+                        DecorationClass::Ignored(_) => {}
+                        DecorationClass::Invalid(_)
+                        | DecorationClass::MemoryObjectDeclaration(_)
+                        | DecorationClass::MemoryObjectDeclarationOrStructMember(_)
+                        | DecorationClass::Struct(_)
+                        | DecorationClass::StructMember(_)
+                        | DecorationClass::Variable(_)
+                        | DecorationClass::VariableOrStructMember(_)
+                        | DecorationClass::Misc(_) => {
+                            return Err(DecorationNotAllowedOnInstruction {
+                                decoration: decoration.into(),
+                                instruction: instruction.clone().into(),
+                            }
+                            .into());
+                        }
+                        DecorationClass::RelaxedPrecision(_) => todo!(),
+                        DecorationClass::Object(decoration) => object_decorations.push(decoration),
+                    }
+                }
                 todo!()
             } else {
                 Err(TooFewOpFunctionParameterInstructions {
@@ -198,10 +205,7 @@ fn parse_function_header<'g, 'i>(
     let body_start_location = state.spirv_instructions_location.clone();
 
     let body_start_label_id = loop {
-        match state
-            .get_instruction_and_location()?
-            .map(|(instruction, _)| instruction)
-        {
+        match state.next_instruction()? {
             Some(instruction @ Instruction::FunctionParameter(_)) => {
                 return Err(TooManyOpFunctionParameterInstructions {
                     expected_count: parameter_types_len as u32,
@@ -251,11 +255,11 @@ fn parse_function_header<'g, 'i>(
         state.global_state,
     );
 
-    let function = SPIRVFunction(Rc::new(SPIRVFunctionData {
+    let function = SPIRVFunction::new(SPIRVFunctionData {
         ir_value: ir_function.value(),
         ir_function: RefCell::new(Some(ir_function)),
         body_start_location,
-    }));
+    });
 
     state.define_function(id_result, function)?;
     Ok(state)
@@ -271,7 +275,7 @@ impl<'g, 'i> TranslationStateParsedTypesConstantsAndGlobals<'g, 'i> {
         };
         writeln!(base_state.debug_output, "parsing functions section")?;
         while let Some((instruction, function_location)) =
-            base_state.get_instruction_and_location()?
+            base_state.next_instruction_and_location()?
         {
             let mut body_state = if let Instruction::Function(function) = instruction {
                 parse_function_header(base_state, function)?

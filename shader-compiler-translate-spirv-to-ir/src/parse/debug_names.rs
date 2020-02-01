@@ -63,7 +63,7 @@ impl<'g, 'i> TranslationStateParsedDebugStringsSources<'g, 'i> {
             base: self,
         };
         writeln!(state.debug_output, "parsing debug names section")?;
-        while let Some((instruction, location)) = state.get_instruction_and_location()? {
+        while let Some((instruction, location)) = state.next_instruction_and_location()? {
             match instruction {
                 Instruction::Name(instruction) => state.parse_name_instruction(instruction)?,
                 Instruction::MemberName(instruction) => {

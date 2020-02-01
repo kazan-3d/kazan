@@ -101,7 +101,7 @@ impl ParseInstruction for OpVariable {
                 DecorationClass::VariableOrStructMember(v) => {
                     variable_or_struct_member_decorations.push(v);
                 }
-                DecorationClass::Misc(DecorationClassMisc::RelaxedPrecision(_)) => {
+                DecorationClass::RelaxedPrecision(_) => {
                     let PointerTypeData {
                         ref pointee_type,
                         storage_class,

@@ -41,7 +41,7 @@ impl<'g, 'i> TranslationStateParsedExtInstImports<'g, 'i> {
         let mut state = TranslationStateParsedMemoryModel { base: self };
         writeln!(state.debug_output, "parsing OpMemoryModel section")?;
         if let Some((Instruction::MemoryModel(instruction), _)) =
-            state.get_instruction_and_location()?
+            state.next_instruction_and_location()?
         {
             state.parse_memory_model_instruction(instruction)?;
             Ok(state)

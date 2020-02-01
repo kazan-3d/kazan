@@ -37,7 +37,7 @@ impl<'g, 'i> TranslationStateParsedExtensions<'g, 'i> {
     ) -> TranslationResult<TranslationStateParsedExtInstImports<'g, 'i>> {
         let mut state = TranslationStateParsedExtInstImports { base: self };
         writeln!(state.debug_output, "parsing OpExtInstImport section")?;
-        while let Some((instruction, location)) = state.get_instruction_and_location()? {
+        while let Some((instruction, location)) = state.next_instruction_and_location()? {
             if let Instruction::ExtInstImport(instruction) = instruction {
                 state.parse_ext_inst_import_instruction(instruction)?;
             } else {

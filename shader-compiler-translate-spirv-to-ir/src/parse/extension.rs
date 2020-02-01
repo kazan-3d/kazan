@@ -31,7 +31,7 @@ impl<'g, 'i> TranslationStateParsedCapabilities<'g, 'i> {
     ) -> TranslationResult<TranslationStateParsedExtensions<'g, 'i>> {
         let mut state = TranslationStateParsedExtensions { base: self };
         writeln!(state.debug_output, "parsing OpExtension section")?;
-        while let Some((instruction, location)) = state.get_instruction_and_location()? {
+        while let Some((instruction, location)) = state.next_instruction_and_location()? {
             if let Instruction::Extension(instruction) = instruction {
                 state.parse_extension_instruction(instruction)?;
             } else {

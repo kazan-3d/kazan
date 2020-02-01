@@ -12,6 +12,7 @@ mod macros;
 mod constants;
 mod decorations;
 mod errors;
+mod functions;
 mod parse;
 mod types;
 mod values;
@@ -90,12 +91,18 @@ decl_specialization_resolver! {
 pub struct DefaultSpecializationResolver;
 
 #[derive(Clone, Debug)]
-struct SPIRVInstructionsLocation<'i> {
+struct SPIRVInstructionLocation<'i> {
     index: usize,
     iter: slice::Iter<'i, spirv_parser::Instruction>,
 }
 
-impl<'i> Iterator for SPIRVInstructionsLocation<'i> {
+impl<'i> SPIRVInstructionLocation<'i> {
+    fn get_instruction(&self) -> Option<&'i spirv_parser::Instruction> {
+        self.clone().next().map(|(instruction, _)| instruction)
+    }
+}
+
+impl<'i> Iterator for SPIRVInstructionLocation<'i> {
     type Item = (&'i spirv_parser::Instruction, Self);
     fn next(&mut self) -> Option<Self::Item> {
         let location = self.clone();
@@ -113,7 +120,7 @@ struct TranslationStateBase<'g, 'i> {
     entry_point_execution_model: ExecutionModel,
     spirv_header: spirv_parser::Header,
     spirv_instructions: &'i [spirv_parser::Instruction],
-    spirv_instructions_location: SPIRVInstructionsLocation<'i>,
+    spirv_instructions_location: SPIRVInstructionLocation<'i>,
 }
 
 impl<'g, 'i> TranslationStateBase<'g, 'i> {
@@ -134,7 +141,7 @@ impl<'g, 'i> TranslationStateBase<'g, 'i> {
             entry_point_execution_model,
             spirv_header,
             spirv_instructions,
-            spirv_instructions_location: SPIRVInstructionsLocation {
+            spirv_instructions_location: SPIRVInstructionLocation {
                 index: 0,
                 iter: spirv_instructions.iter(),
             },

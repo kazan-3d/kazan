@@ -66,7 +66,7 @@ impl<'g, 'i> TranslationStateParsedMemoryModel<'g, 'i> {
             entry_point: None,
         };
         writeln!(state.debug_output, "parsing OpEntryPoint section")?;
-        while let Some((instruction, location)) = state.get_instruction_and_location()? {
+        while let Some((instruction, location)) = state.next_instruction_and_location()? {
             if let Instruction::EntryPoint(instruction) = instruction {
                 state.parse_entry_point_instruction(instruction)?;
             } else {

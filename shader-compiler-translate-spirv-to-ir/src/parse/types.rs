@@ -69,7 +69,27 @@ impl ParseInstruction for OpTypeVoid {
         state: &mut TranslationStateParsingTypesConstantsAndGlobals<'g, 'i>,
     ) -> TranslationResult<()> {
         let OpTypeVoid { id_result } = *self;
-        state.error_if_any_decorations(id_result, || self.clone().into())?;
+        for decoration in state.take_decorations(id_result)? {
+            match decoration {
+                DecorationClass::Ignored(_) => {}
+                DecorationClass::Invalid(_)
+                | DecorationClass::MemoryObjectDeclaration(_)
+                | DecorationClass::MemoryObjectDeclarationOrStructMember(_)
+                | DecorationClass::Misc(_)
+                | DecorationClass::Object(_)
+                | DecorationClass::RelaxedPrecision(_)
+                | DecorationClass::Struct(_)
+                | DecorationClass::StructMember(_)
+                | DecorationClass::Variable(_)
+                | DecorationClass::VariableOrStructMember(_) => {
+                    return Err(DecorationNotAllowedOnInstruction {
+                        decoration: decoration.into(),
+                        instruction: self.clone().into(),
+                    }
+                    .into());
+                }
+            }
+        }
         state.define_type(id_result, VoidType)
     }
 }
@@ -80,7 +100,27 @@ impl ParseInstruction for OpTypeBool {
         state: &mut TranslationStateParsingTypesConstantsAndGlobals<'g, 'i>,
     ) -> TranslationResult<()> {
         let OpTypeBool { id_result } = *self;
-        state.error_if_any_decorations(id_result, || self.clone().into())?;
+        for decoration in state.take_decorations(id_result)? {
+            match decoration {
+                DecorationClass::Ignored(_) => {}
+                DecorationClass::Invalid(_)
+                | DecorationClass::MemoryObjectDeclaration(_)
+                | DecorationClass::MemoryObjectDeclarationOrStructMember(_)
+                | DecorationClass::Misc(_)
+                | DecorationClass::Object(_)
+                | DecorationClass::RelaxedPrecision(_)
+                | DecorationClass::Struct(_)
+                | DecorationClass::StructMember(_)
+                | DecorationClass::Variable(_)
+                | DecorationClass::VariableOrStructMember(_) => {
+                    return Err(DecorationNotAllowedOnInstruction {
+                        decoration: decoration.into(),
+                        instruction: self.clone().into(),
+                    }
+                    .into());
+                }
+            }
+        }
         state.define_type(id_result, BoolType)
     }
 }
@@ -91,7 +131,27 @@ impl ParseInstruction for OpTypeFloat {
         state: &mut TranslationStateParsingTypesConstantsAndGlobals<'g, 'i>,
     ) -> TranslationResult<()> {
         let OpTypeFloat { id_result, width } = *self;
-        state.error_if_any_decorations(id_result, || self.clone().into())?;
+        for decoration in state.take_decorations(id_result)? {
+            match decoration {
+                DecorationClass::Ignored(_) => {}
+                DecorationClass::Invalid(_)
+                | DecorationClass::MemoryObjectDeclaration(_)
+                | DecorationClass::MemoryObjectDeclarationOrStructMember(_)
+                | DecorationClass::Misc(_)
+                | DecorationClass::Object(_)
+                | DecorationClass::RelaxedPrecision(_)
+                | DecorationClass::Struct(_)
+                | DecorationClass::StructMember(_)
+                | DecorationClass::Variable(_)
+                | DecorationClass::VariableOrStructMember(_) => {
+                    return Err(DecorationNotAllowedOnInstruction {
+                        decoration: decoration.into(),
+                        instruction: self.clone().into(),
+                    }
+                    .into());
+                }
+            }
+        }
         state.define_type(
             id_result,
             match width {
@@ -115,7 +175,27 @@ impl ParseInstruction for OpTypeInt {
             width,
             signedness,
         } = *self;
-        state.error_if_any_decorations(id_result, || self.clone().into())?;
+        for decoration in state.take_decorations(id_result)? {
+            match decoration {
+                DecorationClass::Ignored(_) => {}
+                DecorationClass::Invalid(_)
+                | DecorationClass::MemoryObjectDeclaration(_)
+                | DecorationClass::MemoryObjectDeclarationOrStructMember(_)
+                | DecorationClass::Misc(_)
+                | DecorationClass::Object(_)
+                | DecorationClass::RelaxedPrecision(_)
+                | DecorationClass::Struct(_)
+                | DecorationClass::StructMember(_)
+                | DecorationClass::Variable(_)
+                | DecorationClass::VariableOrStructMember(_) => {
+                    return Err(DecorationNotAllowedOnInstruction {
+                        decoration: decoration.into(),
+                        instruction: self.clone().into(),
+                    }
+                    .into());
+                }
+            }
+        }
         let ir_type = match width {
             8 => Int8.into(),
             16 => Int16.into(),
@@ -148,7 +228,27 @@ impl ParseInstruction for OpTypeFunction {
             return_type,
             ref parameter_types,
         } = *self;
-        state.error_if_any_decorations(id_result, || self.clone().into())?;
+        for decoration in state.take_decorations(id_result)? {
+            match decoration {
+                DecorationClass::Ignored(_) => {}
+                DecorationClass::Invalid(_)
+                | DecorationClass::MemoryObjectDeclaration(_)
+                | DecorationClass::MemoryObjectDeclarationOrStructMember(_)
+                | DecorationClass::Misc(_)
+                | DecorationClass::Object(_)
+                | DecorationClass::RelaxedPrecision(_)
+                | DecorationClass::Struct(_)
+                | DecorationClass::StructMember(_)
+                | DecorationClass::Variable(_)
+                | DecorationClass::VariableOrStructMember(_) => {
+                    return Err(DecorationNotAllowedOnInstruction {
+                        decoration: decoration.into(),
+                        instruction: self.clone().into(),
+                    }
+                    .into());
+                }
+            }
+        }
         let return_type = state.get_type(return_type)?.clone();
         let parameter_types = parameter_types
             .iter()
@@ -178,7 +278,27 @@ impl ParseInstruction for OpTypeVector {
             component_type,
             component_count,
         } = *self;
-        state.error_if_any_decorations(id_result, || self.clone().into())?;
+        for decoration in state.take_decorations(id_result)? {
+            match decoration {
+                DecorationClass::Ignored(_) => {}
+                DecorationClass::Invalid(_)
+                | DecorationClass::MemoryObjectDeclaration(_)
+                | DecorationClass::MemoryObjectDeclarationOrStructMember(_)
+                | DecorationClass::Misc(_)
+                | DecorationClass::Object(_)
+                | DecorationClass::RelaxedPrecision(_)
+                | DecorationClass::Struct(_)
+                | DecorationClass::StructMember(_)
+                | DecorationClass::Variable(_)
+                | DecorationClass::VariableOrStructMember(_) => {
+                    return Err(DecorationNotAllowedOnInstruction {
+                        decoration: decoration.into(),
+                        instruction: self.clone().into(),
+                    }
+                    .into());
+                }
+            }
+        }
         let component_type =
             state
                 .get_type(component_type)?
@@ -236,7 +356,7 @@ impl ParseInstruction for OpTypePointer {
                 DecorationClass::Ignored(_) => {}
                 DecorationClass::Misc(DecorationClassMisc::BuiltIn(_))
                 | DecorationClass::Misc(DecorationClassMisc::FPRoundingMode(_))
-                | DecorationClass::Misc(DecorationClassMisc::RelaxedPrecision(_))
+                | DecorationClass::RelaxedPrecision(_)
                 | DecorationClass::Misc(DecorationClassMisc::SpecId(_))
                 | DecorationClass::Invalid(_)
                 | DecorationClass::MemoryObjectDeclaration(_)

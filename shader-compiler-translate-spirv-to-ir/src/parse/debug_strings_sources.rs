@@ -48,7 +48,7 @@ impl<'g, 'i> TranslationStateParsedExecutionModes<'g, 'i> {
             base: self,
         };
         writeln!(state.debug_output, "parsing debug strings/sources section")?;
-        while let Some((instruction, location)) = state.get_instruction_and_location()? {
+        while let Some((instruction, location)) = state.next_instruction_and_location()? {
             match instruction {
                 Instruction::String(instruction) => state.parse_string_instruction(instruction)?,
                 Instruction::Source(_)

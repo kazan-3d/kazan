@@ -169,7 +169,7 @@ impl<'g, 'i> TranslationStateParsedEntryPoints<'g, 'i> {
             compute_local_size: None,
         };
         writeln!(state.debug_output, "parsing OpExecutionMode section")?;
-        while let Some((instruction, location)) = state.get_instruction_and_location()? {
+        while let Some((instruction, location)) = state.next_instruction_and_location()? {
             match *instruction {
                 Instruction::ExecutionMode(OpExecutionMode {
                     entry_point,

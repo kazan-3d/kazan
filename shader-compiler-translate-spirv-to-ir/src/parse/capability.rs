@@ -87,7 +87,7 @@ impl<'g, 'i> TranslationStateBase<'g, 'i> {
             enabled_capabilities: HashSet::new(),
         };
         writeln!(state.debug_output, "parsing OpCapability section")?;
-        while let Some((instruction, location)) = state.get_instruction_and_location()? {
+        while let Some((instruction, location)) = state.next_instruction_and_location()? {
             if let Instruction::Capability(instruction) = instruction {
                 state.parse_capability_instruction(instruction)?;
             } else {

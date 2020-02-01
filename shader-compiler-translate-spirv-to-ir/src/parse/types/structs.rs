@@ -68,7 +68,8 @@ impl ParseInstruction for OpTypeStruct {
                 | DecorationClass::StructMember(_)
                 | DecorationClass::Variable(_)
                 | DecorationClass::VariableOrStructMember(_)
-                | DecorationClass::Invalid(_) => {
+                | DecorationClass::Invalid(_)
+                | DecorationClass::RelaxedPrecision(_) => {
                     return Err(DecorationNotAllowedOnInstruction {
                         decoration: decoration.into(),
                         instruction: self.clone().into(),
@@ -92,7 +93,7 @@ impl ParseInstruction for OpTypeStruct {
                     })) => built_in = Some(v),
                     DecorationClass::Misc(DecorationClassMisc::ArrayStride(_)) => todo!(),
                     DecorationClass::Misc(DecorationClassMisc::FPRoundingMode(_)) => todo!(),
-                    DecorationClass::Misc(DecorationClassMisc::RelaxedPrecision(_)) => todo!(),
+                    DecorationClass::RelaxedPrecision(_) => todo!(),
                     DecorationClass::MemoryObjectDeclarationOrStructMember(_)
                     | DecorationClass::Object(_)
                     | DecorationClass::VariableOrStructMember(_)

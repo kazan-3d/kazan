@@ -9,8 +9,10 @@ use spirv_parser::{DecorationComponent, DecorationLocation, DecorationUniformId}
 impl_spirv_enum_partition! {
     /// partitioned form of `Decoration`
     pub(crate) enum DecorationClass(Decoration) {
-        Misc(DecorationClassMisc {
+        RelaxedPrecision(DecorationClassRelaxedPrecision {
             RelaxedPrecision(DecorationRelaxedPrecision),
+        }),
+        Misc(DecorationClassMisc {
             SpecId(DecorationSpecId),
             BuiltIn(DecorationBuiltIn),
             FPRoundingMode(DecorationFPRoundingMode),
@@ -138,7 +140,7 @@ pub(crate) enum Wrapping {
     UndefinedBehavior,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub(crate) struct SPIRVObject {
     pub(crate) uniformity: Uniformity,
     pub(crate) signed_wrapping: Wrapping,

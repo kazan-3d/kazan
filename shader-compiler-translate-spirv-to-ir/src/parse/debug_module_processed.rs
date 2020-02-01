@@ -22,7 +22,7 @@ impl<'g, 'i> TranslationStateParsedDebugNames<'g, 'i> {
             state.debug_output,
             "parsing debug OpModuleProcessed section"
         )?;
-        while let Some((instruction, location)) = state.get_instruction_and_location()? {
+        while let Some((instruction, location)) = state.next_instruction_and_location()? {
             match instruction {
                 Instruction::ModuleProcessed(_) => {}
                 _ => {

@@ -8,7 +8,7 @@ use crate::{
         TranslationStateParseBaseTypesConstantsAndGlobals,
         TranslationStateParsingTypesConstantsAndGlobals,
     },
-    SPIRVInstructionsLocation,
+    SPIRVInstructionLocation,
 };
 use shader_compiler_ir::{Internable, Interned, Location};
 use spirv_parser::{Instruction, OpLine, OpNoLine};
@@ -16,7 +16,7 @@ use spirv_parser::{Instruction, OpLine, OpNoLine};
 impl<'g, 'i> TranslationStateParseBaseTypesConstantsAndGlobals<'g, 'i> {
     pub(crate) fn get_debug_location(
         &mut self,
-        location: SPIRVInstructionsLocation,
+        location: SPIRVInstructionLocation,
     ) -> TranslationResult<Option<Interned<'g, Location<'g>>>> {
         if location.index >= self.spirv_instructions.len() {
             return Ok(None);
