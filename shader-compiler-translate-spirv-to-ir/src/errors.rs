@@ -355,6 +355,17 @@ impl_errors! {
     pub struct InstructionNotValidBeforeLabel {
         pub instruction: spirv_parser::Instruction,
     }
+
+    #[display = "SPIR-V block ({label_id}) is missing its termination instruction"]
+    pub struct SPIRVBlockMissingTerminationInstruction {
+        pub label_id: spirv_parser::IdRef,
+    }
+
+    #[display = "merge instruction must be immediately followed by a termination instruction:\n{merge_instruction}{instruction}"]
+    pub struct MergeInstructionMustBeImmediatelyFollowedByTerminationInstruction {
+        pub merge_instruction: spirv_parser::Instruction,
+        pub instruction: spirv_parser::Instruction,
+    }
 }
 
 pub(crate) type TranslationResult<T> = Result<T, TranslationError>;

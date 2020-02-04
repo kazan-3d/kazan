@@ -1,23 +1,24 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 // See Notices.txt for copyright information
 
-mod cfg;
-
 use crate::{
+    cfg::{CFGBlock, CFGBuilder, MergeInstruction, TerminationInstruction},
     decorations::DecorationClass,
     errors::{
         ConstAndPureAreNotAllowedTogether, DecorationNotAllowedOnInstruction,
         FunctionMustHaveABody, FunctionsFunctionTypeIsNotOpTypeFunction,
         FunctionsResultTypeMustMatchFunctionTypesReturnType,
         InlineAndDontInlineAreNotAllowedTogether, InstructionNotValidBeforeLabel,
-        InvalidSPIRVInstructionInSection, RelaxedPrecisionDecorationNotAllowed,
+        InvalidSPIRVInstructionInSection,
+        MergeInstructionMustBeImmediatelyFollowedByTerminationInstruction,
+        RelaxedPrecisionDecorationNotAllowed, SPIRVBlockMissingTerminationInstruction,
         SPIRVIdAlreadyDefined, TooFewOpFunctionParameterInstructions,
         TooManyOpFunctionParameterInstructions, TranslationResult,
     },
     functions::{SPIRVFunction, SPIRVFunctionData},
     parse::{ParseInstruction, TranslationStateParsedTypesConstantsAndGlobals},
     types::GenericSPIRVType,
-    TranslatedSPIRVShader,
+    SPIRVInstructionLocation, TranslatedSPIRVShader,
 };
 use alloc::vec::Vec;
 use core::cell::RefCell;
@@ -54,6 +55,7 @@ impl<'g, 'i> TranslationStateParseFunctionsBase<'g, 'i> {
 decl_translation_state! {
     pub(crate) struct TranslationStateParsingFunctionBody<'g, 'i> {
         base: TranslationStateParseFunctionsBase<'g, 'i>,
+        function: SPIRVFunction<'g, 'i>,
     }
 }
 
@@ -63,11 +65,73 @@ decl_translation_state! {
     }
 }
 
-fn parse_function_header<'g, 'i>(
-    state: TranslationStateParseFunctionsBase<'g, 'i>,
+fn parse_cfg_block<'g, 'i>(
+    state: &mut TranslationStateParseFunctionsBase<'g, 'i>,
+    function_parameter_count: u32,
+) -> TranslationResult<Option<CFGBlock<'g, 'i>>> {
+    let (label_location, label_id) = loop {
+        match state.next_instruction_and_location()? {
+            Some((instruction @ Instruction::FunctionParameter(_), _)) => {
+                return Err(TooManyOpFunctionParameterInstructions {
+                    expected_count: function_parameter_count,
+                    instruction: instruction.clone(),
+                }
+                .into());
+            }
+            Some((Instruction::Line(_), _)) | Some((Instruction::NoLine(_), _)) => {}
+            Some((Instruction::FunctionEnd(_), _)) | None => {
+                return Ok(None);
+            }
+            Some((&Instruction::Label(OpLabel { id_result }), location)) => {
+                break (location, id_result.0)
+            }
+            Some((instruction, _)) => {
+                return Err(InstructionNotValidBeforeLabel {
+                    instruction: instruction.clone(),
+                }
+                .into());
+            }
+        }
+    };
+    let mut merge_location: Option<SPIRVInstructionLocation<'i>> = None;
+    let termination_location = loop {
+        match state.next_instruction_and_location()? {
+            None | Some((Instruction::FunctionEnd(_), _)) | Some((Instruction::Label(_), _)) => {
+                return Err(SPIRVBlockMissingTerminationInstruction { label_id }.into());
+            }
+            Some((instruction, location)) if TerminationInstruction::is_in_subset(instruction) => {
+                break location;
+            }
+            Some((instruction, location)) if merge_location.is_some() => {
+                return Err(
+                    MergeInstructionMustBeImmediatelyFollowedByTerminationInstruction {
+                        merge_instruction: merge_location
+                            .expect("known to be some")
+                            .get_instruction()
+                            .expect("known to be non-empty")
+                            .clone(),
+                        instruction: instruction.clone(),
+                    }
+                    .into(),
+                );
+            }
+            Some((instruction, location)) if MergeInstruction::is_in_subset(instruction) => {
+                merge_location = Some(location);
+            }
+            Some(_) => {}
+        }
+    };
+    Ok(Some(CFGBlock::new(
+        label_location,
+        merge_location,
+        termination_location,
+    )))
+}
+
+fn parse_function_structure<'g, 'i>(
+    state: &mut TranslationStateParseFunctionsBase<'g, 'i>,
     function: &OpFunction,
-) -> TranslationResult<TranslationStateParsingFunctionBody<'g, 'i>> {
-    let mut state = TranslationStateParsingFunctionBody { base: state };
+) -> TranslationResult<SPIRVFunction<'g, 'i>> {
     let OpFunction {
         id_result_type,
         id_result,
@@ -202,37 +266,27 @@ fn parse_function_header<'g, 'i>(
         })
         .collect::<TranslationResult<Vec<ValueDefinition<'g>>>>()?;
 
-    let body_start_location = state.spirv_instructions_location.clone();
-
-    let body_start_label_id = loop {
-        match state.next_instruction()? {
-            Some(instruction @ Instruction::FunctionParameter(_)) => {
-                return Err(TooManyOpFunctionParameterInstructions {
-                    expected_count: parameter_types_len as u32,
-                    instruction: instruction.clone(),
-                }
-                .into());
-            }
-            Some(Instruction::Line(_)) | Some(Instruction::NoLine(_)) => {}
-            Some(Instruction::FunctionEnd(_)) | None => {
-                return Err(FunctionMustHaveABody {
-                    instruction: function.clone().into(),
-                }
-                .into());
-            }
-            Some(Instruction::Label(OpLabel { id_result })) => break id_result,
-            Some(instruction) => {
-                return Err(InstructionNotValidBeforeLabel {
-                    instruction: instruction.clone(),
-                }
-                .into());
-            }
+    let entry_block = parse_cfg_block(state, parameter_types_len as u32)?.ok_or_else(|| {
+        FunctionMustHaveABody {
+            instruction: function.clone().into(),
         }
-    };
+    })?;
 
-    state.spirv_instructions_location = body_start_location.clone();
+    let body_debug_name = state.get_or_make_debug_name(entry_block.label_id())?;
 
-    let body_debug_name = state.get_or_make_debug_name(body_start_label_id.0)?;
+    let mut cfg_builder = CFGBuilder::new(entry_block, &state.spirv_header)?;
+
+    while let Some(block) = parse_cfg_block(state, parameter_types_len as u32)? {
+        cfg_builder.insert(block)?;
+    }
+
+    let cfg = cfg_builder.into_cfg()?;
+
+    writeln!(
+        state.debug_output,
+        "CFG (graphviz format):\n\n{}\n",
+        cfg.dump_to_dot()
+    )?;
 
     let ir_return_type = return_type
         .get_ir_type(state.global_state)?
@@ -258,11 +312,11 @@ fn parse_function_header<'g, 'i>(
     let function = SPIRVFunction::new(SPIRVFunctionData {
         ir_value: ir_function.value(),
         ir_function: RefCell::new(Some(ir_function)),
-        body_start_location,
+        cfg,
     });
 
-    state.define_function(id_result, function)?;
-    Ok(state)
+    state.define_function(id_result, function.clone())?;
+    Ok(function)
 }
 
 impl<'g, 'i> TranslationStateParsedTypesConstantsAndGlobals<'g, 'i> {
@@ -274,11 +328,10 @@ impl<'g, 'i> TranslationStateParsedTypesConstantsAndGlobals<'g, 'i> {
             base: self,
         };
         writeln!(base_state.debug_output, "parsing functions section")?;
-        while let Some((instruction, function_location)) =
-            base_state.next_instruction_and_location()?
-        {
-            let mut body_state = if let Instruction::Function(function) = instruction {
-                parse_function_header(base_state, function)?
+        let mut functions = Vec::new();
+        while let Some(instruction) = base_state.next_instruction()? {
+            if let Instruction::Function(function) = instruction {
+                functions.push(parse_function_structure(&mut base_state, function)?);
             } else {
                 return Err(InvalidSPIRVInstructionInSection {
                     instruction: instruction.clone(),
@@ -286,8 +339,8 @@ impl<'g, 'i> TranslationStateParsedTypesConstantsAndGlobals<'g, 'i> {
                 }
                 .into());
             };
-            todo!()
         }
+        todo!();
         Ok(TranslationStateParsedFunctions { base: base_state })
     }
 }

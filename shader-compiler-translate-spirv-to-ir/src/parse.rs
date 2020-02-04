@@ -146,12 +146,8 @@ impl<'g, 'i> TranslationStateBase<'g, 'i> {
     fn next_instruction_and_location(
         &mut self,
     ) -> TranslationResult<Option<(&'i Instruction, SPIRVInstructionLocation<'i>)>> {
-        if let Some((instruction, location)) = self.spirv_instructions_location.next() {
-            write!(self.debug_output, "{:05}: {}", location.index, instruction)?;
-            Ok(Some((instruction, location)))
-        } else {
-            Ok(None)
-        }
+        write!(self.debug_output, "{:?}", self.spirv_instructions_location)?;
+        Ok(self.spirv_instructions_location.next())
     }
     fn next_instruction(&mut self) -> TranslationResult<Option<&'i Instruction>> {
         Ok(self

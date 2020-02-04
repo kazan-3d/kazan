@@ -6,7 +6,7 @@
 extern crate alloc;
 
 use alloc::{boxed::Box, vec};
-use core::{borrow::Borrow, convert::TryFrom, fmt, iter, marker::PhantomData, mem, slice};
+use core::{convert::TryFrom, fmt, iter, marker::PhantomData, mem, slice};
 use spirv_parser::{Header, IdRef};
 
 #[derive(Clone, Eq, PartialEq, Hash, Debug)]
@@ -65,6 +65,31 @@ impl_id!(spirv_parser::IdScope);
 
 type KeyPhantomData<K> = PhantomData<fn(K) -> K>;
 
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
+pub struct IdBound(pub u32);
+
+pub trait ToIdBound {
+    fn to_id_bound(&self) -> IdBound;
+}
+
+impl<T: ToIdBound + ?Sized> ToIdBound for &'_ T {
+    fn to_id_bound(&self) -> IdBound {
+        (**self).to_id_bound()
+    }
+}
+
+impl ToIdBound for Header {
+    fn to_id_bound(&self) -> IdBound {
+        IdBound(self.bound)
+    }
+}
+
+impl ToIdBound for IdBound {
+    fn to_id_bound(&self) -> IdBound {
+        *self
+    }
+}
+
 #[derive(Clone)]
 pub struct IdMap<K: Id, V> {
     values: Box<[Option<V>]>,
@@ -72,25 +97,20 @@ pub struct IdMap<K: Id, V> {
     _phantom: KeyPhantomData<K>,
 }
 
+impl<K: Id, V> ToIdBound for IdMap<K, V> {
+    fn to_id_bound(&self) -> IdBound {
+        IdBound(self.values.len() as u32 + 1)
+    }
+}
+
 impl<K: Id, V> IdMap<K, V> {
-    pub fn with_bound(id_bound: u32) -> Self {
-        let values = (1..id_bound).map(|_| None).collect();
+    pub fn new<T: ToIdBound>(bound: T) -> Self {
+        let values = (1..bound.to_id_bound().0).map(|_| None).collect();
         Self {
             values,
             len: 0,
             _phantom: PhantomData,
         }
-    }
-    pub fn with_same_bound<V2>(other: &IdMap<K, V2>) -> Self {
-        let values = other.values.iter().map(|_| None).collect();
-        Self {
-            values,
-            len: 0,
-            _phantom: PhantomData,
-        }
-    }
-    pub fn new<T: Borrow<Header>>(header: T) -> Self {
-        Self::with_bound(header.borrow().bound)
     }
     pub fn capacity(&self) -> usize {
         self.values.len()
@@ -490,8 +510,8 @@ mod tests {
 
     #[test]
     fn test_map() {
-        const BOUND: u32 = 10;
-        let mut map = IdMap::<IdRef, i32>::with_bound(BOUND);
+        const BOUND: IdBound = IdBound(10);
+        let mut map = IdMap::<IdRef, i32>::new(BOUND);
         let map = &mut map;
         check_map(map, &[]);
         assert_eq!(map.insert(IdRef(0), 0), Err(IdOutOfBounds));
@@ -500,13 +520,13 @@ mod tests {
         check_map(map, &[(IdRef(1), 0)]);
         assert_eq!(map.insert(IdRef(1), 2), Ok(Some(0)));
         check_map(map, &[(IdRef(1), 2)]);
-        assert_eq!(map.insert(IdRef(BOUND), 4), Err(IdOutOfBounds));
+        assert_eq!(map.insert(IdRef(BOUND.0), 4), Err(IdOutOfBounds));
         check_map(map, &[(IdRef(1), 2)]);
-        assert_eq!(map.insert(IdRef(BOUND - 1), 4), Ok(None));
-        check_map(map, &[(IdRef(1), 2), (IdRef(BOUND - 1), 4)]);
-        assert_eq!(map.remove(IdRef(BOUND - 1)), Ok(Some(4)));
+        assert_eq!(map.insert(IdRef(BOUND.0 - 1), 4), Ok(None));
+        check_map(map, &[(IdRef(1), 2), (IdRef(BOUND.0 - 1), 4)]);
+        assert_eq!(map.remove(IdRef(BOUND.0 - 1)), Ok(Some(4)));
         check_map(map, &[(IdRef(1), 2)]);
-        assert_eq!(map.remove(IdRef(BOUND - 1)), Ok(None));
+        assert_eq!(map.remove(IdRef(BOUND.0 - 1)), Ok(None));
         check_map(map, &[(IdRef(1), 2)]);
         assert_eq!(map.remove(IdRef(0)), Err(IdOutOfBounds));
         check_map(map, &[(IdRef(1), 2)]);

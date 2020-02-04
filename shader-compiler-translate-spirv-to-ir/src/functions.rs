@@ -2,8 +2,8 @@
 // See Notices.txt for copyright information
 
 use crate::{
-    decorations::SPIRVObject, errors::TranslationResult, types::SPIRVType,
-    values::GenericSPIRVValue, SPIRVInstructionLocation,
+    cfg::CFG, decorations::SPIRVObject, errors::TranslationResult, types::SPIRVType,
+    values::GenericSPIRVValue,
 };
 use alloc::rc::Rc;
 use core::{cell::RefCell, ops::Deref};
@@ -38,8 +38,7 @@ impl<'g> GenericSPIRVValue<'g> for SPIRVFunctionParameter<'g> {
 pub(crate) struct SPIRVFunctionData<'g, 'i> {
     pub(crate) ir_function: RefCell<Option<Function<'g>>>,
     pub(crate) ir_value: shader_compiler_ir::IdRef<'g, FunctionData<'g>>,
-    /// first instruction after last OpFunctionParameter
-    pub(crate) body_start_location: SPIRVInstructionLocation<'i>,
+    pub(crate) cfg: CFG<'g, 'i>,
 }
 
 #[derive(Clone)]

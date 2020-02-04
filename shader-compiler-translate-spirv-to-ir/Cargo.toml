@@ -27,3 +27,8 @@ features = []
 [dependencies.petgraph]
 version = "0.5"
 default-features = false
+
+[dependencies.fixedbitset]
+version = "0.2"
+default-features = false
+

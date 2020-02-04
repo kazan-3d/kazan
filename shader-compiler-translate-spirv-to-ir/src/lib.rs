@@ -9,6 +9,7 @@ extern crate alloc;
 #[macro_use]
 mod macros;
 
+mod cfg;
 mod constants;
 mod decorations;
 mod errors;
@@ -90,10 +91,20 @@ decl_specialization_resolver! {
 #[derive(Default)]
 pub struct DefaultSpecializationResolver;
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 struct SPIRVInstructionLocation<'i> {
     index: usize,
     iter: slice::Iter<'i, spirv_parser::Instruction>,
+}
+
+impl<'i> fmt::Debug for SPIRVInstructionLocation<'i> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        if let Some(instruction) = self.get_instruction() {
+            write!(f, "{:05}: {}", self.index, instruction)
+        } else {
+            writeln!(f, "{:05}: <EOF>", self.index)
+        }
+    }
 }
 
 impl<'i> SPIRVInstructionLocation<'i> {
