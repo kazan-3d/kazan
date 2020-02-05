@@ -366,6 +366,22 @@ impl_errors! {
         pub merge_instruction: spirv_parser::Instruction,
         pub instruction: spirv_parser::Instruction,
     }
+
+    #[display = "invalid termination instruction following merge instruction:\n{merge_instruction}{termination_instruction}"]
+    pub struct InvalidTerminationInstructionFollowingMergeInstruction {
+        pub merge_instruction: spirv_parser::Instruction,
+        pub termination_instruction: spirv_parser::Instruction,
+    }
+
+    #[display = "SPIR-V switch cases form a loop, which is not valid:\n{switch_instruction}"]
+    pub struct SwitchCasesFormALoop {
+        pub switch_instruction: spirv_parser::Instruction,
+    }
+
+    #[display = "SPIR-V switch case branches to more than one other case, which is not valid:\n{switch_instruction}"]
+    pub struct SwitchCaseBranchesToMultipleCases {
+        pub switch_instruction: spirv_parser::Instruction,
+    }
 }
 
 pub(crate) type TranslationResult<T> = Result<T, TranslationError>;

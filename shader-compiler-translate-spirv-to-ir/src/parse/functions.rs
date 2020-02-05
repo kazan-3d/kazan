@@ -288,6 +288,12 @@ fn parse_function_structure<'g, 'i>(
         cfg.dump_to_dot()
     )?;
 
+    writeln!(
+        state.debug_output,
+        "structure tree:\n{:#?}",
+        cfg.structure_tree()
+    )?;
+
     let ir_return_type = return_type
         .get_ir_type(state.global_state)?
         .into_iter()

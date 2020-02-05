@@ -15,6 +15,7 @@ mod decorations;
 mod errors;
 mod functions;
 mod parse;
+mod structure_tree;
 mod types;
 mod values;
 
