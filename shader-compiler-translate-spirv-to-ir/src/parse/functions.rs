@@ -57,7 +57,7 @@ decl_translation_state! {
     pub(crate) struct TranslationStateParsingFunctionBody<'f, 'g, 'i> {
         base: TranslationStateParseFunctionsBase<'g, 'i>,
         function: &'f SPIRVFunction<'g, 'i>,
-        variables: Vec<shader_compiler_ir::Variable<'g>>,
+        local_variables: Vec<shader_compiler_ir::Variable<'g>>,
     }
 }
 
@@ -353,7 +353,7 @@ impl<'g, 'i> TranslationStateParsedTypesConstantsAndGlobals<'g, 'i> {
             let mut body_state = TranslationStateParsingFunctionBody {
                 base: base_state,
                 function,
-                variables: Vec::new(),
+                local_variables: Vec::new(),
             };
             writeln!(
                 body_state.debug_output,
@@ -375,9 +375,9 @@ impl<'g, 'i> TranslationStateParsedTypesConstantsAndGlobals<'g, 'i> {
             let TranslationStateParsingFunctionBody {
                 base,
                 function: _function,
-                variables,
+                local_variables,
             } = body_state.translate_structure_tree()?;
-            function.ir_value.set_local_variables(variables);
+            function.ir_value.set_local_variables(local_variables);
             base_state = base;
         }
         Ok(TranslationStateParsedFunctions { base: base_state })

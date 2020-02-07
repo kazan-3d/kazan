@@ -284,6 +284,7 @@ impl ParseInstruction for OpVariable {
             ),
         };
         let ir_value = OnceCell::from(shader_compiler_ir::ValueUse::new(variable.pointer.value()));
+        state.local_variables.push(variable);
         if let Some(initializer) = initializer {
             todo!()
         }
