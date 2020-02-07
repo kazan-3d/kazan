@@ -4,6 +4,7 @@
 use crate::{
     prelude::*,
     text::{FromTextError, FromTextState, Punctuation, ToTextState},
+    Alignment,
 };
 use alloc::vec::Vec;
 use core::fmt;
@@ -234,7 +235,7 @@ macro_rules! instructions {
                         let arguments = <[ValueUse; $argument_count]>::from_text(state)?;
                         $(
                             state.parse_punct_token_or_error(Punctuation::Comma, "missing comma: ','")?;
-                            let $instruction_extra_field = $instruction_extra_field_type::from_text(state)?;
+                            let $instruction_extra_field = <$instruction_extra_field_type>::from_text(state)?;
                         )*
                         state.parse_punct_token_or_error(Punctuation::Arrow, "missing arrow: '->'")?;
                         let results = <[ValueDefinition; $result_count]>::from_text(state)?;
@@ -370,6 +371,15 @@ instructions! {
         #[result_count = 1]
         Add {},
 
+        /// load
+        #[text = "load"]
+        #[argument_count = 1]
+        #[result_count = 1]
+        Load {
+            /// pointer alignment
+            pub alignment: Alignment,
+        },
+
         #[break]
         /// break from a `Block`
         BreakBlock,
@@ -476,5 +486,101 @@ impl<'g> FromText<'g> for Instruction<'g> {
             None
         };
         Ok(Self { location, data })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{
+        instructions,
+        text::{FromText, FromTextError, FromTextState, ToText, ToTextState},
+        Alignment, DataPointerType, GlobalState, Instruction, IntegerType, ValueDefinition,
+        ValueUse,
+    };
+    use alloc::{string::ToString, vec::Vec};
+    use core::fmt;
+
+    struct ValueDefinitionsThenInstruction<'g> {
+        value_definitions: Vec<ValueDefinition<'g>>,
+        instruction: Instruction<'g>,
+    }
+
+    impl<'g> FromText<'g> for ValueDefinitionsThenInstruction<'g> {
+        type Parsed = Self;
+        fn from_text(state: &mut FromTextState<'g, '_>) -> Result<Self::Parsed, FromTextError> {
+            let value_definitions = Vec::<ValueDefinition>::from_text(state)?;
+            let instruction = Instruction::from_text(state)?;
+            Ok(Self {
+                value_definitions,
+                instruction,
+            })
+        }
+    }
+
+    impl<'g> ToText<'g> for ValueDefinitionsThenInstruction<'g> {
+        fn to_text(&self, state: &mut ToTextState<'g, '_>) -> fmt::Result {
+            let Self {
+                value_definitions,
+                instruction,
+            } = self;
+            value_definitions.to_text(state)?;
+            writeln!(state)?;
+            instruction.to_text(state)
+        }
+    }
+
+    fn test_instruction_from_to_text<'g>(
+        global_state: &'g GlobalState<'g>,
+        value: ValueDefinitionsThenInstruction<'g>,
+        text: &str,
+        assert_eq: fn(&str, &str),
+    ) {
+        assert_eq(&value.display().to_string(), text);
+        let value =
+            ValueDefinitionsThenInstruction::parse("test_input", text, global_state).unwrap();
+        assert_eq(&value.display().to_string(), text);
+    }
+
+    macro_rules! test_instruction_from_to_text {
+        (
+            $test_name:ident, $global_state:ident;
+            $instr:ident [$($arg:ident: $arg_type:expr),*] $(, $field:ident: $field_value:expr)* => [$($result:ident: $result_type:expr),*];
+            $($text:literal),+
+        ) => {
+            #[test]
+            fn $test_name() {
+                let $global_state = GlobalState::new();
+                let $global_state = &$global_state;
+                $(let $arg = ValueDefinition::new($arg_type, stringify!($arg), $global_state);)*
+                $(let $result = ValueDefinition::new($result_type, stringify!($result), $global_state);)*
+                test_instruction_from_to_text(
+                    $global_state,
+                    ValueDefinitionsThenInstruction {
+                        instruction: Instruction::without_location(instructions::$instr {
+                            $($field: $field_value,)*
+                            arguments: [$(ValueUse::new($arg.value()),)*],
+                            results: [$($result,)*],
+                        }),
+                        value_definitions: vec![$($arg,)*],
+                    },
+                    concat!($($text,)+),
+                    |a, b| assert_eq!(a, b)
+                );
+            }
+        };
+    }
+
+    test_instruction_from_to_text! {
+        test_add_instruction_from_to_text, global_state;
+        Add [arg0: IntegerType::Int32, arg1: IntegerType::Int32] => [result: IntegerType::Int32];
+        "[arg0 : i32, arg1 : i32]\n",
+        "add [arg0, arg1] -> [result : i32]"
+    }
+
+    test_instruction_from_to_text! {
+        test_load_instruction_from_to_text, global_state;
+        Load [arg0: DataPointerType], alignment: Alignment::new(4).unwrap() => [result: IntegerType::Int32];
+        "[arg0 : data_ptr]\n",
+        "load [arg0], align: 0x4 -> [result : i32]"
     }
 }
