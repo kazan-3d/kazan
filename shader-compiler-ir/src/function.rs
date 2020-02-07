@@ -5,9 +5,9 @@ use crate::{
     prelude::*,
     text::{
         FromTextError, FromTextScopeId, FromTextState, FromTextSymbol, FromTextSymbolsState,
-        FromTextSymbolsStateBase, Keyword, NamedId, Punctuation, ToTextState,
+        FromTextSymbolsStateBase, Keyword, NamedId, Punctuation, ToTextState, TokenKind,
     },
-    Allocate, FunctionPointerType, IdRef, ParsedBlockNameDefinition,
+    Allocate, DataPointerType, FunctionPointerType, IdRef, OnceCell, ParsedBlockNameDefinition,
 };
 use alloc::vec::Vec;
 use core::{fmt, ops::Deref};
@@ -146,6 +146,51 @@ impl_struct_with_default_from_to_text! {
     }
 }
 
+/// a variable
+pub struct Variable<'g> {
+    /// the type of the variable
+    pub variable_type: Interned<'g, Type<'g>>,
+    /// the `ValueDefinition` that points to the variable
+    pub pointer: ValueDefinition<'g>,
+}
+
+impl_display_as_to_text!(<'g> Variable<'g>);
+
+impl<'g> FromText<'g> for Variable<'g> {
+    type Parsed = Self;
+    fn from_text(state: &mut FromTextState<'g, '_>) -> Result<Self, FromTextError> {
+        let variable_type = Type::from_text(state)?;
+        state.parse_punct_token_or_error(
+            Punctuation::Arrow,
+            "missing arrow (`->`) between variable type and value definition",
+        )?;
+        let pointer_location = state.peek_token()?.span;
+        let pointer: ValueDefinition<'g> = ValueDefinition::from_text(state)?;
+        if pointer.value_type != DataPointerType.intern(state.global_state()) {
+            state.error_at(
+                pointer_location,
+                "invalid variable value definition type: must be data_ptr",
+            )?;
+        }
+        Ok(Variable {
+            variable_type,
+            pointer,
+        })
+    }
+}
+
+impl<'g> ToText<'g> for Variable<'g> {
+    fn to_text(&self, state: &mut ToTextState<'g, '_>) -> fmt::Result {
+        let Variable {
+            variable_type,
+            pointer,
+        } = self;
+        variable_type.to_text(state)?;
+        write!(state, " -> ")?;
+        pointer.to_text(state)
+    }
+}
+
 /// the struct storing the data for a `Function`
 pub struct FunctionData<'g> {
     /// the name of the `Function` -- doesn't need to be unique
@@ -156,9 +201,26 @@ pub struct FunctionData<'g> {
     pub function_type: FunctionPointerType<'g>,
     /// the function entry, holds the `ValueDefinition`s for the function's arguments
     pub entry: FunctionEntry<'g>,
+    /// the local variables of this function
+    pub local_variables: OnceCell<Vec<Variable<'g>>>,
     /// The body of the function, the function returns when `body` finishes.
     /// The values defined in `body.result_definitions` are the return values.
     pub body: Block<'g>,
+}
+
+impl<'g> FunctionData<'g> {
+    /// Sets the local variables of `self` to the passed-in value.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the local variables were already set.
+    pub fn set_body(&self, local_variables: Vec<Variable<'g>>) {
+        #![allow(clippy::ok_expect)]
+        self.local_variables
+            .set(local_variables)
+            .ok()
+            .expect("function local variables already set");
+    }
 }
 
 impl<'g> Id<'g> for FunctionData<'g> {}
@@ -193,6 +255,7 @@ impl<'g> Function<'g> {
         name: impl Internable<'g, Interned = str>,
         hints: FunctionHints,
         argument_definitions: Vec<ValueDefinition<'g>>,
+        local_variables: Option<Vec<Variable<'g>>>,
         body: Block<'g>,
         global_state: &'g GlobalState<'g>,
     ) -> Self {
@@ -211,6 +274,7 @@ impl<'g> Function<'g> {
                 entry: FunctionEntry {
                     argument_definitions,
                 },
+                local_variables: local_variables.map_or_else(OnceCell::new, OnceCell::from),
                 body,
             }),
         }
@@ -280,13 +344,37 @@ impl<'g> FromText<'g> for Function<'g> {
                 .collect()
         });
         let missing_closing_brace = "missing closing curly brace: '}'";
+        let missing_opening_brace = "missing opening curly brace: '{'";
         state.parse_parenthesized(
             Punctuation::LCurlyBrace,
-            "missing opening curly brace: '{'",
+            missing_opening_brace,
             Punctuation::RCurlyBrace,
             missing_closing_brace,
             |state| -> Result<_, _> {
                 let hints = FunctionHints::from_text(state)?;
+                let local_variables = state.parse_parenthesized(
+                    Punctuation::LCurlyBrace,
+                    missing_opening_brace,
+                    Punctuation::RCurlyBrace,
+                    missing_closing_brace,
+                    |state| -> Result<_, _> {
+                        let mut local_variables = Vec::new();
+                        loop {
+                            match state.peek_token()?.kind {
+                                TokenKind::EndOfFile
+                                | TokenKind::Punct(Punctuation::RCurlyBrace) => break,
+                                _ => {
+                                    local_variables.push(Variable::from_text(state)?);
+                                    state.parse_punct_token_or_error(
+                                        Punctuation::Semicolon,
+                                        "missing terminating semicolon: ';'",
+                                    )?;
+                                }
+                            }
+                        }
+                        Ok(local_variables)
+                    },
+                )?;
                 let block_name = ParsedBlockNameDefinition::from_text(state)?;
                 let block =
                     Block::without_body(block_name.name, result_definitions, state.global_state());
@@ -295,6 +383,7 @@ impl<'g> FromText<'g> for Function<'g> {
                     name.name,
                     hints,
                     argument_definitions,
+                    Some(local_variables),
                     block,
                     state.global_state(),
                 );
@@ -331,8 +420,12 @@ impl<'g> ToText<'g> for Function<'g> {
             entry: FunctionEntry {
                 argument_definitions,
             },
+            local_variables,
             body,
         } = &***self;
+        let local_variables = local_variables
+            .get()
+            .expect("function local variables not set");
         argument_definitions.to_text(state)?;
         write!(state, " -> ")?;
         function_type.returns.to_text(state)?;
@@ -340,6 +433,15 @@ impl<'g> ToText<'g> for Function<'g> {
         state.indent(|state| {
             hints.to_text(state)?;
             writeln!(state)?;
+            writeln!(state, "{{")?;
+            state.indent(|state| {
+                for local_variable in local_variables {
+                    local_variable.to_text(state)?;
+                    writeln!(state, ";")?;
+                }
+                Ok(())
+            })?;
+            writeln!(state, "}}")?;
             Block::name_definition_to_text(body.value(), state)?;
             write!(state, " ")?;
             body.body_to_text(state)?;
@@ -352,7 +454,7 @@ impl<'g> ToText<'g> for Function<'g> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ContinueLoop;
+    use crate::{ContinueLoop, IntegerType};
     use alloc::string::ToString;
 
     #[test]
@@ -380,6 +482,7 @@ mod tests {
                 side_effects: FunctionSideEffects::Const,
             },
             vec![],
+            Some(vec![]),
             block1,
             global_state,
         );
@@ -402,6 +505,8 @@ mod tests {
                 "        inlining_hint: inline,\n",
                 "        side_effects: const,\n",
                 "    }\n",
+                "    {\n",
+                "    }\n",
                 "    block1 {\n",
                 "        loop loop1[] -> ! {\n",
                 "            -> [];\n",
@@ -421,6 +526,10 @@ mod tests {
             "function1",
             FunctionHints::default(),
             vec![],
+            Some(vec![Variable {
+                variable_type: IntegerType::Int32.intern(global_state),
+                pointer: ValueDefinition::new(DataPointerType, "local_var1", global_state),
+            }]),
             block1,
             global_state,
         );
@@ -454,6 +563,9 @@ mod tests {
                 "    hints {\n",
                 "        inlining_hint: none,\n",
                 "        side_effects: normal,\n",
+                "    }\n",
+                "    {\n",
+                "        i32 -> local_var1 : data_ptr;\n",
                 "    }\n",
                 "    block1 {\n",
                 "        loop loop1[\"\"0 : fn function1] -> ! {\n",

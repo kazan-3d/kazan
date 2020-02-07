@@ -312,6 +312,7 @@ fn parse_function_structure<'g, 'i>(
         function_debug_name,
         hints,
         argument_definitions,
+        None,
         body,
         state.global_state,
     );
