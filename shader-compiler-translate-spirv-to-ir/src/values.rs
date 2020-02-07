@@ -13,7 +13,7 @@ use crate::{
 };
 use alloc::rc::Rc;
 use core::ops::Deref;
-use shader_compiler_ir::GlobalState;
+use shader_compiler_ir::{GlobalState, OnceCell};
 use spirv_parser::{BuiltIn, StorageClass};
 
 pub(crate) trait GenericSPIRVValue<'g>:
@@ -40,6 +40,7 @@ pub(crate) struct SPIRVVariableData<'g> {
     pub(crate) object: SPIRVObject,
     pub(crate) storage_class: StorageClass,
     pub(crate) initializer: Option<spirv_parser::IdRef>,
+    pub(crate) ir_value: OnceCell<shader_compiler_ir::ValueUse<'g>>,
 }
 
 impl_decoration_aspect_members! {
@@ -76,7 +77,10 @@ impl<'g> GenericSPIRVValue<'g> for SPIRVVariable<'g> {
         &self,
         _global_state: &'g GlobalState<'g>,
     ) -> TranslationResult<shader_compiler_ir::ValueUse<'g>> {
-        todo!()
+        Ok(self
+            .ir_value
+            .get_or_try_init(|| -> TranslationResult<_> { todo!() })?
+            .clone())
     }
 }
 

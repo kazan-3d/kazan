@@ -344,7 +344,7 @@ impl ParseInstruction for OpTypePointer {
         let OpTypePointer {
             id_result,
             storage_class,
-            type_: pointee_type,
+            type_: pointee_type_id,
         } = *self;
         let decorations = state.take_decorations(id_result)?;
         let mut array_stride = None;
@@ -374,7 +374,7 @@ impl ParseInstruction for OpTypePointer {
                 }
             }
         }
-        let pointee_type = state.get_type(pointee_type)?.clone();
+        let pointee_type = state.get_type(pointee_type_id)?.clone();
         let pointer_type = state
             .types
             .entry(id_result.0)?
@@ -383,6 +383,7 @@ impl ParseInstruction for OpTypePointer {
             pointer_type
                 .resolve_forward_declaration(PointerTypeData {
                     pointee_type,
+                    pointee_type_id,
                     storage_class,
                     array_stride,
                 })

@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 // See Notices.txt for copyright information
 
-use crate::cfg::CFGBlockId;
 use crate::{
-    cfg::TerminationInstruction,
+    cfg::{CFGBlockId, TerminationInstruction},
     errors::TranslationResult,
     parse::{functions::TranslationStateParsingFunctionBody, ParseInstruction},
     structure_tree::{Child, Node, NodeKind, StructureTree},
+    SPIRVInstructionLocation,
 };
+use alloc::vec::Vec;
 use shader_compiler_ir::BlockRef;
 use spirv_parser::{
     OpBranch, OpBranchConditional, OpKill, OpLabel, OpLoopMerge, OpPhi, OpReturn, OpReturnValue,
@@ -20,7 +21,27 @@ decl_translation_state! {
     }
 }
 
-impl<'f, 'g, 'i> TranslationStateTranslatingStructureTree<'f, 'g, 'i> {
+decl_translation_state! {
+    pub(crate) struct TranslationStateParsingFunctionBodyBlock<'b, 'f, 'g, 'i> {
+        base: &'b mut TranslationStateTranslatingStructureTree<'f, 'g, 'i>,
+        block_instructions: &'b mut Vec<shader_compiler_ir::Instruction<'g>>,
+    }
+}
+
+impl<'b, 'f, 'g, 'i> TranslationStateParsingFunctionBodyBlock<'b, 'f, 'g, 'i> {
+    pub(crate) fn push_instruction(
+        &mut self,
+        location: SPIRVInstructionLocation<'i>,
+        instruction: impl Into<shader_compiler_ir::InstructionData<'g>>,
+    ) -> TranslationResult<()> {
+        let location = self.get_debug_location(location)?;
+        self.block_instructions
+            .push(shader_compiler_ir::Instruction::new(
+                location,
+                instruction.into(),
+            ));
+        Ok(())
+    }
     fn translate_structure_tree_simple_basic_block(
         &mut self,
         block_id: CFGBlockId,
@@ -66,8 +87,19 @@ impl<'f, 'g, 'i> TranslationStateTranslatingStructureTree<'f, 'g, 'i> {
         }
         todo!()
     }
+}
+
+impl<'f, 'g, 'i> TranslationStateTranslatingStructureTree<'f, 'g, 'i> {
     fn translate_structure_tree_root(&mut self) -> TranslationResult<()> {
-        self.translate_structure_tree_simple_node_body(self.function.cfg.structure_tree().root())
+        let function = self.function;
+        let mut block_instructions = Vec::new();
+        TranslationStateParsingFunctionBodyBlock {
+            base: self,
+            block_instructions: &mut block_instructions,
+        }
+        .translate_structure_tree_simple_node_body(function.cfg.structure_tree().root())?;
+        function.ir_value.body.set_body(block_instructions);
+        Ok(())
     }
 }
 
@@ -90,9 +122,9 @@ macro_rules! unimplemented_control_flow_instruction {
             ) -> TranslationResult<()> {
                 Ok(())
             }
-            fn parse_in_function_body_reachable<'f, 'g, 'i>(
+            fn parse_in_function_body_reachable<'b, 'f, 'g, 'i>(
                 &'i self,
-                _state: &mut TranslationStateTranslatingStructureTree<'f, 'g, 'i>,
+                _state: &mut TranslationStateParsingFunctionBodyBlock<'b, 'f, 'g, 'i>,
                 _block_id: CFGBlockId,
             ) -> TranslationResult<()> {
                 todo!(concat!(

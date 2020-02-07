@@ -4,7 +4,8 @@
 use crate::{
     cfg::CFGBlockId,
     parse::{
-        functions::TranslationStateParsingFunctionBody, ParseInstruction,
+        functions::TranslationStateParsingFunctionBody,
+        translate_structure_tree::TranslationStateParsingFunctionBodyBlock, ParseInstruction,
         TranslationStateParsingTypesConstantsAndGlobals,
     },
     TranslationResult,
@@ -19,9 +20,16 @@ macro_rules! unimplemented_instruction {
             ) -> TranslationResult<()> {
                 todo!(concat!("unimplemented instruction: ", stringify!($opname)))
             }
-            fn parse_in_function_body_generic<'f, 'g, 'i>(
+            fn parse_in_function_body_prepass<'f, 'g, 'i>(
                 &'i self,
                 _state: &mut TranslationStateParsingFunctionBody<'f, 'g, 'i>,
+                _block_id: CFGBlockId,
+            ) -> TranslationResult<()> {
+                todo!(concat!("unimplemented instruction: ", stringify!($opname)))
+            }
+            fn parse_in_function_body_reachable<'b, 'f, 'g, 'i>(
+                &'i self,
+                _state: &mut TranslationStateParsingFunctionBodyBlock<'b, 'f, 'g, 'i>,
                 _block_id: CFGBlockId,
             ) -> TranslationResult<()> {
                 todo!(concat!("unimplemented instruction: ", stringify!($opname)))

@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 // See Notices.txt for copyright information
 
-use crate::cfg::CFGBlockId;
 use crate::{
+    cfg::{CFGBlockId, TerminationInstruction},
     errors::TranslationResult,
     parse::{
-        functions::TranslationStateParsingFunctionBody, ParseInstruction,
+        functions::TranslationStateParsingFunctionBody,
+        translate_structure_tree::TranslationStateParsingFunctionBodyBlock, ParseInstruction,
         TranslationStateParseBaseTypesConstantsAndGlobals,
         TranslationStateParsingTypesConstantsAndGlobals,
     },
@@ -17,7 +18,7 @@ use spirv_parser::{Instruction, OpLine, OpNoLine};
 impl<'g, 'i> TranslationStateParseBaseTypesConstantsAndGlobals<'g, 'i> {
     pub(crate) fn get_debug_location(
         &mut self,
-        location: SPIRVInstructionLocation,
+        location: SPIRVInstructionLocation<'i>,
     ) -> TranslationResult<Option<Interned<'g, Location<'g>>>> {
         if location.index >= self.spirv_instructions.len() {
             return Ok(None);
@@ -30,15 +31,10 @@ impl<'g, 'i> TranslationStateParseBaseTypesConstantsAndGlobals<'g, 'i> {
                     current_debug_location =
                         Some(Location { file, line, column }.intern(self.global_state));
                 }
-                Instruction::NoLine(_)
-                | Instruction::Branch(_)
-                | Instruction::BranchConditional(_)
-                | Instruction::Switch32(_)
-                | Instruction::Switch64(_)
-                | Instruction::Kill(_)
-                | Instruction::Return(_)
-                | Instruction::ReturnValue(_)
-                | Instruction::Unreachable(_) => current_debug_location = None,
+                Instruction::NoLine(_) => current_debug_location = None,
+                ref instruction if TerminationInstruction::is_in_subset(instruction) => {
+                    current_debug_location = None;
+                }
                 _ => {}
             }
             self.debug_locations.push(current_debug_location);
@@ -55,12 +51,19 @@ impl ParseInstruction for OpLine {
         state.get_debug_string(self.file)?;
         Ok(())
     }
-    fn parse_in_function_body_generic<'f, 'g, 'i>(
+    fn parse_in_function_body_prepass<'f, 'g, 'i>(
         &'i self,
         state: &mut TranslationStateParsingFunctionBody<'f, 'g, 'i>,
-        _block_id: CFGBlockId,
+        block_id: CFGBlockId,
     ) -> TranslationResult<()> {
         state.get_debug_string(self.file)?;
+        Ok(())
+    }
+    fn parse_in_function_body_reachable<'b, 'f, 'g, 'i>(
+        &'i self,
+        state: &mut TranslationStateParsingFunctionBodyBlock<'b, 'f, 'g, 'i>,
+        block_id: CFGBlockId,
+    ) -> TranslationResult<()> {
         Ok(())
     }
 }
@@ -72,9 +75,16 @@ impl ParseInstruction for OpNoLine {
     ) -> TranslationResult<()> {
         Ok(())
     }
-    fn parse_in_function_body_generic<'f, 'g, 'i>(
+    fn parse_in_function_body_prepass<'f, 'g, 'i>(
         &'i self,
         _state: &mut TranslationStateParsingFunctionBody<'f, 'g, 'i>,
+        _block_id: CFGBlockId,
+    ) -> TranslationResult<()> {
+        Ok(())
+    }
+    fn parse_in_function_body_reachable<'b, 'f, 'g, 'i>(
+        &'i self,
+        _state: &mut TranslationStateParsingFunctionBodyBlock<'b, 'f, 'g, 'i>,
         _block_id: CFGBlockId,
     ) -> TranslationResult<()> {
         Ok(())

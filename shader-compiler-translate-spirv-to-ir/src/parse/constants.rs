@@ -11,7 +11,8 @@ use crate::{
         SpecializationConstantMissingSpecId, TranslationResult, UnsupportedSPIRVType,
     },
     parse::{
-        functions::TranslationStateParsingFunctionBody, ParseInstruction,
+        functions::TranslationStateParsingFunctionBody,
+        translate_structure_tree::TranslationStateParsingFunctionBodyBlock, ParseInstruction,
         TranslationStateParseBaseTypesConstantsAndGlobals,
         TranslationStateParsingTypesConstantsAndGlobals,
     },
@@ -51,12 +52,19 @@ macro_rules! impl_parse_constant {
             ) -> TranslationResult<()> {
                 self.parse_constant(state)
             }
-            fn parse_in_function_body_generic<'f, 'g, 'i>(
+            fn parse_in_function_body_prepass<'f, 'g, 'i>(
                 &'i self,
                 state: &mut TranslationStateParsingFunctionBody<'f, 'g, 'i>,
-                _block_id: CFGBlockId,
+                block_id: CFGBlockId,
             ) -> TranslationResult<()> {
                 self.parse_constant(state)
+            }
+            fn parse_in_function_body_reachable<'b, 'f, 'g, 'i>(
+                &'i self,
+                state: &mut TranslationStateParsingFunctionBodyBlock<'b, 'f, 'g, 'i>,
+                block_id: CFGBlockId,
+            ) -> TranslationResult<()> {
+                Ok(())
             }
         }
     };

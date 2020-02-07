@@ -5,7 +5,7 @@ pub(crate) mod structs;
 
 use crate::errors::{TranslationResult, VoidNotAllowedHere};
 use alloc::{rc::Rc, vec::Vec};
-use core::{borrow::Borrow, marker::PhantomData, ops::Deref};
+use core::{marker::PhantomData, ops::Deref};
 use once_cell::unsync::OnceCell;
 use shader_compiler_ir::{prelude::*, BoolType, FloatType};
 use spirv_parser::{IdRef, StorageClass};
@@ -26,16 +26,16 @@ pub(crate) trait GenericSPIRVType<'g>: Eq + Clone + Into<SPIRVType<'g>> {
     ) -> TranslationResult<Option<Interned<'g, shader_compiler_ir::Type<'g>>>> {
         self.get_ir_type_with_state(&mut GetIrTypeState { global_state })
     }
-    fn get_nonvoid_ir_type<B: Borrow<I>, I: Clone + Into<spirv_parser::Instruction>>(
+    fn get_nonvoid_ir_type<I: FnOnce() -> spirv_parser::Instruction>(
         &self,
         global_state: &'g GlobalState<'g>,
         type_id: IdRef,
-        instruction: B,
+        instruction: I,
     ) -> TranslationResult<Interned<'g, shader_compiler_ir::Type<'g>>> {
         self.get_ir_type(global_state)?.ok_or_else(|| {
             VoidNotAllowedHere {
                 type_id,
-                instruction: instruction.borrow().clone().into(),
+                instruction: instruction(),
             }
             .into()
         })
@@ -341,6 +341,7 @@ impl<'g> GenericSPIRVType<'g> for VectorType {
 #[derive(Debug)]
 pub(crate) struct PointerTypeData<'g> {
     pub(crate) pointee_type: SPIRVType<'g>,
+    pub(crate) pointee_type_id: spirv_parser::IdRef,
     pub(crate) storage_class: StorageClass,
     pub(crate) array_stride: Option<u32>,
 }
