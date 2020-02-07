@@ -17,15 +17,18 @@ mod ext_inst_import;
 mod extension;
 mod functions;
 mod memory_model;
+mod translate_structure_tree;
 mod types;
 mod unimplemented_instructions;
 mod variables;
 
+use crate::cfg::CFGBlockId;
 use crate::{
     errors::{InvalidSPIRVInstructionInSection, SPIRVIdAlreadyDefined, SPIRVIdNotDefined},
     parse::{
         annotations::TranslationStateParsedAnnotations,
         functions::{TranslationStateParsedFunctions, TranslationStateParsingFunctionBody},
+        translate_structure_tree::TranslationStateTranslatingStructureTree,
     },
     types::SPIRVType,
     values::SPIRVValue,
@@ -115,15 +118,30 @@ pub(crate) trait ParseInstruction: Clone + Into<Instruction> {
         }
         .into())
     }
-    fn parse_in_function_body<'g, 'i>(
+    fn parse_in_function_body_generic<'f, 'g, 'i>(
         &'i self,
-        _state: &mut TranslationStateParsingFunctionBody<'g, 'i>,
+        _state: &mut TranslationStateParsingFunctionBody<'f, 'g, 'i>,
+        _block_id: CFGBlockId,
     ) -> TranslationResult<()> {
         Err(InvalidSPIRVInstructionInSection {
             instruction: self.clone().into(),
             section_name: "function body",
         }
         .into())
+    }
+    fn parse_in_function_body_prepass<'f, 'g, 'i>(
+        &'i self,
+        state: &mut TranslationStateParsingFunctionBody<'f, 'g, 'i>,
+        block_id: CFGBlockId,
+    ) -> TranslationResult<()> {
+        self.parse_in_function_body_generic(state, block_id)
+    }
+    fn parse_in_function_body_reachable<'f, 'g, 'i>(
+        &'i self,
+        state: &mut TranslationStateTranslatingStructureTree<'f, 'g, 'i>,
+        block_id: CFGBlockId,
+    ) -> TranslationResult<()> {
+        self.parse_in_function_body_generic(state, block_id)
     }
 }
 
@@ -134,11 +152,26 @@ impl ParseInstruction for Instruction {
     ) -> TranslationResult<()> {
         instruction_dispatch!(self, v, v.parse_in_types_constants_globals_section(state))
     }
-    fn parse_in_function_body<'g, 'i>(
+    fn parse_in_function_body_generic<'f, 'g, 'i>(
         &'i self,
-        state: &mut TranslationStateParsingFunctionBody<'g, 'i>,
+        state: &mut TranslationStateParsingFunctionBody<'f, 'g, 'i>,
+        block_id: CFGBlockId,
     ) -> TranslationResult<()> {
-        instruction_dispatch!(self, v, v.parse_in_function_body(state))
+        instruction_dispatch!(self, v, v.parse_in_function_body_generic(state, block_id))
+    }
+    fn parse_in_function_body_prepass<'f, 'g, 'i>(
+        &'i self,
+        state: &mut TranslationStateParsingFunctionBody<'f, 'g, 'i>,
+        block_id: CFGBlockId,
+    ) -> TranslationResult<()> {
+        instruction_dispatch!(self, v, v.parse_in_function_body_prepass(state, block_id))
+    }
+    fn parse_in_function_body_reachable<'f, 'g, 'i>(
+        &'i self,
+        state: &mut TranslationStateTranslatingStructureTree<'f, 'g, 'i>,
+        block_id: CFGBlockId,
+    ) -> TranslationResult<()> {
+        instruction_dispatch!(self, v, v.parse_in_function_body_reachable(state, block_id))
     }
 }
 

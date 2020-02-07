@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 // See Notices.txt for copyright information
 
+use crate::cfg::CFGBlockId;
 use crate::{
     decorations::{
         DecorationAspect, DecorationClass, DecorationClassMisc, DecorationClassVariable,
@@ -173,9 +174,10 @@ impl ParseInstruction for OpVariable {
             }),
         )
     }
-    fn parse_in_function_body<'g, 'i>(
+    fn parse_in_function_body_generic<'f, 'g, 'i>(
         &'i self,
-        _state: &mut TranslationStateParsingFunctionBody<'g, 'i>,
+        _state: &mut TranslationStateParsingFunctionBody<'f, 'g, 'i>,
+        _block_id: CFGBlockId,
     ) -> TranslationResult<()> {
         todo!()
     }

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 // See Notices.txt for copyright information
 
+use crate::cfg::CFGBlockId;
 use crate::{
     errors::TranslationResult,
     parse::{
@@ -54,9 +55,10 @@ impl ParseInstruction for OpLine {
         state.get_debug_string(self.file)?;
         Ok(())
     }
-    fn parse_in_function_body<'g, 'i>(
+    fn parse_in_function_body_generic<'f, 'g, 'i>(
         &'i self,
-        state: &mut TranslationStateParsingFunctionBody<'g, 'i>,
+        state: &mut TranslationStateParsingFunctionBody<'f, 'g, 'i>,
+        _block_id: CFGBlockId,
     ) -> TranslationResult<()> {
         state.get_debug_string(self.file)?;
         Ok(())
@@ -70,9 +72,10 @@ impl ParseInstruction for OpNoLine {
     ) -> TranslationResult<()> {
         Ok(())
     }
-    fn parse_in_function_body<'g, 'i>(
+    fn parse_in_function_body_generic<'f, 'g, 'i>(
         &'i self,
-        _state: &mut TranslationStateParsingFunctionBody<'g, 'i>,
+        _state: &mut TranslationStateParsingFunctionBody<'f, 'g, 'i>,
+        _block_id: CFGBlockId,
     ) -> TranslationResult<()> {
         Ok(())
     }

@@ -2,6 +2,7 @@
 // See Notices.txt for copyright information
 
 use crate::{
+    cfg::CFGBlockId,
     parse::{
         functions::TranslationStateParsingFunctionBody, ParseInstruction,
         TranslationStateParsingTypesConstantsAndGlobals,
@@ -18,9 +19,10 @@ macro_rules! unimplemented_instruction {
             ) -> TranslationResult<()> {
                 todo!(concat!("unimplemented instruction: ", stringify!($opname)))
             }
-            fn parse_in_function_body<'g, 'i>(
+            fn parse_in_function_body_generic<'f, 'g, 'i>(
                 &'i self,
-                _state: &mut TranslationStateParsingFunctionBody<'g, 'i>,
+                _state: &mut TranslationStateParsingFunctionBody<'f, 'g, 'i>,
+                _block_id: CFGBlockId,
             ) -> TranslationResult<()> {
                 todo!(concat!("unimplemented instruction: ", stringify!($opname)))
             }
@@ -197,18 +199,6 @@ unimplemented_instruction!(OpAtomicUMax);
 unimplemented_instruction!(OpAtomicAnd);
 unimplemented_instruction!(OpAtomicOr);
 unimplemented_instruction!(OpAtomicXor);
-unimplemented_instruction!(OpPhi);
-unimplemented_instruction!(OpLoopMerge);
-unimplemented_instruction!(OpSelectionMerge);
-unimplemented_instruction!(OpLabel);
-unimplemented_instruction!(OpBranch);
-unimplemented_instruction!(OpBranchConditional);
-unimplemented_instruction!(OpSwitch32);
-unimplemented_instruction!(OpSwitch64);
-unimplemented_instruction!(OpKill);
-unimplemented_instruction!(OpReturn);
-unimplemented_instruction!(OpReturnValue);
-unimplemented_instruction!(OpUnreachable);
 unimplemented_instruction!(OpLifetimeStart);
 unimplemented_instruction!(OpLifetimeStop);
 unimplemented_instruction!(OpGroupAsyncCopy);

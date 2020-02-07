@@ -2,6 +2,7 @@
 // See Notices.txt for copyright information
 
 use crate::{
+    cfg::CFGBlockId,
     constants::{SPIRVConstant, SPIRVConstantValue},
     decorations::{DecorationClass, DecorationClassMisc},
     errors::{
@@ -50,9 +51,10 @@ macro_rules! impl_parse_constant {
             ) -> TranslationResult<()> {
                 self.parse_constant(state)
             }
-            fn parse_in_function_body<'g, 'i>(
+            fn parse_in_function_body_generic<'f, 'g, 'i>(
                 &'i self,
-                state: &mut TranslationStateParsingFunctionBody<'g, 'i>,
+                state: &mut TranslationStateParsingFunctionBody<'f, 'g, 'i>,
+                _block_id: CFGBlockId,
             ) -> TranslationResult<()> {
                 self.parse_constant(state)
             }

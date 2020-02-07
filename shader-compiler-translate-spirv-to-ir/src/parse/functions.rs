@@ -22,6 +22,7 @@ use crate::{
 };
 use alloc::vec::Vec;
 use core::cell::RefCell;
+use petgraph::visit::IntoNodeReferences;
 use shader_compiler_ir::{
     Block, Function, FunctionHints, FunctionSideEffects, Inhabited, InliningHint, ValueDefinition,
 };
@@ -53,9 +54,9 @@ impl<'g, 'i> TranslationStateParseFunctionsBase<'g, 'i> {
 }
 
 decl_translation_state! {
-    pub(crate) struct TranslationStateParsingFunctionBody<'g, 'i> {
+    pub(crate) struct TranslationStateParsingFunctionBody<'f, 'g, 'i> {
         base: TranslationStateParseFunctionsBase<'g, 'i>,
-        function: SPIRVFunction<'g, 'i>,
+        function: &'f SPIRVFunction<'g, 'i>,
     }
 }
 
@@ -345,6 +346,34 @@ impl<'g, 'i> TranslationStateParsedTypesConstantsAndGlobals<'g, 'i> {
                 }
                 .into());
             };
+        }
+        for function in &functions {
+            let mut body_state = TranslationStateParsingFunctionBody {
+                base: base_state,
+                function,
+            };
+            writeln!(
+                body_state.debug_output,
+                "parsing function body (prepass): {:?}",
+                function.ir_value.name
+            )?;
+            for (cfg_block_id, block) in function.cfg.node_references() {
+                body_state.spirv_instructions_location = block.label_location();
+                loop {
+                    let instruction = body_state
+                        .next_instruction()?
+                        .expect("missing termination instruction");
+                    instruction.parse_in_function_body_prepass(&mut body_state, cfg_block_id)?;
+                    if TerminationInstruction::is_in_subset(instruction) {
+                        break;
+                    }
+                }
+            }
+            let TranslationStateParsingFunctionBody {
+                base,
+                function: _function,
+            } = body_state.translate_structure_tree()?;
+            base_state = base;
         }
         todo!();
         Ok(TranslationStateParsedFunctions { base: base_state })
