@@ -214,7 +214,7 @@ impl<'g> FunctionData<'g> {
     /// # Panics
     ///
     /// Panics if the local variables were already set.
-    pub fn set_body(&self, local_variables: Vec<Variable<'g>>) {
+    pub fn set_local_variables(&self, local_variables: Vec<Variable<'g>>) {
         #![allow(clippy::ok_expect)]
         self.local_variables
             .set(local_variables)
