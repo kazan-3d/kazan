@@ -8,7 +8,7 @@ use crate::{
     errors::{
         DecorationNotAllowedOnInstruction, InvalidFloatTypeBitWidth, InvalidIntegerType,
         InvalidVectorComponentCount, InvalidVectorComponentType, SPIRVIdAlreadyDefined,
-        SPIRVIdNotDefined, TranslationResult, UnsupportedSPIRVType, VoidNotAllowedHere,
+        SPIRVIdNotDefined, TranslationResult, UnsupportedSPIRVInstruction, VoidNotAllowedHere,
     },
     parse::{
         ParseInstruction, TranslationStateParseBaseTypesConstantsAndGlobals,
@@ -402,7 +402,7 @@ macro_rules! unsupported_type_instruction {
                 &'i self,
                 _state: &mut TranslationStateParsingTypesConstantsAndGlobals<'g, 'i>,
             ) -> TranslationResult<()> {
-                Err(UnsupportedSPIRVType {
+                Err(UnsupportedSPIRVInstruction {
                     instruction: self.clone().into(),
                 }
                 .into())

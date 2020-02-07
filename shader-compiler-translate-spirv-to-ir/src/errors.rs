@@ -252,8 +252,8 @@ impl_errors! {
         pub target: IdRef,
     }
 
-    #[display = "unsupported SPIR-V type:\n{instruction}"]
-    pub struct UnsupportedSPIRVType {
+    #[display = "unsupported SPIR-V instruction:\n{instruction}"]
+    pub struct UnsupportedSPIRVInstruction {
         pub instruction: spirv_parser::Instruction,
     }
 

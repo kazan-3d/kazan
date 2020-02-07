@@ -8,7 +8,7 @@ use crate::{
     errors::{
         ConstantResultTypeMustBeBool, ConstantResultTypeMustBeIntOrFloat, ConstantValueTooBigSmall,
         DecorationNotAllowedOnInstruction, RelaxedPrecisionDecorationNotAllowed,
-        SpecializationConstantMissingSpecId, TranslationResult, UnsupportedSPIRVType,
+        SpecializationConstantMissingSpecId, TranslationResult, UnsupportedSPIRVInstruction,
     },
     parse::{
         functions::TranslationStateParsingFunctionBody,
@@ -592,7 +592,7 @@ macro_rules! unsupported_constant_instruction {
                 &'i self,
                 _state: &mut TranslationStateParseBaseTypesConstantsAndGlobals<'g, 'i>,
             ) -> TranslationResult<()> {
-                Err(UnsupportedSPIRVType {
+                Err(UnsupportedSPIRVInstruction {
                     instruction: self.clone().into(),
                 }
                 .into())

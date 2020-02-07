@@ -16,6 +16,7 @@ mod execution_mode;
 mod ext_inst_import;
 mod extension;
 mod functions;
+mod memory_instructions;
 mod memory_model;
 mod translate_structure_tree;
 mod types;
