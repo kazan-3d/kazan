@@ -444,150 +444,150 @@ impl SPIRVDisplay for ImageOperands {
         let mut any_members = false;
         if self.bias.is_some() {
             if any_members {
-                write!(f, "|{}", "Bias")?;
+                f.write_str(concat!("|", "Bias"))?;
             } else {
-                write!(f, " {}", "Bias")?;
+                f.write_str(concat!(" ", "Bias"))?;
                 any_members = true;
             }
         }
         if self.lod.is_some() {
             if any_members {
-                write!(f, "|{}", "Lod")?;
+                f.write_str(concat!("|", "Lod"))?;
             } else {
-                write!(f, " {}", "Lod")?;
+                f.write_str(concat!(" ", "Lod"))?;
                 any_members = true;
             }
         }
         if self.grad.is_some() {
             if any_members {
-                write!(f, "|{}", "Grad")?;
+                f.write_str(concat!("|", "Grad"))?;
             } else {
-                write!(f, " {}", "Grad")?;
+                f.write_str(concat!(" ", "Grad"))?;
                 any_members = true;
             }
         }
         if self.const_offset.is_some() {
             if any_members {
-                write!(f, "|{}", "ConstOffset")?;
+                f.write_str(concat!("|", "ConstOffset"))?;
             } else {
-                write!(f, " {}", "ConstOffset")?;
+                f.write_str(concat!(" ", "ConstOffset"))?;
                 any_members = true;
             }
         }
         if self.offset.is_some() {
             if any_members {
-                write!(f, "|{}", "Offset")?;
+                f.write_str(concat!("|", "Offset"))?;
             } else {
-                write!(f, " {}", "Offset")?;
+                f.write_str(concat!(" ", "Offset"))?;
                 any_members = true;
             }
         }
         if self.const_offsets.is_some() {
             if any_members {
-                write!(f, "|{}", "ConstOffsets")?;
+                f.write_str(concat!("|", "ConstOffsets"))?;
             } else {
-                write!(f, " {}", "ConstOffsets")?;
+                f.write_str(concat!(" ", "ConstOffsets"))?;
                 any_members = true;
             }
         }
         if self.sample.is_some() {
             if any_members {
-                write!(f, "|{}", "Sample")?;
+                f.write_str(concat!("|", "Sample"))?;
             } else {
-                write!(f, " {}", "Sample")?;
+                f.write_str(concat!(" ", "Sample"))?;
                 any_members = true;
             }
         }
         if self.min_lod.is_some() {
             if any_members {
-                write!(f, "|{}", "MinLod")?;
+                f.write_str(concat!("|", "MinLod"))?;
             } else {
-                write!(f, " {}", "MinLod")?;
+                f.write_str(concat!(" ", "MinLod"))?;
                 any_members = true;
             }
         }
         if self.make_texel_available.is_some() {
             if any_members {
-                write!(f, "|{}", "MakeTexelAvailable")?;
+                f.write_str(concat!("|", "MakeTexelAvailable"))?;
             } else {
-                write!(f, " {}", "MakeTexelAvailable")?;
+                f.write_str(concat!(" ", "MakeTexelAvailable"))?;
                 any_members = true;
             }
         }
         if self.make_texel_available_khr.is_some() {
             if any_members {
-                write!(f, "|{}", "MakeTexelAvailableKHR")?;
+                f.write_str(concat!("|", "MakeTexelAvailableKHR"))?;
             } else {
-                write!(f, " {}", "MakeTexelAvailableKHR")?;
+                f.write_str(concat!(" ", "MakeTexelAvailableKHR"))?;
                 any_members = true;
             }
         }
         if self.make_texel_visible.is_some() {
             if any_members {
-                write!(f, "|{}", "MakeTexelVisible")?;
+                f.write_str(concat!("|", "MakeTexelVisible"))?;
             } else {
-                write!(f, " {}", "MakeTexelVisible")?;
+                f.write_str(concat!(" ", "MakeTexelVisible"))?;
                 any_members = true;
             }
         }
         if self.make_texel_visible_khr.is_some() {
             if any_members {
-                write!(f, "|{}", "MakeTexelVisibleKHR")?;
+                f.write_str(concat!("|", "MakeTexelVisibleKHR"))?;
             } else {
-                write!(f, " {}", "MakeTexelVisibleKHR")?;
+                f.write_str(concat!(" ", "MakeTexelVisibleKHR"))?;
                 any_members = true;
             }
         }
         if self.non_private_texel.is_some() {
             if any_members {
-                write!(f, "|{}", "NonPrivateTexel")?;
+                f.write_str(concat!("|", "NonPrivateTexel"))?;
             } else {
-                write!(f, " {}", "NonPrivateTexel")?;
+                f.write_str(concat!(" ", "NonPrivateTexel"))?;
                 any_members = true;
             }
         }
         if self.non_private_texel_khr.is_some() {
             if any_members {
-                write!(f, "|{}", "NonPrivateTexelKHR")?;
+                f.write_str(concat!("|", "NonPrivateTexelKHR"))?;
             } else {
-                write!(f, " {}", "NonPrivateTexelKHR")?;
+                f.write_str(concat!(" ", "NonPrivateTexelKHR"))?;
                 any_members = true;
             }
         }
         if self.volatile_texel.is_some() {
             if any_members {
-                write!(f, "|{}", "VolatileTexel")?;
+                f.write_str(concat!("|", "VolatileTexel"))?;
             } else {
-                write!(f, " {}", "VolatileTexel")?;
+                f.write_str(concat!(" ", "VolatileTexel"))?;
                 any_members = true;
             }
         }
         if self.volatile_texel_khr.is_some() {
             if any_members {
-                write!(f, "|{}", "VolatileTexelKHR")?;
+                f.write_str(concat!("|", "VolatileTexelKHR"))?;
             } else {
-                write!(f, " {}", "VolatileTexelKHR")?;
+                f.write_str(concat!(" ", "VolatileTexelKHR"))?;
                 any_members = true;
             }
         }
         if self.sign_extend.is_some() {
             if any_members {
-                write!(f, "|{}", "SignExtend")?;
+                f.write_str(concat!("|", "SignExtend"))?;
             } else {
-                write!(f, " {}", "SignExtend")?;
+                f.write_str(concat!(" ", "SignExtend"))?;
                 any_members = true;
             }
         }
         if self.zero_extend.is_some() {
             if any_members {
-                write!(f, "|{}", "ZeroExtend")?;
+                f.write_str(concat!("|", "ZeroExtend"))?;
             } else {
-                write!(f, " {}", "ZeroExtend")?;
+                f.write_str(concat!(" ", "ZeroExtend"))?;
                 any_members = true;
             }
         }
         if !any_members {
-            write!(f, " {}", "None")?;
+            f.write_str(concat!(" ", "None"))?;
         }
         if let Some(ImageOperandsBias(parameter_0)) = &self.bias {
             parameter_0.spirv_display(f)?;
@@ -706,46 +706,46 @@ impl SPIRVDisplay for FPFastMathMode {
         let mut any_members = false;
         if self.not_nan.is_some() {
             if any_members {
-                write!(f, "|{}", "NotNaN")?;
+                f.write_str(concat!("|", "NotNaN"))?;
             } else {
-                write!(f, " {}", "NotNaN")?;
+                f.write_str(concat!(" ", "NotNaN"))?;
                 any_members = true;
             }
         }
         if self.not_inf.is_some() {
             if any_members {
-                write!(f, "|{}", "NotInf")?;
+                f.write_str(concat!("|", "NotInf"))?;
             } else {
-                write!(f, " {}", "NotInf")?;
+                f.write_str(concat!(" ", "NotInf"))?;
                 any_members = true;
             }
         }
         if self.nsz.is_some() {
             if any_members {
-                write!(f, "|{}", "NSZ")?;
+                f.write_str(concat!("|", "NSZ"))?;
             } else {
-                write!(f, " {}", "NSZ")?;
+                f.write_str(concat!(" ", "NSZ"))?;
                 any_members = true;
             }
         }
         if self.allow_recip.is_some() {
             if any_members {
-                write!(f, "|{}", "AllowRecip")?;
+                f.write_str(concat!("|", "AllowRecip"))?;
             } else {
-                write!(f, " {}", "AllowRecip")?;
+                f.write_str(concat!(" ", "AllowRecip"))?;
                 any_members = true;
             }
         }
         if self.fast.is_some() {
             if any_members {
-                write!(f, "|{}", "Fast")?;
+                f.write_str(concat!("|", "Fast"))?;
             } else {
-                write!(f, " {}", "Fast")?;
+                f.write_str(concat!(" ", "Fast"))?;
                 any_members = true;
             }
         }
         if !any_members {
-            write!(f, " {}", "None")?;
+            f.write_str(concat!(" ", "None"))?;
         }
         Ok(())
     }
@@ -795,22 +795,22 @@ impl SPIRVDisplay for SelectionControl {
         let mut any_members = false;
         if self.flatten.is_some() {
             if any_members {
-                write!(f, "|{}", "Flatten")?;
+                f.write_str(concat!("|", "Flatten"))?;
             } else {
-                write!(f, " {}", "Flatten")?;
+                f.write_str(concat!(" ", "Flatten"))?;
                 any_members = true;
             }
         }
         if self.dont_flatten.is_some() {
             if any_members {
-                write!(f, "|{}", "DontFlatten")?;
+                f.write_str(concat!("|", "DontFlatten"))?;
             } else {
-                write!(f, " {}", "DontFlatten")?;
+                f.write_str(concat!(" ", "DontFlatten"))?;
                 any_members = true;
             }
         }
         if !any_members {
-            write!(f, " {}", "None")?;
+            f.write_str(concat!(" ", "None"))?;
         }
         Ok(())
     }
@@ -936,78 +936,78 @@ impl SPIRVDisplay for LoopControl {
         let mut any_members = false;
         if self.unroll.is_some() {
             if any_members {
-                write!(f, "|{}", "Unroll")?;
+                f.write_str(concat!("|", "Unroll"))?;
             } else {
-                write!(f, " {}", "Unroll")?;
+                f.write_str(concat!(" ", "Unroll"))?;
                 any_members = true;
             }
         }
         if self.dont_unroll.is_some() {
             if any_members {
-                write!(f, "|{}", "DontUnroll")?;
+                f.write_str(concat!("|", "DontUnroll"))?;
             } else {
-                write!(f, " {}", "DontUnroll")?;
+                f.write_str(concat!(" ", "DontUnroll"))?;
                 any_members = true;
             }
         }
         if self.dependency_infinite.is_some() {
             if any_members {
-                write!(f, "|{}", "DependencyInfinite")?;
+                f.write_str(concat!("|", "DependencyInfinite"))?;
             } else {
-                write!(f, " {}", "DependencyInfinite")?;
+                f.write_str(concat!(" ", "DependencyInfinite"))?;
                 any_members = true;
             }
         }
         if self.dependency_length.is_some() {
             if any_members {
-                write!(f, "|{}", "DependencyLength")?;
+                f.write_str(concat!("|", "DependencyLength"))?;
             } else {
-                write!(f, " {}", "DependencyLength")?;
+                f.write_str(concat!(" ", "DependencyLength"))?;
                 any_members = true;
             }
         }
         if self.min_iterations.is_some() {
             if any_members {
-                write!(f, "|{}", "MinIterations")?;
+                f.write_str(concat!("|", "MinIterations"))?;
             } else {
-                write!(f, " {}", "MinIterations")?;
+                f.write_str(concat!(" ", "MinIterations"))?;
                 any_members = true;
             }
         }
         if self.max_iterations.is_some() {
             if any_members {
-                write!(f, "|{}", "MaxIterations")?;
+                f.write_str(concat!("|", "MaxIterations"))?;
             } else {
-                write!(f, " {}", "MaxIterations")?;
+                f.write_str(concat!(" ", "MaxIterations"))?;
                 any_members = true;
             }
         }
         if self.iteration_multiple.is_some() {
             if any_members {
-                write!(f, "|{}", "IterationMultiple")?;
+                f.write_str(concat!("|", "IterationMultiple"))?;
             } else {
-                write!(f, " {}", "IterationMultiple")?;
+                f.write_str(concat!(" ", "IterationMultiple"))?;
                 any_members = true;
             }
         }
         if self.peel_count.is_some() {
             if any_members {
-                write!(f, "|{}", "PeelCount")?;
+                f.write_str(concat!("|", "PeelCount"))?;
             } else {
-                write!(f, " {}", "PeelCount")?;
+                f.write_str(concat!(" ", "PeelCount"))?;
                 any_members = true;
             }
         }
         if self.partial_count.is_some() {
             if any_members {
-                write!(f, "|{}", "PartialCount")?;
+                f.write_str(concat!("|", "PartialCount"))?;
             } else {
-                write!(f, " {}", "PartialCount")?;
+                f.write_str(concat!(" ", "PartialCount"))?;
                 any_members = true;
             }
         }
         if !any_members {
-            write!(f, " {}", "None")?;
+            f.write_str(concat!(" ", "None"))?;
         }
         if let Some(LoopControlDependencyLength(parameter_0)) = &self.dependency_length {
             parameter_0.spirv_display(f)?;
@@ -1095,38 +1095,38 @@ impl SPIRVDisplay for FunctionControl {
         let mut any_members = false;
         if self.inline.is_some() {
             if any_members {
-                write!(f, "|{}", "Inline")?;
+                f.write_str(concat!("|", "Inline"))?;
             } else {
-                write!(f, " {}", "Inline")?;
+                f.write_str(concat!(" ", "Inline"))?;
                 any_members = true;
             }
         }
         if self.dont_inline.is_some() {
             if any_members {
-                write!(f, "|{}", "DontInline")?;
+                f.write_str(concat!("|", "DontInline"))?;
             } else {
-                write!(f, " {}", "DontInline")?;
+                f.write_str(concat!(" ", "DontInline"))?;
                 any_members = true;
             }
         }
         if self.pure_.is_some() {
             if any_members {
-                write!(f, "|{}", "Pure")?;
+                f.write_str(concat!("|", "Pure"))?;
             } else {
-                write!(f, " {}", "Pure")?;
+                f.write_str(concat!(" ", "Pure"))?;
                 any_members = true;
             }
         }
         if self.const_.is_some() {
             if any_members {
-                write!(f, "|{}", "Const")?;
+                f.write_str(concat!("|", "Const"))?;
             } else {
-                write!(f, " {}", "Const")?;
+                f.write_str(concat!(" ", "Const"))?;
                 any_members = true;
             }
         }
         if !any_members {
-            write!(f, " {}", "None")?;
+            f.write_str(concat!(" ", "None"))?;
         }
         Ok(())
     }
@@ -1326,142 +1326,142 @@ impl SPIRVDisplay for MemorySemantics {
         let mut any_members = false;
         if self.acquire.is_some() {
             if any_members {
-                write!(f, "|{}", "Acquire")?;
+                f.write_str(concat!("|", "Acquire"))?;
             } else {
-                write!(f, " {}", "Acquire")?;
+                f.write_str(concat!(" ", "Acquire"))?;
                 any_members = true;
             }
         }
         if self.release.is_some() {
             if any_members {
-                write!(f, "|{}", "Release")?;
+                f.write_str(concat!("|", "Release"))?;
             } else {
-                write!(f, " {}", "Release")?;
+                f.write_str(concat!(" ", "Release"))?;
                 any_members = true;
             }
         }
         if self.acquire_release.is_some() {
             if any_members {
-                write!(f, "|{}", "AcquireRelease")?;
+                f.write_str(concat!("|", "AcquireRelease"))?;
             } else {
-                write!(f, " {}", "AcquireRelease")?;
+                f.write_str(concat!(" ", "AcquireRelease"))?;
                 any_members = true;
             }
         }
         if self.sequentially_consistent.is_some() {
             if any_members {
-                write!(f, "|{}", "SequentiallyConsistent")?;
+                f.write_str(concat!("|", "SequentiallyConsistent"))?;
             } else {
-                write!(f, " {}", "SequentiallyConsistent")?;
+                f.write_str(concat!(" ", "SequentiallyConsistent"))?;
                 any_members = true;
             }
         }
         if self.uniform_memory.is_some() {
             if any_members {
-                write!(f, "|{}", "UniformMemory")?;
+                f.write_str(concat!("|", "UniformMemory"))?;
             } else {
-                write!(f, " {}", "UniformMemory")?;
+                f.write_str(concat!(" ", "UniformMemory"))?;
                 any_members = true;
             }
         }
         if self.subgroup_memory.is_some() {
             if any_members {
-                write!(f, "|{}", "SubgroupMemory")?;
+                f.write_str(concat!("|", "SubgroupMemory"))?;
             } else {
-                write!(f, " {}", "SubgroupMemory")?;
+                f.write_str(concat!(" ", "SubgroupMemory"))?;
                 any_members = true;
             }
         }
         if self.workgroup_memory.is_some() {
             if any_members {
-                write!(f, "|{}", "WorkgroupMemory")?;
+                f.write_str(concat!("|", "WorkgroupMemory"))?;
             } else {
-                write!(f, " {}", "WorkgroupMemory")?;
+                f.write_str(concat!(" ", "WorkgroupMemory"))?;
                 any_members = true;
             }
         }
         if self.cross_workgroup_memory.is_some() {
             if any_members {
-                write!(f, "|{}", "CrossWorkgroupMemory")?;
+                f.write_str(concat!("|", "CrossWorkgroupMemory"))?;
             } else {
-                write!(f, " {}", "CrossWorkgroupMemory")?;
+                f.write_str(concat!(" ", "CrossWorkgroupMemory"))?;
                 any_members = true;
             }
         }
         if self.atomic_counter_memory.is_some() {
             if any_members {
-                write!(f, "|{}", "AtomicCounterMemory")?;
+                f.write_str(concat!("|", "AtomicCounterMemory"))?;
             } else {
-                write!(f, " {}", "AtomicCounterMemory")?;
+                f.write_str(concat!(" ", "AtomicCounterMemory"))?;
                 any_members = true;
             }
         }
         if self.image_memory.is_some() {
             if any_members {
-                write!(f, "|{}", "ImageMemory")?;
+                f.write_str(concat!("|", "ImageMemory"))?;
             } else {
-                write!(f, " {}", "ImageMemory")?;
+                f.write_str(concat!(" ", "ImageMemory"))?;
                 any_members = true;
             }
         }
         if self.output_memory.is_some() {
             if any_members {
-                write!(f, "|{}", "OutputMemory")?;
+                f.write_str(concat!("|", "OutputMemory"))?;
             } else {
-                write!(f, " {}", "OutputMemory")?;
+                f.write_str(concat!(" ", "OutputMemory"))?;
                 any_members = true;
             }
         }
         if self.output_memory_khr.is_some() {
             if any_members {
-                write!(f, "|{}", "OutputMemoryKHR")?;
+                f.write_str(concat!("|", "OutputMemoryKHR"))?;
             } else {
-                write!(f, " {}", "OutputMemoryKHR")?;
+                f.write_str(concat!(" ", "OutputMemoryKHR"))?;
                 any_members = true;
             }
         }
         if self.make_available.is_some() {
             if any_members {
-                write!(f, "|{}", "MakeAvailable")?;
+                f.write_str(concat!("|", "MakeAvailable"))?;
             } else {
-                write!(f, " {}", "MakeAvailable")?;
+                f.write_str(concat!(" ", "MakeAvailable"))?;
                 any_members = true;
             }
         }
         if self.make_available_khr.is_some() {
             if any_members {
-                write!(f, "|{}", "MakeAvailableKHR")?;
+                f.write_str(concat!("|", "MakeAvailableKHR"))?;
             } else {
-                write!(f, " {}", "MakeAvailableKHR")?;
+                f.write_str(concat!(" ", "MakeAvailableKHR"))?;
                 any_members = true;
             }
         }
         if self.make_visible.is_some() {
             if any_members {
-                write!(f, "|{}", "MakeVisible")?;
+                f.write_str(concat!("|", "MakeVisible"))?;
             } else {
-                write!(f, " {}", "MakeVisible")?;
+                f.write_str(concat!(" ", "MakeVisible"))?;
                 any_members = true;
             }
         }
         if self.make_visible_khr.is_some() {
             if any_members {
-                write!(f, "|{}", "MakeVisibleKHR")?;
+                f.write_str(concat!("|", "MakeVisibleKHR"))?;
             } else {
-                write!(f, " {}", "MakeVisibleKHR")?;
+                f.write_str(concat!(" ", "MakeVisibleKHR"))?;
                 any_members = true;
             }
         }
         if self.volatile.is_some() {
             if any_members {
-                write!(f, "|{}", "Volatile")?;
+                f.write_str(concat!("|", "Volatile"))?;
             } else {
-                write!(f, " {}", "Volatile")?;
+                f.write_str(concat!(" ", "Volatile"))?;
                 any_members = true;
             }
         }
         if !any_members {
-            write!(f, " {}", "None")?;
+            f.write_str(concat!(" ", "None"))?;
         }
         Ok(())
     }
@@ -1589,78 +1589,78 @@ impl SPIRVDisplay for MemoryAccess {
         let mut any_members = false;
         if self.volatile.is_some() {
             if any_members {
-                write!(f, "|{}", "Volatile")?;
+                f.write_str(concat!("|", "Volatile"))?;
             } else {
-                write!(f, " {}", "Volatile")?;
+                f.write_str(concat!(" ", "Volatile"))?;
                 any_members = true;
             }
         }
         if self.aligned.is_some() {
             if any_members {
-                write!(f, "|{}", "Aligned")?;
+                f.write_str(concat!("|", "Aligned"))?;
             } else {
-                write!(f, " {}", "Aligned")?;
+                f.write_str(concat!(" ", "Aligned"))?;
                 any_members = true;
             }
         }
         if self.nontemporal.is_some() {
             if any_members {
-                write!(f, "|{}", "Nontemporal")?;
+                f.write_str(concat!("|", "Nontemporal"))?;
             } else {
-                write!(f, " {}", "Nontemporal")?;
+                f.write_str(concat!(" ", "Nontemporal"))?;
                 any_members = true;
             }
         }
         if self.make_pointer_available.is_some() {
             if any_members {
-                write!(f, "|{}", "MakePointerAvailable")?;
+                f.write_str(concat!("|", "MakePointerAvailable"))?;
             } else {
-                write!(f, " {}", "MakePointerAvailable")?;
+                f.write_str(concat!(" ", "MakePointerAvailable"))?;
                 any_members = true;
             }
         }
         if self.make_pointer_available_khr.is_some() {
             if any_members {
-                write!(f, "|{}", "MakePointerAvailableKHR")?;
+                f.write_str(concat!("|", "MakePointerAvailableKHR"))?;
             } else {
-                write!(f, " {}", "MakePointerAvailableKHR")?;
+                f.write_str(concat!(" ", "MakePointerAvailableKHR"))?;
                 any_members = true;
             }
         }
         if self.make_pointer_visible.is_some() {
             if any_members {
-                write!(f, "|{}", "MakePointerVisible")?;
+                f.write_str(concat!("|", "MakePointerVisible"))?;
             } else {
-                write!(f, " {}", "MakePointerVisible")?;
+                f.write_str(concat!(" ", "MakePointerVisible"))?;
                 any_members = true;
             }
         }
         if self.make_pointer_visible_khr.is_some() {
             if any_members {
-                write!(f, "|{}", "MakePointerVisibleKHR")?;
+                f.write_str(concat!("|", "MakePointerVisibleKHR"))?;
             } else {
-                write!(f, " {}", "MakePointerVisibleKHR")?;
+                f.write_str(concat!(" ", "MakePointerVisibleKHR"))?;
                 any_members = true;
             }
         }
         if self.non_private_pointer.is_some() {
             if any_members {
-                write!(f, "|{}", "NonPrivatePointer")?;
+                f.write_str(concat!("|", "NonPrivatePointer"))?;
             } else {
-                write!(f, " {}", "NonPrivatePointer")?;
+                f.write_str(concat!(" ", "NonPrivatePointer"))?;
                 any_members = true;
             }
         }
         if self.non_private_pointer_khr.is_some() {
             if any_members {
-                write!(f, "|{}", "NonPrivatePointerKHR")?;
+                f.write_str(concat!("|", "NonPrivatePointerKHR"))?;
             } else {
-                write!(f, " {}", "NonPrivatePointerKHR")?;
+                f.write_str(concat!(" ", "NonPrivatePointerKHR"))?;
                 any_members = true;
             }
         }
         if !any_members {
-            write!(f, " {}", "None")?;
+            f.write_str(concat!(" ", "None"))?;
         }
         if let Some(MemoryAccessAligned(parameter_0)) = &self.aligned {
             parameter_0.spirv_display(f)?;
@@ -1713,14 +1713,14 @@ impl SPIRVDisplay for KernelProfilingInfo {
         let mut any_members = false;
         if self.cmd_exec_time.is_some() {
             if any_members {
-                write!(f, "|{}", "CmdExecTime")?;
+                f.write_str(concat!("|", "CmdExecTime"))?;
             } else {
-                write!(f, " {}", "CmdExecTime")?;
+                f.write_str(concat!(" ", "CmdExecTime"))?;
                 any_members = true;
             }
         }
         if !any_members {
-            write!(f, " {}", "None")?;
+            f.write_str(concat!(" ", "None"))?;
         }
         Ok(())
     }
@@ -1796,12 +1796,12 @@ impl SPIRVParse for SourceLanguage {
 impl SPIRVDisplay for SourceLanguage {
     fn spirv_display(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            SourceLanguage::Unknown(_) => write!(f, " {}", "Unknown"),
-            SourceLanguage::ESSL(_) => write!(f, " {}", "ESSL"),
-            SourceLanguage::GLSL(_) => write!(f, " {}", "GLSL"),
-            SourceLanguage::OpenCLC(_) => write!(f, " {}", "OpenCL_C"),
-            SourceLanguage::OpenCLCPP(_) => write!(f, " {}", "OpenCL_CPP"),
-            SourceLanguage::HLSL(_) => write!(f, " {}", "HLSL"),
+            SourceLanguage::Unknown(_) => f.write_str(concat!(" ", "Unknown")),
+            SourceLanguage::ESSL(_) => f.write_str(concat!(" ", "ESSL")),
+            SourceLanguage::GLSL(_) => f.write_str(concat!(" ", "GLSL")),
+            SourceLanguage::OpenCLC(_) => f.write_str(concat!(" ", "OpenCL_C")),
+            SourceLanguage::OpenCLCPP(_) => f.write_str(concat!(" ", "OpenCL_CPP")),
+            SourceLanguage::HLSL(_) => f.write_str(concat!(" ", "HLSL")),
         }
     }
 }
@@ -1891,13 +1891,17 @@ impl SPIRVParse for ExecutionModel {
 impl SPIRVDisplay for ExecutionModel {
     fn spirv_display(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            ExecutionModel::Vertex(_) => write!(f, " {}", "Vertex"),
-            ExecutionModel::TessellationControl(_) => write!(f, " {}", "TessellationControl"),
-            ExecutionModel::TessellationEvaluation(_) => write!(f, " {}", "TessellationEvaluation"),
-            ExecutionModel::Geometry(_) => write!(f, " {}", "Geometry"),
-            ExecutionModel::Fragment(_) => write!(f, " {}", "Fragment"),
-            ExecutionModel::GLCompute(_) => write!(f, " {}", "GLCompute"),
-            ExecutionModel::Kernel(_) => write!(f, " {}", "Kernel"),
+            ExecutionModel::Vertex(_) => f.write_str(concat!(" ", "Vertex")),
+            ExecutionModel::TessellationControl(_) => {
+                f.write_str(concat!(" ", "TessellationControl"))
+            }
+            ExecutionModel::TessellationEvaluation(_) => {
+                f.write_str(concat!(" ", "TessellationEvaluation"))
+            }
+            ExecutionModel::Geometry(_) => f.write_str(concat!(" ", "Geometry")),
+            ExecutionModel::Fragment(_) => f.write_str(concat!(" ", "Fragment")),
+            ExecutionModel::GLCompute(_) => f.write_str(concat!(" ", "GLCompute")),
+            ExecutionModel::Kernel(_) => f.write_str(concat!(" ", "Kernel")),
         }
     }
 }
@@ -1963,11 +1967,11 @@ impl SPIRVParse for AddressingModel {
 impl SPIRVDisplay for AddressingModel {
     fn spirv_display(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            AddressingModel::Logical(_) => write!(f, " {}", "Logical"),
-            AddressingModel::Physical32(_) => write!(f, " {}", "Physical32"),
-            AddressingModel::Physical64(_) => write!(f, " {}", "Physical64"),
+            AddressingModel::Logical(_) => f.write_str(concat!(" ", "Logical")),
+            AddressingModel::Physical32(_) => f.write_str(concat!(" ", "Physical32")),
+            AddressingModel::Physical64(_) => f.write_str(concat!(" ", "Physical64")),
             AddressingModel::PhysicalStorageBuffer64(_) => {
-                write!(f, " {}", "PhysicalStorageBuffer64")
+                f.write_str(concat!(" ", "PhysicalStorageBuffer64"))
             }
         }
     }
@@ -2025,10 +2029,10 @@ impl SPIRVParse for MemoryModel {
 impl SPIRVDisplay for MemoryModel {
     fn spirv_display(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            MemoryModel::Simple(_) => write!(f, " {}", "Simple"),
-            MemoryModel::GLSL450(_) => write!(f, " {}", "GLSL450"),
-            MemoryModel::OpenCL(_) => write!(f, " {}", "OpenCL"),
-            MemoryModel::Vulkan(_) => write!(f, " {}", "Vulkan"),
+            MemoryModel::Simple(_) => f.write_str(concat!(" ", "Simple")),
+            MemoryModel::GLSL450(_) => f.write_str(concat!(" ", "GLSL450")),
+            MemoryModel::OpenCL(_) => f.write_str(concat!(" ", "OpenCL")),
+            MemoryModel::Vulkan(_) => f.write_str(concat!(" ", "Vulkan")),
         }
     }
 }
@@ -2651,31 +2655,35 @@ impl SPIRVDisplay for ExecutionMode {
             ExecutionMode::Invocations(ExecutionModeInvocations {
                 number_of_invocation_invocations,
             }) => {
-                write!(f, " {}", "Invocations")?;
+                f.write_str(concat!(" ", "Invocations"))?;
                 number_of_invocation_invocations.spirv_display(f)?;
                 Ok(())
             }
-            ExecutionMode::SpacingEqual(_) => write!(f, " {}", "SpacingEqual"),
-            ExecutionMode::SpacingFractionalEven(_) => write!(f, " {}", "SpacingFractionalEven"),
-            ExecutionMode::SpacingFractionalOdd(_) => write!(f, " {}", "SpacingFractionalOdd"),
-            ExecutionMode::VertexOrderCw(_) => write!(f, " {}", "VertexOrderCw"),
-            ExecutionMode::VertexOrderCcw(_) => write!(f, " {}", "VertexOrderCcw"),
-            ExecutionMode::PixelCenterInteger(_) => write!(f, " {}", "PixelCenterInteger"),
-            ExecutionMode::OriginUpperLeft(_) => write!(f, " {}", "OriginUpperLeft"),
-            ExecutionMode::OriginLowerLeft(_) => write!(f, " {}", "OriginLowerLeft"),
-            ExecutionMode::EarlyFragmentTests(_) => write!(f, " {}", "EarlyFragmentTests"),
-            ExecutionMode::PointMode(_) => write!(f, " {}", "PointMode"),
-            ExecutionMode::Xfb(_) => write!(f, " {}", "Xfb"),
-            ExecutionMode::DepthReplacing(_) => write!(f, " {}", "DepthReplacing"),
-            ExecutionMode::DepthGreater(_) => write!(f, " {}", "DepthGreater"),
-            ExecutionMode::DepthLess(_) => write!(f, " {}", "DepthLess"),
-            ExecutionMode::DepthUnchanged(_) => write!(f, " {}", "DepthUnchanged"),
+            ExecutionMode::SpacingEqual(_) => f.write_str(concat!(" ", "SpacingEqual")),
+            ExecutionMode::SpacingFractionalEven(_) => {
+                f.write_str(concat!(" ", "SpacingFractionalEven"))
+            }
+            ExecutionMode::SpacingFractionalOdd(_) => {
+                f.write_str(concat!(" ", "SpacingFractionalOdd"))
+            }
+            ExecutionMode::VertexOrderCw(_) => f.write_str(concat!(" ", "VertexOrderCw")),
+            ExecutionMode::VertexOrderCcw(_) => f.write_str(concat!(" ", "VertexOrderCcw")),
+            ExecutionMode::PixelCenterInteger(_) => f.write_str(concat!(" ", "PixelCenterInteger")),
+            ExecutionMode::OriginUpperLeft(_) => f.write_str(concat!(" ", "OriginUpperLeft")),
+            ExecutionMode::OriginLowerLeft(_) => f.write_str(concat!(" ", "OriginLowerLeft")),
+            ExecutionMode::EarlyFragmentTests(_) => f.write_str(concat!(" ", "EarlyFragmentTests")),
+            ExecutionMode::PointMode(_) => f.write_str(concat!(" ", "PointMode")),
+            ExecutionMode::Xfb(_) => f.write_str(concat!(" ", "Xfb")),
+            ExecutionMode::DepthReplacing(_) => f.write_str(concat!(" ", "DepthReplacing")),
+            ExecutionMode::DepthGreater(_) => f.write_str(concat!(" ", "DepthGreater")),
+            ExecutionMode::DepthLess(_) => f.write_str(concat!(" ", "DepthLess")),
+            ExecutionMode::DepthUnchanged(_) => f.write_str(concat!(" ", "DepthUnchanged")),
             ExecutionMode::LocalSize(ExecutionModeLocalSize {
                 x_size,
                 y_size,
                 z_size,
             }) => {
-                write!(f, " {}", "LocalSize")?;
+                f.write_str(concat!(" ", "LocalSize"))?;
                 x_size.spirv_display(f)?;
                 y_size.spirv_display(f)?;
                 z_size.spirv_display(f)?;
@@ -2686,53 +2694,57 @@ impl SPIRVDisplay for ExecutionMode {
                 y_size,
                 z_size,
             }) => {
-                write!(f, " {}", "LocalSizeHint")?;
+                f.write_str(concat!(" ", "LocalSizeHint"))?;
                 x_size.spirv_display(f)?;
                 y_size.spirv_display(f)?;
                 z_size.spirv_display(f)?;
                 Ok(())
             }
-            ExecutionMode::InputPoints(_) => write!(f, " {}", "InputPoints"),
-            ExecutionMode::InputLines(_) => write!(f, " {}", "InputLines"),
-            ExecutionMode::InputLinesAdjacency(_) => write!(f, " {}", "InputLinesAdjacency"),
-            ExecutionMode::Triangles(_) => write!(f, " {}", "Triangles"),
-            ExecutionMode::InputTrianglesAdjacency(_) => {
-                write!(f, " {}", "InputTrianglesAdjacency")
+            ExecutionMode::InputPoints(_) => f.write_str(concat!(" ", "InputPoints")),
+            ExecutionMode::InputLines(_) => f.write_str(concat!(" ", "InputLines")),
+            ExecutionMode::InputLinesAdjacency(_) => {
+                f.write_str(concat!(" ", "InputLinesAdjacency"))
             }
-            ExecutionMode::Quads(_) => write!(f, " {}", "Quads"),
-            ExecutionMode::Isolines(_) => write!(f, " {}", "Isolines"),
+            ExecutionMode::Triangles(_) => f.write_str(concat!(" ", "Triangles")),
+            ExecutionMode::InputTrianglesAdjacency(_) => {
+                f.write_str(concat!(" ", "InputTrianglesAdjacency"))
+            }
+            ExecutionMode::Quads(_) => f.write_str(concat!(" ", "Quads")),
+            ExecutionMode::Isolines(_) => f.write_str(concat!(" ", "Isolines")),
             ExecutionMode::OutputVertices(ExecutionModeOutputVertices { vertex_count }) => {
-                write!(f, " {}", "OutputVertices")?;
+                f.write_str(concat!(" ", "OutputVertices"))?;
                 vertex_count.spirv_display(f)?;
                 Ok(())
             }
-            ExecutionMode::OutputPoints(_) => write!(f, " {}", "OutputPoints"),
-            ExecutionMode::OutputLineStrip(_) => write!(f, " {}", "OutputLineStrip"),
-            ExecutionMode::OutputTriangleStrip(_) => write!(f, " {}", "OutputTriangleStrip"),
+            ExecutionMode::OutputPoints(_) => f.write_str(concat!(" ", "OutputPoints")),
+            ExecutionMode::OutputLineStrip(_) => f.write_str(concat!(" ", "OutputLineStrip")),
+            ExecutionMode::OutputTriangleStrip(_) => {
+                f.write_str(concat!(" ", "OutputTriangleStrip"))
+            }
             ExecutionMode::VecTypeHint(ExecutionModeVecTypeHint { vector_type }) => {
-                write!(f, " {}", "VecTypeHint")?;
+                f.write_str(concat!(" ", "VecTypeHint"))?;
                 vector_type.spirv_display(f)?;
                 Ok(())
             }
-            ExecutionMode::ContractionOff(_) => write!(f, " {}", "ContractionOff"),
-            ExecutionMode::Initializer(_) => write!(f, " {}", "Initializer"),
-            ExecutionMode::Finalizer(_) => write!(f, " {}", "Finalizer"),
+            ExecutionMode::ContractionOff(_) => f.write_str(concat!(" ", "ContractionOff")),
+            ExecutionMode::Initializer(_) => f.write_str(concat!(" ", "Initializer")),
+            ExecutionMode::Finalizer(_) => f.write_str(concat!(" ", "Finalizer")),
             ExecutionMode::SubgroupSize(ExecutionModeSubgroupSize { subgroup_size }) => {
-                write!(f, " {}", "SubgroupSize")?;
+                f.write_str(concat!(" ", "SubgroupSize"))?;
                 subgroup_size.spirv_display(f)?;
                 Ok(())
             }
             ExecutionMode::SubgroupsPerWorkgroup(ExecutionModeSubgroupsPerWorkgroup {
                 subgroups_per_workgroup,
             }) => {
-                write!(f, " {}", "SubgroupsPerWorkgroup")?;
+                f.write_str(concat!(" ", "SubgroupsPerWorkgroup"))?;
                 subgroups_per_workgroup.spirv_display(f)?;
                 Ok(())
             }
             ExecutionMode::SubgroupsPerWorkgroupId(ExecutionModeSubgroupsPerWorkgroupId {
                 subgroups_per_workgroup,
             }) => {
-                write!(f, " {}", "SubgroupsPerWorkgroupId")?;
+                f.write_str(concat!(" ", "SubgroupsPerWorkgroupId"))?;
                 subgroups_per_workgroup.spirv_display(f)?;
                 Ok(())
             }
@@ -2741,41 +2753,41 @@ impl SPIRVDisplay for ExecutionMode {
                 y_size,
                 z_size,
             }) => {
-                write!(f, " {}", "LocalSizeId")?;
+                f.write_str(concat!(" ", "LocalSizeId"))?;
                 x_size.spirv_display(f)?;
                 y_size.spirv_display(f)?;
                 z_size.spirv_display(f)?;
                 Ok(())
             }
             ExecutionMode::LocalSizeHintId(ExecutionModeLocalSizeHintId { local_size_hint }) => {
-                write!(f, " {}", "LocalSizeHintId")?;
+                f.write_str(concat!(" ", "LocalSizeHintId"))?;
                 local_size_hint.spirv_display(f)?;
                 Ok(())
             }
             ExecutionMode::DenormPreserve(ExecutionModeDenormPreserve { target_width }) => {
-                write!(f, " {}", "DenormPreserve")?;
+                f.write_str(concat!(" ", "DenormPreserve"))?;
                 target_width.spirv_display(f)?;
                 Ok(())
             }
             ExecutionMode::DenormFlushToZero(ExecutionModeDenormFlushToZero { target_width }) => {
-                write!(f, " {}", "DenormFlushToZero")?;
+                f.write_str(concat!(" ", "DenormFlushToZero"))?;
                 target_width.spirv_display(f)?;
                 Ok(())
             }
             ExecutionMode::SignedZeroInfNanPreserve(ExecutionModeSignedZeroInfNanPreserve {
                 target_width,
             }) => {
-                write!(f, " {}", "SignedZeroInfNanPreserve")?;
+                f.write_str(concat!(" ", "SignedZeroInfNanPreserve"))?;
                 target_width.spirv_display(f)?;
                 Ok(())
             }
             ExecutionMode::RoundingModeRTE(ExecutionModeRoundingModeRTE { target_width }) => {
-                write!(f, " {}", "RoundingModeRTE")?;
+                f.write_str(concat!(" ", "RoundingModeRTE"))?;
                 target_width.spirv_display(f)?;
                 Ok(())
             }
             ExecutionMode::RoundingModeRTZ(ExecutionModeRoundingModeRTZ { target_width }) => {
-                write!(f, " {}", "RoundingModeRTZ")?;
+                f.write_str(concat!(" ", "RoundingModeRTZ"))?;
                 target_width.spirv_display(f)?;
                 Ok(())
             }
@@ -2940,20 +2952,22 @@ impl SPIRVParse for StorageClass {
 impl SPIRVDisplay for StorageClass {
     fn spirv_display(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            StorageClass::UniformConstant(_) => write!(f, " {}", "UniformConstant"),
-            StorageClass::Input(_) => write!(f, " {}", "Input"),
-            StorageClass::Uniform(_) => write!(f, " {}", "Uniform"),
-            StorageClass::Output(_) => write!(f, " {}", "Output"),
-            StorageClass::Workgroup(_) => write!(f, " {}", "Workgroup"),
-            StorageClass::CrossWorkgroup(_) => write!(f, " {}", "CrossWorkgroup"),
-            StorageClass::Private(_) => write!(f, " {}", "Private"),
-            StorageClass::Function(_) => write!(f, " {}", "Function"),
-            StorageClass::Generic(_) => write!(f, " {}", "Generic"),
-            StorageClass::PushConstant(_) => write!(f, " {}", "PushConstant"),
-            StorageClass::AtomicCounter(_) => write!(f, " {}", "AtomicCounter"),
-            StorageClass::Image(_) => write!(f, " {}", "Image"),
-            StorageClass::StorageBuffer(_) => write!(f, " {}", "StorageBuffer"),
-            StorageClass::PhysicalStorageBuffer(_) => write!(f, " {}", "PhysicalStorageBuffer"),
+            StorageClass::UniformConstant(_) => f.write_str(concat!(" ", "UniformConstant")),
+            StorageClass::Input(_) => f.write_str(concat!(" ", "Input")),
+            StorageClass::Uniform(_) => f.write_str(concat!(" ", "Uniform")),
+            StorageClass::Output(_) => f.write_str(concat!(" ", "Output")),
+            StorageClass::Workgroup(_) => f.write_str(concat!(" ", "Workgroup")),
+            StorageClass::CrossWorkgroup(_) => f.write_str(concat!(" ", "CrossWorkgroup")),
+            StorageClass::Private(_) => f.write_str(concat!(" ", "Private")),
+            StorageClass::Function(_) => f.write_str(concat!(" ", "Function")),
+            StorageClass::Generic(_) => f.write_str(concat!(" ", "Generic")),
+            StorageClass::PushConstant(_) => f.write_str(concat!(" ", "PushConstant")),
+            StorageClass::AtomicCounter(_) => f.write_str(concat!(" ", "AtomicCounter")),
+            StorageClass::Image(_) => f.write_str(concat!(" ", "Image")),
+            StorageClass::StorageBuffer(_) => f.write_str(concat!(" ", "StorageBuffer")),
+            StorageClass::PhysicalStorageBuffer(_) => {
+                f.write_str(concat!(" ", "PhysicalStorageBuffer"))
+            }
         }
     }
 }
@@ -3037,13 +3051,13 @@ impl SPIRVParse for Dim {
 impl SPIRVDisplay for Dim {
     fn spirv_display(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Dim::Dim1D(_) => write!(f, " {}", "1D"),
-            Dim::Dim2D(_) => write!(f, " {}", "2D"),
-            Dim::Dim3D(_) => write!(f, " {}", "3D"),
-            Dim::Cube(_) => write!(f, " {}", "Cube"),
-            Dim::Rect(_) => write!(f, " {}", "Rect"),
-            Dim::Buffer(_) => write!(f, " {}", "Buffer"),
-            Dim::SubpassData(_) => write!(f, " {}", "SubpassData"),
+            Dim::Dim1D(_) => f.write_str(concat!(" ", "1D")),
+            Dim::Dim2D(_) => f.write_str(concat!(" ", "2D")),
+            Dim::Dim3D(_) => f.write_str(concat!(" ", "3D")),
+            Dim::Cube(_) => f.write_str(concat!(" ", "Cube")),
+            Dim::Rect(_) => f.write_str(concat!(" ", "Rect")),
+            Dim::Buffer(_) => f.write_str(concat!(" ", "Buffer")),
+            Dim::SubpassData(_) => f.write_str(concat!(" ", "SubpassData")),
         }
     }
 }
@@ -3124,11 +3138,11 @@ impl SPIRVParse for SamplerAddressingMode {
 impl SPIRVDisplay for SamplerAddressingMode {
     fn spirv_display(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            SamplerAddressingMode::None(_) => write!(f, " {}", "None"),
-            SamplerAddressingMode::ClampToEdge(_) => write!(f, " {}", "ClampToEdge"),
-            SamplerAddressingMode::Clamp(_) => write!(f, " {}", "Clamp"),
-            SamplerAddressingMode::Repeat(_) => write!(f, " {}", "Repeat"),
-            SamplerAddressingMode::RepeatMirrored(_) => write!(f, " {}", "RepeatMirrored"),
+            SamplerAddressingMode::None(_) => f.write_str(concat!(" ", "None")),
+            SamplerAddressingMode::ClampToEdge(_) => f.write_str(concat!(" ", "ClampToEdge")),
+            SamplerAddressingMode::Clamp(_) => f.write_str(concat!(" ", "Clamp")),
+            SamplerAddressingMode::Repeat(_) => f.write_str(concat!(" ", "Repeat")),
+            SamplerAddressingMode::RepeatMirrored(_) => f.write_str(concat!(" ", "RepeatMirrored")),
         }
     }
 }
@@ -3167,8 +3181,8 @@ impl SPIRVParse for SamplerFilterMode {
 impl SPIRVDisplay for SamplerFilterMode {
     fn spirv_display(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            SamplerFilterMode::Nearest(_) => write!(f, " {}", "Nearest"),
-            SamplerFilterMode::Linear(_) => write!(f, " {}", "Linear"),
+            SamplerFilterMode::Nearest(_) => f.write_str(concat!(" ", "Nearest")),
+            SamplerFilterMode::Linear(_) => f.write_str(concat!(" ", "Linear")),
         }
     }
 }
@@ -3549,46 +3563,46 @@ impl SPIRVParse for ImageFormat {
 impl SPIRVDisplay for ImageFormat {
     fn spirv_display(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            ImageFormat::Unknown(_) => write!(f, " {}", "Unknown"),
-            ImageFormat::Rgba32f(_) => write!(f, " {}", "Rgba32f"),
-            ImageFormat::Rgba16f(_) => write!(f, " {}", "Rgba16f"),
-            ImageFormat::R32f(_) => write!(f, " {}", "R32f"),
-            ImageFormat::Rgba8(_) => write!(f, " {}", "Rgba8"),
-            ImageFormat::Rgba8Snorm(_) => write!(f, " {}", "Rgba8Snorm"),
-            ImageFormat::Rg32f(_) => write!(f, " {}", "Rg32f"),
-            ImageFormat::Rg16f(_) => write!(f, " {}", "Rg16f"),
-            ImageFormat::R11fG11fB10f(_) => write!(f, " {}", "R11fG11fB10f"),
-            ImageFormat::R16f(_) => write!(f, " {}", "R16f"),
-            ImageFormat::Rgba16(_) => write!(f, " {}", "Rgba16"),
-            ImageFormat::Rgb10A2(_) => write!(f, " {}", "Rgb10A2"),
-            ImageFormat::Rg16(_) => write!(f, " {}", "Rg16"),
-            ImageFormat::Rg8(_) => write!(f, " {}", "Rg8"),
-            ImageFormat::R16(_) => write!(f, " {}", "R16"),
-            ImageFormat::R8(_) => write!(f, " {}", "R8"),
-            ImageFormat::Rgba16Snorm(_) => write!(f, " {}", "Rgba16Snorm"),
-            ImageFormat::Rg16Snorm(_) => write!(f, " {}", "Rg16Snorm"),
-            ImageFormat::Rg8Snorm(_) => write!(f, " {}", "Rg8Snorm"),
-            ImageFormat::R16Snorm(_) => write!(f, " {}", "R16Snorm"),
-            ImageFormat::R8Snorm(_) => write!(f, " {}", "R8Snorm"),
-            ImageFormat::Rgba32i(_) => write!(f, " {}", "Rgba32i"),
-            ImageFormat::Rgba16i(_) => write!(f, " {}", "Rgba16i"),
-            ImageFormat::Rgba8i(_) => write!(f, " {}", "Rgba8i"),
-            ImageFormat::R32i(_) => write!(f, " {}", "R32i"),
-            ImageFormat::Rg32i(_) => write!(f, " {}", "Rg32i"),
-            ImageFormat::Rg16i(_) => write!(f, " {}", "Rg16i"),
-            ImageFormat::Rg8i(_) => write!(f, " {}", "Rg8i"),
-            ImageFormat::R16i(_) => write!(f, " {}", "R16i"),
-            ImageFormat::R8i(_) => write!(f, " {}", "R8i"),
-            ImageFormat::Rgba32ui(_) => write!(f, " {}", "Rgba32ui"),
-            ImageFormat::Rgba16ui(_) => write!(f, " {}", "Rgba16ui"),
-            ImageFormat::Rgba8ui(_) => write!(f, " {}", "Rgba8ui"),
-            ImageFormat::R32ui(_) => write!(f, " {}", "R32ui"),
-            ImageFormat::Rgb10a2ui(_) => write!(f, " {}", "Rgb10a2ui"),
-            ImageFormat::Rg32ui(_) => write!(f, " {}", "Rg32ui"),
-            ImageFormat::Rg16ui(_) => write!(f, " {}", "Rg16ui"),
-            ImageFormat::Rg8ui(_) => write!(f, " {}", "Rg8ui"),
-            ImageFormat::R16ui(_) => write!(f, " {}", "R16ui"),
-            ImageFormat::R8ui(_) => write!(f, " {}", "R8ui"),
+            ImageFormat::Unknown(_) => f.write_str(concat!(" ", "Unknown")),
+            ImageFormat::Rgba32f(_) => f.write_str(concat!(" ", "Rgba32f")),
+            ImageFormat::Rgba16f(_) => f.write_str(concat!(" ", "Rgba16f")),
+            ImageFormat::R32f(_) => f.write_str(concat!(" ", "R32f")),
+            ImageFormat::Rgba8(_) => f.write_str(concat!(" ", "Rgba8")),
+            ImageFormat::Rgba8Snorm(_) => f.write_str(concat!(" ", "Rgba8Snorm")),
+            ImageFormat::Rg32f(_) => f.write_str(concat!(" ", "Rg32f")),
+            ImageFormat::Rg16f(_) => f.write_str(concat!(" ", "Rg16f")),
+            ImageFormat::R11fG11fB10f(_) => f.write_str(concat!(" ", "R11fG11fB10f")),
+            ImageFormat::R16f(_) => f.write_str(concat!(" ", "R16f")),
+            ImageFormat::Rgba16(_) => f.write_str(concat!(" ", "Rgba16")),
+            ImageFormat::Rgb10A2(_) => f.write_str(concat!(" ", "Rgb10A2")),
+            ImageFormat::Rg16(_) => f.write_str(concat!(" ", "Rg16")),
+            ImageFormat::Rg8(_) => f.write_str(concat!(" ", "Rg8")),
+            ImageFormat::R16(_) => f.write_str(concat!(" ", "R16")),
+            ImageFormat::R8(_) => f.write_str(concat!(" ", "R8")),
+            ImageFormat::Rgba16Snorm(_) => f.write_str(concat!(" ", "Rgba16Snorm")),
+            ImageFormat::Rg16Snorm(_) => f.write_str(concat!(" ", "Rg16Snorm")),
+            ImageFormat::Rg8Snorm(_) => f.write_str(concat!(" ", "Rg8Snorm")),
+            ImageFormat::R16Snorm(_) => f.write_str(concat!(" ", "R16Snorm")),
+            ImageFormat::R8Snorm(_) => f.write_str(concat!(" ", "R8Snorm")),
+            ImageFormat::Rgba32i(_) => f.write_str(concat!(" ", "Rgba32i")),
+            ImageFormat::Rgba16i(_) => f.write_str(concat!(" ", "Rgba16i")),
+            ImageFormat::Rgba8i(_) => f.write_str(concat!(" ", "Rgba8i")),
+            ImageFormat::R32i(_) => f.write_str(concat!(" ", "R32i")),
+            ImageFormat::Rg32i(_) => f.write_str(concat!(" ", "Rg32i")),
+            ImageFormat::Rg16i(_) => f.write_str(concat!(" ", "Rg16i")),
+            ImageFormat::Rg8i(_) => f.write_str(concat!(" ", "Rg8i")),
+            ImageFormat::R16i(_) => f.write_str(concat!(" ", "R16i")),
+            ImageFormat::R8i(_) => f.write_str(concat!(" ", "R8i")),
+            ImageFormat::Rgba32ui(_) => f.write_str(concat!(" ", "Rgba32ui")),
+            ImageFormat::Rgba16ui(_) => f.write_str(concat!(" ", "Rgba16ui")),
+            ImageFormat::Rgba8ui(_) => f.write_str(concat!(" ", "Rgba8ui")),
+            ImageFormat::R32ui(_) => f.write_str(concat!(" ", "R32ui")),
+            ImageFormat::Rgb10a2ui(_) => f.write_str(concat!(" ", "Rgb10a2ui")),
+            ImageFormat::Rg32ui(_) => f.write_str(concat!(" ", "Rg32ui")),
+            ImageFormat::Rg16ui(_) => f.write_str(concat!(" ", "Rg16ui")),
+            ImageFormat::Rg8ui(_) => f.write_str(concat!(" ", "Rg8ui")),
+            ImageFormat::R16ui(_) => f.write_str(concat!(" ", "R16ui")),
+            ImageFormat::R8ui(_) => f.write_str(concat!(" ", "R8ui")),
         }
     }
 }
@@ -3798,26 +3812,26 @@ impl SPIRVParse for ImageChannelOrder {
 impl SPIRVDisplay for ImageChannelOrder {
     fn spirv_display(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            ImageChannelOrder::R(_) => write!(f, " {}", "R"),
-            ImageChannelOrder::A(_) => write!(f, " {}", "A"),
-            ImageChannelOrder::RG(_) => write!(f, " {}", "RG"),
-            ImageChannelOrder::RA(_) => write!(f, " {}", "RA"),
-            ImageChannelOrder::RGB(_) => write!(f, " {}", "RGB"),
-            ImageChannelOrder::RGBA(_) => write!(f, " {}", "RGBA"),
-            ImageChannelOrder::BGRA(_) => write!(f, " {}", "BGRA"),
-            ImageChannelOrder::ARGB(_) => write!(f, " {}", "ARGB"),
-            ImageChannelOrder::Intensity(_) => write!(f, " {}", "Intensity"),
-            ImageChannelOrder::Luminance(_) => write!(f, " {}", "Luminance"),
-            ImageChannelOrder::Rx(_) => write!(f, " {}", "Rx"),
-            ImageChannelOrder::RGx(_) => write!(f, " {}", "RGx"),
-            ImageChannelOrder::RGBx(_) => write!(f, " {}", "RGBx"),
-            ImageChannelOrder::Depth(_) => write!(f, " {}", "Depth"),
-            ImageChannelOrder::DepthStencil(_) => write!(f, " {}", "DepthStencil"),
-            ImageChannelOrder::SRGB(_) => write!(f, " {}", "sRGB"),
-            ImageChannelOrder::SRGBx(_) => write!(f, " {}", "sRGBx"),
-            ImageChannelOrder::SRGBA(_) => write!(f, " {}", "sRGBA"),
-            ImageChannelOrder::SBGRA(_) => write!(f, " {}", "sBGRA"),
-            ImageChannelOrder::ABGR(_) => write!(f, " {}", "ABGR"),
+            ImageChannelOrder::R(_) => f.write_str(concat!(" ", "R")),
+            ImageChannelOrder::A(_) => f.write_str(concat!(" ", "A")),
+            ImageChannelOrder::RG(_) => f.write_str(concat!(" ", "RG")),
+            ImageChannelOrder::RA(_) => f.write_str(concat!(" ", "RA")),
+            ImageChannelOrder::RGB(_) => f.write_str(concat!(" ", "RGB")),
+            ImageChannelOrder::RGBA(_) => f.write_str(concat!(" ", "RGBA")),
+            ImageChannelOrder::BGRA(_) => f.write_str(concat!(" ", "BGRA")),
+            ImageChannelOrder::ARGB(_) => f.write_str(concat!(" ", "ARGB")),
+            ImageChannelOrder::Intensity(_) => f.write_str(concat!(" ", "Intensity")),
+            ImageChannelOrder::Luminance(_) => f.write_str(concat!(" ", "Luminance")),
+            ImageChannelOrder::Rx(_) => f.write_str(concat!(" ", "Rx")),
+            ImageChannelOrder::RGx(_) => f.write_str(concat!(" ", "RGx")),
+            ImageChannelOrder::RGBx(_) => f.write_str(concat!(" ", "RGBx")),
+            ImageChannelOrder::Depth(_) => f.write_str(concat!(" ", "Depth")),
+            ImageChannelOrder::DepthStencil(_) => f.write_str(concat!(" ", "DepthStencil")),
+            ImageChannelOrder::SRGB(_) => f.write_str(concat!(" ", "sRGB")),
+            ImageChannelOrder::SRGBx(_) => f.write_str(concat!(" ", "sRGBx")),
+            ImageChannelOrder::SRGBA(_) => f.write_str(concat!(" ", "sRGBA")),
+            ImageChannelOrder::SBGRA(_) => f.write_str(concat!(" ", "sBGRA")),
+            ImageChannelOrder::ABGR(_) => f.write_str(concat!(" ", "ABGR")),
         }
     }
 }
@@ -4042,23 +4056,25 @@ impl SPIRVParse for ImageChannelDataType {
 impl SPIRVDisplay for ImageChannelDataType {
     fn spirv_display(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            ImageChannelDataType::SnormInt8(_) => write!(f, " {}", "SnormInt8"),
-            ImageChannelDataType::SnormInt16(_) => write!(f, " {}", "SnormInt16"),
-            ImageChannelDataType::UnormInt8(_) => write!(f, " {}", "UnormInt8"),
-            ImageChannelDataType::UnormInt16(_) => write!(f, " {}", "UnormInt16"),
-            ImageChannelDataType::UnormShort565(_) => write!(f, " {}", "UnormShort565"),
-            ImageChannelDataType::UnormShort555(_) => write!(f, " {}", "UnormShort555"),
-            ImageChannelDataType::UnormInt101010(_) => write!(f, " {}", "UnormInt101010"),
-            ImageChannelDataType::SignedInt8(_) => write!(f, " {}", "SignedInt8"),
-            ImageChannelDataType::SignedInt16(_) => write!(f, " {}", "SignedInt16"),
-            ImageChannelDataType::SignedInt32(_) => write!(f, " {}", "SignedInt32"),
-            ImageChannelDataType::UnsignedInt8(_) => write!(f, " {}", "UnsignedInt8"),
-            ImageChannelDataType::UnsignedInt16(_) => write!(f, " {}", "UnsignedInt16"),
-            ImageChannelDataType::UnsignedInt32(_) => write!(f, " {}", "UnsignedInt32"),
-            ImageChannelDataType::HalfFloat(_) => write!(f, " {}", "HalfFloat"),
-            ImageChannelDataType::Float(_) => write!(f, " {}", "Float"),
-            ImageChannelDataType::UnormInt24(_) => write!(f, " {}", "UnormInt24"),
-            ImageChannelDataType::UnormInt1010102(_) => write!(f, " {}", "UnormInt101010_2"),
+            ImageChannelDataType::SnormInt8(_) => f.write_str(concat!(" ", "SnormInt8")),
+            ImageChannelDataType::SnormInt16(_) => f.write_str(concat!(" ", "SnormInt16")),
+            ImageChannelDataType::UnormInt8(_) => f.write_str(concat!(" ", "UnormInt8")),
+            ImageChannelDataType::UnormInt16(_) => f.write_str(concat!(" ", "UnormInt16")),
+            ImageChannelDataType::UnormShort565(_) => f.write_str(concat!(" ", "UnormShort565")),
+            ImageChannelDataType::UnormShort555(_) => f.write_str(concat!(" ", "UnormShort555")),
+            ImageChannelDataType::UnormInt101010(_) => f.write_str(concat!(" ", "UnormInt101010")),
+            ImageChannelDataType::SignedInt8(_) => f.write_str(concat!(" ", "SignedInt8")),
+            ImageChannelDataType::SignedInt16(_) => f.write_str(concat!(" ", "SignedInt16")),
+            ImageChannelDataType::SignedInt32(_) => f.write_str(concat!(" ", "SignedInt32")),
+            ImageChannelDataType::UnsignedInt8(_) => f.write_str(concat!(" ", "UnsignedInt8")),
+            ImageChannelDataType::UnsignedInt16(_) => f.write_str(concat!(" ", "UnsignedInt16")),
+            ImageChannelDataType::UnsignedInt32(_) => f.write_str(concat!(" ", "UnsignedInt32")),
+            ImageChannelDataType::HalfFloat(_) => f.write_str(concat!(" ", "HalfFloat")),
+            ImageChannelDataType::Float(_) => f.write_str(concat!(" ", "Float")),
+            ImageChannelDataType::UnormInt24(_) => f.write_str(concat!(" ", "UnormInt24")),
+            ImageChannelDataType::UnormInt1010102(_) => {
+                f.write_str(concat!(" ", "UnormInt101010_2"))
+            }
         }
     }
 }
@@ -4115,10 +4131,10 @@ impl SPIRVParse for FPRoundingMode {
 impl SPIRVDisplay for FPRoundingMode {
     fn spirv_display(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            FPRoundingMode::RTE(_) => write!(f, " {}", "RTE"),
-            FPRoundingMode::RTZ(_) => write!(f, " {}", "RTZ"),
-            FPRoundingMode::RTP(_) => write!(f, " {}", "RTP"),
-            FPRoundingMode::RTN(_) => write!(f, " {}", "RTN"),
+            FPRoundingMode::RTE(_) => f.write_str(concat!(" ", "RTE")),
+            FPRoundingMode::RTZ(_) => f.write_str(concat!(" ", "RTZ")),
+            FPRoundingMode::RTP(_) => f.write_str(concat!(" ", "RTP")),
+            FPRoundingMode::RTN(_) => f.write_str(concat!(" ", "RTN")),
         }
     }
 }
@@ -4157,8 +4173,8 @@ impl SPIRVParse for LinkageType {
 impl SPIRVDisplay for LinkageType {
     fn spirv_display(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            LinkageType::Export(_) => write!(f, " {}", "Export"),
-            LinkageType::Import(_) => write!(f, " {}", "Import"),
+            LinkageType::Export(_) => f.write_str(concat!(" ", "Export")),
+            LinkageType::Import(_) => f.write_str(concat!(" ", "Import")),
         }
     }
 }
@@ -4206,9 +4222,9 @@ impl SPIRVParse for AccessQualifier {
 impl SPIRVDisplay for AccessQualifier {
     fn spirv_display(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            AccessQualifier::ReadOnly(_) => write!(f, " {}", "ReadOnly"),
-            AccessQualifier::WriteOnly(_) => write!(f, " {}", "WriteOnly"),
-            AccessQualifier::ReadWrite(_) => write!(f, " {}", "ReadWrite"),
+            AccessQualifier::ReadOnly(_) => f.write_str(concat!(" ", "ReadOnly")),
+            AccessQualifier::WriteOnly(_) => f.write_str(concat!(" ", "WriteOnly")),
+            AccessQualifier::ReadWrite(_) => f.write_str(concat!(" ", "ReadWrite")),
         }
     }
 }
@@ -4325,14 +4341,14 @@ impl SPIRVParse for FunctionParameterAttribute {
 impl SPIRVDisplay for FunctionParameterAttribute {
     fn spirv_display(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            FunctionParameterAttribute::Zext(_) => write!(f, " {}", "Zext"),
-            FunctionParameterAttribute::Sext(_) => write!(f, " {}", "Sext"),
-            FunctionParameterAttribute::ByVal(_) => write!(f, " {}", "ByVal"),
-            FunctionParameterAttribute::Sret(_) => write!(f, " {}", "Sret"),
-            FunctionParameterAttribute::NoAlias(_) => write!(f, " {}", "NoAlias"),
-            FunctionParameterAttribute::NoCapture(_) => write!(f, " {}", "NoCapture"),
-            FunctionParameterAttribute::NoWrite(_) => write!(f, " {}", "NoWrite"),
-            FunctionParameterAttribute::NoReadWrite(_) => write!(f, " {}", "NoReadWrite"),
+            FunctionParameterAttribute::Zext(_) => f.write_str(concat!(" ", "Zext")),
+            FunctionParameterAttribute::Sext(_) => f.write_str(concat!(" ", "Sext")),
+            FunctionParameterAttribute::ByVal(_) => f.write_str(concat!(" ", "ByVal")),
+            FunctionParameterAttribute::Sret(_) => f.write_str(concat!(" ", "Sret")),
+            FunctionParameterAttribute::NoAlias(_) => f.write_str(concat!(" ", "NoAlias")),
+            FunctionParameterAttribute::NoCapture(_) => f.write_str(concat!(" ", "NoCapture")),
+            FunctionParameterAttribute::NoWrite(_) => f.write_str(concat!(" ", "NoWrite")),
+            FunctionParameterAttribute::NoReadWrite(_) => f.write_str(concat!(" ", "NoReadWrite")),
         }
     }
 }
@@ -5052,166 +5068,166 @@ impl SPIRVParse for Decoration {
 impl SPIRVDisplay for Decoration {
     fn spirv_display(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Decoration::RelaxedPrecision(_) => write!(f, " {}", "RelaxedPrecision"),
+            Decoration::RelaxedPrecision(_) => f.write_str(concat!(" ", "RelaxedPrecision")),
             Decoration::SpecId(DecorationSpecId {
                 specialization_constant_id,
             }) => {
-                write!(f, " {}", "SpecId")?;
+                f.write_str(concat!(" ", "SpecId"))?;
                 specialization_constant_id.spirv_display(f)?;
                 Ok(())
             }
-            Decoration::Block(_) => write!(f, " {}", "Block"),
-            Decoration::BufferBlock(_) => write!(f, " {}", "BufferBlock"),
-            Decoration::RowMajor(_) => write!(f, " {}", "RowMajor"),
-            Decoration::ColMajor(_) => write!(f, " {}", "ColMajor"),
+            Decoration::Block(_) => f.write_str(concat!(" ", "Block")),
+            Decoration::BufferBlock(_) => f.write_str(concat!(" ", "BufferBlock")),
+            Decoration::RowMajor(_) => f.write_str(concat!(" ", "RowMajor")),
+            Decoration::ColMajor(_) => f.write_str(concat!(" ", "ColMajor")),
             Decoration::ArrayStride(DecorationArrayStride { array_stride }) => {
-                write!(f, " {}", "ArrayStride")?;
+                f.write_str(concat!(" ", "ArrayStride"))?;
                 array_stride.spirv_display(f)?;
                 Ok(())
             }
             Decoration::MatrixStride(DecorationMatrixStride { matrix_stride }) => {
-                write!(f, " {}", "MatrixStride")?;
+                f.write_str(concat!(" ", "MatrixStride"))?;
                 matrix_stride.spirv_display(f)?;
                 Ok(())
             }
-            Decoration::GLSLShared(_) => write!(f, " {}", "GLSLShared"),
-            Decoration::GLSLPacked(_) => write!(f, " {}", "GLSLPacked"),
-            Decoration::CPacked(_) => write!(f, " {}", "CPacked"),
+            Decoration::GLSLShared(_) => f.write_str(concat!(" ", "GLSLShared")),
+            Decoration::GLSLPacked(_) => f.write_str(concat!(" ", "GLSLPacked")),
+            Decoration::CPacked(_) => f.write_str(concat!(" ", "CPacked")),
             Decoration::BuiltIn(DecorationBuiltIn { built_in }) => {
-                write!(f, " {}", "BuiltIn")?;
+                f.write_str(concat!(" ", "BuiltIn"))?;
                 built_in.spirv_display(f)?;
                 Ok(())
             }
-            Decoration::NoPerspective(_) => write!(f, " {}", "NoPerspective"),
-            Decoration::Flat(_) => write!(f, " {}", "Flat"),
-            Decoration::Patch(_) => write!(f, " {}", "Patch"),
-            Decoration::Centroid(_) => write!(f, " {}", "Centroid"),
-            Decoration::Sample(_) => write!(f, " {}", "Sample"),
-            Decoration::Invariant(_) => write!(f, " {}", "Invariant"),
-            Decoration::Restrict(_) => write!(f, " {}", "Restrict"),
-            Decoration::Aliased(_) => write!(f, " {}", "Aliased"),
-            Decoration::Volatile(_) => write!(f, " {}", "Volatile"),
-            Decoration::Constant(_) => write!(f, " {}", "Constant"),
-            Decoration::Coherent(_) => write!(f, " {}", "Coherent"),
-            Decoration::NonWritable(_) => write!(f, " {}", "NonWritable"),
-            Decoration::NonReadable(_) => write!(f, " {}", "NonReadable"),
-            Decoration::Uniform(_) => write!(f, " {}", "Uniform"),
+            Decoration::NoPerspective(_) => f.write_str(concat!(" ", "NoPerspective")),
+            Decoration::Flat(_) => f.write_str(concat!(" ", "Flat")),
+            Decoration::Patch(_) => f.write_str(concat!(" ", "Patch")),
+            Decoration::Centroid(_) => f.write_str(concat!(" ", "Centroid")),
+            Decoration::Sample(_) => f.write_str(concat!(" ", "Sample")),
+            Decoration::Invariant(_) => f.write_str(concat!(" ", "Invariant")),
+            Decoration::Restrict(_) => f.write_str(concat!(" ", "Restrict")),
+            Decoration::Aliased(_) => f.write_str(concat!(" ", "Aliased")),
+            Decoration::Volatile(_) => f.write_str(concat!(" ", "Volatile")),
+            Decoration::Constant(_) => f.write_str(concat!(" ", "Constant")),
+            Decoration::Coherent(_) => f.write_str(concat!(" ", "Coherent")),
+            Decoration::NonWritable(_) => f.write_str(concat!(" ", "NonWritable")),
+            Decoration::NonReadable(_) => f.write_str(concat!(" ", "NonReadable")),
+            Decoration::Uniform(_) => f.write_str(concat!(" ", "Uniform")),
             Decoration::UniformId(DecorationUniformId { execution }) => {
-                write!(f, " {}", "UniformId")?;
+                f.write_str(concat!(" ", "UniformId"))?;
                 execution.spirv_display(f)?;
                 Ok(())
             }
-            Decoration::SaturatedConversion(_) => write!(f, " {}", "SaturatedConversion"),
+            Decoration::SaturatedConversion(_) => f.write_str(concat!(" ", "SaturatedConversion")),
             Decoration::Stream(DecorationStream { stream_number }) => {
-                write!(f, " {}", "Stream")?;
+                f.write_str(concat!(" ", "Stream"))?;
                 stream_number.spirv_display(f)?;
                 Ok(())
             }
             Decoration::Location(DecorationLocation { location }) => {
-                write!(f, " {}", "Location")?;
+                f.write_str(concat!(" ", "Location"))?;
                 location.spirv_display(f)?;
                 Ok(())
             }
             Decoration::Component(DecorationComponent { component }) => {
-                write!(f, " {}", "Component")?;
+                f.write_str(concat!(" ", "Component"))?;
                 component.spirv_display(f)?;
                 Ok(())
             }
             Decoration::Index(DecorationIndex { index }) => {
-                write!(f, " {}", "Index")?;
+                f.write_str(concat!(" ", "Index"))?;
                 index.spirv_display(f)?;
                 Ok(())
             }
             Decoration::Binding(DecorationBinding { binding_point }) => {
-                write!(f, " {}", "Binding")?;
+                f.write_str(concat!(" ", "Binding"))?;
                 binding_point.spirv_display(f)?;
                 Ok(())
             }
             Decoration::DescriptorSet(DecorationDescriptorSet { descriptor_set }) => {
-                write!(f, " {}", "DescriptorSet")?;
+                f.write_str(concat!(" ", "DescriptorSet"))?;
                 descriptor_set.spirv_display(f)?;
                 Ok(())
             }
             Decoration::Offset(DecorationOffset { byte_offset }) => {
-                write!(f, " {}", "Offset")?;
+                f.write_str(concat!(" ", "Offset"))?;
                 byte_offset.spirv_display(f)?;
                 Ok(())
             }
             Decoration::XfbBuffer(DecorationXfbBuffer { xfb_buffer_number }) => {
-                write!(f, " {}", "XfbBuffer")?;
+                f.write_str(concat!(" ", "XfbBuffer"))?;
                 xfb_buffer_number.spirv_display(f)?;
                 Ok(())
             }
             Decoration::XfbStride(DecorationXfbStride { xfb_stride }) => {
-                write!(f, " {}", "XfbStride")?;
+                f.write_str(concat!(" ", "XfbStride"))?;
                 xfb_stride.spirv_display(f)?;
                 Ok(())
             }
             Decoration::FuncParamAttr(DecorationFuncParamAttr {
                 function_parameter_attribute,
             }) => {
-                write!(f, " {}", "FuncParamAttr")?;
+                f.write_str(concat!(" ", "FuncParamAttr"))?;
                 function_parameter_attribute.spirv_display(f)?;
                 Ok(())
             }
             Decoration::FPRoundingMode(DecorationFPRoundingMode {
                 floating_point_rounding_mode,
             }) => {
-                write!(f, " {}", "FPRoundingMode")?;
+                f.write_str(concat!(" ", "FPRoundingMode"))?;
                 floating_point_rounding_mode.spirv_display(f)?;
                 Ok(())
             }
             Decoration::FPFastMathMode(DecorationFPFastMathMode { fast_math_mode }) => {
-                write!(f, " {}", "FPFastMathMode")?;
+                f.write_str(concat!(" ", "FPFastMathMode"))?;
                 fast_math_mode.spirv_display(f)?;
                 Ok(())
             }
             Decoration::LinkageAttributes(DecorationLinkageAttributes { name, linkage_type }) => {
-                write!(f, " {}", "LinkageAttributes")?;
+                f.write_str(concat!(" ", "LinkageAttributes"))?;
                 name.spirv_display(f)?;
                 linkage_type.spirv_display(f)?;
                 Ok(())
             }
-            Decoration::NoContraction(_) => write!(f, " {}", "NoContraction"),
+            Decoration::NoContraction(_) => f.write_str(concat!(" ", "NoContraction")),
             Decoration::InputAttachmentIndex(DecorationInputAttachmentIndex {
                 attachment_index,
             }) => {
-                write!(f, " {}", "InputAttachmentIndex")?;
+                f.write_str(concat!(" ", "InputAttachmentIndex"))?;
                 attachment_index.spirv_display(f)?;
                 Ok(())
             }
             Decoration::Alignment(DecorationAlignment { alignment }) => {
-                write!(f, " {}", "Alignment")?;
+                f.write_str(concat!(" ", "Alignment"))?;
                 alignment.spirv_display(f)?;
                 Ok(())
             }
             Decoration::MaxByteOffset(DecorationMaxByteOffset { max_byte_offset }) => {
-                write!(f, " {}", "MaxByteOffset")?;
+                f.write_str(concat!(" ", "MaxByteOffset"))?;
                 max_byte_offset.spirv_display(f)?;
                 Ok(())
             }
             Decoration::AlignmentId(DecorationAlignmentId { alignment }) => {
-                write!(f, " {}", "AlignmentId")?;
+                f.write_str(concat!(" ", "AlignmentId"))?;
                 alignment.spirv_display(f)?;
                 Ok(())
             }
             Decoration::MaxByteOffsetId(DecorationMaxByteOffsetId { max_byte_offset }) => {
-                write!(f, " {}", "MaxByteOffsetId")?;
+                f.write_str(concat!(" ", "MaxByteOffsetId"))?;
                 max_byte_offset.spirv_display(f)?;
                 Ok(())
             }
-            Decoration::NoSignedWrap(_) => write!(f, " {}", "NoSignedWrap"),
-            Decoration::NoUnsignedWrap(_) => write!(f, " {}", "NoUnsignedWrap"),
-            Decoration::NonUniform(_) => write!(f, " {}", "NonUniform"),
-            Decoration::RestrictPointer(_) => write!(f, " {}", "RestrictPointer"),
-            Decoration::AliasedPointer(_) => write!(f, " {}", "AliasedPointer"),
+            Decoration::NoSignedWrap(_) => f.write_str(concat!(" ", "NoSignedWrap")),
+            Decoration::NoUnsignedWrap(_) => f.write_str(concat!(" ", "NoUnsignedWrap")),
+            Decoration::NonUniform(_) => f.write_str(concat!(" ", "NonUniform")),
+            Decoration::RestrictPointer(_) => f.write_str(concat!(" ", "RestrictPointer")),
+            Decoration::AliasedPointer(_) => f.write_str(concat!(" ", "AliasedPointer")),
             Decoration::CounterBuffer(DecorationCounterBuffer { counter_buffer }) => {
-                write!(f, " {}", "CounterBuffer")?;
+                f.write_str(concat!(" ", "CounterBuffer"))?;
                 counter_buffer.spirv_display(f)?;
                 Ok(())
             }
             Decoration::UserSemantic(DecorationUserSemantic { semantic }) => {
-                write!(f, " {}", "UserSemantic")?;
+                f.write_str(concat!(" ", "UserSemantic"))?;
                 semantic.spirv_display(f)?;
                 Ok(())
             }
@@ -5709,57 +5725,59 @@ impl SPIRVParse for BuiltIn {
 impl SPIRVDisplay for BuiltIn {
     fn spirv_display(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            BuiltIn::Position(_) => write!(f, " {}", "Position"),
-            BuiltIn::PointSize(_) => write!(f, " {}", "PointSize"),
-            BuiltIn::ClipDistance(_) => write!(f, " {}", "ClipDistance"),
-            BuiltIn::CullDistance(_) => write!(f, " {}", "CullDistance"),
-            BuiltIn::VertexId(_) => write!(f, " {}", "VertexId"),
-            BuiltIn::InstanceId(_) => write!(f, " {}", "InstanceId"),
-            BuiltIn::PrimitiveId(_) => write!(f, " {}", "PrimitiveId"),
-            BuiltIn::InvocationId(_) => write!(f, " {}", "InvocationId"),
-            BuiltIn::Layer(_) => write!(f, " {}", "Layer"),
-            BuiltIn::ViewportIndex(_) => write!(f, " {}", "ViewportIndex"),
-            BuiltIn::TessLevelOuter(_) => write!(f, " {}", "TessLevelOuter"),
-            BuiltIn::TessLevelInner(_) => write!(f, " {}", "TessLevelInner"),
-            BuiltIn::TessCoord(_) => write!(f, " {}", "TessCoord"),
-            BuiltIn::PatchVertices(_) => write!(f, " {}", "PatchVertices"),
-            BuiltIn::FragCoord(_) => write!(f, " {}", "FragCoord"),
-            BuiltIn::PointCoord(_) => write!(f, " {}", "PointCoord"),
-            BuiltIn::FrontFacing(_) => write!(f, " {}", "FrontFacing"),
-            BuiltIn::SampleId(_) => write!(f, " {}", "SampleId"),
-            BuiltIn::SamplePosition(_) => write!(f, " {}", "SamplePosition"),
-            BuiltIn::SampleMask(_) => write!(f, " {}", "SampleMask"),
-            BuiltIn::FragDepth(_) => write!(f, " {}", "FragDepth"),
-            BuiltIn::HelperInvocation(_) => write!(f, " {}", "HelperInvocation"),
-            BuiltIn::NumWorkgroups(_) => write!(f, " {}", "NumWorkgroups"),
-            BuiltIn::WorkgroupSize(_) => write!(f, " {}", "WorkgroupSize"),
-            BuiltIn::WorkgroupId(_) => write!(f, " {}", "WorkgroupId"),
-            BuiltIn::LocalInvocationId(_) => write!(f, " {}", "LocalInvocationId"),
-            BuiltIn::GlobalInvocationId(_) => write!(f, " {}", "GlobalInvocationId"),
-            BuiltIn::LocalInvocationIndex(_) => write!(f, " {}", "LocalInvocationIndex"),
-            BuiltIn::WorkDim(_) => write!(f, " {}", "WorkDim"),
-            BuiltIn::GlobalSize(_) => write!(f, " {}", "GlobalSize"),
-            BuiltIn::EnqueuedWorkgroupSize(_) => write!(f, " {}", "EnqueuedWorkgroupSize"),
-            BuiltIn::GlobalOffset(_) => write!(f, " {}", "GlobalOffset"),
-            BuiltIn::GlobalLinearId(_) => write!(f, " {}", "GlobalLinearId"),
-            BuiltIn::SubgroupSize(_) => write!(f, " {}", "SubgroupSize"),
-            BuiltIn::SubgroupMaxSize(_) => write!(f, " {}", "SubgroupMaxSize"),
-            BuiltIn::NumSubgroups(_) => write!(f, " {}", "NumSubgroups"),
-            BuiltIn::NumEnqueuedSubgroups(_) => write!(f, " {}", "NumEnqueuedSubgroups"),
-            BuiltIn::SubgroupId(_) => write!(f, " {}", "SubgroupId"),
-            BuiltIn::SubgroupLocalInvocationId(_) => write!(f, " {}", "SubgroupLocalInvocationId"),
-            BuiltIn::VertexIndex(_) => write!(f, " {}", "VertexIndex"),
-            BuiltIn::InstanceIndex(_) => write!(f, " {}", "InstanceIndex"),
-            BuiltIn::SubgroupEqMask(_) => write!(f, " {}", "SubgroupEqMask"),
-            BuiltIn::SubgroupGeMask(_) => write!(f, " {}", "SubgroupGeMask"),
-            BuiltIn::SubgroupGtMask(_) => write!(f, " {}", "SubgroupGtMask"),
-            BuiltIn::SubgroupLeMask(_) => write!(f, " {}", "SubgroupLeMask"),
-            BuiltIn::SubgroupLtMask(_) => write!(f, " {}", "SubgroupLtMask"),
-            BuiltIn::BaseVertex(_) => write!(f, " {}", "BaseVertex"),
-            BuiltIn::BaseInstance(_) => write!(f, " {}", "BaseInstance"),
-            BuiltIn::DrawIndex(_) => write!(f, " {}", "DrawIndex"),
-            BuiltIn::DeviceIndex(_) => write!(f, " {}", "DeviceIndex"),
-            BuiltIn::ViewIndex(_) => write!(f, " {}", "ViewIndex"),
+            BuiltIn::Position(_) => f.write_str(concat!(" ", "Position")),
+            BuiltIn::PointSize(_) => f.write_str(concat!(" ", "PointSize")),
+            BuiltIn::ClipDistance(_) => f.write_str(concat!(" ", "ClipDistance")),
+            BuiltIn::CullDistance(_) => f.write_str(concat!(" ", "CullDistance")),
+            BuiltIn::VertexId(_) => f.write_str(concat!(" ", "VertexId")),
+            BuiltIn::InstanceId(_) => f.write_str(concat!(" ", "InstanceId")),
+            BuiltIn::PrimitiveId(_) => f.write_str(concat!(" ", "PrimitiveId")),
+            BuiltIn::InvocationId(_) => f.write_str(concat!(" ", "InvocationId")),
+            BuiltIn::Layer(_) => f.write_str(concat!(" ", "Layer")),
+            BuiltIn::ViewportIndex(_) => f.write_str(concat!(" ", "ViewportIndex")),
+            BuiltIn::TessLevelOuter(_) => f.write_str(concat!(" ", "TessLevelOuter")),
+            BuiltIn::TessLevelInner(_) => f.write_str(concat!(" ", "TessLevelInner")),
+            BuiltIn::TessCoord(_) => f.write_str(concat!(" ", "TessCoord")),
+            BuiltIn::PatchVertices(_) => f.write_str(concat!(" ", "PatchVertices")),
+            BuiltIn::FragCoord(_) => f.write_str(concat!(" ", "FragCoord")),
+            BuiltIn::PointCoord(_) => f.write_str(concat!(" ", "PointCoord")),
+            BuiltIn::FrontFacing(_) => f.write_str(concat!(" ", "FrontFacing")),
+            BuiltIn::SampleId(_) => f.write_str(concat!(" ", "SampleId")),
+            BuiltIn::SamplePosition(_) => f.write_str(concat!(" ", "SamplePosition")),
+            BuiltIn::SampleMask(_) => f.write_str(concat!(" ", "SampleMask")),
+            BuiltIn::FragDepth(_) => f.write_str(concat!(" ", "FragDepth")),
+            BuiltIn::HelperInvocation(_) => f.write_str(concat!(" ", "HelperInvocation")),
+            BuiltIn::NumWorkgroups(_) => f.write_str(concat!(" ", "NumWorkgroups")),
+            BuiltIn::WorkgroupSize(_) => f.write_str(concat!(" ", "WorkgroupSize")),
+            BuiltIn::WorkgroupId(_) => f.write_str(concat!(" ", "WorkgroupId")),
+            BuiltIn::LocalInvocationId(_) => f.write_str(concat!(" ", "LocalInvocationId")),
+            BuiltIn::GlobalInvocationId(_) => f.write_str(concat!(" ", "GlobalInvocationId")),
+            BuiltIn::LocalInvocationIndex(_) => f.write_str(concat!(" ", "LocalInvocationIndex")),
+            BuiltIn::WorkDim(_) => f.write_str(concat!(" ", "WorkDim")),
+            BuiltIn::GlobalSize(_) => f.write_str(concat!(" ", "GlobalSize")),
+            BuiltIn::EnqueuedWorkgroupSize(_) => f.write_str(concat!(" ", "EnqueuedWorkgroupSize")),
+            BuiltIn::GlobalOffset(_) => f.write_str(concat!(" ", "GlobalOffset")),
+            BuiltIn::GlobalLinearId(_) => f.write_str(concat!(" ", "GlobalLinearId")),
+            BuiltIn::SubgroupSize(_) => f.write_str(concat!(" ", "SubgroupSize")),
+            BuiltIn::SubgroupMaxSize(_) => f.write_str(concat!(" ", "SubgroupMaxSize")),
+            BuiltIn::NumSubgroups(_) => f.write_str(concat!(" ", "NumSubgroups")),
+            BuiltIn::NumEnqueuedSubgroups(_) => f.write_str(concat!(" ", "NumEnqueuedSubgroups")),
+            BuiltIn::SubgroupId(_) => f.write_str(concat!(" ", "SubgroupId")),
+            BuiltIn::SubgroupLocalInvocationId(_) => {
+                f.write_str(concat!(" ", "SubgroupLocalInvocationId"))
+            }
+            BuiltIn::VertexIndex(_) => f.write_str(concat!(" ", "VertexIndex")),
+            BuiltIn::InstanceIndex(_) => f.write_str(concat!(" ", "InstanceIndex")),
+            BuiltIn::SubgroupEqMask(_) => f.write_str(concat!(" ", "SubgroupEqMask")),
+            BuiltIn::SubgroupGeMask(_) => f.write_str(concat!(" ", "SubgroupGeMask")),
+            BuiltIn::SubgroupGtMask(_) => f.write_str(concat!(" ", "SubgroupGtMask")),
+            BuiltIn::SubgroupLeMask(_) => f.write_str(concat!(" ", "SubgroupLeMask")),
+            BuiltIn::SubgroupLtMask(_) => f.write_str(concat!(" ", "SubgroupLtMask")),
+            BuiltIn::BaseVertex(_) => f.write_str(concat!(" ", "BaseVertex")),
+            BuiltIn::BaseInstance(_) => f.write_str(concat!(" ", "BaseInstance")),
+            BuiltIn::DrawIndex(_) => f.write_str(concat!(" ", "DrawIndex")),
+            BuiltIn::DeviceIndex(_) => f.write_str(concat!(" ", "DeviceIndex")),
+            BuiltIn::ViewIndex(_) => f.write_str(concat!(" ", "ViewIndex")),
         }
     }
 }
@@ -5834,12 +5852,12 @@ impl SPIRVParse for Scope {
 impl SPIRVDisplay for Scope {
     fn spirv_display(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Scope::CrossDevice(_) => write!(f, " {}", "CrossDevice"),
-            Scope::Device(_) => write!(f, " {}", "Device"),
-            Scope::Workgroup(_) => write!(f, " {}", "Workgroup"),
-            Scope::Subgroup(_) => write!(f, " {}", "Subgroup"),
-            Scope::Invocation(_) => write!(f, " {}", "Invocation"),
-            Scope::QueueFamily(_) => write!(f, " {}", "QueueFamily"),
+            Scope::CrossDevice(_) => f.write_str(concat!(" ", "CrossDevice")),
+            Scope::Device(_) => f.write_str(concat!(" ", "Device")),
+            Scope::Workgroup(_) => f.write_str(concat!(" ", "Workgroup")),
+            Scope::Subgroup(_) => f.write_str(concat!(" ", "Subgroup")),
+            Scope::Invocation(_) => f.write_str(concat!(" ", "Invocation")),
+            Scope::QueueFamily(_) => f.write_str(concat!(" ", "QueueFamily")),
         }
     }
 }
@@ -5905,10 +5923,10 @@ impl SPIRVParse for GroupOperation {
 impl SPIRVDisplay for GroupOperation {
     fn spirv_display(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            GroupOperation::Reduce(_) => write!(f, " {}", "Reduce"),
-            GroupOperation::InclusiveScan(_) => write!(f, " {}", "InclusiveScan"),
-            GroupOperation::ExclusiveScan(_) => write!(f, " {}", "ExclusiveScan"),
-            GroupOperation::ClusteredReduce(_) => write!(f, " {}", "ClusteredReduce"),
+            GroupOperation::Reduce(_) => f.write_str(concat!(" ", "Reduce")),
+            GroupOperation::InclusiveScan(_) => f.write_str(concat!(" ", "InclusiveScan")),
+            GroupOperation::ExclusiveScan(_) => f.write_str(concat!(" ", "ExclusiveScan")),
+            GroupOperation::ClusteredReduce(_) => f.write_str(concat!(" ", "ClusteredReduce")),
         }
     }
 }
@@ -5962,9 +5980,9 @@ impl SPIRVParse for KernelEnqueueFlags {
 impl SPIRVDisplay for KernelEnqueueFlags {
     fn spirv_display(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            KernelEnqueueFlags::NoWait(_) => write!(f, " {}", "NoWait"),
-            KernelEnqueueFlags::WaitKernel(_) => write!(f, " {}", "WaitKernel"),
-            KernelEnqueueFlags::WaitWorkGroup(_) => write!(f, " {}", "WaitWorkGroup"),
+            KernelEnqueueFlags::NoWait(_) => f.write_str(concat!(" ", "NoWait")),
+            KernelEnqueueFlags::WaitKernel(_) => f.write_str(concat!(" ", "WaitKernel")),
+            KernelEnqueueFlags::WaitWorkGroup(_) => f.write_str(concat!(" ", "WaitWorkGroup")),
         }
     }
 }
@@ -7103,154 +7121,180 @@ impl SPIRVParse for Capability {
 impl SPIRVDisplay for Capability {
     fn spirv_display(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Capability::Matrix(_) => write!(f, " {}", "Matrix"),
-            Capability::Shader(_) => write!(f, " {}", "Shader"),
-            Capability::Geometry(_) => write!(f, " {}", "Geometry"),
-            Capability::Tessellation(_) => write!(f, " {}", "Tessellation"),
-            Capability::Addresses(_) => write!(f, " {}", "Addresses"),
-            Capability::Linkage(_) => write!(f, " {}", "Linkage"),
-            Capability::Kernel(_) => write!(f, " {}", "Kernel"),
-            Capability::Vector16(_) => write!(f, " {}", "Vector16"),
-            Capability::Float16Buffer(_) => write!(f, " {}", "Float16Buffer"),
-            Capability::Float16(_) => write!(f, " {}", "Float16"),
-            Capability::Float64(_) => write!(f, " {}", "Float64"),
-            Capability::Int64(_) => write!(f, " {}", "Int64"),
-            Capability::Int64Atomics(_) => write!(f, " {}", "Int64Atomics"),
-            Capability::ImageBasic(_) => write!(f, " {}", "ImageBasic"),
-            Capability::ImageReadWrite(_) => write!(f, " {}", "ImageReadWrite"),
-            Capability::ImageMipmap(_) => write!(f, " {}", "ImageMipmap"),
-            Capability::Pipes(_) => write!(f, " {}", "Pipes"),
-            Capability::Groups(_) => write!(f, " {}", "Groups"),
-            Capability::DeviceEnqueue(_) => write!(f, " {}", "DeviceEnqueue"),
-            Capability::LiteralSampler(_) => write!(f, " {}", "LiteralSampler"),
-            Capability::AtomicStorage(_) => write!(f, " {}", "AtomicStorage"),
-            Capability::Int16(_) => write!(f, " {}", "Int16"),
-            Capability::TessellationPointSize(_) => write!(f, " {}", "TessellationPointSize"),
-            Capability::GeometryPointSize(_) => write!(f, " {}", "GeometryPointSize"),
-            Capability::ImageGatherExtended(_) => write!(f, " {}", "ImageGatherExtended"),
-            Capability::StorageImageMultisample(_) => write!(f, " {}", "StorageImageMultisample"),
+            Capability::Matrix(_) => f.write_str(concat!(" ", "Matrix")),
+            Capability::Shader(_) => f.write_str(concat!(" ", "Shader")),
+            Capability::Geometry(_) => f.write_str(concat!(" ", "Geometry")),
+            Capability::Tessellation(_) => f.write_str(concat!(" ", "Tessellation")),
+            Capability::Addresses(_) => f.write_str(concat!(" ", "Addresses")),
+            Capability::Linkage(_) => f.write_str(concat!(" ", "Linkage")),
+            Capability::Kernel(_) => f.write_str(concat!(" ", "Kernel")),
+            Capability::Vector16(_) => f.write_str(concat!(" ", "Vector16")),
+            Capability::Float16Buffer(_) => f.write_str(concat!(" ", "Float16Buffer")),
+            Capability::Float16(_) => f.write_str(concat!(" ", "Float16")),
+            Capability::Float64(_) => f.write_str(concat!(" ", "Float64")),
+            Capability::Int64(_) => f.write_str(concat!(" ", "Int64")),
+            Capability::Int64Atomics(_) => f.write_str(concat!(" ", "Int64Atomics")),
+            Capability::ImageBasic(_) => f.write_str(concat!(" ", "ImageBasic")),
+            Capability::ImageReadWrite(_) => f.write_str(concat!(" ", "ImageReadWrite")),
+            Capability::ImageMipmap(_) => f.write_str(concat!(" ", "ImageMipmap")),
+            Capability::Pipes(_) => f.write_str(concat!(" ", "Pipes")),
+            Capability::Groups(_) => f.write_str(concat!(" ", "Groups")),
+            Capability::DeviceEnqueue(_) => f.write_str(concat!(" ", "DeviceEnqueue")),
+            Capability::LiteralSampler(_) => f.write_str(concat!(" ", "LiteralSampler")),
+            Capability::AtomicStorage(_) => f.write_str(concat!(" ", "AtomicStorage")),
+            Capability::Int16(_) => f.write_str(concat!(" ", "Int16")),
+            Capability::TessellationPointSize(_) => {
+                f.write_str(concat!(" ", "TessellationPointSize"))
+            }
+            Capability::GeometryPointSize(_) => f.write_str(concat!(" ", "GeometryPointSize")),
+            Capability::ImageGatherExtended(_) => f.write_str(concat!(" ", "ImageGatherExtended")),
+            Capability::StorageImageMultisample(_) => {
+                f.write_str(concat!(" ", "StorageImageMultisample"))
+            }
             Capability::UniformBufferArrayDynamicIndexing(_) => {
-                write!(f, " {}", "UniformBufferArrayDynamicIndexing")
+                f.write_str(concat!(" ", "UniformBufferArrayDynamicIndexing"))
             }
             Capability::SampledImageArrayDynamicIndexing(_) => {
-                write!(f, " {}", "SampledImageArrayDynamicIndexing")
+                f.write_str(concat!(" ", "SampledImageArrayDynamicIndexing"))
             }
             Capability::StorageBufferArrayDynamicIndexing(_) => {
-                write!(f, " {}", "StorageBufferArrayDynamicIndexing")
+                f.write_str(concat!(" ", "StorageBufferArrayDynamicIndexing"))
             }
             Capability::StorageImageArrayDynamicIndexing(_) => {
-                write!(f, " {}", "StorageImageArrayDynamicIndexing")
+                f.write_str(concat!(" ", "StorageImageArrayDynamicIndexing"))
             }
-            Capability::ClipDistance(_) => write!(f, " {}", "ClipDistance"),
-            Capability::CullDistance(_) => write!(f, " {}", "CullDistance"),
-            Capability::ImageCubeArray(_) => write!(f, " {}", "ImageCubeArray"),
-            Capability::SampleRateShading(_) => write!(f, " {}", "SampleRateShading"),
-            Capability::ImageRect(_) => write!(f, " {}", "ImageRect"),
-            Capability::SampledRect(_) => write!(f, " {}", "SampledRect"),
-            Capability::GenericPointer(_) => write!(f, " {}", "GenericPointer"),
-            Capability::Int8(_) => write!(f, " {}", "Int8"),
-            Capability::InputAttachment(_) => write!(f, " {}", "InputAttachment"),
-            Capability::SparseResidency(_) => write!(f, " {}", "SparseResidency"),
-            Capability::MinLod(_) => write!(f, " {}", "MinLod"),
-            Capability::Sampled1D(_) => write!(f, " {}", "Sampled1D"),
-            Capability::Image1D(_) => write!(f, " {}", "Image1D"),
-            Capability::SampledCubeArray(_) => write!(f, " {}", "SampledCubeArray"),
-            Capability::SampledBuffer(_) => write!(f, " {}", "SampledBuffer"),
-            Capability::ImageBuffer(_) => write!(f, " {}", "ImageBuffer"),
-            Capability::ImageMSArray(_) => write!(f, " {}", "ImageMSArray"),
+            Capability::ClipDistance(_) => f.write_str(concat!(" ", "ClipDistance")),
+            Capability::CullDistance(_) => f.write_str(concat!(" ", "CullDistance")),
+            Capability::ImageCubeArray(_) => f.write_str(concat!(" ", "ImageCubeArray")),
+            Capability::SampleRateShading(_) => f.write_str(concat!(" ", "SampleRateShading")),
+            Capability::ImageRect(_) => f.write_str(concat!(" ", "ImageRect")),
+            Capability::SampledRect(_) => f.write_str(concat!(" ", "SampledRect")),
+            Capability::GenericPointer(_) => f.write_str(concat!(" ", "GenericPointer")),
+            Capability::Int8(_) => f.write_str(concat!(" ", "Int8")),
+            Capability::InputAttachment(_) => f.write_str(concat!(" ", "InputAttachment")),
+            Capability::SparseResidency(_) => f.write_str(concat!(" ", "SparseResidency")),
+            Capability::MinLod(_) => f.write_str(concat!(" ", "MinLod")),
+            Capability::Sampled1D(_) => f.write_str(concat!(" ", "Sampled1D")),
+            Capability::Image1D(_) => f.write_str(concat!(" ", "Image1D")),
+            Capability::SampledCubeArray(_) => f.write_str(concat!(" ", "SampledCubeArray")),
+            Capability::SampledBuffer(_) => f.write_str(concat!(" ", "SampledBuffer")),
+            Capability::ImageBuffer(_) => f.write_str(concat!(" ", "ImageBuffer")),
+            Capability::ImageMSArray(_) => f.write_str(concat!(" ", "ImageMSArray")),
             Capability::StorageImageExtendedFormats(_) => {
-                write!(f, " {}", "StorageImageExtendedFormats")
+                f.write_str(concat!(" ", "StorageImageExtendedFormats"))
             }
-            Capability::ImageQuery(_) => write!(f, " {}", "ImageQuery"),
-            Capability::DerivativeControl(_) => write!(f, " {}", "DerivativeControl"),
-            Capability::InterpolationFunction(_) => write!(f, " {}", "InterpolationFunction"),
-            Capability::TransformFeedback(_) => write!(f, " {}", "TransformFeedback"),
-            Capability::GeometryStreams(_) => write!(f, " {}", "GeometryStreams"),
+            Capability::ImageQuery(_) => f.write_str(concat!(" ", "ImageQuery")),
+            Capability::DerivativeControl(_) => f.write_str(concat!(" ", "DerivativeControl")),
+            Capability::InterpolationFunction(_) => {
+                f.write_str(concat!(" ", "InterpolationFunction"))
+            }
+            Capability::TransformFeedback(_) => f.write_str(concat!(" ", "TransformFeedback")),
+            Capability::GeometryStreams(_) => f.write_str(concat!(" ", "GeometryStreams")),
             Capability::StorageImageReadWithoutFormat(_) => {
-                write!(f, " {}", "StorageImageReadWithoutFormat")
+                f.write_str(concat!(" ", "StorageImageReadWithoutFormat"))
             }
             Capability::StorageImageWriteWithoutFormat(_) => {
-                write!(f, " {}", "StorageImageWriteWithoutFormat")
+                f.write_str(concat!(" ", "StorageImageWriteWithoutFormat"))
             }
-            Capability::MultiViewport(_) => write!(f, " {}", "MultiViewport"),
-            Capability::SubgroupDispatch(_) => write!(f, " {}", "SubgroupDispatch"),
-            Capability::NamedBarrier(_) => write!(f, " {}", "NamedBarrier"),
-            Capability::PipeStorage(_) => write!(f, " {}", "PipeStorage"),
-            Capability::GroupNonUniform(_) => write!(f, " {}", "GroupNonUniform"),
-            Capability::GroupNonUniformVote(_) => write!(f, " {}", "GroupNonUniformVote"),
+            Capability::MultiViewport(_) => f.write_str(concat!(" ", "MultiViewport")),
+            Capability::SubgroupDispatch(_) => f.write_str(concat!(" ", "SubgroupDispatch")),
+            Capability::NamedBarrier(_) => f.write_str(concat!(" ", "NamedBarrier")),
+            Capability::PipeStorage(_) => f.write_str(concat!(" ", "PipeStorage")),
+            Capability::GroupNonUniform(_) => f.write_str(concat!(" ", "GroupNonUniform")),
+            Capability::GroupNonUniformVote(_) => f.write_str(concat!(" ", "GroupNonUniformVote")),
             Capability::GroupNonUniformArithmetic(_) => {
-                write!(f, " {}", "GroupNonUniformArithmetic")
+                f.write_str(concat!(" ", "GroupNonUniformArithmetic"))
             }
-            Capability::GroupNonUniformBallot(_) => write!(f, " {}", "GroupNonUniformBallot"),
-            Capability::GroupNonUniformShuffle(_) => write!(f, " {}", "GroupNonUniformShuffle"),
+            Capability::GroupNonUniformBallot(_) => {
+                f.write_str(concat!(" ", "GroupNonUniformBallot"))
+            }
+            Capability::GroupNonUniformShuffle(_) => {
+                f.write_str(concat!(" ", "GroupNonUniformShuffle"))
+            }
             Capability::GroupNonUniformShuffleRelative(_) => {
-                write!(f, " {}", "GroupNonUniformShuffleRelative")
+                f.write_str(concat!(" ", "GroupNonUniformShuffleRelative"))
             }
-            Capability::GroupNonUniformClustered(_) => write!(f, " {}", "GroupNonUniformClustered"),
-            Capability::GroupNonUniformQuad(_) => write!(f, " {}", "GroupNonUniformQuad"),
-            Capability::ShaderLayer(_) => write!(f, " {}", "ShaderLayer"),
-            Capability::ShaderViewportIndex(_) => write!(f, " {}", "ShaderViewportIndex"),
-            Capability::DrawParameters(_) => write!(f, " {}", "DrawParameters"),
-            Capability::StorageBuffer16BitAccess(_) => write!(f, " {}", "StorageBuffer16BitAccess"),
+            Capability::GroupNonUniformClustered(_) => {
+                f.write_str(concat!(" ", "GroupNonUniformClustered"))
+            }
+            Capability::GroupNonUniformQuad(_) => f.write_str(concat!(" ", "GroupNonUniformQuad")),
+            Capability::ShaderLayer(_) => f.write_str(concat!(" ", "ShaderLayer")),
+            Capability::ShaderViewportIndex(_) => f.write_str(concat!(" ", "ShaderViewportIndex")),
+            Capability::DrawParameters(_) => f.write_str(concat!(" ", "DrawParameters")),
+            Capability::StorageBuffer16BitAccess(_) => {
+                f.write_str(concat!(" ", "StorageBuffer16BitAccess"))
+            }
             Capability::UniformAndStorageBuffer16BitAccess(_) => {
-                write!(f, " {}", "UniformAndStorageBuffer16BitAccess")
+                f.write_str(concat!(" ", "UniformAndStorageBuffer16BitAccess"))
             }
-            Capability::StoragePushConstant16(_) => write!(f, " {}", "StoragePushConstant16"),
-            Capability::StorageInputOutput16(_) => write!(f, " {}", "StorageInputOutput16"),
-            Capability::DeviceGroup(_) => write!(f, " {}", "DeviceGroup"),
-            Capability::MultiView(_) => write!(f, " {}", "MultiView"),
+            Capability::StoragePushConstant16(_) => {
+                f.write_str(concat!(" ", "StoragePushConstant16"))
+            }
+            Capability::StorageInputOutput16(_) => {
+                f.write_str(concat!(" ", "StorageInputOutput16"))
+            }
+            Capability::DeviceGroup(_) => f.write_str(concat!(" ", "DeviceGroup")),
+            Capability::MultiView(_) => f.write_str(concat!(" ", "MultiView")),
             Capability::VariablePointersStorageBuffer(_) => {
-                write!(f, " {}", "VariablePointersStorageBuffer")
+                f.write_str(concat!(" ", "VariablePointersStorageBuffer"))
             }
-            Capability::VariablePointers(_) => write!(f, " {}", "VariablePointers"),
-            Capability::StorageBuffer8BitAccess(_) => write!(f, " {}", "StorageBuffer8BitAccess"),
+            Capability::VariablePointers(_) => f.write_str(concat!(" ", "VariablePointers")),
+            Capability::StorageBuffer8BitAccess(_) => {
+                f.write_str(concat!(" ", "StorageBuffer8BitAccess"))
+            }
             Capability::UniformAndStorageBuffer8BitAccess(_) => {
-                write!(f, " {}", "UniformAndStorageBuffer8BitAccess")
+                f.write_str(concat!(" ", "UniformAndStorageBuffer8BitAccess"))
             }
-            Capability::StoragePushConstant8(_) => write!(f, " {}", "StoragePushConstant8"),
-            Capability::DenormPreserve(_) => write!(f, " {}", "DenormPreserve"),
-            Capability::DenormFlushToZero(_) => write!(f, " {}", "DenormFlushToZero"),
-            Capability::SignedZeroInfNanPreserve(_) => write!(f, " {}", "SignedZeroInfNanPreserve"),
-            Capability::RoundingModeRTE(_) => write!(f, " {}", "RoundingModeRTE"),
-            Capability::RoundingModeRTZ(_) => write!(f, " {}", "RoundingModeRTZ"),
-            Capability::ShaderNonUniform(_) => write!(f, " {}", "ShaderNonUniform"),
-            Capability::RuntimeDescriptorArray(_) => write!(f, " {}", "RuntimeDescriptorArray"),
+            Capability::StoragePushConstant8(_) => {
+                f.write_str(concat!(" ", "StoragePushConstant8"))
+            }
+            Capability::DenormPreserve(_) => f.write_str(concat!(" ", "DenormPreserve")),
+            Capability::DenormFlushToZero(_) => f.write_str(concat!(" ", "DenormFlushToZero")),
+            Capability::SignedZeroInfNanPreserve(_) => {
+                f.write_str(concat!(" ", "SignedZeroInfNanPreserve"))
+            }
+            Capability::RoundingModeRTE(_) => f.write_str(concat!(" ", "RoundingModeRTE")),
+            Capability::RoundingModeRTZ(_) => f.write_str(concat!(" ", "RoundingModeRTZ")),
+            Capability::ShaderNonUniform(_) => f.write_str(concat!(" ", "ShaderNonUniform")),
+            Capability::RuntimeDescriptorArray(_) => {
+                f.write_str(concat!(" ", "RuntimeDescriptorArray"))
+            }
             Capability::InputAttachmentArrayDynamicIndexing(_) => {
-                write!(f, " {}", "InputAttachmentArrayDynamicIndexing")
+                f.write_str(concat!(" ", "InputAttachmentArrayDynamicIndexing"))
             }
             Capability::UniformTexelBufferArrayDynamicIndexing(_) => {
-                write!(f, " {}", "UniformTexelBufferArrayDynamicIndexing")
+                f.write_str(concat!(" ", "UniformTexelBufferArrayDynamicIndexing"))
             }
             Capability::StorageTexelBufferArrayDynamicIndexing(_) => {
-                write!(f, " {}", "StorageTexelBufferArrayDynamicIndexing")
+                f.write_str(concat!(" ", "StorageTexelBufferArrayDynamicIndexing"))
             }
             Capability::UniformBufferArrayNonUniformIndexing(_) => {
-                write!(f, " {}", "UniformBufferArrayNonUniformIndexing")
+                f.write_str(concat!(" ", "UniformBufferArrayNonUniformIndexing"))
             }
             Capability::SampledImageArrayNonUniformIndexing(_) => {
-                write!(f, " {}", "SampledImageArrayNonUniformIndexing")
+                f.write_str(concat!(" ", "SampledImageArrayNonUniformIndexing"))
             }
             Capability::StorageBufferArrayNonUniformIndexing(_) => {
-                write!(f, " {}", "StorageBufferArrayNonUniformIndexing")
+                f.write_str(concat!(" ", "StorageBufferArrayNonUniformIndexing"))
             }
             Capability::StorageImageArrayNonUniformIndexing(_) => {
-                write!(f, " {}", "StorageImageArrayNonUniformIndexing")
+                f.write_str(concat!(" ", "StorageImageArrayNonUniformIndexing"))
             }
             Capability::InputAttachmentArrayNonUniformIndexing(_) => {
-                write!(f, " {}", "InputAttachmentArrayNonUniformIndexing")
+                f.write_str(concat!(" ", "InputAttachmentArrayNonUniformIndexing"))
             }
             Capability::UniformTexelBufferArrayNonUniformIndexing(_) => {
-                write!(f, " {}", "UniformTexelBufferArrayNonUniformIndexing")
+                f.write_str(concat!(" ", "UniformTexelBufferArrayNonUniformIndexing"))
             }
             Capability::StorageTexelBufferArrayNonUniformIndexing(_) => {
-                write!(f, " {}", "StorageTexelBufferArrayNonUniformIndexing")
+                f.write_str(concat!(" ", "StorageTexelBufferArrayNonUniformIndexing"))
             }
-            Capability::VulkanMemoryModel(_) => write!(f, " {}", "VulkanMemoryModel"),
+            Capability::VulkanMemoryModel(_) => f.write_str(concat!(" ", "VulkanMemoryModel")),
             Capability::VulkanMemoryModelDeviceScope(_) => {
-                write!(f, " {}", "VulkanMemoryModelDeviceScope")
+                f.write_str(concat!(" ", "VulkanMemoryModelDeviceScope"))
             }
             Capability::PhysicalStorageBufferAddresses(_) => {
-                write!(f, " {}", "PhysicalStorageBufferAddresses")
+                f.write_str(concat!(" ", "PhysicalStorageBufferAddresses"))
             }
         }
     }
@@ -7426,12 +7470,11 @@ impl fmt::Display for OpSpecConstantOp {
             }) => {
                 write!(
                     f,
-                    "{}{}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    "OpSpecConstantOp"
+                    "{}OpSpecConstantOp",
+                    InstructionIndentAndResult(Some(*id_result))
                 )?;
                 id_result_type.spirv_display(f)?;
-                write!(f, " {}", "AccessChain")?;
+                f.write_str(concat!(" ", "AccessChain"))?;
                 base.spirv_display(f)?;
                 indexes.spirv_display(f)?;
                 writeln!(f)
@@ -7444,12 +7487,11 @@ impl fmt::Display for OpSpecConstantOp {
             }) => {
                 write!(
                     f,
-                    "{}{}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    "OpSpecConstantOp"
+                    "{}OpSpecConstantOp",
+                    InstructionIndentAndResult(Some(*id_result))
                 )?;
                 id_result_type.spirv_display(f)?;
-                write!(f, " {}", "InBoundsAccessChain")?;
+                f.write_str(concat!(" ", "InBoundsAccessChain"))?;
                 base.spirv_display(f)?;
                 indexes.spirv_display(f)?;
                 writeln!(f)
@@ -7463,12 +7505,11 @@ impl fmt::Display for OpSpecConstantOp {
             }) => {
                 write!(
                     f,
-                    "{}{}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    "OpSpecConstantOp"
+                    "{}OpSpecConstantOp",
+                    InstructionIndentAndResult(Some(*id_result))
                 )?;
                 id_result_type.spirv_display(f)?;
-                write!(f, " {}", "PtrAccessChain")?;
+                f.write_str(concat!(" ", "PtrAccessChain"))?;
                 base.spirv_display(f)?;
                 element.spirv_display(f)?;
                 indexes.spirv_display(f)?;
@@ -7483,12 +7524,11 @@ impl fmt::Display for OpSpecConstantOp {
             }) => {
                 write!(
                     f,
-                    "{}{}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    "OpSpecConstantOp"
+                    "{}OpSpecConstantOp",
+                    InstructionIndentAndResult(Some(*id_result))
                 )?;
                 id_result_type.spirv_display(f)?;
-                write!(f, " {}", "InBoundsPtrAccessChain")?;
+                f.write_str(concat!(" ", "InBoundsPtrAccessChain"))?;
                 base.spirv_display(f)?;
                 element.spirv_display(f)?;
                 indexes.spirv_display(f)?;
@@ -7503,12 +7543,11 @@ impl fmt::Display for OpSpecConstantOp {
             }) => {
                 write!(
                     f,
-                    "{}{}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    "OpSpecConstantOp"
+                    "{}OpSpecConstantOp",
+                    InstructionIndentAndResult(Some(*id_result))
                 )?;
                 id_result_type.spirv_display(f)?;
-                write!(f, " {}", "VectorShuffle")?;
+                f.write_str(concat!(" ", "VectorShuffle"))?;
                 vector_1.spirv_display(f)?;
                 vector_2.spirv_display(f)?;
                 components.spirv_display(f)?;
@@ -7522,12 +7561,11 @@ impl fmt::Display for OpSpecConstantOp {
             }) => {
                 write!(
                     f,
-                    "{}{}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    "OpSpecConstantOp"
+                    "{}OpSpecConstantOp",
+                    InstructionIndentAndResult(Some(*id_result))
                 )?;
                 id_result_type.spirv_display(f)?;
-                write!(f, " {}", "CompositeExtract")?;
+                f.write_str(concat!(" ", "CompositeExtract"))?;
                 composite.spirv_display(f)?;
                 indexes.spirv_display(f)?;
                 writeln!(f)
@@ -7541,12 +7579,11 @@ impl fmt::Display for OpSpecConstantOp {
             }) => {
                 write!(
                     f,
-                    "{}{}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    "OpSpecConstantOp"
+                    "{}OpSpecConstantOp",
+                    InstructionIndentAndResult(Some(*id_result))
                 )?;
                 id_result_type.spirv_display(f)?;
-                write!(f, " {}", "CompositeInsert")?;
+                f.write_str(concat!(" ", "CompositeInsert"))?;
                 object.spirv_display(f)?;
                 composite.spirv_display(f)?;
                 indexes.spirv_display(f)?;
@@ -7559,12 +7596,11 @@ impl fmt::Display for OpSpecConstantOp {
             }) => {
                 write!(
                     f,
-                    "{}{}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    "OpSpecConstantOp"
+                    "{}OpSpecConstantOp",
+                    InstructionIndentAndResult(Some(*id_result))
                 )?;
                 id_result_type.spirv_display(f)?;
-                write!(f, " {}", "ConvertFToU")?;
+                f.write_str(concat!(" ", "ConvertFToU"))?;
                 float_value.spirv_display(f)?;
                 writeln!(f)
             }
@@ -7575,12 +7611,11 @@ impl fmt::Display for OpSpecConstantOp {
             }) => {
                 write!(
                     f,
-                    "{}{}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    "OpSpecConstantOp"
+                    "{}OpSpecConstantOp",
+                    InstructionIndentAndResult(Some(*id_result))
                 )?;
                 id_result_type.spirv_display(f)?;
-                write!(f, " {}", "ConvertFToS")?;
+                f.write_str(concat!(" ", "ConvertFToS"))?;
                 float_value.spirv_display(f)?;
                 writeln!(f)
             }
@@ -7591,12 +7626,11 @@ impl fmt::Display for OpSpecConstantOp {
             }) => {
                 write!(
                     f,
-                    "{}{}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    "OpSpecConstantOp"
+                    "{}OpSpecConstantOp",
+                    InstructionIndentAndResult(Some(*id_result))
                 )?;
                 id_result_type.spirv_display(f)?;
-                write!(f, " {}", "ConvertSToF")?;
+                f.write_str(concat!(" ", "ConvertSToF"))?;
                 signed_value.spirv_display(f)?;
                 writeln!(f)
             }
@@ -7607,12 +7641,11 @@ impl fmt::Display for OpSpecConstantOp {
             }) => {
                 write!(
                     f,
-                    "{}{}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    "OpSpecConstantOp"
+                    "{}OpSpecConstantOp",
+                    InstructionIndentAndResult(Some(*id_result))
                 )?;
                 id_result_type.spirv_display(f)?;
-                write!(f, " {}", "ConvertUToF")?;
+                f.write_str(concat!(" ", "ConvertUToF"))?;
                 unsigned_value.spirv_display(f)?;
                 writeln!(f)
             }
@@ -7623,12 +7656,11 @@ impl fmt::Display for OpSpecConstantOp {
             }) => {
                 write!(
                     f,
-                    "{}{}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    "OpSpecConstantOp"
+                    "{}OpSpecConstantOp",
+                    InstructionIndentAndResult(Some(*id_result))
                 )?;
                 id_result_type.spirv_display(f)?;
-                write!(f, " {}", "UConvert")?;
+                f.write_str(concat!(" ", "UConvert"))?;
                 unsigned_value.spirv_display(f)?;
                 writeln!(f)
             }
@@ -7639,12 +7671,11 @@ impl fmt::Display for OpSpecConstantOp {
             }) => {
                 write!(
                     f,
-                    "{}{}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    "OpSpecConstantOp"
+                    "{}OpSpecConstantOp",
+                    InstructionIndentAndResult(Some(*id_result))
                 )?;
                 id_result_type.spirv_display(f)?;
-                write!(f, " {}", "SConvert")?;
+                f.write_str(concat!(" ", "SConvert"))?;
                 signed_value.spirv_display(f)?;
                 writeln!(f)
             }
@@ -7655,12 +7686,11 @@ impl fmt::Display for OpSpecConstantOp {
             }) => {
                 write!(
                     f,
-                    "{}{}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    "OpSpecConstantOp"
+                    "{}OpSpecConstantOp",
+                    InstructionIndentAndResult(Some(*id_result))
                 )?;
                 id_result_type.spirv_display(f)?;
-                write!(f, " {}", "FConvert")?;
+                f.write_str(concat!(" ", "FConvert"))?;
                 float_value.spirv_display(f)?;
                 writeln!(f)
             }
@@ -7671,12 +7701,11 @@ impl fmt::Display for OpSpecConstantOp {
             }) => {
                 write!(
                     f,
-                    "{}{}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    "OpSpecConstantOp"
+                    "{}OpSpecConstantOp",
+                    InstructionIndentAndResult(Some(*id_result))
                 )?;
                 id_result_type.spirv_display(f)?;
-                write!(f, " {}", "QuantizeToF16")?;
+                f.write_str(concat!(" ", "QuantizeToF16"))?;
                 value.spirv_display(f)?;
                 writeln!(f)
             }
@@ -7687,12 +7716,11 @@ impl fmt::Display for OpSpecConstantOp {
             }) => {
                 write!(
                     f,
-                    "{}{}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    "OpSpecConstantOp"
+                    "{}OpSpecConstantOp",
+                    InstructionIndentAndResult(Some(*id_result))
                 )?;
                 id_result_type.spirv_display(f)?;
-                write!(f, " {}", "ConvertPtrToU")?;
+                f.write_str(concat!(" ", "ConvertPtrToU"))?;
                 pointer.spirv_display(f)?;
                 writeln!(f)
             }
@@ -7703,12 +7731,11 @@ impl fmt::Display for OpSpecConstantOp {
             }) => {
                 write!(
                     f,
-                    "{}{}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    "OpSpecConstantOp"
+                    "{}OpSpecConstantOp",
+                    InstructionIndentAndResult(Some(*id_result))
                 )?;
                 id_result_type.spirv_display(f)?;
-                write!(f, " {}", "ConvertUToPtr")?;
+                f.write_str(concat!(" ", "ConvertUToPtr"))?;
                 integer_value.spirv_display(f)?;
                 writeln!(f)
             }
@@ -7719,12 +7746,11 @@ impl fmt::Display for OpSpecConstantOp {
             }) => {
                 write!(
                     f,
-                    "{}{}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    "OpSpecConstantOp"
+                    "{}OpSpecConstantOp",
+                    InstructionIndentAndResult(Some(*id_result))
                 )?;
                 id_result_type.spirv_display(f)?;
-                write!(f, " {}", "PtrCastToGeneric")?;
+                f.write_str(concat!(" ", "PtrCastToGeneric"))?;
                 pointer.spirv_display(f)?;
                 writeln!(f)
             }
@@ -7735,12 +7761,11 @@ impl fmt::Display for OpSpecConstantOp {
             }) => {
                 write!(
                     f,
-                    "{}{}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    "OpSpecConstantOp"
+                    "{}OpSpecConstantOp",
+                    InstructionIndentAndResult(Some(*id_result))
                 )?;
                 id_result_type.spirv_display(f)?;
-                write!(f, " {}", "GenericCastToPtr")?;
+                f.write_str(concat!(" ", "GenericCastToPtr"))?;
                 pointer.spirv_display(f)?;
                 writeln!(f)
             }
@@ -7751,12 +7776,11 @@ impl fmt::Display for OpSpecConstantOp {
             }) => {
                 write!(
                     f,
-                    "{}{}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    "OpSpecConstantOp"
+                    "{}OpSpecConstantOp",
+                    InstructionIndentAndResult(Some(*id_result))
                 )?;
                 id_result_type.spirv_display(f)?;
-                write!(f, " {}", "Bitcast")?;
+                f.write_str(concat!(" ", "Bitcast"))?;
                 operand.spirv_display(f)?;
                 writeln!(f)
             }
@@ -7767,12 +7791,11 @@ impl fmt::Display for OpSpecConstantOp {
             }) => {
                 write!(
                     f,
-                    "{}{}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    "OpSpecConstantOp"
+                    "{}OpSpecConstantOp",
+                    InstructionIndentAndResult(Some(*id_result))
                 )?;
                 id_result_type.spirv_display(f)?;
-                write!(f, " {}", "SNegate")?;
+                f.write_str(concat!(" ", "SNegate"))?;
                 operand.spirv_display(f)?;
                 writeln!(f)
             }
@@ -7783,12 +7806,11 @@ impl fmt::Display for OpSpecConstantOp {
             }) => {
                 write!(
                     f,
-                    "{}{}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    "OpSpecConstantOp"
+                    "{}OpSpecConstantOp",
+                    InstructionIndentAndResult(Some(*id_result))
                 )?;
                 id_result_type.spirv_display(f)?;
-                write!(f, " {}", "FNegate")?;
+                f.write_str(concat!(" ", "FNegate"))?;
                 operand.spirv_display(f)?;
                 writeln!(f)
             }
@@ -7800,12 +7822,11 @@ impl fmt::Display for OpSpecConstantOp {
             }) => {
                 write!(
                     f,
-                    "{}{}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    "OpSpecConstantOp"
+                    "{}OpSpecConstantOp",
+                    InstructionIndentAndResult(Some(*id_result))
                 )?;
                 id_result_type.spirv_display(f)?;
-                write!(f, " {}", "IAdd")?;
+                f.write_str(concat!(" ", "IAdd"))?;
                 operand_1.spirv_display(f)?;
                 operand_2.spirv_display(f)?;
                 writeln!(f)
@@ -7818,12 +7839,11 @@ impl fmt::Display for OpSpecConstantOp {
             }) => {
                 write!(
                     f,
-                    "{}{}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    "OpSpecConstantOp"
+                    "{}OpSpecConstantOp",
+                    InstructionIndentAndResult(Some(*id_result))
                 )?;
                 id_result_type.spirv_display(f)?;
-                write!(f, " {}", "FAdd")?;
+                f.write_str(concat!(" ", "FAdd"))?;
                 operand_1.spirv_display(f)?;
                 operand_2.spirv_display(f)?;
                 writeln!(f)
@@ -7836,12 +7856,11 @@ impl fmt::Display for OpSpecConstantOp {
             }) => {
                 write!(
                     f,
-                    "{}{}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    "OpSpecConstantOp"
+                    "{}OpSpecConstantOp",
+                    InstructionIndentAndResult(Some(*id_result))
                 )?;
                 id_result_type.spirv_display(f)?;
-                write!(f, " {}", "ISub")?;
+                f.write_str(concat!(" ", "ISub"))?;
                 operand_1.spirv_display(f)?;
                 operand_2.spirv_display(f)?;
                 writeln!(f)
@@ -7854,12 +7873,11 @@ impl fmt::Display for OpSpecConstantOp {
             }) => {
                 write!(
                     f,
-                    "{}{}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    "OpSpecConstantOp"
+                    "{}OpSpecConstantOp",
+                    InstructionIndentAndResult(Some(*id_result))
                 )?;
                 id_result_type.spirv_display(f)?;
-                write!(f, " {}", "FSub")?;
+                f.write_str(concat!(" ", "FSub"))?;
                 operand_1.spirv_display(f)?;
                 operand_2.spirv_display(f)?;
                 writeln!(f)
@@ -7872,12 +7890,11 @@ impl fmt::Display for OpSpecConstantOp {
             }) => {
                 write!(
                     f,
-                    "{}{}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    "OpSpecConstantOp"
+                    "{}OpSpecConstantOp",
+                    InstructionIndentAndResult(Some(*id_result))
                 )?;
                 id_result_type.spirv_display(f)?;
-                write!(f, " {}", "IMul")?;
+                f.write_str(concat!(" ", "IMul"))?;
                 operand_1.spirv_display(f)?;
                 operand_2.spirv_display(f)?;
                 writeln!(f)
@@ -7890,12 +7907,11 @@ impl fmt::Display for OpSpecConstantOp {
             }) => {
                 write!(
                     f,
-                    "{}{}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    "OpSpecConstantOp"
+                    "{}OpSpecConstantOp",
+                    InstructionIndentAndResult(Some(*id_result))
                 )?;
                 id_result_type.spirv_display(f)?;
-                write!(f, " {}", "FMul")?;
+                f.write_str(concat!(" ", "FMul"))?;
                 operand_1.spirv_display(f)?;
                 operand_2.spirv_display(f)?;
                 writeln!(f)
@@ -7908,12 +7924,11 @@ impl fmt::Display for OpSpecConstantOp {
             }) => {
                 write!(
                     f,
-                    "{}{}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    "OpSpecConstantOp"
+                    "{}OpSpecConstantOp",
+                    InstructionIndentAndResult(Some(*id_result))
                 )?;
                 id_result_type.spirv_display(f)?;
-                write!(f, " {}", "UDiv")?;
+                f.write_str(concat!(" ", "UDiv"))?;
                 operand_1.spirv_display(f)?;
                 operand_2.spirv_display(f)?;
                 writeln!(f)
@@ -7926,12 +7941,11 @@ impl fmt::Display for OpSpecConstantOp {
             }) => {
                 write!(
                     f,
-                    "{}{}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    "OpSpecConstantOp"
+                    "{}OpSpecConstantOp",
+                    InstructionIndentAndResult(Some(*id_result))
                 )?;
                 id_result_type.spirv_display(f)?;
-                write!(f, " {}", "SDiv")?;
+                f.write_str(concat!(" ", "SDiv"))?;
                 operand_1.spirv_display(f)?;
                 operand_2.spirv_display(f)?;
                 writeln!(f)
@@ -7944,12 +7958,11 @@ impl fmt::Display for OpSpecConstantOp {
             }) => {
                 write!(
                     f,
-                    "{}{}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    "OpSpecConstantOp"
+                    "{}OpSpecConstantOp",
+                    InstructionIndentAndResult(Some(*id_result))
                 )?;
                 id_result_type.spirv_display(f)?;
-                write!(f, " {}", "FDiv")?;
+                f.write_str(concat!(" ", "FDiv"))?;
                 operand_1.spirv_display(f)?;
                 operand_2.spirv_display(f)?;
                 writeln!(f)
@@ -7962,12 +7975,11 @@ impl fmt::Display for OpSpecConstantOp {
             }) => {
                 write!(
                     f,
-                    "{}{}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    "OpSpecConstantOp"
+                    "{}OpSpecConstantOp",
+                    InstructionIndentAndResult(Some(*id_result))
                 )?;
                 id_result_type.spirv_display(f)?;
-                write!(f, " {}", "UMod")?;
+                f.write_str(concat!(" ", "UMod"))?;
                 operand_1.spirv_display(f)?;
                 operand_2.spirv_display(f)?;
                 writeln!(f)
@@ -7980,12 +7992,11 @@ impl fmt::Display for OpSpecConstantOp {
             }) => {
                 write!(
                     f,
-                    "{}{}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    "OpSpecConstantOp"
+                    "{}OpSpecConstantOp",
+                    InstructionIndentAndResult(Some(*id_result))
                 )?;
                 id_result_type.spirv_display(f)?;
-                write!(f, " {}", "SRem")?;
+                f.write_str(concat!(" ", "SRem"))?;
                 operand_1.spirv_display(f)?;
                 operand_2.spirv_display(f)?;
                 writeln!(f)
@@ -7998,12 +8009,11 @@ impl fmt::Display for OpSpecConstantOp {
             }) => {
                 write!(
                     f,
-                    "{}{}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    "OpSpecConstantOp"
+                    "{}OpSpecConstantOp",
+                    InstructionIndentAndResult(Some(*id_result))
                 )?;
                 id_result_type.spirv_display(f)?;
-                write!(f, " {}", "SMod")?;
+                f.write_str(concat!(" ", "SMod"))?;
                 operand_1.spirv_display(f)?;
                 operand_2.spirv_display(f)?;
                 writeln!(f)
@@ -8016,12 +8026,11 @@ impl fmt::Display for OpSpecConstantOp {
             }) => {
                 write!(
                     f,
-                    "{}{}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    "OpSpecConstantOp"
+                    "{}OpSpecConstantOp",
+                    InstructionIndentAndResult(Some(*id_result))
                 )?;
                 id_result_type.spirv_display(f)?;
-                write!(f, " {}", "FRem")?;
+                f.write_str(concat!(" ", "FRem"))?;
                 operand_1.spirv_display(f)?;
                 operand_2.spirv_display(f)?;
                 writeln!(f)
@@ -8034,12 +8043,11 @@ impl fmt::Display for OpSpecConstantOp {
             }) => {
                 write!(
                     f,
-                    "{}{}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    "OpSpecConstantOp"
+                    "{}OpSpecConstantOp",
+                    InstructionIndentAndResult(Some(*id_result))
                 )?;
                 id_result_type.spirv_display(f)?;
-                write!(f, " {}", "FMod")?;
+                f.write_str(concat!(" ", "FMod"))?;
                 operand_1.spirv_display(f)?;
                 operand_2.spirv_display(f)?;
                 writeln!(f)
@@ -8052,12 +8060,11 @@ impl fmt::Display for OpSpecConstantOp {
             }) => {
                 write!(
                     f,
-                    "{}{}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    "OpSpecConstantOp"
+                    "{}OpSpecConstantOp",
+                    InstructionIndentAndResult(Some(*id_result))
                 )?;
                 id_result_type.spirv_display(f)?;
-                write!(f, " {}", "LogicalEqual")?;
+                f.write_str(concat!(" ", "LogicalEqual"))?;
                 operand_1.spirv_display(f)?;
                 operand_2.spirv_display(f)?;
                 writeln!(f)
@@ -8070,12 +8077,11 @@ impl fmt::Display for OpSpecConstantOp {
             }) => {
                 write!(
                     f,
-                    "{}{}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    "OpSpecConstantOp"
+                    "{}OpSpecConstantOp",
+                    InstructionIndentAndResult(Some(*id_result))
                 )?;
                 id_result_type.spirv_display(f)?;
-                write!(f, " {}", "LogicalNotEqual")?;
+                f.write_str(concat!(" ", "LogicalNotEqual"))?;
                 operand_1.spirv_display(f)?;
                 operand_2.spirv_display(f)?;
                 writeln!(f)
@@ -8088,12 +8094,11 @@ impl fmt::Display for OpSpecConstantOp {
             }) => {
                 write!(
                     f,
-                    "{}{}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    "OpSpecConstantOp"
+                    "{}OpSpecConstantOp",
+                    InstructionIndentAndResult(Some(*id_result))
                 )?;
                 id_result_type.spirv_display(f)?;
-                write!(f, " {}", "LogicalOr")?;
+                f.write_str(concat!(" ", "LogicalOr"))?;
                 operand_1.spirv_display(f)?;
                 operand_2.spirv_display(f)?;
                 writeln!(f)
@@ -8106,12 +8111,11 @@ impl fmt::Display for OpSpecConstantOp {
             }) => {
                 write!(
                     f,
-                    "{}{}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    "OpSpecConstantOp"
+                    "{}OpSpecConstantOp",
+                    InstructionIndentAndResult(Some(*id_result))
                 )?;
                 id_result_type.spirv_display(f)?;
-                write!(f, " {}", "LogicalAnd")?;
+                f.write_str(concat!(" ", "LogicalAnd"))?;
                 operand_1.spirv_display(f)?;
                 operand_2.spirv_display(f)?;
                 writeln!(f)
@@ -8123,12 +8127,11 @@ impl fmt::Display for OpSpecConstantOp {
             }) => {
                 write!(
                     f,
-                    "{}{}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    "OpSpecConstantOp"
+                    "{}OpSpecConstantOp",
+                    InstructionIndentAndResult(Some(*id_result))
                 )?;
                 id_result_type.spirv_display(f)?;
-                write!(f, " {}", "LogicalNot")?;
+                f.write_str(concat!(" ", "LogicalNot"))?;
                 operand.spirv_display(f)?;
                 writeln!(f)
             }
@@ -8141,12 +8144,11 @@ impl fmt::Display for OpSpecConstantOp {
             }) => {
                 write!(
                     f,
-                    "{}{}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    "OpSpecConstantOp"
+                    "{}OpSpecConstantOp",
+                    InstructionIndentAndResult(Some(*id_result))
                 )?;
                 id_result_type.spirv_display(f)?;
-                write!(f, " {}", "Select")?;
+                f.write_str(concat!(" ", "Select"))?;
                 condition.spirv_display(f)?;
                 object_1.spirv_display(f)?;
                 object_2.spirv_display(f)?;
@@ -8160,12 +8162,11 @@ impl fmt::Display for OpSpecConstantOp {
             }) => {
                 write!(
                     f,
-                    "{}{}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    "OpSpecConstantOp"
+                    "{}OpSpecConstantOp",
+                    InstructionIndentAndResult(Some(*id_result))
                 )?;
                 id_result_type.spirv_display(f)?;
-                write!(f, " {}", "IEqual")?;
+                f.write_str(concat!(" ", "IEqual"))?;
                 operand_1.spirv_display(f)?;
                 operand_2.spirv_display(f)?;
                 writeln!(f)
@@ -8178,12 +8179,11 @@ impl fmt::Display for OpSpecConstantOp {
             }) => {
                 write!(
                     f,
-                    "{}{}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    "OpSpecConstantOp"
+                    "{}OpSpecConstantOp",
+                    InstructionIndentAndResult(Some(*id_result))
                 )?;
                 id_result_type.spirv_display(f)?;
-                write!(f, " {}", "INotEqual")?;
+                f.write_str(concat!(" ", "INotEqual"))?;
                 operand_1.spirv_display(f)?;
                 operand_2.spirv_display(f)?;
                 writeln!(f)
@@ -8196,12 +8196,11 @@ impl fmt::Display for OpSpecConstantOp {
             }) => {
                 write!(
                     f,
-                    "{}{}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    "OpSpecConstantOp"
+                    "{}OpSpecConstantOp",
+                    InstructionIndentAndResult(Some(*id_result))
                 )?;
                 id_result_type.spirv_display(f)?;
-                write!(f, " {}", "UGreaterThan")?;
+                f.write_str(concat!(" ", "UGreaterThan"))?;
                 operand_1.spirv_display(f)?;
                 operand_2.spirv_display(f)?;
                 writeln!(f)
@@ -8214,12 +8213,11 @@ impl fmt::Display for OpSpecConstantOp {
             }) => {
                 write!(
                     f,
-                    "{}{}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    "OpSpecConstantOp"
+                    "{}OpSpecConstantOp",
+                    InstructionIndentAndResult(Some(*id_result))
                 )?;
                 id_result_type.spirv_display(f)?;
-                write!(f, " {}", "SGreaterThan")?;
+                f.write_str(concat!(" ", "SGreaterThan"))?;
                 operand_1.spirv_display(f)?;
                 operand_2.spirv_display(f)?;
                 writeln!(f)
@@ -8232,12 +8230,11 @@ impl fmt::Display for OpSpecConstantOp {
             }) => {
                 write!(
                     f,
-                    "{}{}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    "OpSpecConstantOp"
+                    "{}OpSpecConstantOp",
+                    InstructionIndentAndResult(Some(*id_result))
                 )?;
                 id_result_type.spirv_display(f)?;
-                write!(f, " {}", "UGreaterThanEqual")?;
+                f.write_str(concat!(" ", "UGreaterThanEqual"))?;
                 operand_1.spirv_display(f)?;
                 operand_2.spirv_display(f)?;
                 writeln!(f)
@@ -8250,12 +8247,11 @@ impl fmt::Display for OpSpecConstantOp {
             }) => {
                 write!(
                     f,
-                    "{}{}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    "OpSpecConstantOp"
+                    "{}OpSpecConstantOp",
+                    InstructionIndentAndResult(Some(*id_result))
                 )?;
                 id_result_type.spirv_display(f)?;
-                write!(f, " {}", "SGreaterThanEqual")?;
+                f.write_str(concat!(" ", "SGreaterThanEqual"))?;
                 operand_1.spirv_display(f)?;
                 operand_2.spirv_display(f)?;
                 writeln!(f)
@@ -8268,12 +8264,11 @@ impl fmt::Display for OpSpecConstantOp {
             }) => {
                 write!(
                     f,
-                    "{}{}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    "OpSpecConstantOp"
+                    "{}OpSpecConstantOp",
+                    InstructionIndentAndResult(Some(*id_result))
                 )?;
                 id_result_type.spirv_display(f)?;
-                write!(f, " {}", "ULessThan")?;
+                f.write_str(concat!(" ", "ULessThan"))?;
                 operand_1.spirv_display(f)?;
                 operand_2.spirv_display(f)?;
                 writeln!(f)
@@ -8286,12 +8281,11 @@ impl fmt::Display for OpSpecConstantOp {
             }) => {
                 write!(
                     f,
-                    "{}{}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    "OpSpecConstantOp"
+                    "{}OpSpecConstantOp",
+                    InstructionIndentAndResult(Some(*id_result))
                 )?;
                 id_result_type.spirv_display(f)?;
-                write!(f, " {}", "SLessThan")?;
+                f.write_str(concat!(" ", "SLessThan"))?;
                 operand_1.spirv_display(f)?;
                 operand_2.spirv_display(f)?;
                 writeln!(f)
@@ -8304,12 +8298,11 @@ impl fmt::Display for OpSpecConstantOp {
             }) => {
                 write!(
                     f,
-                    "{}{}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    "OpSpecConstantOp"
+                    "{}OpSpecConstantOp",
+                    InstructionIndentAndResult(Some(*id_result))
                 )?;
                 id_result_type.spirv_display(f)?;
-                write!(f, " {}", "ULessThanEqual")?;
+                f.write_str(concat!(" ", "ULessThanEqual"))?;
                 operand_1.spirv_display(f)?;
                 operand_2.spirv_display(f)?;
                 writeln!(f)
@@ -8322,12 +8315,11 @@ impl fmt::Display for OpSpecConstantOp {
             }) => {
                 write!(
                     f,
-                    "{}{}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    "OpSpecConstantOp"
+                    "{}OpSpecConstantOp",
+                    InstructionIndentAndResult(Some(*id_result))
                 )?;
                 id_result_type.spirv_display(f)?;
-                write!(f, " {}", "SLessThanEqual")?;
+                f.write_str(concat!(" ", "SLessThanEqual"))?;
                 operand_1.spirv_display(f)?;
                 operand_2.spirv_display(f)?;
                 writeln!(f)
@@ -8340,12 +8332,11 @@ impl fmt::Display for OpSpecConstantOp {
             }) => {
                 write!(
                     f,
-                    "{}{}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    "OpSpecConstantOp"
+                    "{}OpSpecConstantOp",
+                    InstructionIndentAndResult(Some(*id_result))
                 )?;
                 id_result_type.spirv_display(f)?;
-                write!(f, " {}", "ShiftRightLogical")?;
+                f.write_str(concat!(" ", "ShiftRightLogical"))?;
                 base.spirv_display(f)?;
                 shift.spirv_display(f)?;
                 writeln!(f)
@@ -8358,12 +8349,11 @@ impl fmt::Display for OpSpecConstantOp {
             }) => {
                 write!(
                     f,
-                    "{}{}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    "OpSpecConstantOp"
+                    "{}OpSpecConstantOp",
+                    InstructionIndentAndResult(Some(*id_result))
                 )?;
                 id_result_type.spirv_display(f)?;
-                write!(f, " {}", "ShiftRightArithmetic")?;
+                f.write_str(concat!(" ", "ShiftRightArithmetic"))?;
                 base.spirv_display(f)?;
                 shift.spirv_display(f)?;
                 writeln!(f)
@@ -8376,12 +8366,11 @@ impl fmt::Display for OpSpecConstantOp {
             }) => {
                 write!(
                     f,
-                    "{}{}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    "OpSpecConstantOp"
+                    "{}OpSpecConstantOp",
+                    InstructionIndentAndResult(Some(*id_result))
                 )?;
                 id_result_type.spirv_display(f)?;
-                write!(f, " {}", "ShiftLeftLogical")?;
+                f.write_str(concat!(" ", "ShiftLeftLogical"))?;
                 base.spirv_display(f)?;
                 shift.spirv_display(f)?;
                 writeln!(f)
@@ -8394,12 +8383,11 @@ impl fmt::Display for OpSpecConstantOp {
             }) => {
                 write!(
                     f,
-                    "{}{}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    "OpSpecConstantOp"
+                    "{}OpSpecConstantOp",
+                    InstructionIndentAndResult(Some(*id_result))
                 )?;
                 id_result_type.spirv_display(f)?;
-                write!(f, " {}", "BitwiseOr")?;
+                f.write_str(concat!(" ", "BitwiseOr"))?;
                 operand_1.spirv_display(f)?;
                 operand_2.spirv_display(f)?;
                 writeln!(f)
@@ -8412,12 +8400,11 @@ impl fmt::Display for OpSpecConstantOp {
             }) => {
                 write!(
                     f,
-                    "{}{}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    "OpSpecConstantOp"
+                    "{}OpSpecConstantOp",
+                    InstructionIndentAndResult(Some(*id_result))
                 )?;
                 id_result_type.spirv_display(f)?;
-                write!(f, " {}", "BitwiseXor")?;
+                f.write_str(concat!(" ", "BitwiseXor"))?;
                 operand_1.spirv_display(f)?;
                 operand_2.spirv_display(f)?;
                 writeln!(f)
@@ -8430,12 +8417,11 @@ impl fmt::Display for OpSpecConstantOp {
             }) => {
                 write!(
                     f,
-                    "{}{}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    "OpSpecConstantOp"
+                    "{}OpSpecConstantOp",
+                    InstructionIndentAndResult(Some(*id_result))
                 )?;
                 id_result_type.spirv_display(f)?;
-                write!(f, " {}", "BitwiseAnd")?;
+                f.write_str(concat!(" ", "BitwiseAnd"))?;
                 operand_1.spirv_display(f)?;
                 operand_2.spirv_display(f)?;
                 writeln!(f)
@@ -8447,12 +8433,11 @@ impl fmt::Display for OpSpecConstantOp {
             }) => {
                 write!(
                     f,
-                    "{}{}",
-                    InstructionIndentAndResult(Some(*id_result)),
-                    "OpSpecConstantOp"
+                    "{}OpSpecConstantOp",
+                    InstructionIndentAndResult(Some(*id_result))
                 )?;
                 id_result_type.spirv_display(f)?;
-                write!(f, " {}", "Not")?;
+                f.write_str(concat!(" ", "Not"))?;
                 operand.spirv_display(f)?;
                 writeln!(f)
             }
@@ -36863,7 +36848,7 @@ mod input_file_tests {
         println!("checking that generated code is up to date -- update by running:");
         println!("cargo build --features=spirv-parser-generator");
         input_file_test ( "../spirv-parser-generator/src/ast.rs" , b"b\x82\xCC\x9DRo\xC8W\xBC\x81}\x96\xF2\xB2\xF9\xAB\x1DO4h\xB1\xD8\xAF\xE0\x1Cc\x95\xD1\xB5\x94\xE1A" ) ;
-        input_file_test ( "../spirv-parser-generator/src/generate.rs" , b"\xFC\xB6#~\x12<\x83c\xB34\x7F\x0F\xCB\xD7\"\xE7\x8B\xB3\xB1\xAC\x92\xD3\xCAk\xAE2\x05\xEEOGo#" ) ;
+        input_file_test ( "../spirv-parser-generator/src/generate.rs" , b" \xF0\x83\xE4j\xD6O\x19>\xD1\xA6\xCB\x80\x1A\x17\xDC\xB1\xE6I\xE5\xE6}\x88\xD3q4\xC0\x06B\xF8\x1D\x18" ) ;
         input_file_test ( "../spirv-parser-generator/src/lib.rs" , b"\xED\xEA6\x8E\x83=*W\xCF3jN\xFC\xD6t\x8E(\xA5V\xFF#\x0F\xE4R\xE2\x8B~s\x15\x1C\xE6\xA5" ) ;
         input_file_test ( "../spirv-parser-generator/src/util.rs" , b"\xA5\x0C;C\x02\x06o9*\x1B\x0B\xDB+\x11\xEA\xB9\xB5\xC3\x91\x954\xD2\xF9\xD8B\x97\xBF\xA4?F\x8F\xDD" ) ;
         input_file_test ( "../spirv-parser-generator/Cargo.toml" , b"\xB2\xBB?\xE5\xB5\xB3\xED\x96]\x8Cj\xDDM+\xB0\xFB\xC9\xBB\xAB\xF8\tH\x02\xFF\xA7\x05\xD3\x0E\xDE\x98\r\x02" ) ;

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: LGPL-2.1-or-later
 // See Notices.txt for copyright information
-use alloc::string::String;
+use alloc::{boxed::Box, string::String};
 use core::fmt;
 use spirv_parser::{Decoration, IdRef, IdResult};
 
@@ -72,26 +72,54 @@ pub(crate) fn decoration_not_allowed(
     }
 }
 
+macro_rules! optionally_box_type {
+    (#[box] $ty:ty) => {
+        Box<$ty>
+    };
+    ($ty:ty) => {
+        $ty
+    }
+}
+
+macro_rules! optionally_box_value {
+    (#[box] $value:expr) => {
+        Box::new($value)
+    };
+    ($value:expr) => {
+        $value
+    };
+}
+
 macro_rules! impl_translation_error {
     (
         $(
             $(#[doc = $doc:expr])*
+            $(#[box $($box_tt:tt)*])*
             $error:ident($wrapped_error:ty),
         )+
     ) => {
         $(
             impl From<$wrapped_error> for TranslationError {
                 fn from(v: $wrapped_error) -> Self {
-                    TranslationError::$error(v)
+                    TranslationError::$error(optionally_box_value!($(#[box $($box_tt)*])* v))
                 }
             }
+
+            $(
+                $($box_tt)*
+                impl From<Box<$wrapped_error>> for TranslationError {
+                    fn from(v: Box<$wrapped_error>) -> Self {
+                        TranslationError::$error(v)
+                    }
+                }
+            )*
         )+
 
         #[derive(Debug)]
         pub enum TranslationError {
             $(
                 $(#[doc = $doc])*
-                $error($wrapped_error),
+                $error(optionally_box_type!($(#[box $($box_tt)*])* $wrapped_error)),
             )+
         }
 
@@ -117,6 +145,7 @@ macro_rules! impl_errors {
         }
         $(
             $(#[doc = $doc:expr])*
+            $(#[box $($box_tt:tt)*])*
             #[display = $display:literal]
             pub struct $name:ident $body:tt
         )+
@@ -128,6 +157,7 @@ macro_rules! impl_errors {
             )+
             $(
                 $(#[doc = $doc])*
+                $(#[box $($box_tt)*])*
                 $name($name),
             )+
         }
@@ -361,12 +391,14 @@ impl_errors! {
         pub label_id: spirv_parser::IdRef,
     }
 
+    #[box]
     #[display = "merge instruction must be immediately followed by a termination instruction:\n{merge_instruction}{instruction}"]
     pub struct MergeInstructionMustBeImmediatelyFollowedByTerminationInstruction {
         pub merge_instruction: spirv_parser::Instruction,
         pub instruction: spirv_parser::Instruction,
     }
 
+    #[box]
     #[display = "invalid termination instruction following merge instruction:\n{merge_instruction}{termination_instruction}"]
     pub struct InvalidTerminationInstructionFollowingMergeInstruction {
         pub merge_instruction: spirv_parser::Instruction,

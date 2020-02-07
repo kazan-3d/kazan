@@ -33,7 +33,7 @@ impl ParseInstruction for OpTypeStruct {
             member_types.iter().map(|_| Vec::new()).collect();
         for (member_index, member_decorations_in) in member_decorations_in {
             if member_index >= member_types.len() as u32 {
-                for decoration in member_decorations_in {
+                if let Some(decoration) = member_decorations_in.into_iter().next() {
                     return Err(MemberDecorationIndexOutOfBounds {
                         member_index,
                         decoration: decoration.into(),

@@ -46,6 +46,7 @@ impl<'g> ValueDefinition<'g> {
         let Self { value } = self;
         let const_value = const_value.intern(global_state);
         assert_eq!(value.value_type, const_value.get().get_type(global_state));
+        #[allow(clippy::ok_expect)]
         value
             .const_value
             .set(const_value)

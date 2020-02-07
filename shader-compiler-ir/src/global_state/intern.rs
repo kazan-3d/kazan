@@ -72,6 +72,7 @@ impl<'g, T: Hash + Eq + InternStorage + ?Sized> Interner<'g, T> {
             mask,
         }
     }
+    #[allow(clippy::borrowed_box)] // false positive: see https://github.com/rust-lang/rust-clippy/issues/2907
     fn expand_hashtable(&'g self, value_hashtable: &mut Box<[Option<&'g T>]>) {
         let new_size = value_hashtable
             .len()

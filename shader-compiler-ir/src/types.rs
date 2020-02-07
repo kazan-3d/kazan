@@ -50,7 +50,7 @@ pub enum IntegerType {
 impl<'g> Internable<'g> for IntegerType {
     type Interned = Type<'g>;
     fn intern(&self, global_state: &'g GlobalState<'g>) -> Interned<'g, Type<'g>> {
-        Type::from(self.clone()).intern(global_state)
+        Type::from(*self).intern(global_state)
     }
 }
 
@@ -143,7 +143,7 @@ pub struct DataPointerType;
 impl<'g> Internable<'g> for DataPointerType {
     type Interned = Type<'g>;
     fn intern(&self, global_state: &'g GlobalState<'g>) -> Interned<'g, Type<'g>> {
-        Type::from(self.clone()).intern(global_state)
+        Type::from(*self).intern(global_state)
     }
 }
 
@@ -691,7 +691,7 @@ impl<'g> FromText<'g> for StructSize {
             state.parse_token()?;
             match state.peek_token()?.kind.integer() {
                 Some(IntegerToken {
-                    value: _,
+                    value: _value,
                     suffix: Some(_),
                 }) => state
                     .error_at_peek_token("suffix not allowed on struct size")?
@@ -748,7 +748,7 @@ impl<'g> FromText<'g> for Alignment {
         )?;
         match state.peek_token()?.kind.integer() {
             Some(IntegerToken {
-                value: _,
+                value: _value,
                 suffix: Some(_),
             }) => state
                 .error_at_peek_token("suffix not allowed on alignment value")?
@@ -790,7 +790,7 @@ impl<'g> FromText<'g> for StructMember<'g> {
     fn from_text(state: &mut FromTextState<'g, '_>) -> Result<Self, FromTextError> {
         match state.peek_token()?.kind.integer() {
             Some(IntegerToken {
-                value: _,
+                value: _value,
                 suffix: Some(_),
             }) => state
                 .error_at_peek_token("suffix not allowed on struct member offset")?
@@ -841,7 +841,7 @@ impl<'g> FromText<'g> for StructType<'g> {
         state.parse_keyword_token_or_error(Keyword::Struct, "missing struct keyword")?;
         let id = match state.peek_token()?.kind.integer() {
             Some(IntegerToken {
-                value: _,
+                value: _value,
                 suffix: Some(_),
             }) => state
                 .error_at_peek_token("suffix not allowed on struct id")?
@@ -1017,6 +1017,7 @@ mod tests {
     use super::*;
     use alloc::string::ToString;
 
+    #[allow(clippy::cognitive_complexity)]
     #[test]
     fn test_type_from_to_text() {
         let global_state = GlobalState::new();

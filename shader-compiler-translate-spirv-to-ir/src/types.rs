@@ -199,6 +199,7 @@ pub(crate) enum Uninhabited<'g> {
 }
 
 impl Uninhabited<'_> {
+    #[allow(clippy::trivially_copy_pass_by_ref)] // pass by ref makes it easier to call
     pub(crate) fn into(&self) -> ! {
         match *self {
             Uninhabited::_Uninhabited(_, v) => match v {},

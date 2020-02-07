@@ -480,9 +480,9 @@ pub(crate) fn generate(
                         enumerant_display_mask_operations.push(quote! {
                             if self.#member_name.is_some() {
                                 if any_members {
-                                    write!(f, "|{}", #enumerant_name)?;
+                                    f.write_str(concat!("|", #enumerant_name))?;
                                 } else {
-                                    write!(f, " {}", #enumerant_name)?;
+                                    f.write_str(concat!(" ", #enumerant_name))?;
                                     any_members = true;
                                 }
                             }
@@ -521,9 +521,9 @@ pub(crate) fn generate(
                         enumerant_display_mask_operations.push(quote! {
                             if self.#member_name.is_some() {
                                 if any_members {
-                                    write!(f, "|{}", #enumerant_name)?;
+                                    f.write_str(concat!("|", #enumerant_name))?;
                                 } else {
-                                    write!(f, " {}", #enumerant_name)?;
+                                    f.write_str(concat!(" ", #enumerant_name))?;
                                     any_members = true;
                                 }
                             }
@@ -592,7 +592,7 @@ pub(crate) fn generate(
                                 let mut any_members = false;
                                 #(#enumerant_display_mask_operations)*
                                 if !any_members {
-                                    write!(f, " {}", #none_name)?;
+                                    f.write_str(concat!(" ", #none_name))?;
                                 }
                                 #(#enumerant_display_operations)*
                                 Ok(())
@@ -635,7 +635,7 @@ pub(crate) fn generate(
                             #enumerant_value => Ok((#kind_id::#name(#type_name), words)),
                         });
                         enumerant_display_cases.push(quote! {
-                            #kind_id::#name(_) => write!(f, " {}", #display_name),
+                            #kind_id::#name(_) => f.write_str(concat!(" ", #display_name)),
                         });
                     } else {
                         let mut enumerant_member_declarations = Vec::new();
@@ -684,7 +684,7 @@ pub(crate) fn generate(
                             #kind_id::#name(#type_name {
                                 #(#enumerant_member_names)*
                             }) => {
-                                write!(f, " {}", #display_name)?;
+                                f.write_str(concat!(" ", #display_name))?;
                                 #(#display_enumerant_members)*
                                 Ok(())
                             }
@@ -1527,9 +1527,9 @@ pub(crate) fn generate(
                     OpSpecConstantOp::#opname_without_op(#opname_with_op {
                         #(#operand_names,)*
                     }) => {
-                        write!(f, "{}{}", InstructionIndentAndResult(Some(*id_result)), "OpSpecConstantOp")?;
+                        write!(f, "{}OpSpecConstantOp", InstructionIndentAndResult(Some(*id_result)))?;
                         id_result_type.spirv_display(f)?;
-                        write!(f, " {}", #display_opname_without_initial_op)?;
+                        f.write_str(concat!(" ", #display_opname_without_initial_op))?;
                         #(#display_operations)*
                         writeln!(f)
                     }

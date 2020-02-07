@@ -197,10 +197,10 @@ impl ParseInstruction for OpTypeInt {
             }
         }
         let ir_type = match width {
-            8 => Int8.into(),
-            16 => Int16.into(),
-            32 => Int32.into(),
-            64 => Int64.into(),
+            8 => Int8,
+            16 => Int16,
+            32 => Int32,
+            64 => Int64,
             _ => return Err(InvalidIntegerType { width, signedness }.into()),
         };
         let signedness = match signedness {

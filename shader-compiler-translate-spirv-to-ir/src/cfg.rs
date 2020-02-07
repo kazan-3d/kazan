@@ -488,13 +488,13 @@ impl<'a, 'g, 'i> IntoEdges for &'a CFG<'g, 'i> {
 }
 
 impl<'g, 'i> CFG<'g, 'i> {
-    pub(crate) fn source_edges<'a>(&'a self, target: CFGBlockId) -> CFGBlockSourceEdges<'a> {
+    pub(crate) fn source_edges(&self, target: CFGBlockId) -> CFGBlockSourceEdges {
         CFGBlockSourceEdges {
             sources: self.block_source_edges[target.0].iter(),
             target,
         }
     }
-    pub(crate) fn source_block_ids<'a>(&'a self, target: CFGBlockId) -> CFGBlockSourceBlockIds<'a> {
+    pub(crate) fn source_block_ids(&self, target: CFGBlockId) -> CFGBlockSourceBlockIds {
         CFGBlockSourceBlockIds(self.source_edges(target))
     }
     pub(crate) fn edge_ref(&self, id: CFGEdgeId) -> CFGEdgeRef {
@@ -706,7 +706,6 @@ impl<'g, 'i> CFGBlock<'g, 'i> {
                 .expect("merge_location is not at a merge instruction")
                 .clone()
                 .try_into()
-                .ok()
                 .expect("merge_location is not at a merge instruction");
             (location, merge_instruction)
         });
@@ -715,7 +714,6 @@ impl<'g, 'i> CFGBlock<'g, 'i> {
             .expect("termination_location is not at a block termination instruction")
             .clone()
             .try_into()
-            .ok()
             .expect("termination_location is not at a block termination instruction");
         Self {
             label_location,
@@ -749,6 +747,7 @@ impl<'g, 'i> CFGBlock<'g, 'i> {
         self.termination_location.clone()
     }
     pub(crate) fn set_parent_structure_tree_node_and_index(&self, node_and_index: NodeAndIndex) {
+        #[allow(clippy::ok_expect)]
         self.parent_structure_tree_node_and_index
             .set(node_and_index)
             .ok()

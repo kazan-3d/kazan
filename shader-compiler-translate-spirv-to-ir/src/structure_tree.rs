@@ -532,6 +532,7 @@ impl Parser<'_, '_, '_> {
             control_properties: loop_control_properties,
         })
     }
+    #[allow(clippy::too_many_arguments)]
     fn parse_switch_child(
         &mut self,
         basic_block: CFGBlockId,
