@@ -237,13 +237,9 @@ pub struct ImageOperands {
     pub sample: Option<ImageOperandsSample>,
     pub min_lod: Option<ImageOperandsMinLod>,
     pub make_texel_available: Option<ImageOperandsMakeTexelAvailable>,
-    pub make_texel_available_khr: Option<ImageOperandsMakeTexelAvailableKHR>,
     pub make_texel_visible: Option<ImageOperandsMakeTexelVisible>,
-    pub make_texel_visible_khr: Option<ImageOperandsMakeTexelVisibleKHR>,
     pub non_private_texel: Option<ImageOperandsNonPrivateTexel>,
-    pub non_private_texel_khr: Option<ImageOperandsNonPrivateTexelKHR>,
     pub volatile_texel: Option<ImageOperandsVolatileTexel>,
-    pub volatile_texel_khr: Option<ImageOperandsVolatileTexelKHR>,
     pub sign_extend: Option<ImageOperandsSignExtend>,
     pub zero_extend: Option<ImageOperandsZeroExtend>,
 }
@@ -266,19 +262,11 @@ pub struct ImageOperandsMinLod(pub IdRef);
 #[derive(Clone, Debug, Default, Eq, PartialEq, Hash)]
 pub struct ImageOperandsMakeTexelAvailable(pub IdScope);
 #[derive(Clone, Debug, Default, Eq, PartialEq, Hash)]
-pub struct ImageOperandsMakeTexelAvailableKHR(pub IdScope);
-#[derive(Clone, Debug, Default, Eq, PartialEq, Hash)]
 pub struct ImageOperandsMakeTexelVisible(pub IdScope);
-#[derive(Clone, Debug, Default, Eq, PartialEq, Hash)]
-pub struct ImageOperandsMakeTexelVisibleKHR(pub IdScope);
 #[derive(Copy, Clone, Debug, Default, Eq, PartialEq, Hash)]
 pub struct ImageOperandsNonPrivateTexel;
 #[derive(Copy, Clone, Debug, Default, Eq, PartialEq, Hash)]
-pub struct ImageOperandsNonPrivateTexelKHR;
-#[derive(Copy, Clone, Debug, Default, Eq, PartialEq, Hash)]
 pub struct ImageOperandsVolatileTexel;
-#[derive(Copy, Clone, Debug, Default, Eq, PartialEq, Hash)]
-pub struct ImageOperandsVolatileTexelKHR;
 #[derive(Copy, Clone, Debug, Default, Eq, PartialEq, Hash)]
 pub struct ImageOperandsSignExtend;
 #[derive(Copy, Clone, Debug, Default, Eq, PartialEq, Hash)]
@@ -353,24 +341,10 @@ impl SPIRVParse for ImageOperands {
         } else {
             (None, words)
         };
-        let (make_texel_available_khr, words) = if (mask & 256u32) != 0 {
-            mask &= !256u32;
-            let (parameter_0, words) = IdScope::spirv_parse(words, parse_state)?;
-            (Some(ImageOperandsMakeTexelAvailableKHR(parameter_0)), words)
-        } else {
-            (None, words)
-        };
         let (make_texel_visible, words) = if (mask & 512u32) != 0 {
             mask &= !512u32;
             let (parameter_0, words) = IdScope::spirv_parse(words, parse_state)?;
             (Some(ImageOperandsMakeTexelVisible(parameter_0)), words)
-        } else {
-            (None, words)
-        };
-        let (make_texel_visible_khr, words) = if (mask & 512u32) != 0 {
-            mask &= !512u32;
-            let (parameter_0, words) = IdScope::spirv_parse(words, parse_state)?;
-            (Some(ImageOperandsMakeTexelVisibleKHR(parameter_0)), words)
         } else {
             (None, words)
         };
@@ -380,21 +354,9 @@ impl SPIRVParse for ImageOperands {
         } else {
             (None, words)
         };
-        let (non_private_texel_khr, words) = if (mask & 1024u32) != 0 {
-            mask &= !1024u32;
-            (Some(ImageOperandsNonPrivateTexelKHR), words)
-        } else {
-            (None, words)
-        };
         let (volatile_texel, words) = if (mask & 2048u32) != 0 {
             mask &= !2048u32;
             (Some(ImageOperandsVolatileTexel), words)
-        } else {
-            (None, words)
-        };
-        let (volatile_texel_khr, words) = if (mask & 2048u32) != 0 {
-            mask &= !2048u32;
-            (Some(ImageOperandsVolatileTexelKHR), words)
         } else {
             (None, words)
         };
@@ -424,13 +386,9 @@ impl SPIRVParse for ImageOperands {
                     sample,
                     min_lod,
                     make_texel_available,
-                    make_texel_available_khr,
                     make_texel_visible,
-                    make_texel_visible_khr,
                     non_private_texel,
-                    non_private_texel_khr,
                     volatile_texel,
-                    volatile_texel_khr,
                     sign_extend,
                     zero_extend,
                 },
@@ -514,27 +472,11 @@ impl SPIRVDisplay for ImageOperands {
                 any_members = true;
             }
         }
-        if self.make_texel_available_khr.is_some() {
-            if any_members {
-                f.write_str(concat!("|", "MakeTexelAvailableKHR"))?;
-            } else {
-                f.write_str(concat!(" ", "MakeTexelAvailableKHR"))?;
-                any_members = true;
-            }
-        }
         if self.make_texel_visible.is_some() {
             if any_members {
                 f.write_str(concat!("|", "MakeTexelVisible"))?;
             } else {
                 f.write_str(concat!(" ", "MakeTexelVisible"))?;
-                any_members = true;
-            }
-        }
-        if self.make_texel_visible_khr.is_some() {
-            if any_members {
-                f.write_str(concat!("|", "MakeTexelVisibleKHR"))?;
-            } else {
-                f.write_str(concat!(" ", "MakeTexelVisibleKHR"))?;
                 any_members = true;
             }
         }
@@ -546,27 +488,11 @@ impl SPIRVDisplay for ImageOperands {
                 any_members = true;
             }
         }
-        if self.non_private_texel_khr.is_some() {
-            if any_members {
-                f.write_str(concat!("|", "NonPrivateTexelKHR"))?;
-            } else {
-                f.write_str(concat!(" ", "NonPrivateTexelKHR"))?;
-                any_members = true;
-            }
-        }
         if self.volatile_texel.is_some() {
             if any_members {
                 f.write_str(concat!("|", "VolatileTexel"))?;
             } else {
                 f.write_str(concat!(" ", "VolatileTexel"))?;
-                any_members = true;
-            }
-        }
-        if self.volatile_texel_khr.is_some() {
-            if any_members {
-                f.write_str(concat!("|", "VolatileTexelKHR"))?;
-            } else {
-                f.write_str(concat!(" ", "VolatileTexelKHR"))?;
                 any_members = true;
             }
         }
@@ -617,15 +543,7 @@ impl SPIRVDisplay for ImageOperands {
         if let Some(ImageOperandsMakeTexelAvailable(parameter_0)) = &self.make_texel_available {
             parameter_0.spirv_display(f)?;
         }
-        if let Some(ImageOperandsMakeTexelAvailableKHR(parameter_0)) =
-            &self.make_texel_available_khr
-        {
-            parameter_0.spirv_display(f)?;
-        }
         if let Some(ImageOperandsMakeTexelVisible(parameter_0)) = &self.make_texel_visible {
-            parameter_0.spirv_display(f)?;
-        }
-        if let Some(ImageOperandsMakeTexelVisibleKHR(parameter_0)) = &self.make_texel_visible_khr {
             parameter_0.spirv_display(f)?;
         }
         Ok(())
@@ -1144,11 +1062,8 @@ pub struct MemorySemantics {
     pub atomic_counter_memory: Option<MemorySemanticsAtomicCounterMemory>,
     pub image_memory: Option<MemorySemanticsImageMemory>,
     pub output_memory: Option<MemorySemanticsOutputMemory>,
-    pub output_memory_khr: Option<MemorySemanticsOutputMemoryKHR>,
     pub make_available: Option<MemorySemanticsMakeAvailable>,
-    pub make_available_khr: Option<MemorySemanticsMakeAvailableKHR>,
     pub make_visible: Option<MemorySemanticsMakeVisible>,
-    pub make_visible_khr: Option<MemorySemanticsMakeVisibleKHR>,
     pub volatile: Option<MemorySemanticsVolatile>,
 }
 #[derive(Copy, Clone, Debug, Default, Eq, PartialEq, Hash)]
@@ -1174,15 +1089,9 @@ pub struct MemorySemanticsImageMemory;
 #[derive(Copy, Clone, Debug, Default, Eq, PartialEq, Hash)]
 pub struct MemorySemanticsOutputMemory;
 #[derive(Copy, Clone, Debug, Default, Eq, PartialEq, Hash)]
-pub struct MemorySemanticsOutputMemoryKHR;
-#[derive(Copy, Clone, Debug, Default, Eq, PartialEq, Hash)]
 pub struct MemorySemanticsMakeAvailable;
 #[derive(Copy, Clone, Debug, Default, Eq, PartialEq, Hash)]
-pub struct MemorySemanticsMakeAvailableKHR;
-#[derive(Copy, Clone, Debug, Default, Eq, PartialEq, Hash)]
 pub struct MemorySemanticsMakeVisible;
-#[derive(Copy, Clone, Debug, Default, Eq, PartialEq, Hash)]
-pub struct MemorySemanticsMakeVisibleKHR;
 #[derive(Copy, Clone, Debug, Default, Eq, PartialEq, Hash)]
 pub struct MemorySemanticsVolatile;
 impl SPIRVParse for MemorySemantics {
@@ -1257,33 +1166,15 @@ impl SPIRVParse for MemorySemantics {
         } else {
             (None, words)
         };
-        let (output_memory_khr, words) = if (mask & 4096u32) != 0 {
-            mask &= !4096u32;
-            (Some(MemorySemanticsOutputMemoryKHR), words)
-        } else {
-            (None, words)
-        };
         let (make_available, words) = if (mask & 8192u32) != 0 {
             mask &= !8192u32;
             (Some(MemorySemanticsMakeAvailable), words)
         } else {
             (None, words)
         };
-        let (make_available_khr, words) = if (mask & 8192u32) != 0 {
-            mask &= !8192u32;
-            (Some(MemorySemanticsMakeAvailableKHR), words)
-        } else {
-            (None, words)
-        };
         let (make_visible, words) = if (mask & 16384u32) != 0 {
             mask &= !16384u32;
             (Some(MemorySemanticsMakeVisible), words)
-        } else {
-            (None, words)
-        };
-        let (make_visible_khr, words) = if (mask & 16384u32) != 0 {
-            mask &= !16384u32;
-            (Some(MemorySemanticsMakeVisibleKHR), words)
         } else {
             (None, words)
         };
@@ -1309,11 +1200,8 @@ impl SPIRVParse for MemorySemantics {
                     atomic_counter_memory,
                     image_memory,
                     output_memory,
-                    output_memory_khr,
                     make_available,
-                    make_available_khr,
                     make_visible,
-                    make_visible_khr,
                     volatile,
                 },
                 words,
@@ -1412,14 +1300,6 @@ impl SPIRVDisplay for MemorySemantics {
                 any_members = true;
             }
         }
-        if self.output_memory_khr.is_some() {
-            if any_members {
-                f.write_str(concat!("|", "OutputMemoryKHR"))?;
-            } else {
-                f.write_str(concat!(" ", "OutputMemoryKHR"))?;
-                any_members = true;
-            }
-        }
         if self.make_available.is_some() {
             if any_members {
                 f.write_str(concat!("|", "MakeAvailable"))?;
@@ -1428,27 +1308,11 @@ impl SPIRVDisplay for MemorySemantics {
                 any_members = true;
             }
         }
-        if self.make_available_khr.is_some() {
-            if any_members {
-                f.write_str(concat!("|", "MakeAvailableKHR"))?;
-            } else {
-                f.write_str(concat!(" ", "MakeAvailableKHR"))?;
-                any_members = true;
-            }
-        }
         if self.make_visible.is_some() {
             if any_members {
                 f.write_str(concat!("|", "MakeVisible"))?;
             } else {
                 f.write_str(concat!(" ", "MakeVisible"))?;
-                any_members = true;
-            }
-        }
-        if self.make_visible_khr.is_some() {
-            if any_members {
-                f.write_str(concat!("|", "MakeVisibleKHR"))?;
-            } else {
-                f.write_str(concat!(" ", "MakeVisibleKHR"))?;
                 any_members = true;
             }
         }
@@ -1461,7 +1325,7 @@ impl SPIRVDisplay for MemorySemantics {
             }
         }
         if !any_members {
-            f.write_str(concat!(" ", "None"))?;
+            f.write_str(concat!(" ", "Relaxed"))?;
         }
         Ok(())
     }
@@ -1472,11 +1336,8 @@ pub struct MemoryAccess {
     pub aligned: Option<MemoryAccessAligned>,
     pub nontemporal: Option<MemoryAccessNontemporal>,
     pub make_pointer_available: Option<MemoryAccessMakePointerAvailable>,
-    pub make_pointer_available_khr: Option<MemoryAccessMakePointerAvailableKHR>,
     pub make_pointer_visible: Option<MemoryAccessMakePointerVisible>,
-    pub make_pointer_visible_khr: Option<MemoryAccessMakePointerVisibleKHR>,
     pub non_private_pointer: Option<MemoryAccessNonPrivatePointer>,
-    pub non_private_pointer_khr: Option<MemoryAccessNonPrivatePointerKHR>,
 }
 #[derive(Copy, Clone, Debug, Default, Eq, PartialEq, Hash)]
 pub struct MemoryAccessVolatile;
@@ -1487,15 +1348,9 @@ pub struct MemoryAccessNontemporal;
 #[derive(Clone, Debug, Default, Eq, PartialEq, Hash)]
 pub struct MemoryAccessMakePointerAvailable(pub IdScope);
 #[derive(Clone, Debug, Default, Eq, PartialEq, Hash)]
-pub struct MemoryAccessMakePointerAvailableKHR(pub IdScope);
-#[derive(Clone, Debug, Default, Eq, PartialEq, Hash)]
 pub struct MemoryAccessMakePointerVisible(pub IdScope);
-#[derive(Clone, Debug, Default, Eq, PartialEq, Hash)]
-pub struct MemoryAccessMakePointerVisibleKHR(pub IdScope);
 #[derive(Copy, Clone, Debug, Default, Eq, PartialEq, Hash)]
 pub struct MemoryAccessNonPrivatePointer;
-#[derive(Copy, Clone, Debug, Default, Eq, PartialEq, Hash)]
-pub struct MemoryAccessNonPrivatePointerKHR;
 impl SPIRVParse for MemoryAccess {
     fn spirv_parse<'a>(
         words: &'a [u32],
@@ -1528,16 +1383,6 @@ impl SPIRVParse for MemoryAccess {
         } else {
             (None, words)
         };
-        let (make_pointer_available_khr, words) = if (mask & 8u32) != 0 {
-            mask &= !8u32;
-            let (parameter_0, words) = IdScope::spirv_parse(words, parse_state)?;
-            (
-                Some(MemoryAccessMakePointerAvailableKHR(parameter_0)),
-                words,
-            )
-        } else {
-            (None, words)
-        };
         let (make_pointer_visible, words) = if (mask & 16u32) != 0 {
             mask &= !16u32;
             let (parameter_0, words) = IdScope::spirv_parse(words, parse_state)?;
@@ -1545,22 +1390,9 @@ impl SPIRVParse for MemoryAccess {
         } else {
             (None, words)
         };
-        let (make_pointer_visible_khr, words) = if (mask & 16u32) != 0 {
-            mask &= !16u32;
-            let (parameter_0, words) = IdScope::spirv_parse(words, parse_state)?;
-            (Some(MemoryAccessMakePointerVisibleKHR(parameter_0)), words)
-        } else {
-            (None, words)
-        };
         let (non_private_pointer, words) = if (mask & 32u32) != 0 {
             mask &= !32u32;
             (Some(MemoryAccessNonPrivatePointer), words)
-        } else {
-            (None, words)
-        };
-        let (non_private_pointer_khr, words) = if (mask & 32u32) != 0 {
-            mask &= !32u32;
-            (Some(MemoryAccessNonPrivatePointerKHR), words)
         } else {
             (None, words)
         };
@@ -1573,11 +1405,8 @@ impl SPIRVParse for MemoryAccess {
                     aligned,
                     nontemporal,
                     make_pointer_available,
-                    make_pointer_available_khr,
                     make_pointer_visible,
-                    make_pointer_visible_khr,
                     non_private_pointer,
-                    non_private_pointer_khr,
                 },
                 words,
             ))
@@ -1619,14 +1448,6 @@ impl SPIRVDisplay for MemoryAccess {
                 any_members = true;
             }
         }
-        if self.make_pointer_available_khr.is_some() {
-            if any_members {
-                f.write_str(concat!("|", "MakePointerAvailableKHR"))?;
-            } else {
-                f.write_str(concat!(" ", "MakePointerAvailableKHR"))?;
-                any_members = true;
-            }
-        }
         if self.make_pointer_visible.is_some() {
             if any_members {
                 f.write_str(concat!("|", "MakePointerVisible"))?;
@@ -1635,27 +1456,11 @@ impl SPIRVDisplay for MemoryAccess {
                 any_members = true;
             }
         }
-        if self.make_pointer_visible_khr.is_some() {
-            if any_members {
-                f.write_str(concat!("|", "MakePointerVisibleKHR"))?;
-            } else {
-                f.write_str(concat!(" ", "MakePointerVisibleKHR"))?;
-                any_members = true;
-            }
-        }
         if self.non_private_pointer.is_some() {
             if any_members {
                 f.write_str(concat!("|", "NonPrivatePointer"))?;
             } else {
                 f.write_str(concat!(" ", "NonPrivatePointer"))?;
-                any_members = true;
-            }
-        }
-        if self.non_private_pointer_khr.is_some() {
-            if any_members {
-                f.write_str(concat!("|", "NonPrivatePointerKHR"))?;
-            } else {
-                f.write_str(concat!(" ", "NonPrivatePointerKHR"))?;
                 any_members = true;
             }
         }
@@ -1668,16 +1473,7 @@ impl SPIRVDisplay for MemoryAccess {
         if let Some(MemoryAccessMakePointerAvailable(parameter_0)) = &self.make_pointer_available {
             parameter_0.spirv_display(f)?;
         }
-        if let Some(MemoryAccessMakePointerAvailableKHR(parameter_0)) =
-            &self.make_pointer_available_khr
-        {
-            parameter_0.spirv_display(f)?;
-        }
         if let Some(MemoryAccessMakePointerVisible(parameter_0)) = &self.make_pointer_visible {
-            parameter_0.spirv_display(f)?;
-        }
-        if let Some(MemoryAccessMakePointerVisibleKHR(parameter_0)) = &self.make_pointer_visible_khr
-        {
             parameter_0.spirv_display(f)?;
         }
         Ok(())
@@ -36847,7 +36643,7 @@ mod input_file_tests {
     fn input_file_tests() {
         println!("checking that generated code is up to date -- update by running:");
         println!("cargo build --features=spirv-parser-generator");
-        input_file_test ( "../spirv-parser-generator/src/ast.rs" , b"b\x82\xCC\x9DRo\xC8W\xBC\x81}\x96\xF2\xB2\xF9\xAB\x1DO4h\xB1\xD8\xAF\xE0\x1Cc\x95\xD1\xB5\x94\xE1A" ) ;
+        input_file_test ( "../spirv-parser-generator/src/ast.rs" , b"^\xEA\x97\xA1\x06\x07\x18\xF5\xE3/|z]s\x0C\xF7\xE5(W\xFC\x84\x0B\xAE\x08q{MxjO\x8F\xF8" ) ;
         input_file_test ( "../spirv-parser-generator/src/generate.rs" , b" \xF0\x83\xE4j\xD6O\x19>\xD1\xA6\xCB\x80\x1A\x17\xDC\xB1\xE6I\xE5\xE6}\x88\xD3q4\xC0\x06B\xF8\x1D\x18" ) ;
         input_file_test ( "../spirv-parser-generator/src/lib.rs" , b"\xED\xEA6\x8E\x83=*W\xCF3jN\xFC\xD6t\x8E(\xA5V\xFF#\x0F\xE4R\xE2\x8B~s\x15\x1C\xE6\xA5" ) ;
         input_file_test ( "../spirv-parser-generator/src/util.rs" , b"\xA5\x0C;C\x02\x06o9*\x1B\x0B\xDB+\x11\xEA\xB9\xB5\xC3\x91\x954\xD2\xF9\xD8B\x97\xBF\xA4?F\x8F\xDD" ) ;

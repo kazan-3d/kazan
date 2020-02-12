@@ -764,6 +764,8 @@ impl CoreGrammar {
                     for enumerant in enumerants.iter_mut() {
                         enumerant.fixup()?;
                     }
+                    enumerants.sort_by_key(|enumerant| enumerant.value.0);
+                    enumerants.dedup_by_key(|enumerant| enumerant.value.0);
                     self.operand_kinds
                         .push(OperandKind::BitEnum { kind, enumerants });
                 }
