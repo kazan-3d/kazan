@@ -26,7 +26,7 @@ impl<'g, 'i> TranslationStateParsedDebugNames<'g, 'i> {
             match instruction {
                 Instruction::ModuleProcessed(_) => {}
                 _ => {
-                    state.spirv_instructions_location = location;
+                    state.set_spirv_instructions_location(location);
                     break;
                 }
             }

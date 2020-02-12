@@ -35,7 +35,7 @@ impl<'g, 'i> TranslationStateParsedCapabilities<'g, 'i> {
             if let Instruction::Extension(instruction) = instruction {
                 state.parse_extension_instruction(instruction)?;
             } else {
-                state.spirv_instructions_location = location;
+                state.set_spirv_instructions_location(location);
                 break;
             }
         }

@@ -200,7 +200,7 @@ impl<'g, 'i> TranslationStateParsedDebugModuleProcessed<'g, 'i> {
                     state.parse_member_decorate_instruction(structure_type, member, decoration)?
                 }
                 _ => {
-                    state.spirv_instructions_location = location;
+                    state.set_spirv_instructions_location(location);
                     break;
                 }
             }

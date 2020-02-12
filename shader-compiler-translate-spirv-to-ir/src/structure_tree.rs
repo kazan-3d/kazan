@@ -245,6 +245,18 @@ impl Child {
             Child::BasicBlock(_) => None,
         }
     }
+    pub(crate) fn node(&self) -> Option<&Rc<Node>> {
+        match self {
+            Child::Node(v) => Some(v),
+            _ => None,
+        }
+    }
+    pub(crate) fn basic_block(&self) -> Option<CFGBlockId> {
+        match self {
+            Child::BasicBlock(v) => Some(*v),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Clone, Debug)]

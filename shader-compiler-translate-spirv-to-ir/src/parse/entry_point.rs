@@ -70,7 +70,7 @@ impl<'g, 'i> TranslationStateParsedMemoryModel<'g, 'i> {
             if let Instruction::EntryPoint(instruction) = instruction {
                 state.parse_entry_point_instruction(instruction)?;
             } else {
-                state.spirv_instructions_location = location;
+                state.set_spirv_instructions_location(location);
                 break;
             }
         }

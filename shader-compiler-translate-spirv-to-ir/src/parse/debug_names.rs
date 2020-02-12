@@ -70,7 +70,7 @@ impl<'g, 'i> TranslationStateParsedDebugStringsSources<'g, 'i> {
                     state.parse_member_name_instruction(instruction)?
                 }
                 _ => {
-                    state.spirv_instructions_location = location;
+                    state.set_spirv_instructions_location(location);
                     break;
                 }
             }

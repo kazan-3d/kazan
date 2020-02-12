@@ -7,7 +7,8 @@ use crate::{
         FromTextError, FromTextScopeId, FromTextState, FromTextSymbol, FromTextSymbolsState,
         FromTextSymbolsStateBase, Keyword, NamedId, Punctuation, ToTextState, TokenKind,
     },
-    Allocate, DataPointerType, FunctionPointerType, IdRef, OnceCell, ParsedBlockNameDefinition,
+    Alignment, Allocate, DataPointerType, FunctionPointerType, IdRef, OnceCell,
+    ParsedBlockNameDefinition,
 };
 use alloc::vec::Vec;
 use core::{fmt, ops::Deref};
@@ -150,6 +151,8 @@ impl_struct_with_default_from_to_text! {
 pub struct Variable<'g> {
     /// the type of the variable
     pub variable_type: Interned<'g, Type<'g>>,
+    /// the alignment of the variable
+    pub alignment: Alignment,
     /// the `ValueDefinition` that points to the variable
     pub pointer: ValueDefinition<'g>,
 }
@@ -161,8 +164,13 @@ impl<'g> FromText<'g> for Variable<'g> {
     fn from_text(state: &mut FromTextState<'g, '_>) -> Result<Self, FromTextError> {
         let variable_type = Type::from_text(state)?;
         state.parse_punct_token_or_error(
+            Punctuation::Comma,
+            "missing comma (`,`) between variable type and variable alignment",
+        )?;
+        let alignment = Alignment::from_text(state)?;
+        state.parse_punct_token_or_error(
             Punctuation::Arrow,
-            "missing arrow (`->`) between variable type and value definition",
+            "missing arrow (`->`) between variable alignment and value definition",
         )?;
         let pointer_location = state.peek_token()?.span;
         let pointer: ValueDefinition<'g> = ValueDefinition::from_text(state)?;
@@ -174,6 +182,7 @@ impl<'g> FromText<'g> for Variable<'g> {
         }
         Ok(Variable {
             variable_type,
+            alignment,
             pointer,
         })
     }
@@ -183,9 +192,12 @@ impl<'g> ToText<'g> for Variable<'g> {
     fn to_text(&self, state: &mut ToTextState<'g, '_>) -> fmt::Result {
         let Variable {
             variable_type,
+            alignment,
             pointer,
         } = self;
         variable_type.to_text(state)?;
+        write!(state, ", ")?;
+        alignment.to_text(state)?;
         write!(state, " -> ")?;
         pointer.to_text(state)
     }
@@ -528,6 +540,7 @@ mod tests {
             vec![],
             Some(vec![Variable {
                 variable_type: IntegerType::Int32.intern(global_state),
+                alignment: Alignment::new(4).unwrap(),
                 pointer: ValueDefinition::new(DataPointerType, "local_var1", global_state),
             }]),
             block1,
@@ -565,7 +578,7 @@ mod tests {
                 "        side_effects: normal,\n",
                 "    }\n",
                 "    {\n",
-                "        i32 -> local_var1 : data_ptr;\n",
+                "        i32, align: 0x4 -> local_var1 : data_ptr;\n",
                 "    }\n",
                 "    block1 {\n",
                 "        loop loop1[\"\"0 : fn function1] -> ! {\n",

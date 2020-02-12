@@ -361,7 +361,7 @@ impl<'g, 'i> TranslationStateParsedTypesConstantsAndGlobals<'g, 'i> {
                 function.ir_value.name
             )?;
             for (cfg_block_id, block) in function.cfg.node_references() {
-                body_state.spirv_instructions_location = block.label_location();
+                body_state.set_spirv_instructions_location(block.label_location());
                 loop {
                     let instruction = body_state
                         .next_instruction()?

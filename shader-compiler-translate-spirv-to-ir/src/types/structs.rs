@@ -7,7 +7,7 @@ use crate::{
 };
 use alloc::{rc::Rc, vec::Vec};
 use core::ops::Deref;
-use shader_compiler_ir::Interned;
+use shader_compiler_ir::{Alignment, GlobalState, Interned, TargetProperties};
 use spirv_parser::BuiltIn;
 
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
@@ -70,5 +70,14 @@ impl<'g> GenericSPIRVType<'g> for StructType<'g> {
     }
     fn get_relaxed_precision_type(&self) -> Option<SPIRVType<'g>> {
         None
+    }
+    fn get_alignment<I: FnOnce() -> spirv_parser::Instruction>(
+        &self,
+        target_properties: Interned<'g, TargetProperties>,
+        global_state: &'g GlobalState<'g>,
+        type_id: spirv_parser::IdRef,
+        instruction: I,
+    ) -> TranslationResult<Alignment> {
+        todo!()
     }
 }

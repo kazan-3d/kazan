@@ -23,7 +23,7 @@ pub use crate::errors::*;
 
 use alloc::vec::Vec;
 use core::{fmt, slice};
-use shader_compiler_ir::GlobalState;
+use shader_compiler_ir::{GlobalState, Internable, Interned, TargetProperties};
 use spirv_parser::ExecutionModel;
 
 pub struct UnresolvedSpecialization {
@@ -126,18 +126,22 @@ impl<'i> Iterator for SPIRVInstructionLocation<'i> {
 
 struct TranslationStateBase<'g, 'i> {
     global_state: &'g GlobalState<'g>,
+    target_properties: Interned<'g, TargetProperties>,
     specialization_resolver: &'i mut dyn SpecializationResolver,
     debug_output: &'i mut dyn fmt::Write,
     entry_point_name: &'i str,
     entry_point_execution_model: ExecutionModel,
     spirv_header: spirv_parser::Header,
     spirv_instructions: &'i [spirv_parser::Instruction],
-    spirv_instructions_location: SPIRVInstructionLocation<'i>,
+    spirv_instructions_current_location: SPIRVInstructionLocation<'i>,
+    spirv_instructions_next_location: SPIRVInstructionLocation<'i>,
 }
 
 impl<'g, 'i> TranslationStateBase<'g, 'i> {
+    #[allow(clippy::too_many_arguments)]
     fn new(
         global_state: &'g GlobalState<'g>,
+        target_properties: Interned<'g, TargetProperties>,
         specialization_resolver: &'i mut dyn SpecializationResolver,
         debug_output: &'i mut dyn fmt::Write,
         entry_point_name: &'i str,
@@ -145,22 +149,32 @@ impl<'g, 'i> TranslationStateBase<'g, 'i> {
         spirv_header: spirv_parser::Header,
         spirv_instructions: &'i [spirv_parser::Instruction],
     ) -> Self {
+        let spirv_instructions_location = SPIRVInstructionLocation {
+            index: 0,
+            iter: spirv_instructions.iter(),
+        };
         Self {
             global_state,
+            target_properties,
             specialization_resolver,
             debug_output,
             entry_point_name,
             entry_point_execution_model,
             spirv_header,
             spirv_instructions,
-            spirv_instructions_location: SPIRVInstructionLocation {
-                index: 0,
-                iter: spirv_instructions.iter(),
-            },
+            spirv_instructions_current_location: spirv_instructions_location.clone(),
+            spirv_instructions_next_location: spirv_instructions_location,
         }
     }
     fn translate(self) -> Result<TranslatedSPIRVShader<'g>, TranslationError> {
         self.parse()?.translate()
+    }
+    fn set_spirv_instructions_location(
+        &mut self,
+        spirv_instructions_location: SPIRVInstructionLocation<'i>,
+    ) {
+        self.spirv_instructions_current_location = spirv_instructions_location.clone();
+        self.spirv_instructions_next_location = spirv_instructions_location;
     }
 }
 
@@ -172,6 +186,7 @@ pub struct TranslatedSPIRVShader<'g> {
 impl<'g> TranslatedSPIRVShader<'g> {
     pub fn new<'i>(
         global_state: &'g GlobalState<'g>,
+        target_properties: impl Internable<'g, Interned = TargetProperties>,
         specialization_resolver: &'i mut dyn SpecializationResolver,
         debug_output: &'i mut dyn fmt::Write,
         entry_point_name: &'i str,
@@ -183,6 +198,7 @@ impl<'g> TranslatedSPIRVShader<'g> {
         let spirv_instructions = spirv_parser.collect::<Result<Vec<_>, spirv_parser::Error>>()?;
         TranslationStateBase::new(
             global_state,
+            target_properties.intern(global_state),
             specialization_resolver,
             debug_output,
             entry_point_name,
@@ -444,6 +460,7 @@ mod tests {
         let global_state = shader_compiler_ir::GlobalState::new();
         let _translated_shader = crate::TranslatedSPIRVShader::new(
             &global_state,
+            shader_compiler_ir::TargetProperties::default(),
             &mut crate::DefaultSpecializationResolver,
             &mut PrintOutput,
             "main",

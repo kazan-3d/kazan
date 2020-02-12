@@ -7,7 +7,7 @@ use crate::errors::{TranslationResult, VoidNotAllowedHere};
 use alloc::{rc::Rc, vec::Vec};
 use core::{marker::PhantomData, ops::Deref};
 use once_cell::unsync::OnceCell;
-use shader_compiler_ir::{prelude::*, BoolType, FloatType};
+use shader_compiler_ir::{prelude::*, Alignment, BoolType, FloatType, TargetProperties};
 use spirv_parser::{IdRef, StorageClass};
 use structs::StructType;
 
@@ -41,6 +41,13 @@ pub(crate) trait GenericSPIRVType<'g>: Eq + Clone + Into<SPIRVType<'g>> {
         })
     }
     fn get_relaxed_precision_type(&self) -> Option<SPIRVType<'g>>;
+    fn get_alignment<I: FnOnce() -> spirv_parser::Instruction>(
+        &self,
+        target_properties: Interned<'g, TargetProperties>,
+        global_state: &'g GlobalState<'g>,
+        type_id: IdRef,
+        instruction: I,
+    ) -> TranslationResult<Alignment>;
 }
 
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
@@ -96,6 +103,15 @@ impl<'g> GenericSPIRVType<'g> for IntegerType {
             | shader_compiler_ir::IntegerType::Int64 => None,
         }
     }
+    fn get_alignment<I: FnOnce() -> spirv_parser::Instruction>(
+        &self,
+        target_properties: Interned<'g, TargetProperties>,
+        _global_state: &'g GlobalState<'g>,
+        _type_id: IdRef,
+        _instruction: I,
+    ) -> TranslationResult<Alignment> {
+        Ok(self.ir_type.alignment(&target_properties))
+    }
 }
 
 impl<'g> GenericSPIRVType<'g> for FloatType {
@@ -113,6 +129,15 @@ impl<'g> GenericSPIRVType<'g> for FloatType {
             FloatType::Float16 | FloatType::Float64 => None,
         }
     }
+    fn get_alignment<I: FnOnce() -> spirv_parser::Instruction>(
+        &self,
+        target_properties: Interned<'g, TargetProperties>,
+        _global_state: &'g GlobalState<'g>,
+        _type_id: IdRef,
+        _instruction: I,
+    ) -> TranslationResult<Alignment> {
+        Ok(self.alignment(&target_properties))
+    }
 }
 
 impl<'g> GenericSPIRVType<'g> for BoolType {
@@ -124,6 +149,15 @@ impl<'g> GenericSPIRVType<'g> for BoolType {
     }
     fn get_relaxed_precision_type(&self) -> Option<SPIRVType<'g>> {
         None
+    }
+    fn get_alignment<I: FnOnce() -> spirv_parser::Instruction>(
+        &self,
+        target_properties: Interned<'g, TargetProperties>,
+        _global_state: &'g GlobalState<'g>,
+        _type_id: IdRef,
+        _instruction: I,
+    ) -> TranslationResult<Alignment> {
+        Ok(self.alignment(&target_properties))
     }
 }
 
@@ -169,6 +203,19 @@ macro_rules! impl_scalar_type {
                 match self {
                     $(
                         Self::$member_name(ty) => ty.get_relaxed_precision_type(),
+                    )+
+                }
+            }
+            fn get_alignment<I: FnOnce() -> spirv_parser::Instruction>(
+                &self,
+                target_properties: Interned<'g, TargetProperties>,
+                global_state: &'g GlobalState<'g>,
+                type_id: IdRef,
+                instruction: I,
+            ) -> TranslationResult<Alignment> {
+                match self {
+                    $(
+                        Self::$member_name(ty) => ty.get_alignment(target_properties, global_state, type_id, instruction),
                     )+
                 }
             }
@@ -225,6 +272,19 @@ impl<'g> GenericSPIRVType<'g> for VoidType {
     }
     fn get_relaxed_precision_type(&self) -> Option<SPIRVType<'g>> {
         None
+    }
+    fn get_alignment<I: FnOnce() -> spirv_parser::Instruction>(
+        &self,
+        _target_properties: Interned<'g, TargetProperties>,
+        _global_state: &'g GlobalState<'g>,
+        type_id: IdRef,
+        instruction: I,
+    ) -> TranslationResult<Alignment> {
+        Err(VoidNotAllowedHere {
+            type_id,
+            instruction: instruction(),
+        }
+        .into())
     }
 }
 
@@ -287,6 +347,15 @@ impl<'g> GenericSPIRVType<'g> for FunctionType<'g> {
     fn get_relaxed_precision_type(&self) -> Option<SPIRVType<'g>> {
         None
     }
+    fn get_alignment<I: FnOnce() -> spirv_parser::Instruction>(
+        &self,
+        _target_properties: Interned<'g, TargetProperties>,
+        _global_state: &'g GlobalState<'g>,
+        _type_id: IdRef,
+        _instruction: I,
+    ) -> TranslationResult<Alignment> {
+        todo!()
+    }
 }
 
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
@@ -335,6 +404,18 @@ impl<'g> GenericSPIRVType<'g> for VectorType {
             }
             .into(),
         )
+    }
+    fn get_alignment<I: FnOnce() -> spirv_parser::Instruction>(
+        &self,
+        target_properties: Interned<'g, TargetProperties>,
+        global_state: &'g GlobalState<'g>,
+        type_id: IdRef,
+        instruction: I,
+    ) -> TranslationResult<Alignment> {
+        Ok(self
+            .get_ir_type(global_state)?
+            .expect("known to be non-void")
+            .alignment(&target_properties))
     }
 }
 
@@ -394,6 +475,15 @@ impl<'g> GenericSPIRVType<'g> for PointerType<'g> {
     }
     fn get_relaxed_precision_type(&self) -> Option<SPIRVType<'g>> {
         None
+    }
+    fn get_alignment<I: FnOnce() -> spirv_parser::Instruction>(
+        &self,
+        _target_properties: Interned<'g, TargetProperties>,
+        _global_state: &'g GlobalState<'g>,
+        _type_id: IdRef,
+        _instruction: I,
+    ) -> TranslationResult<Alignment> {
+        todo!()
     }
 }
 
@@ -478,6 +568,35 @@ impl<'g> GenericSPIRVType<'g> for SPIRVType<'g> {
             SPIRVType::Vector(ty) => ty.get_relaxed_precision_type(),
             SPIRVType::Struct(ty) => ty.get_relaxed_precision_type(),
             SPIRVType::Pointer(ty) => ty.get_relaxed_precision_type(),
+            SPIRVType::_Uninhabited(v) => v.into(),
+        }
+    }
+    fn get_alignment<I: FnOnce() -> spirv_parser::Instruction>(
+        &self,
+        target_properties: Interned<'g, TargetProperties>,
+        global_state: &'g GlobalState<'g>,
+        type_id: IdRef,
+        instruction: I,
+    ) -> TranslationResult<Alignment> {
+        match self {
+            SPIRVType::Scalar(ty) => {
+                ty.get_alignment(target_properties, global_state, type_id, instruction)
+            }
+            SPIRVType::Void(ty) => {
+                ty.get_alignment(target_properties, global_state, type_id, instruction)
+            }
+            SPIRVType::Function(ty) => {
+                ty.get_alignment(target_properties, global_state, type_id, instruction)
+            }
+            SPIRVType::Vector(ty) => {
+                ty.get_alignment(target_properties, global_state, type_id, instruction)
+            }
+            SPIRVType::Struct(ty) => {
+                ty.get_alignment(target_properties, global_state, type_id, instruction)
+            }
+            SPIRVType::Pointer(ty) => {
+                ty.get_alignment(target_properties, global_state, type_id, instruction)
+            }
             SPIRVType::_Uninhabited(v) => v.into(),
         }
     }

@@ -6,7 +6,9 @@ pub(crate) mod instruction_dispatch;
 
 mod annotations;
 mod capability;
+mod composite_instructions;
 mod constants;
+mod conversion_instructions;
 mod debug_locations;
 mod debug_module_processed;
 mod debug_names;
@@ -98,7 +100,7 @@ impl<'g, 'i> TranslationStateParsedAnnotations<'g, 'i> {
         )?;
         while let Some((instruction, location)) = state.next_instruction_and_location()? {
             if let Instruction::Function(_) = instruction {
-                state.spirv_instructions_location = location;
+                state.set_spirv_instructions_location(location);
                 break;
             }
             instruction.parse_in_types_constants_globals_section(&mut state)?;
@@ -170,8 +172,13 @@ impl<'g, 'i> TranslationStateBase<'g, 'i> {
     fn next_instruction_and_location(
         &mut self,
     ) -> TranslationResult<Option<(&'i Instruction, SPIRVInstructionLocation<'i>)>> {
-        write!(self.debug_output, "{:?}", self.spirv_instructions_location)?;
-        Ok(self.spirv_instructions_location.next())
+        self.spirv_instructions_current_location = self.spirv_instructions_next_location.clone();
+        write!(
+            self.debug_output,
+            "{:?}",
+            self.spirv_instructions_current_location
+        )?;
+        Ok(self.spirv_instructions_next_location.next())
     }
     fn next_instruction(&mut self) -> TranslationResult<Option<&'i Instruction>> {
         Ok(self

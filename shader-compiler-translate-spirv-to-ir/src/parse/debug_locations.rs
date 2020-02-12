@@ -41,6 +41,11 @@ impl<'g, 'i> TranslationStateParseBaseTypesConstantsAndGlobals<'g, 'i> {
         }
         Ok(self.debug_locations.get(location.index).copied().flatten())
     }
+    pub(crate) fn get_current_debug_location(
+        &mut self,
+    ) -> TranslationResult<Option<Interned<'g, Location<'g>>>> {
+        self.get_debug_location(self.spirv_instructions_current_location.clone())
+    }
 }
 
 impl ParseInstruction for OpLine {

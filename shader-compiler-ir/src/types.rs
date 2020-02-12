@@ -7,6 +7,7 @@ use crate::{
         FromTextError, FromTextState, IntegerToken, Keyword, NewOrOld, Punctuation, ToTextState,
         TokenKind,
     },
+    TargetProperties,
 };
 use alloc::vec::Vec;
 use core::{
@@ -30,6 +31,8 @@ pub trait GenericType<'g>: Internable<'g, Interned = Type<'g>> {
     ) -> ValueDefinition<'g> {
         ValueDefinition::new(self, name, global_state)
     }
+    /// get the required alignment for `self`
+    fn alignment(&self, target_properties: &TargetProperties) -> Alignment;
 }
 
 /// an integer type
@@ -54,7 +57,16 @@ impl<'g> Internable<'g> for IntegerType {
     }
 }
 
-impl<'g> GenericType<'g> for IntegerType {}
+impl<'g> GenericType<'g> for IntegerType {
+    fn alignment(&self, _target_properties: &TargetProperties) -> Alignment {
+        match self {
+            IntegerType::Int8 => Alignment::new(1).unwrap(),
+            IntegerType::Int16 => Alignment::new(2).unwrap(),
+            IntegerType::Int32 | IntegerType::RelaxedInt32 => Alignment::new(4).unwrap(),
+            IntegerType::Int64 => Alignment::new(8).unwrap(),
+        }
+    }
+}
 
 impl From<IntegerType> for Type<'_> {
     fn from(v: IntegerType) -> Self {
@@ -82,7 +94,15 @@ impl<'g> Internable<'g> for FloatType {
     }
 }
 
-impl<'g> GenericType<'g> for FloatType {}
+impl<'g> GenericType<'g> for FloatType {
+    fn alignment(&self, _target_properties: &TargetProperties) -> Alignment {
+        match self {
+            FloatType::Float16 => Alignment::new(2).unwrap(),
+            FloatType::Float32 | FloatType::RelaxedFloat32 => Alignment::new(4).unwrap(),
+            FloatType::Float64 => Alignment::new(8).unwrap(),
+        }
+    }
+}
 
 impl From<FloatType> for Type<'_> {
     fn from(v: FloatType) -> Self {
@@ -115,7 +135,13 @@ impl<'g> Internable<'g> for OpaqueType<'g> {
     }
 }
 
-impl<'g> GenericType<'g> for OpaqueType<'g> {}
+impl<'g> GenericType<'g> for OpaqueType<'g> {
+    fn alignment(&self, _target_properties: &TargetProperties) -> Alignment {
+        match self {
+            OpaqueType::_Unimplemented(_, v) => match *v {},
+        }
+    }
+}
 
 /// the `bool` type
 #[derive(Copy, Clone, Eq, PartialEq, Hash)]
@@ -128,7 +154,11 @@ impl<'g> Internable<'g> for BoolType {
     }
 }
 
-impl<'g> GenericType<'g> for BoolType {}
+impl<'g> GenericType<'g> for BoolType {
+    fn alignment(&self, _target_properties: &TargetProperties) -> Alignment {
+        Alignment::new(1).unwrap()
+    }
+}
 
 impl From<BoolType> for Type<'_> {
     fn from(v: BoolType) -> Self {
@@ -147,7 +177,13 @@ impl<'g> Internable<'g> for DataPointerType {
     }
 }
 
-impl<'g> GenericType<'g> for DataPointerType {}
+impl<'g> GenericType<'g> for DataPointerType {
+    fn alignment(&self, target_properties: &TargetProperties) -> Alignment {
+        target_properties
+            .data_pointer_underlying_type
+            .alignment(target_properties)
+    }
+}
 
 impl DataPointerType {
     /// create a null pointer constant
@@ -197,7 +233,14 @@ impl<'g> Internable<'g> for PointerType<'g> {
     }
 }
 
-impl<'g> GenericType<'g> for PointerType<'g> {}
+impl<'g> GenericType<'g> for PointerType<'g> {
+    fn alignment(&self, target_properties: &TargetProperties) -> Alignment {
+        match self {
+            PointerType::Data(v) => v.alignment(target_properties),
+            PointerType::Function(v) => v.alignment(target_properties),
+        }
+    }
+}
 
 /// a vector type.
 ///
@@ -222,7 +265,11 @@ impl<'g> Internable<'g> for VectorType<'g> {
     }
 }
 
-impl<'g> GenericType<'g> for VectorType<'g> {}
+impl<'g> GenericType<'g> for VectorType<'g> {
+    fn alignment(&self, target_properties: &TargetProperties) -> Alignment {
+        self.element.alignment(target_properties)
+    }
+}
 
 impl<'g> From<VectorType<'g>> for Type<'g> {
     fn from(v: VectorType<'g>) -> Self {
@@ -264,7 +311,13 @@ impl<'g> Internable<'g> for FunctionPointerType<'g> {
     }
 }
 
-impl<'g> GenericType<'g> for FunctionPointerType<'g> {}
+impl<'g> GenericType<'g> for FunctionPointerType<'g> {
+    fn alignment(&self, target_properties: &TargetProperties) -> Alignment {
+        target_properties
+            .function_pointer_underlying_type
+            .alignment(target_properties)
+    }
+}
 
 impl<'g> FunctionPointerType<'g> {
     /// create a null pointer constant
@@ -363,7 +416,11 @@ impl<'g> Internable<'g> for StructType<'g> {
     }
 }
 
-impl<'g> GenericType<'g> for StructType<'g> {}
+impl<'g> GenericType<'g> for StructType<'g> {
+    fn alignment(&self, _target_properties: &TargetProperties) -> Alignment {
+        self.alignment
+    }
+}
 
 impl_display_as_to_text!(<'g> StructType<'g>);
 
@@ -386,9 +443,25 @@ pub enum Type<'g> {
     Struct(StructType<'g>),
 }
 
-impl<'g> GenericType<'g> for Type<'g> {}
+impl<'g> GenericType<'g> for Type<'g> {
+    fn alignment(&self, target_properties: &TargetProperties) -> Alignment {
+        match self {
+            Type::Integer(v) => v.alignment(target_properties),
+            Type::Float(v) => v.alignment(target_properties),
+            Type::Bool(v) => v.alignment(target_properties),
+            Type::Pointer(v) => v.alignment(target_properties),
+            Type::Vector(v) => v.alignment(target_properties),
+            Type::Opaque(v) => v.alignment(target_properties),
+            Type::Struct(v) => v.alignment(target_properties),
+        }
+    }
+}
 
-impl<'g> GenericType<'g> for Interned<'g, Type<'g>> {}
+impl<'g> GenericType<'g> for Interned<'g, Type<'g>> {
+    fn alignment(&self, target_properties: &TargetProperties) -> Alignment {
+        self.get().alignment(target_properties)
+    }
+}
 
 /// if a type or value `T` is inhabited (is reachable)
 #[derive(Clone, Eq, PartialEq, Hash)]

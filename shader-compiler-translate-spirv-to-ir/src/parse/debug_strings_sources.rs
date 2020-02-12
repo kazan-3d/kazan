@@ -55,7 +55,7 @@ impl<'g, 'i> TranslationStateParsedExecutionModes<'g, 'i> {
                 | Instruction::SourceExtension(_)
                 | Instruction::SourceContinued(_) => {}
                 _ => {
-                    state.spirv_instructions_location = location;
+                    state.set_spirv_instructions_location(location);
                     break;
                 }
             }

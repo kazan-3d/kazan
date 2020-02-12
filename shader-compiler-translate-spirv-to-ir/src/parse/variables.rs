@@ -275,8 +275,15 @@ impl ParseInstruction for OpVariable {
             result_type_pointee.pointee_type_id,
             || self.clone().into(),
         )?;
+        let alignment = result_type_pointee.pointee_type.get_alignment(
+            state.target_properties,
+            state.global_state,
+            result_type_pointee.pointee_type_id,
+            || self.clone().into(),
+        )?;
         let variable = shader_compiler_ir::Variable {
             variable_type,
+            alignment,
             pointer: shader_compiler_ir::ValueDefinition::new(
                 shader_compiler_ir::DataPointerType,
                 state.get_or_make_debug_name(id_result.0)?,

@@ -84,6 +84,31 @@ impl<'g> GenericSPIRVValue<'g> for SPIRVVariable<'g> {
     }
 }
 
+#[derive(Clone, Debug)]
+pub(crate) struct SimpleValue<'g> {
+    pub(crate) ir_value: shader_compiler_ir::ValueUse<'g>,
+    pub(crate) result_type: SPIRVType<'g>,
+    pub(crate) object: SPIRVObject,
+}
+
+impl_decoration_aspect_members! {
+    struct SimpleValue<'_> {
+        object: SPIRVObject,
+    }
+}
+
+impl<'g> GenericSPIRVValue<'g> for SimpleValue<'g> {
+    fn get_type(&self) -> SPIRVType<'g> {
+        self.result_type.clone()
+    }
+    fn get_ir_value(
+        &self,
+        _global_state: &'g GlobalState<'g>,
+    ) -> TranslationResult<shader_compiler_ir::ValueUse<'g>> {
+        Ok(self.ir_value.clone())
+    }
+}
+
 macro_rules! impl_spirv_value {
     (
         $vis:vis enum $name:ident<$g:lifetime> {
@@ -140,5 +165,6 @@ impl_spirv_value! {
         Variable(SPIRVVariable<'g>),
         Constant(SPIRVConstant<'g>),
         FunctionParameter(SPIRVFunctionParameter<'g>),
+        Simple(SimpleValue<'g>),
     }
 }

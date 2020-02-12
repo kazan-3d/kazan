@@ -91,7 +91,7 @@ impl<'g, 'i> TranslationStateBase<'g, 'i> {
             if let Instruction::Capability(instruction) = instruction {
                 state.parse_capability_instruction(instruction)?;
             } else {
-                state.spirv_instructions_location = location;
+                state.set_spirv_instructions_location(location);
                 break;
             }
         }

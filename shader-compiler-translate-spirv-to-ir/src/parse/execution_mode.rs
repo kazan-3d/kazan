@@ -180,7 +180,7 @@ impl<'g, 'i> TranslationStateParsedEntryPoints<'g, 'i> {
                     ref mode,
                 }) => state.parse_execution_mode_instruction(entry_point, mode)?,
                 _ => {
-                    state.spirv_instructions_location = location;
+                    state.set_spirv_instructions_location(location);
                     break;
                 }
             }
