@@ -21,13 +21,14 @@ mod debug_info;
 mod function;
 mod global_state;
 mod instructions_impl;
+mod module;
 mod target_properties;
 mod types;
 mod values;
 
 pub use crate::{
     block::*, consts::*, debug_info::*, function::*, global_state::*, instructions_impl::*,
-    target_properties::*, types::*, values::*,
+    module::*, target_properties::*, types::*, values::*,
 };
 pub use once_cell::unsync::OnceCell;
 

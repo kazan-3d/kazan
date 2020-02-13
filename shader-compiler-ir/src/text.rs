@@ -490,6 +490,7 @@ keywords! {
         Const = "const",
         DataPtr = "data_ptr",
         DontInline = "dont_inline",
+        EntryPoint = "entry_point",
         F16 = "f16",
         F32 = "f32",
         F64 = "f64",
@@ -501,6 +502,7 @@ keywords! {
         I64 = "i64",
         I8 = "i8",
         Inline = "inline",
+        Module = "module",
         None = "none",
         Normal = "normal",
         Null = "null",
@@ -1732,7 +1734,7 @@ pub trait ToText<'g> {
     ///
     /// should not be used from `ToText` implementations, `ToText::to_text` should instead be called.
     fn display(&self) -> ToTextDisplay<'g, '_, Self> {
-        ToTextDisplay(self, PhantomData)
+        ToTextDisplay::new(self, true)
     }
     /// convert `self` to text.
     ///
@@ -1741,13 +1743,27 @@ pub trait ToText<'g> {
 }
 
 /// helper struct to allow a type implementing `ToText` to be used with `core::fmt`.
-pub struct ToTextDisplay<'g, 'a, T: ToText<'g> + ?Sized>(&'a T, PhantomData<&'g ()>);
+pub struct ToTextDisplay<'g, 'a, T: ToText<'g> + ?Sized> {
+    value: &'a T,
+    is_fragment: bool,
+    _phantom: PhantomData<&'g ()>,
+}
+
+impl<'g, 'a, T: ToText<'g> + ?Sized> ToTextDisplay<'g, 'a, T> {
+    pub(crate) fn new(value: &'a T, is_fragment: bool) -> Self {
+        Self {
+            value,
+            is_fragment,
+            _phantom: PhantomData,
+        }
+    }
+}
 
 impl<'g, T: ToText<'g> + ?Sized> fmt::Display for ToTextDisplay<'g, '_, T> {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        self.0.to_text(&mut ToTextState::new(
+        self.value.to_text(&mut ToTextState::new(
             &mut |text: &str| formatter.write_str(text),
-            true,
+            self.is_fragment,
         ))
     }
 }

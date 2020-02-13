@@ -7,5 +7,5 @@ pub use crate::{
     text::{FromText, FromTextCharExt, ToText},
     Block, BlockData, BlockRef, CodeIO, Const, Function, FunctionData, FunctionRef, GenericType,
     GlobalState, Id, IdMethod, Inhabitable, Inhabited, Instruction, Internable, Interned, Location,
-    Loop, LoopData, LoopRef, Type, Uninhabited, Value, ValueDefinition, ValueUse,
+    Loop, LoopData, LoopRef, Module, Type, Uninhabited, Value, ValueDefinition, ValueUse,
 };
