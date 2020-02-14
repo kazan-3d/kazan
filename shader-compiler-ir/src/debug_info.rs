@@ -3,7 +3,9 @@
 
 use crate::{
     prelude::*,
-    text::{FromTextError, FromTextState, IntegerToken, Punctuation, ToTextState},
+    text::{
+        FromTextError, FromTextState, FromToTextListForm, IntegerToken, Punctuation, ToTextState,
+    },
 };
 use core::{convert::TryInto, fmt};
 
@@ -32,6 +34,8 @@ impl<'g> Location<'g> {
 }
 
 impl_display_as_to_text!(<'g> Location<'g>);
+
+impl FromToTextListForm for Location<'_> {}
 
 impl<'g> ToText<'g> for Location<'g> {
     fn to_text(&self, state: &mut ToTextState<'g, '_>) -> fmt::Result {

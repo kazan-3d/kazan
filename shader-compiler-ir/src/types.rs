@@ -4,8 +4,8 @@
 use crate::{
     prelude::*,
     text::{
-        FromTextError, FromTextState, IntegerToken, Keyword, NewOrOld, Punctuation, ToTextState,
-        TokenKind,
+        FromTextError, FromTextState, FromToTextListForm, IntegerToken, Keyword, ListForm,
+        NewOrOld, Punctuation, ToTextState, TokenKind,
     },
     TargetProperties,
 };
@@ -519,6 +519,12 @@ impl<T> Inhabitable<T> {
     }
 }
 
+impl<T: FromToTextListForm> FromToTextListForm for Inhabitable<T> {
+    fn from_to_text_list_form() -> ListForm {
+        T::from_to_text_list_form()
+    }
+}
+
 impl<'g, T: FromText<'g>> FromText<'g> for Inhabitable<T> {
     type Parsed = Inhabitable<T::Parsed>;
     fn from_text(state: &mut FromTextState<'g, '_>) -> Result<Self::Parsed, FromTextError> {
@@ -546,6 +552,8 @@ macro_rules! impl_from_to_text_for_keyword_type {
         $($kw:ident => $value:path,)+
         _ => $error_msg:expr,
     }) => {
+        impl FromToTextListForm for $type {}
+
         impl<'g> FromText<'g> for $type {
             type Parsed = Self;
             fn from_text(state: &mut FromTextState<'g, '_>) -> Result<Self, FromTextError> {
@@ -599,6 +607,8 @@ impl_from_to_text_for_keyword_type! {
         _ => "invalid bool type",
     }
 }
+
+impl FromToTextListForm for VectorType<'_> {}
 
 impl<'g> FromText<'g> for VectorType<'g> {
     type Parsed = Self;
@@ -667,6 +677,8 @@ impl<'g> ToText<'g> for VectorType<'g> {
     }
 }
 
+impl FromToTextListForm for DataPointerType {}
+
 impl<'g> FromText<'g> for DataPointerType {
     type Parsed = Self;
     fn from_text(state: &mut FromTextState<'g, '_>) -> Result<Self, FromTextError> {
@@ -674,6 +686,8 @@ impl<'g> FromText<'g> for DataPointerType {
         Ok(DataPointerType)
     }
 }
+
+impl FromToTextListForm for PointerType<'_> {}
 
 impl<'g> FromText<'g> for PointerType<'g> {
     type Parsed = Self;
@@ -708,6 +722,8 @@ impl<'g> ToText<'g> for PointerType<'g> {
     }
 }
 
+impl FromToTextListForm for OpaqueType<'_> {}
+
 impl<'g> FromText<'g> for OpaqueType<'g> {
     type Parsed = Self;
     fn from_text(state: &mut FromTextState<'g, '_>) -> Result<Self, FromTextError> {
@@ -727,6 +743,8 @@ impl<'g> ToText<'g> for OpaqueType<'g> {
         }
     }
 }
+
+impl FromToTextListForm for FunctionPointerType<'_> {}
 
 impl<'g> FromText<'g> for FunctionPointerType<'g> {
     type Parsed = Self;
@@ -753,6 +771,8 @@ impl<'g> ToText<'g> for FunctionPointerType<'g> {
         returns.to_text(state)
     }
 }
+
+impl FromToTextListForm for StructSize {}
 
 impl<'g> FromText<'g> for StructSize {
     type Parsed = Self;
@@ -807,6 +827,8 @@ impl<'g> ToText<'g> for StructSize {
         }
     }
 }
+
+impl FromToTextListForm for Alignment {}
 
 impl<'g> FromText<'g> for Alignment {
     type Parsed = Self;
@@ -896,6 +918,12 @@ impl<'g> FromText<'g> for StructMember<'g> {
     }
 }
 
+impl FromToTextListForm for StructMember<'_> {
+    fn from_to_text_list_form() -> ListForm {
+        ListForm::STATEMENTS
+    }
+}
+
 impl<'g> ToText<'g> for StructMember<'g> {
     fn to_text(&self, state: &mut ToTextState<'g, '_>) -> fmt::Result {
         let StructMember {
@@ -906,6 +934,8 @@ impl<'g> ToText<'g> for StructMember<'g> {
         member_type.to_text(state)
     }
 }
+
+impl FromToTextListForm for StructType<'_> {}
 
 impl<'g> FromText<'g> for StructType<'g> {
     type Parsed = Self;
@@ -1015,6 +1045,8 @@ impl<'g> ToText<'g> for StructType<'g> {
         }
     }
 }
+
+impl FromToTextListForm for Type<'_> {}
 
 impl<'g> FromText<'g> for Type<'g> {
     type Parsed = Interned<'g, Type<'g>>;

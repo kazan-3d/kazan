@@ -3,7 +3,7 @@
 
 use crate::{
     prelude::*,
-    text::{FromTextError, FromTextState, ToTextState},
+    text::{FromTextError, FromTextState, FromToTextListForm, ListForm, ToTextState},
     TargetProperties,
 };
 use alloc::string::String;
@@ -135,6 +135,12 @@ impl<'g, T: Id<'g>> Hash for IdRef<'g, T> {
     }
 }
 
+impl<'g, T: Id<'g> + FromToTextListForm> FromToTextListForm for IdRef<'g, T> {
+    fn from_to_text_list_form() -> ListForm {
+        T::from_to_text_list_form()
+    }
+}
+
 impl<'g, T: Id<'g> + FromText<'g, Parsed = Self>> FromText<'g> for IdRef<'g, T> {
     type Parsed = Self;
     fn from_text(state: &mut FromTextState<'g, '_>) -> Result<Self, FromTextError> {
@@ -156,6 +162,12 @@ pub(crate) trait Allocate<'g, T: Id<'g>> {
 /// a reference to an interned value. Create using `Internable::intern`
 #[repr(transparent)]
 pub struct Interned<'g, T: ?Sized + Eq + Hash>(&'g T);
+
+impl<'g, T: ?Sized + Eq + Hash + FromToTextListForm> FromToTextListForm for Interned<'g, T> {
+    fn from_to_text_list_form() -> ListForm {
+        T::from_to_text_list_form()
+    }
+}
 
 impl<'g, T: ?Sized + Eq + Hash + FromText<'g, Parsed = Self>> FromText<'g> for Interned<'g, T> {
     type Parsed = Self;

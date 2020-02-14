@@ -4,8 +4,8 @@
 use crate::{
     prelude::*,
     text::{
-        FromTextError, FromTextState, IntegerSuffix, IntegerToken, Keyword, Punctuation,
-        ToTextState, TokenKind,
+        FromTextError, FromTextState, FromToTextListForm, IntegerSuffix, IntegerToken, Keyword,
+        Punctuation, ToTextState, TokenKind,
     },
     BoolType, FloatType, IntegerType, PointerType, VectorType,
 };
@@ -325,6 +325,8 @@ impl<'g> Const<'g> {
     }
 }
 
+impl FromToTextListForm for ConstInteger {}
+
 impl<'g> FromText<'g> for ConstInteger {
     type Parsed = Self;
     fn from_text(state: &mut FromTextState<'g, '_>) -> Result<Self, FromTextError> {
@@ -371,6 +373,8 @@ impl<'g> ToText<'g> for ConstInteger {
     }
 }
 
+impl FromToTextListForm for ConstFloat {}
+
 impl<'g> FromText<'g> for ConstFloat {
     type Parsed = Self;
     fn from_text(state: &mut FromTextState<'g, '_>) -> Result<Self, FromTextError> {
@@ -403,11 +407,15 @@ impl<'g> FromText<'g> for ConstFloat {
 
 impl_display_as_to_text!(ConstFloat);
 
+impl FromToTextListForm for Float16 {}
+
 impl<'g> ToText<'g> for Float16 {
     fn to_text(&self, state: &mut ToTextState<'g, '_>) -> fmt::Result {
         write!(state, "f16 {:#X}", self.0)
     }
 }
+
+impl FromToTextListForm for Float32 {}
 
 impl<'g> ToText<'g> for Float32 {
     fn to_text(&self, state: &mut ToTextState<'g, '_>) -> fmt::Result {
@@ -415,11 +423,15 @@ impl<'g> ToText<'g> for Float32 {
     }
 }
 
+impl FromToTextListForm for RelaxedFloat32 {}
+
 impl<'g> ToText<'g> for RelaxedFloat32 {
     fn to_text(&self, state: &mut ToTextState<'g, '_>) -> fmt::Result {
         write!(state, "rf32 {:#X}", self.0)
     }
 }
+
+impl FromToTextListForm for Float64 {}
 
 impl<'g> ToText<'g> for Float64 {
     fn to_text(&self, state: &mut ToTextState<'g, '_>) -> fmt::Result {
@@ -437,6 +449,8 @@ impl<'g> ToText<'g> for ConstFloat {
         }
     }
 }
+
+impl FromToTextListForm for bool {}
 
 impl<'g> FromText<'g> for bool {
     type Parsed = Self;
@@ -460,6 +474,8 @@ impl<'g> ToText<'g> for bool {
         }
     }
 }
+
+impl FromToTextListForm for ConstVector<'_> {}
 
 impl<'g> FromText<'g> for ConstVector<'g> {
     type Parsed = Self;
@@ -503,6 +519,8 @@ impl<'g> ToText<'g> for ConstVector<'g> {
         write!(state, ">")
     }
 }
+
+impl FromToTextListForm for Const<'_> {}
 
 impl<'g> FromText<'g> for Const<'g> {
     type Parsed = Interned<'g, Const<'g>>;

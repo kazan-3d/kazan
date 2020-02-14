@@ -5,7 +5,8 @@ use crate::{
     prelude::*,
     text::{
         FromTextError, FromTextScopeId, FromTextState, FromTextSymbol, FromTextSymbolsState,
-        FromTextSymbolsStateBase, Keyword, NamedId, Punctuation, ToTextState, TokenKind,
+        FromTextSymbolsStateBase, FromToTextListForm, Keyword, ListForm, NamedId, Punctuation,
+        ToTextState, TokenKind,
     },
     Alignment, Allocate, DataPointerType, FunctionPointerType, IdRef, OnceCell,
     ParsedBlockNameDefinition,
@@ -50,6 +51,8 @@ impl Default for InliningHint {
 }
 
 impl_display_as_to_text!(InliningHint);
+
+impl FromToTextListForm for InliningHint {}
 
 impl<'g> FromText<'g> for InliningHint {
     type Parsed = Self;
@@ -105,6 +108,8 @@ impl Default for FunctionSideEffects {
 }
 
 impl_display_as_to_text!(FunctionSideEffects);
+
+impl FromToTextListForm for FunctionSideEffects {}
 
 impl<'g> FromText<'g> for FunctionSideEffects {
     type Parsed = Self;
@@ -185,6 +190,12 @@ impl<'g> FromText<'g> for Variable<'g> {
             alignment,
             pointer,
         })
+    }
+}
+
+impl FromToTextListForm for Variable<'_> {
+    fn from_to_text_list_form() -> ListForm {
+        ListForm::STATEMENTS
     }
 }
 
@@ -332,6 +343,8 @@ impl<'g> FromText<'g> for FunctionRef<'g> {
 
 impl_display_as_to_text!(<'g> FunctionRef<'g>);
 
+impl FromToTextListForm for FunctionRef<'_> {}
+
 impl<'g> ToText<'g> for FunctionRef<'g> {
     fn to_text(&self, state: &mut ToTextState<'g, '_>) -> fmt::Result {
         let name = state.get_function_named_id(self.value());
@@ -416,6 +429,12 @@ impl<'g> FromText<'g> for Function<'g> {
                 Ok(function)
             },
         )
+    }
+}
+
+impl FromToTextListForm for Function<'_> {
+    fn from_to_text_list_form() -> ListForm {
+        ListForm::STATEMENTS
     }
 }
 

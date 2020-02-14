@@ -8,6 +8,7 @@ use alloc::{
     string::{String, ToString},
     vec::Vec,
 };
+use arrayvec::{Array, ArrayVec};
 use core::{
     borrow::{Borrow, BorrowMut},
     fmt,
@@ -68,6 +69,12 @@ macro_rules! impl_struct_with_default_from_to_text {
                         $member: $member_init,
                     )+
                 }
+            }
+        }
+
+        impl crate::text::FromToTextListForm for $struct_name {
+            fn from_to_text_list_form() -> crate::text::ListForm {
+                crate::text::ListForm::STATEMENTS
             }
         }
 
@@ -502,6 +509,7 @@ keywords! {
         I64 = "i64",
         I8 = "i8",
         Inline = "inline",
+        Kind = "kind",
         Module = "module",
         None = "none",
         Normal = "normal",
@@ -1380,7 +1388,7 @@ impl<'g, 't> FromTextState<'g, 't> {
 }
 
 /// parse text
-pub trait FromText<'g> {
+pub trait FromText<'g>: FromToTextListForm {
     /// the type produced by parsing text successfully
     type Parsed: Sized;
     /// top-level parse function -- should not be called from `from_text` implementations
@@ -1435,6 +1443,8 @@ impl<'g> NamedId<'g> {
     }
 }
 
+impl FromToTextListForm for NamedId<'_> {}
+
 impl<'g> FromText<'g> for NamedId<'g> {
     type Parsed = Self;
     fn from_text(state: &mut FromTextState<'g, '_>) -> Result<Self, FromTextError> {
@@ -1487,6 +1497,8 @@ impl<'g> ToText<'g> for NamedId<'g> {
         }
     }
 }
+
+impl FromToTextListForm for str {}
 
 impl<'g> ToText<'g> for str {
     fn to_text(&self, state: &mut ToTextState<'g, '_>) -> fmt::Result {
@@ -1726,10 +1738,252 @@ impl fmt::Write for ToTextState<'_, '_> {
     }
 }
 
+/// the textual form of a list
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
+pub struct ListForm {
+    /// the opening punctuation for a list
+    ///
+    /// For the list `[a, b]`, the opening punctuation is the `[`.
+    pub opening_punct: Punctuation,
+    /// the error message for when the opening punctuation is missing
+    pub opening_punct_missing_msg: &'static str,
+    /// the closing punctuation for a list
+    ///
+    /// For the list `[a, b]`, the closing punctuation is the `]`.
+    pub closing_punct: Punctuation,
+    /// the error message for when the closing punctuation is missing
+    pub closing_punct_missing_msg: &'static str,
+    /// the punctuation that comes after each item in a list
+    ///
+    /// for the list `[a, b, c]`, the item terminator is the `,`.
+    pub item_terminator: Punctuation,
+    /// the error message for when an item terminator is missing
+    pub item_terminator_missing_msg: &'static str,
+    /// If the final item terminator is required when parsing
+    ///
+    /// If this is set, then lists like `[a, b, c]` are not allowed because there isn't a `,` after the `c`.
+    pub final_item_terminator_required: bool,
+    /// If the final item terminator is produced when converting to text
+    ///
+    /// If this is set, then lists are produced like `[a, b, c,]` instead of like `[a, b, c]`.
+    pub final_item_terminator_displayed: bool,
+    /// If the list, when converted to text, is spread over multiple lines instead of all on one line.
+    ///
+    /// If this is set, then lists are produced like:
+    /// ```text
+    /// {
+    ///     a;
+    ///     b;
+    ///     c;
+    /// }
+    /// ```
+    /// instead of:
+    /// ```text
+    /// {a; b; c;}
+    /// ```
+    pub multi_line: bool,
+}
+
+impl ListForm {
+    /// use `[a, b, c]`
+    pub const SQUARE_BRACKETS: ListForm = ListForm {
+        opening_punct: Punctuation::LSquareBracket,
+        opening_punct_missing_msg: "missing opening square bracket (`[`)",
+        closing_punct: Punctuation::RSquareBracket,
+        closing_punct_missing_msg: "missing closing square bracket (`]`)",
+        item_terminator: Punctuation::Comma,
+        item_terminator_missing_msg: "missing comma after item (`,`)",
+        final_item_terminator_required: false,
+        final_item_terminator_displayed: false,
+        multi_line: false,
+    };
+    /// use:
+    /// ```text
+    /// {
+    ///     a;
+    ///     b;
+    ///     c;
+    /// }
+    /// ```
+    pub const STATEMENTS: ListForm = ListForm {
+        opening_punct: Punctuation::LCurlyBrace,
+        opening_punct_missing_msg: "missing opening curly brace (`{`)",
+        closing_punct: Punctuation::RCurlyBrace,
+        closing_punct_missing_msg: "missing closing curly brace (`}`)",
+        item_terminator: Punctuation::Semicolon,
+        item_terminator_missing_msg: "missing semicolon after item (`;`)",
+        final_item_terminator_required: true,
+        final_item_terminator_displayed: true,
+        multi_line: true,
+    };
+    /// parse a list, calling `parse_item` to parse each item in the list
+    pub fn parse_list<'g, 'a>(
+        self,
+        state: &mut FromTextState<'g, 'a>,
+        parse_item: impl FnMut(&mut FromTextState<'g, 'a>) -> Result<(), FromTextError>,
+    ) -> Result<(), FromTextError> {
+        self.parse_list_with_extra_callbacks(state, |_| Ok(()), parse_item)
+    }
+    /// parse a list, calling `after_opening_punct` after parsing `self.opening_punct`,
+    /// calling `parse_item` to parse each item in the list
+    pub fn parse_list_with_extra_callbacks<'g, 'a, R>(
+        self,
+        state: &mut FromTextState<'g, 'a>,
+        after_opening_punct: impl FnOnce(&mut FromTextState<'g, 'a>) -> Result<R, FromTextError>,
+        mut parse_item: impl FnMut(&mut FromTextState<'g, 'a>) -> Result<(), FromTextError>,
+    ) -> Result<R, FromTextError> {
+        state.parse_parenthesized(
+            self.opening_punct,
+            self.opening_punct_missing_msg,
+            self.closing_punct,
+            self.closing_punct_missing_msg,
+            |state| {
+                let retval = after_opening_punct(state)?;
+                loop {
+                    if state.peek_token()?.kind.punct() == Some(self.closing_punct) {
+                        break;
+                    }
+                    parse_item(state)?;
+                    let peek_punct = state.peek_token()?.kind.punct();
+                    if peek_punct == Some(self.closing_punct) {
+                        if self.final_item_terminator_required {
+                            state.error_at_peek_token(self.item_terminator_missing_msg)?;
+                        }
+                    } else if self.final_item_terminator_required
+                        || peek_punct == Some(self.item_terminator)
+                    {
+                        state.parse_punct_token_or_error(
+                            self.item_terminator,
+                            self.item_terminator_missing_msg,
+                        )?;
+                        continue;
+                    }
+                    break;
+                }
+                Ok(retval)
+            },
+        )
+    }
+    /// parse a list, producing a `Vec`
+    pub fn parse_vec<'g, 'a, Item>(
+        self,
+        state: &mut FromTextState<'g, 'a>,
+        mut parse_item: impl FnMut(&mut FromTextState<'g, 'a>) -> Result<Item, FromTextError>,
+    ) -> Result<Vec<Item>, FromTextError> {
+        let mut retval = Vec::new();
+        self.parse_list(state, |state| {
+            retval.push(parse_item(state)?);
+            Ok(())
+        })?;
+        Ok(retval)
+    }
+    /// parse a list, producing a fixed-length array `[T; N]`
+    pub fn parse_array<'g, T: FromText<'g> + ?Sized, A: Array<Item = T::Parsed>>(
+        self,
+        state: &mut FromTextState<'g, '_>,
+    ) -> Result<A, FromTextError> {
+        let mut retval = ArrayVec::<A>::new();
+        let list_location = state.peek_token()?.span;
+        self.parse_list(state, |state| {
+            if retval.is_full() {
+                state.error_at_peek_token(if A::CAPACITY == 1 {
+                    format!("list too long, expected only {} item", A::CAPACITY)
+                } else {
+                    format!("list too long, expected only {} items", A::CAPACITY)
+                })?;
+            }
+            retval.push(T::from_text(state)?);
+            Ok(())
+        })?;
+        match retval.into_inner() {
+            Ok(retval) => Ok(retval),
+            Err(retval) => state
+                .error_at(
+                    list_location,
+                    if A::CAPACITY == 1 {
+                        format!(
+                            "list too short, expected {} item, got {}",
+                            A::CAPACITY,
+                            retval.len()
+                        )
+                    } else {
+                        format!(
+                            "list too short, expected {} items, got {}",
+                            A::CAPACITY,
+                            retval.len()
+                        )
+                    },
+                )?
+                .into(),
+        }
+    }
+    /// write a list
+    pub fn list_to_text<'g, Item: ToText<'g>>(
+        self,
+        state: &mut ToTextState<'g, '_>,
+        items: impl IntoIterator<Item = Item>,
+    ) -> fmt::Result {
+        self.list_to_text_with_extra_callbacks(
+            state,
+            |_| Ok(()),
+            |state, item| item.to_text(state),
+            items,
+        )
+    }
+    /// write a list, calling `after_opening_punct` after writing `self.opening_punct`,
+    /// calling `item_to_text` to write each item in the list
+    pub fn list_to_text_with_extra_callbacks<'g, 'a, Item>(
+        self,
+        state: &mut ToTextState<'g, 'a>,
+        after_opening_punct: impl FnOnce(&mut ToTextState<'g, 'a>) -> fmt::Result,
+        mut item_to_text: impl FnMut(&mut ToTextState<'g, 'a>, Item) -> fmt::Result,
+        items: impl IntoIterator<Item = Item>,
+    ) -> fmt::Result {
+        let write_body = |state: &mut ToTextState<'g, 'a>| -> fmt::Result {
+            after_opening_punct(state)?;
+            let mut items = items.into_iter().peekable();
+            while let Some(item) = items.next() {
+                item_to_text(state, item)?;
+                if self.final_item_terminator_displayed || items.peek().is_some() {
+                    write!(state, "{}", self.item_terminator)?;
+                }
+                if self.multi_line {
+                    writeln!(state)?;
+                } else if items.peek().is_some() {
+                    write!(state, " ")?;
+                }
+            }
+            Ok(())
+        };
+        if self.multi_line {
+            writeln!(state, "{}", self.opening_punct)?;
+            state.indent(write_body)?;
+        } else {
+            write!(state, "{}", self.opening_punct)?;
+            write_body(state)?;
+        }
+        write!(state, "{}", self.closing_punct)
+    }
+}
+
+impl Default for ListForm {
+    fn default() -> Self {
+        ListForm::SQUARE_BRACKETS
+    }
+}
+
+/// get the default `ListForm` that should be used when using `FromText` or `ToText` on lists of `Self`
+pub trait FromToTextListForm {
+    /// get the default `ListForm` that should be used when using `FromText` or `ToText` on lists of `Self`
+    fn from_to_text_list_form() -> ListForm {
+        ListForm::default()
+    }
+}
+
 /// trait for converting IR to text
 ///
 /// To convert to a `String` or print or write, use `ToText::display`
-pub trait ToText<'g> {
+pub trait ToText<'g>: FromToTextListForm {
     /// produce a value that can be used with `core::fmt`.
     ///
     /// should not be used from `ToText` implementations, `ToText::to_text` should instead be called.
@@ -1774,6 +2028,12 @@ impl<'g, T: ToText<'g> + ?Sized> fmt::Debug for ToTextDisplay<'g, '_, T> {
     }
 }
 
+impl<T: FromToTextListForm + ?Sized> FromToTextListForm for &'_ T {
+    fn from_to_text_list_form() -> ListForm {
+        T::from_to_text_list_form()
+    }
+}
+
 impl<'g, T: ToText<'g> + ?Sized> ToText<'g> for &'_ T {
     fn to_text(&self, state: &mut ToTextState<'g, '_>) -> fmt::Result {
         (**self).to_text(state)
@@ -1782,16 +2042,7 @@ impl<'g, T: ToText<'g> + ?Sized> ToText<'g> for &'_ T {
 
 impl<'g, T: ToText<'g>> ToText<'g> for [T] {
     fn to_text(&self, state: &mut ToTextState<'g, '_>) -> fmt::Result {
-        let mut iter = self.iter();
-        write!(state, "[")?;
-        if let Some(first) = iter.next() {
-            first.to_text(state)?;
-            for element in iter {
-                write!(state, ", ")?;
-                element.to_text(state)?;
-            }
-        }
-        write!(state, "]")
+        T::from_to_text_list_form().list_to_text(state, self)
     }
 }
 
@@ -1800,269 +2051,60 @@ impl<'g, T: ToText<'g>> ToText<'g> for Vec<T> {
         (**self).to_text(state)
     }
 }
-
-fn list_from_text_helper<'g, 't, T: FromText<'g>>(
-    state: &mut FromTextState<'g, 't>,
-    output: Option<&mut [Option<T::Parsed>]>,
-) -> Result<Vec<T::Parsed>, FromTextError> {
-    let expected_len = output.as_ref().map(|v| v.len());
-    fn too_short_msg(expected_len: usize, actual_len: usize) -> String {
-        format!(
-            "list is too short, expected {} items, got {}",
-            expected_len, actual_len
-        )
+impl<T: FromToTextListForm> FromToTextListForm for [T] {
+    fn from_to_text_list_form() -> ListForm {
+        T::from_to_text_list_form()
     }
-    let missing_close = "list missing closing square bracket: ']'";
-    state.parse_parenthesized(
-        Punctuation::LSquareBracket,
-        "missing list: must start with '['",
-        Punctuation::RSquareBracket,
-        missing_close,
-        |state| {
-            let mut retval = Vec::new();
-            let mut output = output.map(IntoIterator::into_iter);
-            let mut actual_len = 0;
-            let mut write_output = |v: T::Parsed| {
-                if let Some(output_element) = output.as_mut().and_then(Iterator::next) {
-                    *output_element = Some(v);
-                } else {
-                    retval.push(v);
-                }
-            };
-            match state.peek_token()?.kind {
-                TokenKind::EndOfFile => state.error_at_peek_token(missing_close)?.into(),
-                TokenKind::Punct(Punctuation::RSquareBracket) => {
-                    match expected_len {
-                        Some(0) | None => {}
-                        Some(expected_len) => state
-                            .error_at_peek_token(too_short_msg(expected_len, 0))?
-                            .into(),
-                    }
-                    return Ok(retval);
-                }
-                _ => {}
-            }
-            let mut too_long_location = None;
-            let mut check_len = |state: &mut FromTextState<'g, 't>,
-                                 actual_len: usize|
-             -> Result<(), FromTextError> {
-                if expected_len == Some(actual_len) {
-                    too_long_location = Some(state.peek_token()?.span);
-                }
-                Ok(())
-            };
-            check_len(state, actual_len)?;
-            write_output(T::from_text(state)?);
-            actual_len += 1;
-            while state.peek_token()?.kind.punct() == Some(Punctuation::Comma) {
-                state.parse_token()?;
-                if state.peek_token()?.kind.punct() == Some(Punctuation::RSquareBracket) {
-                    break;
-                }
-                check_len(state, actual_len)?;
-                write_output(T::from_text(state)?);
-                actual_len += 1;
-            }
-            if let Some(too_long_location) = too_long_location {
-                state
-                    .error_at(
-                        too_long_location,
-                        format!(
-                            "list too long, expected {} items, got {}",
-                            expected_len.unwrap_or_default(),
-                            actual_len
-                        ),
-                    )?
-                    .into()
-            } else {
-                match expected_len {
-                    Some(expected_len) if expected_len != actual_len => state
-                        .error_at_peek_token(too_short_msg(expected_len, actual_len))?
-                        .into(),
-                    _ => Ok(retval),
-                }
-            }
-        },
-    )
 }
 
 impl<'g, T: FromText<'g>> FromText<'g> for [T] {
     type Parsed = Vec<T::Parsed>;
     fn from_text(state: &mut FromTextState<'g, '_>) -> Result<Vec<T::Parsed>, FromTextError> {
-        list_from_text_helper::<T>(state, None)
+        T::from_to_text_list_form().parse_vec(state, T::from_text)
+    }
+}
+
+impl<T: FromToTextListForm> FromToTextListForm for Vec<T> {
+    fn from_to_text_list_form() -> ListForm {
+        T::from_to_text_list_form()
     }
 }
 
 impl<'g, T: FromText<'g>> FromText<'g> for Vec<T> {
     type Parsed = Vec<T::Parsed>;
     fn from_text(state: &mut FromTextState<'g, '_>) -> Result<Vec<T::Parsed>, FromTextError> {
-        list_from_text_helper::<T>(state, None)
-    }
-}
-
-impl<'g, T: ToText<'g>> ToText<'g> for [T; 0] {
-    fn to_text(&self, state: &mut ToTextState<'g, '_>) -> fmt::Result {
-        (self as &[T]).to_text(state)
-    }
-}
-
-impl<'g, T: FromText<'g>> FromText<'g> for [T; 0] {
-    type Parsed = [T::Parsed; 0];
-    fn from_text(state: &mut FromTextState<'g, '_>) -> Result<[T::Parsed; 0], FromTextError> {
-        list_from_text_helper::<T>(state, Some(&mut []))?;
-        Ok([])
+        <[T]>::from_text(state)
     }
 }
 
 macro_rules! impl_from_to_text_for_arrays {
-    ($n:literal, [$($element:ident,)*]) => {
-        impl<'g, T: ToText<'g>> ToText<'g> for [T; $n] {
-            fn to_text(&self, state: &mut ToTextState<'g, '_>) -> fmt::Result {
-                (self as &[T]).to_text(state)
-            }
-        }
-
-        impl<'g, T: FromText<'g>> FromText<'g> for [T; $n] {
-            type Parsed = [T::Parsed; $n];
-            fn from_text(
-                state: &mut FromTextState<'g, '_>,
-            ) -> Result<[T::Parsed; $n], FromTextError> {
-                let mut elements: [Option<T::Parsed>; $n] = Default::default();
-                list_from_text_helper::<T>(state, Some(&mut elements))?;
-                match elements {
-                    [$(Some($element)),*] => Ok([$($element),*]),
-                    _ => unreachable!(),
+    ($($n:literal,)*) => {
+        $(
+            impl<T: FromToTextListForm> FromToTextListForm for [T; $n] {
+                fn from_to_text_list_form() -> ListForm {
+                    T::from_to_text_list_form()
                 }
             }
-        }
+
+            impl<'g, T: ToText<'g>> ToText<'g> for [T; $n] {
+                fn to_text(&self, state: &mut ToTextState<'g, '_>) -> fmt::Result {
+                    (self as &[T]).to_text(state)
+                }
+            }
+
+            impl<'g, T: FromText<'g>> FromText<'g> for [T; $n] {
+                type Parsed = [T::Parsed; $n];
+                fn from_text(
+                    state: &mut FromTextState<'g, '_>,
+                ) -> Result<[T::Parsed; $n], FromTextError> {
+                    T::from_to_text_list_form().parse_array::<T, [T::Parsed; $n]>(state)
+                }
+            }
+        )*
     };
 }
 
-impl_from_to_text_for_arrays!(1, [e1,]);
-impl_from_to_text_for_arrays!(2, [e1, e2,]);
-impl_from_to_text_for_arrays!(3, [e1, e2, e3,]);
-impl_from_to_text_for_arrays!(4, [e1, e2, e3, e4,]);
-impl_from_to_text_for_arrays!(5, [e1, e2, e3, e4, e5,]);
-impl_from_to_text_for_arrays!(6, [e1, e2, e3, e4, e5, e6,]);
-impl_from_to_text_for_arrays!(7, [e1, e2, e3, e4, e5, e6, e7,]);
-impl_from_to_text_for_arrays!(8, [e1, e2, e3, e4, e5, e6, e7, e8,]);
-impl_from_to_text_for_arrays!(9, [e1, e2, e3, e4, e5, e6, e7, e8, e9,]);
-impl_from_to_text_for_arrays!(10, [e1, e2, e3, e4, e5, e6, e7, e8, e9, e10,]);
-impl_from_to_text_for_arrays!(11, [e1, e2, e3, e4, e5, e6, e7, e8, e9, e10, e11,]);
-impl_from_to_text_for_arrays!(12, [e1, e2, e3, e4, e5, e6, e7, e8, e9, e10, e11, e12,]);
 impl_from_to_text_for_arrays!(
-    13,
-    [e1, e2, e3, e4, e5, e6, e7, e8, e9, e10, e11, e12, e13,]
-);
-impl_from_to_text_for_arrays!(
-    14,
-    [e1, e2, e3, e4, e5, e6, e7, e8, e9, e10, e11, e12, e13, e14,]
-);
-impl_from_to_text_for_arrays!(
-    15,
-    [e1, e2, e3, e4, e5, e6, e7, e8, e9, e10, e11, e12, e13, e14, e15,]
-);
-impl_from_to_text_for_arrays!(
-    16,
-    [e1, e2, e3, e4, e5, e6, e7, e8, e9, e10, e11, e12, e13, e14, e15, e16,]
-);
-impl_from_to_text_for_arrays!(
-    17,
-    [e1, e2, e3, e4, e5, e6, e7, e8, e9, e10, e11, e12, e13, e14, e15, e16, e17,]
-);
-impl_from_to_text_for_arrays!(
-    18,
-    [e1, e2, e3, e4, e5, e6, e7, e8, e9, e10, e11, e12, e13, e14, e15, e16, e17, e18,]
-);
-impl_from_to_text_for_arrays!(
-    19,
-    [e1, e2, e3, e4, e5, e6, e7, e8, e9, e10, e11, e12, e13, e14, e15, e16, e17, e18, e19,]
-);
-impl_from_to_text_for_arrays!(
-    20,
-    [e1, e2, e3, e4, e5, e6, e7, e8, e9, e10, e11, e12, e13, e14, e15, e16, e17, e18, e19, e20,]
-);
-impl_from_to_text_for_arrays!(
-    21,
-    [
-        e1, e2, e3, e4, e5, e6, e7, e8, e9, e10, e11, e12, e13, e14, e15, e16, e17, e18, e19, e20,
-        e21,
-    ]
-);
-impl_from_to_text_for_arrays!(
-    22,
-    [
-        e1, e2, e3, e4, e5, e6, e7, e8, e9, e10, e11, e12, e13, e14, e15, e16, e17, e18, e19, e20,
-        e21, e22,
-    ]
-);
-impl_from_to_text_for_arrays!(
-    23,
-    [
-        e1, e2, e3, e4, e5, e6, e7, e8, e9, e10, e11, e12, e13, e14, e15, e16, e17, e18, e19, e20,
-        e21, e22, e23,
-    ]
-);
-impl_from_to_text_for_arrays!(
-    24,
-    [
-        e1, e2, e3, e4, e5, e6, e7, e8, e9, e10, e11, e12, e13, e14, e15, e16, e17, e18, e19, e20,
-        e21, e22, e23, e24,
-    ]
-);
-impl_from_to_text_for_arrays!(
-    25,
-    [
-        e1, e2, e3, e4, e5, e6, e7, e8, e9, e10, e11, e12, e13, e14, e15, e16, e17, e18, e19, e20,
-        e21, e22, e23, e24, e25,
-    ]
-);
-impl_from_to_text_for_arrays!(
-    26,
-    [
-        e1, e2, e3, e4, e5, e6, e7, e8, e9, e10, e11, e12, e13, e14, e15, e16, e17, e18, e19, e20,
-        e21, e22, e23, e24, e25, e26,
-    ]
-);
-impl_from_to_text_for_arrays!(
-    27,
-    [
-        e1, e2, e3, e4, e5, e6, e7, e8, e9, e10, e11, e12, e13, e14, e15, e16, e17, e18, e19, e20,
-        e21, e22, e23, e24, e25, e26, e27,
-    ]
-);
-impl_from_to_text_for_arrays!(
-    28,
-    [
-        e1, e2, e3, e4, e5, e6, e7, e8, e9, e10, e11, e12, e13, e14, e15, e16, e17, e18, e19, e20,
-        e21, e22, e23, e24, e25, e26, e27, e28,
-    ]
-);
-impl_from_to_text_for_arrays!(
-    29,
-    [
-        e1, e2, e3, e4, e5, e6, e7, e8, e9, e10, e11, e12, e13, e14, e15, e16, e17, e18, e19, e20,
-        e21, e22, e23, e24, e25, e26, e27, e28, e29,
-    ]
-);
-impl_from_to_text_for_arrays!(
-    30,
-    [
-        e1, e2, e3, e4, e5, e6, e7, e8, e9, e10, e11, e12, e13, e14, e15, e16, e17, e18, e19, e20,
-        e21, e22, e23, e24, e25, e26, e27, e28, e29, e30,
-    ]
-);
-impl_from_to_text_for_arrays!(
-    31,
-    [
-        e1, e2, e3, e4, e5, e6, e7, e8, e9, e10, e11, e12, e13, e14, e15, e16, e17, e18, e19, e20,
-        e21, e22, e23, e24, e25, e26, e27, e28, e29, e30, e31,
-    ]
-);
-impl_from_to_text_for_arrays!(
-    32,
-    [
-        e1, e2, e3, e4, e5, e6, e7, e8, e9, e10, e11, e12, e13, e14, e15, e16, e17, e18, e19, e20,
-        e21, e22, e23, e24, e25, e26, e27, e28, e29, e30, e31, e32,
-    ]
+    0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25,
+    26, 27, 28, 29, 30, 31,
 );

@@ -3,7 +3,7 @@
 
 use crate::{
     prelude::*,
-    text::{FromTextError, FromTextState, Punctuation, ToTextState},
+    text::{FromTextError, FromTextState, FromToTextListForm, ListForm, Punctuation, ToTextState},
     Alignment,
 };
 use alloc::vec::Vec;
@@ -61,6 +61,12 @@ macro_rules! impl_instructions {
             }
         }
 
+        impl FromToTextListForm for $instruction_kind {
+            fn from_to_text_list_form() -> ListForm {
+                ListForm::STATEMENTS
+            }
+        }
+
         impl<$g> FromText<$g> for $instruction_kind {
             type Parsed = Self;
             fn from_text(state: &mut FromTextState<$g, '_>) -> Result<Self, FromTextError> {
@@ -109,6 +115,12 @@ macro_rules! impl_instructions {
                         $instruction_data::$instruction(v) => v.arguments(),
                     )+
                 }
+            }
+        }
+
+        impl<$g> FromToTextListForm for $instruction_data<$g> {
+            fn from_to_text_list_form() -> ListForm {
+                ListForm::STATEMENTS
             }
         }
 
@@ -225,6 +237,12 @@ macro_rules! instructions {
                     }
                 }
 
+                impl<$g> FromToTextListForm for $instruction<$g> {
+                    fn from_to_text_list_form() -> ListForm {
+                        ListForm::STATEMENTS
+                    }
+                }
+
                 impl<$g> FromText<$g> for $instruction<$g> {
                     type Parsed = Self;
                     fn from_text(state: &mut FromTextState<$g, '_>) -> Result<Self, FromTextError> {
@@ -278,6 +296,12 @@ macro_rules! instructions {
                 pub break_block: BreakBlock<'g>,
             }
 
+            impl<'g> FromToTextListForm for BranchTarget<'g> {
+                fn from_to_text_list_form() -> ListForm {
+                    ListForm::STATEMENTS
+                }
+            }
+
             impl<'g> FromText<'g> for BranchTarget<'g> {
                 type Parsed = Self;
                 fn from_text(state: &mut FromTextState<'g, '_>) -> Result<Self, FromTextError> {
@@ -320,6 +344,12 @@ macro_rules! instructions {
             }
 
             impl_display_as_to_text!(<'g> $branch_instruction<'g>);
+
+            impl<'g> FromToTextListForm for $branch_instruction<'g> {
+                fn from_to_text_list_form() -> ListForm {
+                    ListForm::STATEMENTS
+                }
+            }
 
             impl<'g> ToText<'g> for $branch_instruction<'g> {
                 fn to_text(&self, state: &mut ToTextState<'g, '_>) -> fmt::Result {
@@ -463,6 +493,12 @@ impl<'g> CodeIO<'g> for Instruction<'g> {
 
 impl_display_as_to_text!(<'g> Instruction<'g>);
 
+impl FromToTextListForm for Instruction<'_> {
+    fn from_to_text_list_form() -> ListForm {
+        ListForm::STATEMENTS
+    }
+}
+
 impl<'g> ToText<'g> for Instruction<'g> {
     fn to_text(&self, state: &mut ToTextState<'g, '_>) -> fmt::Result {
         let Self { location, data } = self;
@@ -493,7 +529,7 @@ impl<'g> FromText<'g> for Instruction<'g> {
 mod tests {
     use crate::{
         instructions,
-        text::{FromText, FromTextError, FromTextState, ToText, ToTextState},
+        text::{FromText, FromTextError, FromTextState, FromToTextListForm, ToText, ToTextState},
         Alignment, DataPointerType, GlobalState, Instruction, IntegerType, ValueDefinition,
         ValueUse,
     };
@@ -504,6 +540,8 @@ mod tests {
         value_definitions: Vec<ValueDefinition<'g>>,
         instruction: Instruction<'g>,
     }
+
+    impl FromToTextListForm for ValueDefinitionsThenInstruction<'_> {}
 
     impl<'g> FromText<'g> for ValueDefinitionsThenInstruction<'g> {
         type Parsed = Self;

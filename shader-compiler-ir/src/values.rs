@@ -5,7 +5,8 @@ use crate::{
     prelude::*,
     text::{
         FromTextError, FromTextScopeId, FromTextState, FromTextSymbol, FromTextSymbolsState,
-        FromTextSymbolsStateBase, NamedId, NewOrOld, Punctuation, ToTextState, TokenKind,
+        FromTextSymbolsStateBase, FromToTextListForm, NamedId, NewOrOld, Punctuation, ToTextState,
+        TokenKind,
     },
     Allocate, IdRef, OnceCell,
 };
@@ -134,6 +135,8 @@ impl<'g> Deref for ValueUse<'g> {
     }
 }
 
+impl FromToTextListForm for ValueDefinition<'_> {}
+
 impl<'g> FromText<'g> for ValueDefinition<'g> {
     type Parsed = ValueDefinition<'g>;
     fn from_text(state: &mut FromTextState<'g, '_>) -> Result<ValueDefinition<'g>, FromTextError> {
@@ -158,6 +161,8 @@ impl<'g> FromText<'g> for ValueDefinition<'g> {
         Ok(retval)
     }
 }
+
+impl FromToTextListForm for ValueUse<'_> {}
 
 impl<'g> FromText<'g> for ValueUse<'g> {
     type Parsed = Self;

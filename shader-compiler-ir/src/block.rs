@@ -5,7 +5,8 @@ use crate::{
     prelude::*,
     text::{
         FromTextError, FromTextState, FromTextSymbol, FromTextSymbolsState,
-        FromTextSymbolsStateBase, NamedId, Punctuation, TextSpan, ToTextState, Token, TokenKind,
+        FromTextSymbolsStateBase, FromToTextListForm, ListForm, NamedId, Punctuation, TextSpan,
+        ToTextState, Token, TokenKind,
     },
     Allocate, IdRef, InstructionKind, OnceCell,
 };
@@ -22,6 +23,12 @@ pub struct BreakBlock<'g> {
 }
 
 impl_display_as_to_text!(<'g> BreakBlock<'g>);
+
+impl FromToTextListForm for BreakBlock<'_> {
+    fn from_to_text_list_form() -> ListForm {
+        ListForm::STATEMENTS
+    }
+}
 
 impl<'g> ToText<'g> for BreakBlock<'g> {
     fn to_text(&self, state: &mut ToTextState<'g, '_>) -> fmt::Result {
@@ -412,6 +419,8 @@ impl<'g> CodeIO<'g> for Block<'g> {
     }
 }
 
+impl FromToTextListForm for BlockRef<'_> {}
+
 impl<'g> FromText<'g> for BlockRef<'g> {
     type Parsed = Self;
     fn from_text(state: &mut FromTextState<'g, '_>) -> Result<Self, FromTextError> {
@@ -436,6 +445,12 @@ impl<'g> ToText<'g> for BlockRef<'g> {
         let name = state.get_block_named_id(self.value());
         let name = state.check_name_use(name, "block definition must be written first");
         name.to_text(state)
+    }
+}
+
+impl FromToTextListForm for Block<'_> {
+    fn from_to_text_list_form() -> ListForm {
+        ListForm::STATEMENTS
     }
 }
 
@@ -572,6 +587,8 @@ impl<'g> Deref for Loop<'g> {
     }
 }
 
+impl FromToTextListForm for LoopRef<'_> {}
+
 impl<'g> FromText<'g> for LoopRef<'g> {
     type Parsed = Self;
     fn from_text(state: &mut FromTextState<'g, '_>) -> Result<Self, FromTextError> {
@@ -596,6 +613,12 @@ impl<'g> ToText<'g> for LoopRef<'g> {
         let name = state.get_loop_named_id(self.value());
         let name = state.check_name_use(name, "loop definition must be written first");
         name.to_text(state)
+    }
+}
+
+impl FromToTextListForm for Loop<'_> {
+    fn from_to_text_list_form() -> ListForm {
+        ListForm::STATEMENTS
     }
 }
 
@@ -707,6 +730,12 @@ pub struct ContinueLoop<'g> {
 
 impl_display_as_to_text!(<'g> ContinueLoop<'g>);
 
+impl FromToTextListForm for ContinueLoop<'_> {
+    fn from_to_text_list_form() -> ListForm {
+        ListForm::STATEMENTS
+    }
+}
+
 impl<'g> ToText<'g> for ContinueLoop<'g> {
     fn to_text(&self, state: &mut ToTextState<'g, '_>) -> fmt::Result {
         Self::KIND.to_text(state)?;
@@ -805,7 +834,9 @@ mod tests {
             concat!(
                 "block block1 -> [] {\n",
                 "    add [\"\"0 : 0x1i32, \"\"1 : 0x2i32] -> [add_result : i32];\n",
-                "    branch [add_result], [0x3i32 -> break block1[]] -> [];\n",
+                "    branch [add_result], {\n",
+                "        0x3i32 -> break block1[];\n",
+                "    } -> [];\n",
                 "    break block1[] @ \"my_source.vertex\":123:456;\n",
                 "}"
             ),
