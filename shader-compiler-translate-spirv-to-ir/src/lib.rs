@@ -23,7 +23,7 @@ pub use crate::errors::*;
 
 use alloc::vec::Vec;
 use core::{fmt, slice};
-use shader_compiler_ir::{GlobalState, Internable, Interned, TargetProperties};
+use shader_compiler_ir::{GlobalState, Internable, Interned, Module, TargetProperties};
 use spirv_parser::ExecutionModel;
 
 pub struct UnresolvedSpecialization {
@@ -181,6 +181,7 @@ impl<'g, 'i> TranslationStateBase<'g, 'i> {
 #[derive(Debug)]
 pub struct TranslatedSPIRVShader<'g> {
     pub global_state: &'g GlobalState<'g>,
+    pub module: Module<'g>,
 }
 
 impl<'g> TranslatedSPIRVShader<'g> {
@@ -221,6 +222,168 @@ mod tests {
             print!("{}", s);
             Ok(())
         }
+    }
+
+    #[test]
+    fn trivial_test() {
+        let spirv_code = &[
+            0x0723_0203, // ..#.
+            0x0001_0000, // ....
+            0x0008_0007, // ....
+            0x0000_0008, // ....
+            0x0000_0000, // ....
+            0x0002_0011, // ....
+            0x0000_0001, // ....
+            0x0006_000B, // ....
+            0x0000_0002, // ....
+            0x4C53_4C47, // GLSL
+            0x6474_732E, // .std
+            0x3035_342E, // .450
+            0x0000_0000, // ....
+            0x0003_000E, // ....
+            0x0000_0000, // ....
+            0x0000_0001, // ....
+            0x0005_000F, // ....
+            0x0000_0005, // ....
+            0x0000_0005, // ....
+            0x6E69_616D, // main
+            0x0000_0000, // ....
+            0x0006_0010, // ....
+            0x0000_0005, // ....
+            0x0000_0011, // ....
+            0x0000_0001, // ....
+            0x0000_0001, // ....
+            0x0000_0001, // ....
+            0x0004_0007, // ....
+            0x0000_0001, // ....
+            0x6964_7473, // stdi
+            0x0000_006E, // n...
+            0x002E_0003, // ....
+            0x0000_0002, // ....
+            0x0000_01C2, // ....
+            0x0000_0001, // ....
+            0x4F20_2F2F, // // O
+            0x646F_4D70, // pMod
+            0x5065_6C75, // uleP
+            0x6563_6F72, // roce
+            0x6465_7373, // ssed
+            0x696C_6320, //  cli
+            0x2074_6E65, // ent
+            0x6B6C_7576, // vulk
+            0x3031_6E61, // an10
+            0x2F2F_0A30, // 0.//
+            0x4D70_4F20, //  OpM
+            0x6C75_646F, // odul
+            0x6F72_5065, // ePro
+            0x7373_6563, // cess
+            0x7420_6465, // ed t
+            0x6567_7261, // arge
+            0x6E65_2D74, // t-en
+            0x7576_2076, // v vu
+            0x6E61_6B6C, // lkan
+            0x0A30_2E31, // 1.0.
+            0x4F20_2F2F, // // O
+            0x646F_4D70, // pMod
+            0x5065_6C75, // uleP
+            0x6563_6F72, // roce
+            0x6465_7373, // ssed
+            0x746E_6520, //  ent
+            0x702D_7972, // ry-p
+            0x746E_696F, // oint
+            0x6961_6D20, //  mai
+            0x6C23_0A6E, // n.#l
+            0x2065_6E69, // ine
+            0x7623_0A31, // 1.#v
+            0x6973_7265, // ersi
+            0x3420_6E6F, // on 4
+            0x0A0A_3035, // 50..
+            0x6469_6F76, // void
+            0x6961_6D20, //  mai
+            0x2029_286E, // n()
+            0x2020_0A7B, // {.
+            0x6572_2020, //   re
+            0x6E72_7574, // turn
+            0x007D_0A3B, // ;.}.
+            0x0004_0005, // ....
+            0x0000_0005, // ....
+            0x6E69_616D, // main
+            0x0000_0000, // ....
+            0x0002_0013, // ....
+            0x0000_0003, // ....
+            0x0003_0021, // !...
+            0x0000_0004, // ....
+            0x0000_0003, // ....
+            0x0005_0036, // 6...
+            0x0000_0003, // ....
+            0x0000_0005, // ....
+            0x0000_0000, // ....
+            0x0000_0004, // ....
+            0x0002_00F8, // ....
+            0x0000_0006, // ....
+            0x0004_0008, // ....
+            0x0000_0001, // ....
+            0x0000_0004, // ....
+            0x0000_0000, // ....
+            0x0001_00FD, // ....
+            0x0001_0038, // 8...
+        ];
+        let global_state = shader_compiler_ir::GlobalState::new();
+        let translated_shader = crate::TranslatedSPIRVShader::new(
+            &global_state,
+            shader_compiler_ir::TargetProperties::default(),
+            &mut crate::DefaultSpecializationResolver,
+            &mut PrintOutput,
+            "main",
+            spirv_parser::ExecutionModelGLCompute.into(),
+            spirv_code,
+        )
+        .map_err(|e| e.to_string())
+        .unwrap();
+        let expected_text = concat!(
+            "module {\n",
+            "    target_properties {\n",
+            "        data_pointer_underlying_type: i64,\n",
+            "        function_pointer_underlying_type: i64,\n",
+            "    }\n",
+            "    built_in_inputs_block {\n",
+            "        -> built_in_inputs_block : data_ptr;\n",
+            "        size: fixed 0x0;\n",
+            "        align: 0x1;\n",
+            "    }\n",
+            "    user_inputs_block {\n",
+            "        -> user_inputs_block : data_ptr;\n",
+            "        size: fixed 0x0;\n",
+            "        align: 0x1;\n",
+            "    }\n",
+            "    built_in_outputs_block {\n",
+            "        -> built_in_outputs_block : data_ptr;\n",
+            "        size: fixed 0x0;\n",
+            "        align: 0x1;\n",
+            "    }\n",
+            "    user_outputs_block {\n",
+            "        -> user_outputs_block : data_ptr;\n",
+            "        size: fixed 0x0;\n",
+            "        align: 0x1;\n",
+            "    }\n",
+            "    invocation_global_variables {\n",
+            "    }\n",
+            "    fn main[] -> [] {\n",
+            "        hints {\n",
+            "            inlining_hint: none,\n",
+            "            side_effects: normal,\n",
+            "        }\n",
+            "        {\n",
+            "        }\n",
+            "        id_6 {\n",
+            "            break id_6[] @ \"stdin\":4:0;\n",
+            "        }\n",
+            "    }\n",
+            "    entry_point: main;\n",
+            "}",
+        );
+        let text = translated_shader.module.to_string();
+        println!("translated module:\n{}", text);
+        assert_eq!(expected_text, text);
     }
 
     #[test]
@@ -458,7 +621,7 @@ mod tests {
             0x0001_0038,
         ];
         let global_state = shader_compiler_ir::GlobalState::new();
-        let _translated_shader = crate::TranslatedSPIRVShader::new(
+        let translated_shader = crate::TranslatedSPIRVShader::new(
             &global_state,
             shader_compiler_ir::TargetProperties::default(),
             &mut crate::DefaultSpecializationResolver,
@@ -469,5 +632,9 @@ mod tests {
         )
         .map_err(|e| e.to_string())
         .unwrap();
+        let expected_text = concat!("");
+        let text = translated_shader.module.to_string();
+        println!("translated module:\n{}", text);
+        assert_eq!(expected_text, text);
     }
 }

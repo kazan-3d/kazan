@@ -161,7 +161,7 @@ impl<'b, 'f, 'g, 'i> TranslationStateParsingFunctionBodyBlock<'b, 'f, 'g, 'i> {
                 },
             }
         }
-        todo!()
+        Ok(())
     }
 }
 
@@ -233,6 +233,28 @@ impl ParseInstruction for OpLabel {
     }
 }
 
+impl ParseInstruction for OpReturn {
+    fn parse_in_function_body_prepass<'i>(
+        &'i self,
+        _state: &mut TranslationStateParsingFunctionBody<'_, '_, 'i>,
+        _block_id: CFGBlockId,
+    ) -> TranslationResult<()> {
+        Ok(())
+    }
+    fn parse_in_function_body_reachable<'b, 'f, 'g, 'i>(
+        &'i self,
+        state: &mut TranslationStateParsingFunctionBodyBlock<'b, 'f, 'g, 'i>,
+        _block_id: CFGBlockId,
+    ) -> TranslationResult<()> {
+        let block = BlockRef::new(state.function.ir_value.body.value());
+        state.push_instruction_with_current_location(shader_compiler_ir::BreakBlock {
+            block,
+            block_results: vec![],
+        })?;
+        Ok(())
+    }
+}
+
 macro_rules! unimplemented_control_flow_instruction {
     ($opname:ident) => {
         impl ParseInstruction for $opname {
@@ -262,7 +284,6 @@ unimplemented_control_flow_instruction!(OpBranchConditional);
 unimplemented_control_flow_instruction!(OpKill);
 unimplemented_control_flow_instruction!(OpLoopMerge);
 unimplemented_control_flow_instruction!(OpPhi);
-unimplemented_control_flow_instruction!(OpReturn);
 unimplemented_control_flow_instruction!(OpReturnValue);
 unimplemented_control_flow_instruction!(OpSelectionMerge);
 unimplemented_control_flow_instruction!(OpSwitch32);

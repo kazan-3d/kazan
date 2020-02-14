@@ -36,7 +36,6 @@ impl<'g> GenericSPIRVValue<'g> for SPIRVFunctionParameter<'g> {
 }
 
 pub(crate) struct SPIRVFunctionData<'g, 'i> {
-    pub(crate) ir_function: RefCell<Option<Function<'g>>>,
     pub(crate) ir_value: shader_compiler_ir::IdRef<'g, FunctionData<'g>>,
     pub(crate) cfg: CFG<'g, 'i>,
 }

@@ -30,14 +30,18 @@ impl<'g, 'i> TranslationStateParseBaseTypesConstantsAndGlobals<'g, 'i> {
                     let file = self.get_debug_string(file)?;
                     current_debug_location =
                         Some(Location { file, line, column }.intern(self.global_state));
+                    self.debug_locations.push(current_debug_location);
                 }
-                Instruction::NoLine(_) => current_debug_location = None,
+                Instruction::NoLine(_) => {
+                    current_debug_location = None;
+                    self.debug_locations.push(current_debug_location);
+                }
                 ref instruction if TerminationInstruction::is_in_subset(instruction) => {
+                    self.debug_locations.push(current_debug_location);
                     current_debug_location = None;
                 }
-                _ => {}
+                _ => self.debug_locations.push(current_debug_location),
             }
-            self.debug_locations.push(current_debug_location);
         }
         Ok(self.debug_locations.get(location.index).copied().flatten())
     }

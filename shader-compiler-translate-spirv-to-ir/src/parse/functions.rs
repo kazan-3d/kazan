@@ -12,7 +12,7 @@ use crate::{
         InvalidSPIRVInstructionInSection,
         MergeInstructionMustBeImmediatelyFollowedByTerminationInstruction,
         RelaxedPrecisionDecorationNotAllowed, SPIRVBlockMissingTerminationInstruction,
-        SPIRVIdAlreadyDefined, TooFewOpFunctionParameterInstructions,
+        SPIRVIdAlreadyDefined, SPIRVIdNotDefined, TooFewOpFunctionParameterInstructions,
         TooManyOpFunctionParameterInstructions, TranslationResult,
     },
     functions::{SPIRVFunction, SPIRVFunctionData},
@@ -24,17 +24,20 @@ use alloc::vec::Vec;
 use core::cell::RefCell;
 use petgraph::visit::IntoNodeReferences;
 use shader_compiler_ir::{
-    Block, Function, FunctionHints, FunctionSideEffects, Inhabited, InliningHint, ValueDefinition,
+    Alignment, Block, DataPointerType, Function, FunctionHints, FunctionRef, FunctionSideEffects,
+    Inhabited, InliningHint, InterfaceBlock, Module, StructSize, ValueDefinition,
 };
 use spirv_id_map::IdMap;
 use spirv_parser::{
-    FunctionControl, IdResult, Instruction, OpFunction, OpFunctionEnd, OpFunctionParameter, OpLabel,
+    FunctionControl, IdRef, IdResult, Instruction, OpFunction, OpFunctionEnd, OpFunctionParameter,
+    OpLabel,
 };
 
 decl_translation_state! {
     pub(crate) struct TranslationStateParseFunctionsBase<'g, 'i> {
         base: TranslationStateParsedTypesConstantsAndGlobals<'g, 'i>,
         functions: IdMap<spirv_parser::IdRef, SPIRVFunction<'g, 'i>>,
+        ir_functions: Vec<Function<'g>>,
     }
 }
 
@@ -50,6 +53,11 @@ impl<'g, 'i> TranslationStateParseFunctionsBase<'g, 'i> {
         } else {
             Err(SPIRVIdAlreadyDefined { id_result }.into())
         }
+    }
+    fn get_function(&mut self, function_id: IdRef) -> TranslationResult<&SPIRVFunction<'g, 'i>> {
+        self.functions
+            .get(function_id)?
+            .ok_or_else(|| SPIRVIdNotDefined { id: function_id }.into())
     }
 }
 
@@ -320,9 +328,10 @@ fn parse_function_structure<'g, 'i>(
 
     let function = SPIRVFunction::new(SPIRVFunctionData {
         ir_value: ir_function.value(),
-        ir_function: RefCell::new(Some(ir_function)),
         cfg,
     });
+
+    state.ir_functions.push(ir_function);
 
     state.define_function(id_result, function.clone())?;
     Ok(function)
@@ -335,6 +344,7 @@ impl<'g, 'i> TranslationStateParsedTypesConstantsAndGlobals<'g, 'i> {
         let mut base_state = TranslationStateParseFunctionsBase {
             functions: IdMap::new(self.spirv_header),
             base: self,
+            ir_functions: Vec::new(),
         };
         writeln!(base_state.debug_output, "parsing functions section")?;
         let mut functions = Vec::new();
@@ -385,8 +395,58 @@ impl<'g, 'i> TranslationStateParsedTypesConstantsAndGlobals<'g, 'i> {
 }
 
 impl<'g, 'i> TranslationStateParsedFunctions<'g, 'i> {
-    pub(crate) fn translate(self) -> TranslationResult<TranslatedSPIRVShader<'g>> {
-        todo!()
+    pub(crate) fn translate(mut self) -> TranslationResult<TranslatedSPIRVShader<'g>> {
+        let global_state = self.global_state;
+        let target_properties = self.target_properties;
+        let built_in_inputs_block = InterfaceBlock::new(
+            ValueDefinition::new(DataPointerType, "built_in_inputs_block", global_state),
+            StructSize::Fixed { size: 0 },
+            Alignment::default(),
+            vec![],
+        );
+        let user_inputs_block = InterfaceBlock::new(
+            ValueDefinition::new(DataPointerType, "user_inputs_block", global_state),
+            StructSize::Fixed { size: 0 },
+            Alignment::default(),
+            vec![],
+        );
+        let built_in_outputs_block = InterfaceBlock::new(
+            ValueDefinition::new(DataPointerType, "built_in_outputs_block", global_state),
+            StructSize::Fixed { size: 0 },
+            Alignment::default(),
+            vec![],
+        );
+        let user_outputs_block = InterfaceBlock::new(
+            ValueDefinition::new(DataPointerType, "user_outputs_block", global_state),
+            StructSize::Fixed { size: 0 },
+            Alignment::default(),
+            vec![],
+        );
+        let invocation_global_variables = vec![];
+        let entry_point_id = self.entry_point_id;
+        let entry_point = FunctionRef::new(self.get_function(entry_point_id)?.ir_value);
+        let TranslationStateParsedFunctions {
+            base:
+                TranslationStateParseFunctionsBase {
+                    base: state,
+                    functions,
+                    ir_functions,
+                },
+        } = self;
+        let module = Module {
+            target_properties,
+            built_in_inputs_block,
+            user_inputs_block,
+            built_in_outputs_block,
+            user_outputs_block,
+            invocation_global_variables,
+            functions: ir_functions,
+            entry_point,
+        };
+        Ok(TranslatedSPIRVShader {
+            global_state,
+            module,
+        })
     }
 }
 
