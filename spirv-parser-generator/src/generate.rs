@@ -212,7 +212,7 @@ pub(crate) fn generate(
                 string::{FromUtf8Error, String},
                 vec::Vec,
             };
-            use core::{fmt, mem, ops::Deref, result, str::Utf8Error};
+            use core::{convert::TryInto, fmt, mem, ops::Deref, result, str::Utf8Error};
         )
     )?;
     writeln!(
@@ -230,6 +230,22 @@ pub(crate) fn generate(
         &mut out,
         "{}",
         stringify!(
+            pub fn convert_bytes_to_words(bytes: &[u8]) -> Result<Vec<u32>> {
+                if bytes.len() % mem::size_of::<u32>() != 0 {
+                    return Err(Error::InvalidByteCount);
+                }
+                let mut words: Vec<u32> = bytes
+                    .chunks_exact(mem::size_of::<u32>())
+                    .map(|word| u32::from_ne_bytes(word.try_into().expect("known to be the correct size")))
+                    .collect();
+                if words.first().copied() == Some(MAGIC_NUMBER.swap_bytes()) {
+                    for word in &mut words {
+                        *word = word.swap_bytes();
+                    }
+                }
+                Ok(words)
+            }
+
             trait SPIRVParse: Sized {
                 fn spirv_parse<'a>(words: &'a [u32], parse_state: &mut ParseState)
                     -> Result<(Self, &'a [u32])>;
@@ -1634,6 +1650,7 @@ pub(crate) fn generate(
                     UndefinedType(IdRef),
                     SwitchSelectorIsInvalid(IdRef),
                     IdIsNotExtInstImport(IdRef),
+                    InvalidByteCount,
                 }
 
                 impl From<Utf8Error> for Error {
@@ -1687,6 +1704,7 @@ pub(crate) fn generate(
                             Error::UndefinedType(id) => write!(f, "undefined type {}", id),
                             Error::SwitchSelectorIsInvalid(id) => write!(f, "Switch selector is invalid: {}", id),
                             Error::IdIsNotExtInstImport(id) => write!(f, "id is not the result of an OpExtInstImport instruction: {}", id),
+                            Error::InvalidByteCount => write!(f, "byte count is not a multiple of 4"),
                         }
                     }
                 }

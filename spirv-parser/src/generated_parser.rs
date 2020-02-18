@@ -29,11 +29,26 @@ use alloc::{
     string::{FromUtf8Error, String},
     vec::Vec,
 };
-use core::{fmt, mem, ops::Deref, result, str::Utf8Error};
+use core::{convert::TryInto, fmt, mem, ops::Deref, result, str::Utf8Error};
 macro_rules! split_fn {
     ($body:expr) => {
         (|| $body)()
     };
+}
+pub fn convert_bytes_to_words(bytes: &[u8]) -> Result<Vec<u32>> {
+    if bytes.len() % mem::size_of::<u32>() != 0 {
+        return Err(Error::InvalidByteCount);
+    }
+    let mut words: Vec<u32> = bytes
+        .chunks_exact(mem::size_of::<u32>())
+        .map(|word| u32::from_ne_bytes(word.try_into().expect("known to be the correct size")))
+        .collect();
+    if words.first().copied() == Some(MAGIC_NUMBER.swap_bytes()) {
+        for word in &mut words {
+            *word = word.swap_bytes();
+        }
+    }
+    Ok(words)
 }
 trait SPIRVParse: Sized {
     fn spirv_parse<'a>(words: &'a [u32], parse_state: &mut ParseState)
@@ -16025,6 +16040,7 @@ pub enum Error {
     UndefinedType(IdRef),
     SwitchSelectorIsInvalid(IdRef),
     IdIsNotExtInstImport(IdRef),
+    InvalidByteCount,
 }
 impl From<Utf8Error> for Error {
     fn from(v: Utf8Error) -> Self {
@@ -16083,6 +16099,7 @@ impl fmt::Display for Error {
                 "id is not the result of an OpExtInstImport instruction: {}",
                 id
             ),
+            Error::InvalidByteCount => write!(f, "byte count is not a multiple of 4"),
         }
     }
 }
@@ -36644,7 +36661,7 @@ mod input_file_tests {
         println!("checking that generated code is up to date -- update by running:");
         println!("cargo build --features=spirv-parser-generator");
         input_file_test ( "../spirv-parser-generator/src/ast.rs" , b"^\xEA\x97\xA1\x06\x07\x18\xF5\xE3/|z]s\x0C\xF7\xE5(W\xFC\x84\x0B\xAE\x08q{MxjO\x8F\xF8" ) ;
-        input_file_test ( "../spirv-parser-generator/src/generate.rs" , b" \xF0\x83\xE4j\xD6O\x19>\xD1\xA6\xCB\x80\x1A\x17\xDC\xB1\xE6I\xE5\xE6}\x88\xD3q4\xC0\x06B\xF8\x1D\x18" ) ;
+        input_file_test ( "../spirv-parser-generator/src/generate.rs" , b"Ct\xDF\xF4\xD6j\xE5\xD7^\x9C\x13\xBF\x83dJ\x83\xC2\xF1!\xE0U\xA2^A\x13\x97\x92\x93\xAA\xBF\xB2\x05" ) ;
         input_file_test ( "../spirv-parser-generator/src/lib.rs" , b"\xED\xEA6\x8E\x83=*W\xCF3jN\xFC\xD6t\x8E(\xA5V\xFF#\x0F\xE4R\xE2\x8B~s\x15\x1C\xE6\xA5" ) ;
         input_file_test ( "../spirv-parser-generator/src/util.rs" , b"\xA5\x0C;C\x02\x06o9*\x1B\x0B\xDB+\x11\xEA\xB9\xB5\xC3\x91\x954\xD2\xF9\xD8B\x97\xBF\xA4?F\x8F\xDD" ) ;
         input_file_test ( "../spirv-parser-generator/Cargo.toml" , b"\xB2\xBB?\xE5\xB5\xB3\xED\x96]\x8Cj\xDDM+\xB0\xFB\xC9\xBB\xAB\xF8\tH\x02\xFF\xA7\x05\xD3\x0E\xDE\x98\r\x02" ) ;

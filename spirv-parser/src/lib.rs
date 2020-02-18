@@ -15,25 +15,10 @@ pub use generated_parser::*;
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::{io::Write, mem, slice};
+    use std::io::Write;
 
     fn parse_and_dump(bytes: &[u8]) -> Result<String> {
-        assert_eq!(bytes.len() % mem::size_of::<u32>(), 0);
-        let mut words: Vec<u32> = Vec::new();
-        words.resize(bytes.len() / mem::size_of::<u32>(), 0);
-        unsafe {
-            slice::from_raw_parts_mut(
-                words.as_mut_ptr() as *mut u8,
-                words.len() * mem::size_of::<u32>(),
-            )
-            .copy_from_slice(bytes);
-        }
-        assert!(!words.is_empty());
-        if words[0].swap_bytes() == MAGIC_NUMBER {
-            for word in words.iter_mut() {
-                *word = word.swap_bytes();
-            }
-        }
+        let words = convert_bytes_to_words(bytes)?;
         let parser = Parser::start(&words)?;
         let mut out = Vec::<u8>::new();
         println!("Dumped output:");
