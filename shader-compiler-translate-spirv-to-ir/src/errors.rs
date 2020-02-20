@@ -392,14 +392,14 @@ impl_errors! {
     }
 
     #[box]
-    #[display = "merge instruction must be immediately followed by a termination instruction:\n{merge_instruction}{instruction}"]
+    #[display = "merge instruction must be immediately followed by a termination instruction:\n{merge_instruction}\n{instruction}"]
     pub struct MergeInstructionMustBeImmediatelyFollowedByTerminationInstruction {
         pub merge_instruction: spirv_parser::Instruction,
         pub instruction: spirv_parser::Instruction,
     }
 
     #[box]
-    #[display = "invalid termination instruction following merge instruction:\n{merge_instruction}{termination_instruction}"]
+    #[display = "invalid termination instruction following merge instruction:\n{merge_instruction}\n{termination_instruction}"]
     pub struct InvalidTerminationInstructionFollowingMergeInstruction {
         pub merge_instruction: spirv_parser::Instruction,
         pub termination_instruction: spirv_parser::Instruction,

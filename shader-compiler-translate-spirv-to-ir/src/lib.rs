@@ -101,7 +101,7 @@ struct SPIRVInstructionLocation<'i> {
 impl<'i> fmt::Debug for SPIRVInstructionLocation<'i> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         if let Some(instruction) = self.get_instruction() {
-            write!(f, "{:05}: {}", self.index, instruction)
+            writeln!(f, "{:05}: {}", self.index, instruction)
         } else {
             writeln!(f, "{:05}: <EOF>", self.index)
         }

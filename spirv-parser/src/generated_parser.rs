@@ -7288,7 +7288,7 @@ impl fmt::Display for OpSpecConstantOp {
                 f.write_str(concat!(" ", "AccessChain"))?;
                 base.spirv_display(f)?;
                 indexes.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }
             OpSpecConstantOp::InBoundsAccessChain(OpInBoundsAccessChain {
                 id_result_type,
@@ -7305,7 +7305,7 @@ impl fmt::Display for OpSpecConstantOp {
                 f.write_str(concat!(" ", "InBoundsAccessChain"))?;
                 base.spirv_display(f)?;
                 indexes.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }
             OpSpecConstantOp::PtrAccessChain(OpPtrAccessChain {
                 id_result_type,
@@ -7324,7 +7324,7 @@ impl fmt::Display for OpSpecConstantOp {
                 base.spirv_display(f)?;
                 element.spirv_display(f)?;
                 indexes.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }
             OpSpecConstantOp::InBoundsPtrAccessChain(OpInBoundsPtrAccessChain {
                 id_result_type,
@@ -7343,7 +7343,7 @@ impl fmt::Display for OpSpecConstantOp {
                 base.spirv_display(f)?;
                 element.spirv_display(f)?;
                 indexes.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }
             OpSpecConstantOp::VectorShuffle(OpVectorShuffle {
                 id_result_type,
@@ -7362,7 +7362,7 @@ impl fmt::Display for OpSpecConstantOp {
                 vector_1.spirv_display(f)?;
                 vector_2.spirv_display(f)?;
                 components.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }
             OpSpecConstantOp::CompositeExtract(OpCompositeExtract {
                 id_result_type,
@@ -7379,7 +7379,7 @@ impl fmt::Display for OpSpecConstantOp {
                 f.write_str(concat!(" ", "CompositeExtract"))?;
                 composite.spirv_display(f)?;
                 indexes.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }
             OpSpecConstantOp::CompositeInsert(OpCompositeInsert {
                 id_result_type,
@@ -7398,7 +7398,7 @@ impl fmt::Display for OpSpecConstantOp {
                 object.spirv_display(f)?;
                 composite.spirv_display(f)?;
                 indexes.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }
             OpSpecConstantOp::ConvertFToU(OpConvertFToU {
                 id_result_type,
@@ -7413,7 +7413,7 @@ impl fmt::Display for OpSpecConstantOp {
                 id_result_type.spirv_display(f)?;
                 f.write_str(concat!(" ", "ConvertFToU"))?;
                 float_value.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }
             OpSpecConstantOp::ConvertFToS(OpConvertFToS {
                 id_result_type,
@@ -7428,7 +7428,7 @@ impl fmt::Display for OpSpecConstantOp {
                 id_result_type.spirv_display(f)?;
                 f.write_str(concat!(" ", "ConvertFToS"))?;
                 float_value.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }
             OpSpecConstantOp::ConvertSToF(OpConvertSToF {
                 id_result_type,
@@ -7443,7 +7443,7 @@ impl fmt::Display for OpSpecConstantOp {
                 id_result_type.spirv_display(f)?;
                 f.write_str(concat!(" ", "ConvertSToF"))?;
                 signed_value.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }
             OpSpecConstantOp::ConvertUToF(OpConvertUToF {
                 id_result_type,
@@ -7458,7 +7458,7 @@ impl fmt::Display for OpSpecConstantOp {
                 id_result_type.spirv_display(f)?;
                 f.write_str(concat!(" ", "ConvertUToF"))?;
                 unsigned_value.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }
             OpSpecConstantOp::UConvert(OpUConvert {
                 id_result_type,
@@ -7473,7 +7473,7 @@ impl fmt::Display for OpSpecConstantOp {
                 id_result_type.spirv_display(f)?;
                 f.write_str(concat!(" ", "UConvert"))?;
                 unsigned_value.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }
             OpSpecConstantOp::SConvert(OpSConvert {
                 id_result_type,
@@ -7488,7 +7488,7 @@ impl fmt::Display for OpSpecConstantOp {
                 id_result_type.spirv_display(f)?;
                 f.write_str(concat!(" ", "SConvert"))?;
                 signed_value.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }
             OpSpecConstantOp::FConvert(OpFConvert {
                 id_result_type,
@@ -7503,7 +7503,7 @@ impl fmt::Display for OpSpecConstantOp {
                 id_result_type.spirv_display(f)?;
                 f.write_str(concat!(" ", "FConvert"))?;
                 float_value.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }
             OpSpecConstantOp::QuantizeToF16(OpQuantizeToF16 {
                 id_result_type,
@@ -7518,7 +7518,7 @@ impl fmt::Display for OpSpecConstantOp {
                 id_result_type.spirv_display(f)?;
                 f.write_str(concat!(" ", "QuantizeToF16"))?;
                 value.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }
             OpSpecConstantOp::ConvertPtrToU(OpConvertPtrToU {
                 id_result_type,
@@ -7533,7 +7533,7 @@ impl fmt::Display for OpSpecConstantOp {
                 id_result_type.spirv_display(f)?;
                 f.write_str(concat!(" ", "ConvertPtrToU"))?;
                 pointer.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }
             OpSpecConstantOp::ConvertUToPtr(OpConvertUToPtr {
                 id_result_type,
@@ -7548,7 +7548,7 @@ impl fmt::Display for OpSpecConstantOp {
                 id_result_type.spirv_display(f)?;
                 f.write_str(concat!(" ", "ConvertUToPtr"))?;
                 integer_value.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }
             OpSpecConstantOp::PtrCastToGeneric(OpPtrCastToGeneric {
                 id_result_type,
@@ -7563,7 +7563,7 @@ impl fmt::Display for OpSpecConstantOp {
                 id_result_type.spirv_display(f)?;
                 f.write_str(concat!(" ", "PtrCastToGeneric"))?;
                 pointer.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }
             OpSpecConstantOp::GenericCastToPtr(OpGenericCastToPtr {
                 id_result_type,
@@ -7578,7 +7578,7 @@ impl fmt::Display for OpSpecConstantOp {
                 id_result_type.spirv_display(f)?;
                 f.write_str(concat!(" ", "GenericCastToPtr"))?;
                 pointer.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }
             OpSpecConstantOp::Bitcast(OpBitcast {
                 id_result_type,
@@ -7593,7 +7593,7 @@ impl fmt::Display for OpSpecConstantOp {
                 id_result_type.spirv_display(f)?;
                 f.write_str(concat!(" ", "Bitcast"))?;
                 operand.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }
             OpSpecConstantOp::SNegate(OpSNegate {
                 id_result_type,
@@ -7608,7 +7608,7 @@ impl fmt::Display for OpSpecConstantOp {
                 id_result_type.spirv_display(f)?;
                 f.write_str(concat!(" ", "SNegate"))?;
                 operand.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }
             OpSpecConstantOp::FNegate(OpFNegate {
                 id_result_type,
@@ -7623,7 +7623,7 @@ impl fmt::Display for OpSpecConstantOp {
                 id_result_type.spirv_display(f)?;
                 f.write_str(concat!(" ", "FNegate"))?;
                 operand.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }
             OpSpecConstantOp::IAdd(OpIAdd {
                 id_result_type,
@@ -7640,7 +7640,7 @@ impl fmt::Display for OpSpecConstantOp {
                 f.write_str(concat!(" ", "IAdd"))?;
                 operand_1.spirv_display(f)?;
                 operand_2.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }
             OpSpecConstantOp::FAdd(OpFAdd {
                 id_result_type,
@@ -7657,7 +7657,7 @@ impl fmt::Display for OpSpecConstantOp {
                 f.write_str(concat!(" ", "FAdd"))?;
                 operand_1.spirv_display(f)?;
                 operand_2.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }
             OpSpecConstantOp::ISub(OpISub {
                 id_result_type,
@@ -7674,7 +7674,7 @@ impl fmt::Display for OpSpecConstantOp {
                 f.write_str(concat!(" ", "ISub"))?;
                 operand_1.spirv_display(f)?;
                 operand_2.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }
             OpSpecConstantOp::FSub(OpFSub {
                 id_result_type,
@@ -7691,7 +7691,7 @@ impl fmt::Display for OpSpecConstantOp {
                 f.write_str(concat!(" ", "FSub"))?;
                 operand_1.spirv_display(f)?;
                 operand_2.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }
             OpSpecConstantOp::IMul(OpIMul {
                 id_result_type,
@@ -7708,7 +7708,7 @@ impl fmt::Display for OpSpecConstantOp {
                 f.write_str(concat!(" ", "IMul"))?;
                 operand_1.spirv_display(f)?;
                 operand_2.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }
             OpSpecConstantOp::FMul(OpFMul {
                 id_result_type,
@@ -7725,7 +7725,7 @@ impl fmt::Display for OpSpecConstantOp {
                 f.write_str(concat!(" ", "FMul"))?;
                 operand_1.spirv_display(f)?;
                 operand_2.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }
             OpSpecConstantOp::UDiv(OpUDiv {
                 id_result_type,
@@ -7742,7 +7742,7 @@ impl fmt::Display for OpSpecConstantOp {
                 f.write_str(concat!(" ", "UDiv"))?;
                 operand_1.spirv_display(f)?;
                 operand_2.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }
             OpSpecConstantOp::SDiv(OpSDiv {
                 id_result_type,
@@ -7759,7 +7759,7 @@ impl fmt::Display for OpSpecConstantOp {
                 f.write_str(concat!(" ", "SDiv"))?;
                 operand_1.spirv_display(f)?;
                 operand_2.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }
             OpSpecConstantOp::FDiv(OpFDiv {
                 id_result_type,
@@ -7776,7 +7776,7 @@ impl fmt::Display for OpSpecConstantOp {
                 f.write_str(concat!(" ", "FDiv"))?;
                 operand_1.spirv_display(f)?;
                 operand_2.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }
             OpSpecConstantOp::UMod(OpUMod {
                 id_result_type,
@@ -7793,7 +7793,7 @@ impl fmt::Display for OpSpecConstantOp {
                 f.write_str(concat!(" ", "UMod"))?;
                 operand_1.spirv_display(f)?;
                 operand_2.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }
             OpSpecConstantOp::SRem(OpSRem {
                 id_result_type,
@@ -7810,7 +7810,7 @@ impl fmt::Display for OpSpecConstantOp {
                 f.write_str(concat!(" ", "SRem"))?;
                 operand_1.spirv_display(f)?;
                 operand_2.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }
             OpSpecConstantOp::SMod(OpSMod {
                 id_result_type,
@@ -7827,7 +7827,7 @@ impl fmt::Display for OpSpecConstantOp {
                 f.write_str(concat!(" ", "SMod"))?;
                 operand_1.spirv_display(f)?;
                 operand_2.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }
             OpSpecConstantOp::FRem(OpFRem {
                 id_result_type,
@@ -7844,7 +7844,7 @@ impl fmt::Display for OpSpecConstantOp {
                 f.write_str(concat!(" ", "FRem"))?;
                 operand_1.spirv_display(f)?;
                 operand_2.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }
             OpSpecConstantOp::FMod(OpFMod {
                 id_result_type,
@@ -7861,7 +7861,7 @@ impl fmt::Display for OpSpecConstantOp {
                 f.write_str(concat!(" ", "FMod"))?;
                 operand_1.spirv_display(f)?;
                 operand_2.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }
             OpSpecConstantOp::LogicalEqual(OpLogicalEqual {
                 id_result_type,
@@ -7878,7 +7878,7 @@ impl fmt::Display for OpSpecConstantOp {
                 f.write_str(concat!(" ", "LogicalEqual"))?;
                 operand_1.spirv_display(f)?;
                 operand_2.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }
             OpSpecConstantOp::LogicalNotEqual(OpLogicalNotEqual {
                 id_result_type,
@@ -7895,7 +7895,7 @@ impl fmt::Display for OpSpecConstantOp {
                 f.write_str(concat!(" ", "LogicalNotEqual"))?;
                 operand_1.spirv_display(f)?;
                 operand_2.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }
             OpSpecConstantOp::LogicalOr(OpLogicalOr {
                 id_result_type,
@@ -7912,7 +7912,7 @@ impl fmt::Display for OpSpecConstantOp {
                 f.write_str(concat!(" ", "LogicalOr"))?;
                 operand_1.spirv_display(f)?;
                 operand_2.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }
             OpSpecConstantOp::LogicalAnd(OpLogicalAnd {
                 id_result_type,
@@ -7929,7 +7929,7 @@ impl fmt::Display for OpSpecConstantOp {
                 f.write_str(concat!(" ", "LogicalAnd"))?;
                 operand_1.spirv_display(f)?;
                 operand_2.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }
             OpSpecConstantOp::LogicalNot(OpLogicalNot {
                 id_result_type,
@@ -7944,7 +7944,7 @@ impl fmt::Display for OpSpecConstantOp {
                 id_result_type.spirv_display(f)?;
                 f.write_str(concat!(" ", "LogicalNot"))?;
                 operand.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }
             OpSpecConstantOp::Select(OpSelect {
                 id_result_type,
@@ -7963,7 +7963,7 @@ impl fmt::Display for OpSpecConstantOp {
                 condition.spirv_display(f)?;
                 object_1.spirv_display(f)?;
                 object_2.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }
             OpSpecConstantOp::IEqual(OpIEqual {
                 id_result_type,
@@ -7980,7 +7980,7 @@ impl fmt::Display for OpSpecConstantOp {
                 f.write_str(concat!(" ", "IEqual"))?;
                 operand_1.spirv_display(f)?;
                 operand_2.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }
             OpSpecConstantOp::INotEqual(OpINotEqual {
                 id_result_type,
@@ -7997,7 +7997,7 @@ impl fmt::Display for OpSpecConstantOp {
                 f.write_str(concat!(" ", "INotEqual"))?;
                 operand_1.spirv_display(f)?;
                 operand_2.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }
             OpSpecConstantOp::UGreaterThan(OpUGreaterThan {
                 id_result_type,
@@ -8014,7 +8014,7 @@ impl fmt::Display for OpSpecConstantOp {
                 f.write_str(concat!(" ", "UGreaterThan"))?;
                 operand_1.spirv_display(f)?;
                 operand_2.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }
             OpSpecConstantOp::SGreaterThan(OpSGreaterThan {
                 id_result_type,
@@ -8031,7 +8031,7 @@ impl fmt::Display for OpSpecConstantOp {
                 f.write_str(concat!(" ", "SGreaterThan"))?;
                 operand_1.spirv_display(f)?;
                 operand_2.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }
             OpSpecConstantOp::UGreaterThanEqual(OpUGreaterThanEqual {
                 id_result_type,
@@ -8048,7 +8048,7 @@ impl fmt::Display for OpSpecConstantOp {
                 f.write_str(concat!(" ", "UGreaterThanEqual"))?;
                 operand_1.spirv_display(f)?;
                 operand_2.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }
             OpSpecConstantOp::SGreaterThanEqual(OpSGreaterThanEqual {
                 id_result_type,
@@ -8065,7 +8065,7 @@ impl fmt::Display for OpSpecConstantOp {
                 f.write_str(concat!(" ", "SGreaterThanEqual"))?;
                 operand_1.spirv_display(f)?;
                 operand_2.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }
             OpSpecConstantOp::ULessThan(OpULessThan {
                 id_result_type,
@@ -8082,7 +8082,7 @@ impl fmt::Display for OpSpecConstantOp {
                 f.write_str(concat!(" ", "ULessThan"))?;
                 operand_1.spirv_display(f)?;
                 operand_2.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }
             OpSpecConstantOp::SLessThan(OpSLessThan {
                 id_result_type,
@@ -8099,7 +8099,7 @@ impl fmt::Display for OpSpecConstantOp {
                 f.write_str(concat!(" ", "SLessThan"))?;
                 operand_1.spirv_display(f)?;
                 operand_2.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }
             OpSpecConstantOp::ULessThanEqual(OpULessThanEqual {
                 id_result_type,
@@ -8116,7 +8116,7 @@ impl fmt::Display for OpSpecConstantOp {
                 f.write_str(concat!(" ", "ULessThanEqual"))?;
                 operand_1.spirv_display(f)?;
                 operand_2.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }
             OpSpecConstantOp::SLessThanEqual(OpSLessThanEqual {
                 id_result_type,
@@ -8133,7 +8133,7 @@ impl fmt::Display for OpSpecConstantOp {
                 f.write_str(concat!(" ", "SLessThanEqual"))?;
                 operand_1.spirv_display(f)?;
                 operand_2.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }
             OpSpecConstantOp::ShiftRightLogical(OpShiftRightLogical {
                 id_result_type,
@@ -8150,7 +8150,7 @@ impl fmt::Display for OpSpecConstantOp {
                 f.write_str(concat!(" ", "ShiftRightLogical"))?;
                 base.spirv_display(f)?;
                 shift.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }
             OpSpecConstantOp::ShiftRightArithmetic(OpShiftRightArithmetic {
                 id_result_type,
@@ -8167,7 +8167,7 @@ impl fmt::Display for OpSpecConstantOp {
                 f.write_str(concat!(" ", "ShiftRightArithmetic"))?;
                 base.spirv_display(f)?;
                 shift.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }
             OpSpecConstantOp::ShiftLeftLogical(OpShiftLeftLogical {
                 id_result_type,
@@ -8184,7 +8184,7 @@ impl fmt::Display for OpSpecConstantOp {
                 f.write_str(concat!(" ", "ShiftLeftLogical"))?;
                 base.spirv_display(f)?;
                 shift.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }
             OpSpecConstantOp::BitwiseOr(OpBitwiseOr {
                 id_result_type,
@@ -8201,7 +8201,7 @@ impl fmt::Display for OpSpecConstantOp {
                 f.write_str(concat!(" ", "BitwiseOr"))?;
                 operand_1.spirv_display(f)?;
                 operand_2.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }
             OpSpecConstantOp::BitwiseXor(OpBitwiseXor {
                 id_result_type,
@@ -8218,7 +8218,7 @@ impl fmt::Display for OpSpecConstantOp {
                 f.write_str(concat!(" ", "BitwiseXor"))?;
                 operand_1.spirv_display(f)?;
                 operand_2.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }
             OpSpecConstantOp::BitwiseAnd(OpBitwiseAnd {
                 id_result_type,
@@ -8235,7 +8235,7 @@ impl fmt::Display for OpSpecConstantOp {
                 f.write_str(concat!(" ", "BitwiseAnd"))?;
                 operand_1.spirv_display(f)?;
                 operand_2.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }
             OpSpecConstantOp::Not(OpNot {
                 id_result_type,
@@ -8250,7 +8250,7 @@ impl fmt::Display for OpSpecConstantOp {
                 id_result_type.spirv_display(f)?;
                 f.write_str(concat!(" ", "Not"))?;
                 operand.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }
         }
     }
@@ -15999,7 +15999,7 @@ impl fmt::Display for Header {
         writeln!(f, "; Version: {}.{}", self.version.0, self.version.1)?;
         writeln!(f, "; Generator: {:#X}", self.generator)?;
         writeln!(f, "; Bound: {}", self.bound)?;
-        writeln!(f, "; Schema: {}", self.instruction_schema)
+        write!(f, "; Schema: {}", self.instruction_schema)
     }
 }
 struct InstructionIndentAndResult(Option<IdResult>);
@@ -16155,6 +16155,7 @@ impl ParseState {
 #[derive(Clone, Debug)]
 pub struct Parser<'a> {
     words: &'a [u32],
+    next_location: usize,
     header: Header,
     parse_state: ParseState,
 }
@@ -16167,12 +16168,19 @@ fn parse_version(v: u32) -> Result<(u32, u32)> {
     Ok((major, minor))
 }
 impl<'a> Parser<'a> {
+    #[doc = r" get the parsed SPIR-V header."]
     pub fn header(&self) -> &Header {
         &self.header
     }
+    #[doc = r" get the word index of the result of the next call to `self.next()`."]
+    pub fn next_location(&self) -> usize {
+        self.next_location
+    }
+    #[doc = r" create a new `Parser` and parse the SPIR-V header."]
     pub fn start(mut words: &'a [u32]) -> Result<Self> {
-        let header = words.get(0..5).ok_or(Error::MissingHeader)?;
-        words = &words[5..];
+        const HEADER_LEN: usize = 5;
+        let header = words.get(0..HEADER_LEN).ok_or(Error::MissingHeader)?;
+        words = &words[HEADER_LEN..];
         let header = match *header {
             [MAGIC_NUMBER, version, generator, bound, instruction_schema @ 0] if bound >= 1 => {
                 let version = parse_version(version)?;
@@ -16193,6 +16201,7 @@ impl<'a> Parser<'a> {
         } else {
             Ok(Self {
                 words,
+                next_location: HEADER_LEN,
                 header,
                 parse_state: ParseState {
                     id_states: vec![IdState::Unknown; header.bound as usize],
@@ -16211,6 +16220,7 @@ impl<'a> Parser<'a> {
             .get(1..length)
             .ok_or(Error::SourcePrematurelyEnded)?;
         self.words = &self.words[length..];
+        self.next_location += length;
         parse_instruction(opcode, instruction_words, &mut self.parse_state)
     }
 }
@@ -25515,7 +25525,7 @@ impl fmt::Display for Instruction {
         match self {
             Instruction::Nop(OpNop {}) => split_fn!({
                 write!(f, "{}{}", InstructionIndentAndResult(None), "OpNop")?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::Undef(OpUndef {
                 id_result_type,
@@ -25528,7 +25538,7 @@ impl fmt::Display for Instruction {
                     "OpUndef"
                 )?;
                 id_result_type.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::SourceContinued(OpSourceContinued { continued_source }) => split_fn!({
                 write!(
@@ -25538,7 +25548,7 @@ impl fmt::Display for Instruction {
                     "OpSourceContinued"
                 )?;
                 continued_source.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::Source(OpSource {
                 source_language,
@@ -25551,7 +25561,7 @@ impl fmt::Display for Instruction {
                 version.spirv_display(f)?;
                 file.spirv_display(f)?;
                 source.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::SourceExtension(OpSourceExtension { extension }) => split_fn!({
                 write!(
@@ -25561,13 +25571,13 @@ impl fmt::Display for Instruction {
                     "OpSourceExtension"
                 )?;
                 extension.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::Name(OpName { target, name }) => split_fn!({
                 write!(f, "{}{}", InstructionIndentAndResult(None), "OpName")?;
                 target.spirv_display(f)?;
                 name.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::MemberName(OpMemberName {
                 type_,
@@ -25578,7 +25588,7 @@ impl fmt::Display for Instruction {
                 type_.spirv_display(f)?;
                 member.spirv_display(f)?;
                 name.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::String(OpString { id_result, string }) => split_fn!({
                 write!(
@@ -25588,22 +25598,22 @@ impl fmt::Display for Instruction {
                     "OpString"
                 )?;
                 string.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::Line(OpLine { file, line, column }) => split_fn!({
                 write!(f, "{}{}", InstructionIndentAndResult(None), "OpLine")?;
                 file.spirv_display(f)?;
                 line.spirv_display(f)?;
                 column.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::Extension(OpExtension { name }) => split_fn!({
                 write!(f, "{}{}", InstructionIndentAndResult(None), "OpExtension")?;
                 name.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::ExtInstImport(OpExtInstImport { id_result, name }) => split_fn!({
-                writeln!(
+                write!(
                     f,
                     "{}{} {:?}",
                     InstructionIndentAndResult(Some(*id_result)),
@@ -25627,8 +25637,7 @@ impl fmt::Display for Instruction {
                 id_result_type.spirv_display(f)?;
                 set.spirv_display(f)?;
                 instruction.spirv_display(f)?;
-                operands.spirv_display(f)?;
-                writeln!(f)
+                operands.spirv_display(f)
             }),
             Instruction::MemoryModel(OpMemoryModel {
                 addressing_model,
@@ -25637,7 +25646,7 @@ impl fmt::Display for Instruction {
                 write!(f, "{}{}", InstructionIndentAndResult(None), "OpMemoryModel")?;
                 addressing_model.spirv_display(f)?;
                 memory_model.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::EntryPoint(OpEntryPoint {
                 execution_model,
@@ -25650,7 +25659,7 @@ impl fmt::Display for Instruction {
                 entry_point.spirv_display(f)?;
                 name.spirv_display(f)?;
                 interface.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::ExecutionMode(OpExecutionMode { entry_point, mode }) => split_fn!({
                 write!(
@@ -25661,12 +25670,12 @@ impl fmt::Display for Instruction {
                 )?;
                 entry_point.spirv_display(f)?;
                 mode.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::Capability(OpCapability { capability }) => split_fn!({
                 write!(f, "{}{}", InstructionIndentAndResult(None), "OpCapability")?;
                 capability.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::TypeVoid(OpTypeVoid { id_result }) => split_fn!({
                 write!(
@@ -25675,7 +25684,7 @@ impl fmt::Display for Instruction {
                     InstructionIndentAndResult(Some(*id_result)),
                     "OpTypeVoid"
                 )?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::TypeBool(OpTypeBool { id_result }) => split_fn!({
                 write!(
@@ -25684,7 +25693,7 @@ impl fmt::Display for Instruction {
                     InstructionIndentAndResult(Some(*id_result)),
                     "OpTypeBool"
                 )?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::TypeInt(OpTypeInt {
                 id_result,
@@ -25698,8 +25707,7 @@ impl fmt::Display for Instruction {
                     "OpTypeInt"
                 )?;
                 width.spirv_display(f)?;
-                signedness.spirv_display(f)?;
-                writeln!(f)
+                signedness.spirv_display(f)
             }),
             Instruction::TypeFloat(OpTypeFloat { id_result, width }) => split_fn!({
                 write!(
@@ -25708,8 +25716,7 @@ impl fmt::Display for Instruction {
                     InstructionIndentAndResult(Some(*id_result)),
                     "OpTypeFloat"
                 )?;
-                width.spirv_display(f)?;
-                writeln!(f)
+                width.spirv_display(f)
             }),
             Instruction::TypeVector(OpTypeVector {
                 id_result,
@@ -25724,7 +25731,7 @@ impl fmt::Display for Instruction {
                 )?;
                 component_type.spirv_display(f)?;
                 component_count.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::TypeMatrix(OpTypeMatrix {
                 id_result,
@@ -25739,7 +25746,7 @@ impl fmt::Display for Instruction {
                 )?;
                 column_type.spirv_display(f)?;
                 column_count.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::TypeImage(OpTypeImage {
                 id_result,
@@ -25766,7 +25773,7 @@ impl fmt::Display for Instruction {
                 sampled.spirv_display(f)?;
                 image_format.spirv_display(f)?;
                 access_qualifier.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::TypeSampler(OpTypeSampler { id_result }) => split_fn!({
                 write!(
@@ -25775,7 +25782,7 @@ impl fmt::Display for Instruction {
                     InstructionIndentAndResult(Some(*id_result)),
                     "OpTypeSampler"
                 )?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::TypeSampledImage(OpTypeSampledImage {
                 id_result,
@@ -25788,7 +25795,7 @@ impl fmt::Display for Instruction {
                     "OpTypeSampledImage"
                 )?;
                 image_type.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::TypeArray(OpTypeArray {
                 id_result,
@@ -25803,7 +25810,7 @@ impl fmt::Display for Instruction {
                 )?;
                 element_type.spirv_display(f)?;
                 length.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::TypeRuntimeArray(OpTypeRuntimeArray {
                 id_result,
@@ -25816,7 +25823,7 @@ impl fmt::Display for Instruction {
                     "OpTypeRuntimeArray"
                 )?;
                 element_type.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::TypeStruct(OpTypeStruct {
                 id_result,
@@ -25829,7 +25836,7 @@ impl fmt::Display for Instruction {
                     "OpTypeStruct"
                 )?;
                 member_types.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::TypeOpaque(OpTypeOpaque {
                 id_result,
@@ -25842,7 +25849,7 @@ impl fmt::Display for Instruction {
                     "OpTypeOpaque"
                 )?;
                 the_name_of_the_opaque_type.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::TypePointer(OpTypePointer {
                 id_result,
@@ -25857,7 +25864,7 @@ impl fmt::Display for Instruction {
                 )?;
                 storage_class.spirv_display(f)?;
                 type_.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::TypeFunction(OpTypeFunction {
                 id_result,
@@ -25872,7 +25879,7 @@ impl fmt::Display for Instruction {
                 )?;
                 return_type.spirv_display(f)?;
                 parameter_types.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::TypeEvent(OpTypeEvent { id_result }) => split_fn!({
                 write!(
@@ -25881,7 +25888,7 @@ impl fmt::Display for Instruction {
                     InstructionIndentAndResult(Some(*id_result)),
                     "OpTypeEvent"
                 )?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::TypeDeviceEvent(OpTypeDeviceEvent { id_result }) => split_fn!({
                 write!(
@@ -25890,7 +25897,7 @@ impl fmt::Display for Instruction {
                     InstructionIndentAndResult(Some(*id_result)),
                     "OpTypeDeviceEvent"
                 )?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::TypeReserveId(OpTypeReserveId { id_result }) => split_fn!({
                 write!(
@@ -25899,7 +25906,7 @@ impl fmt::Display for Instruction {
                     InstructionIndentAndResult(Some(*id_result)),
                     "OpTypeReserveId"
                 )?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::TypeQueue(OpTypeQueue { id_result }) => split_fn!({
                 write!(
@@ -25908,7 +25915,7 @@ impl fmt::Display for Instruction {
                     InstructionIndentAndResult(Some(*id_result)),
                     "OpTypeQueue"
                 )?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::TypePipe(OpTypePipe {
                 id_result,
@@ -25921,7 +25928,7 @@ impl fmt::Display for Instruction {
                     "OpTypePipe"
                 )?;
                 qualifier.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::TypeForwardPointer(OpTypeForwardPointer {
                 pointer_type,
@@ -25935,7 +25942,7 @@ impl fmt::Display for Instruction {
                 )?;
                 pointer_type.spirv_display(f)?;
                 storage_class.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::ConstantTrue(OpConstantTrue {
                 id_result_type,
@@ -25948,7 +25955,7 @@ impl fmt::Display for Instruction {
                     "OpConstantTrue"
                 )?;
                 id_result_type.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::ConstantFalse(OpConstantFalse {
                 id_result_type,
@@ -25961,7 +25968,7 @@ impl fmt::Display for Instruction {
                     "OpConstantFalse"
                 )?;
                 id_result_type.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::Constant32(OpConstant32 {
                 id_result_type,
@@ -25975,7 +25982,7 @@ impl fmt::Display for Instruction {
                     "OpConstant"
                 )?;
                 id_result_type.spirv_display(f)?;
-                writeln!(f, " {:#010X}", value)
+                write!(f, " {:#010X}", value)
             }),
             Instruction::Constant64(OpConstant64 {
                 id_result_type,
@@ -25989,7 +25996,7 @@ impl fmt::Display for Instruction {
                     "OpConstant"
                 )?;
                 id_result_type.spirv_display(f)?;
-                writeln!(f, " {:#018X}", value)
+                write!(f, " {:#018X}", value)
             }),
             Instruction::ConstantComposite(OpConstantComposite {
                 id_result_type,
@@ -26004,7 +26011,7 @@ impl fmt::Display for Instruction {
                 )?;
                 id_result_type.spirv_display(f)?;
                 constituents.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::ConstantSampler(OpConstantSampler {
                 id_result_type,
@@ -26023,7 +26030,7 @@ impl fmt::Display for Instruction {
                 sampler_addressing_mode.spirv_display(f)?;
                 param.spirv_display(f)?;
                 sampler_filter_mode.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::ConstantNull(OpConstantNull {
                 id_result_type,
@@ -26036,7 +26043,7 @@ impl fmt::Display for Instruction {
                     "OpConstantNull"
                 )?;
                 id_result_type.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::SpecConstantTrue(OpSpecConstantTrue {
                 id_result_type,
@@ -26049,7 +26056,7 @@ impl fmt::Display for Instruction {
                     "OpSpecConstantTrue"
                 )?;
                 id_result_type.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::SpecConstantFalse(OpSpecConstantFalse {
                 id_result_type,
@@ -26062,7 +26069,7 @@ impl fmt::Display for Instruction {
                     "OpSpecConstantFalse"
                 )?;
                 id_result_type.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::SpecConstant32(OpSpecConstant32 {
                 id_result_type,
@@ -26076,7 +26083,7 @@ impl fmt::Display for Instruction {
                     "OpSpecConstant"
                 )?;
                 id_result_type.spirv_display(f)?;
-                writeln!(f, " {:#010X}", value)
+                write!(f, " {:#010X}", value)
             }),
             Instruction::SpecConstant64(OpSpecConstant64 {
                 id_result_type,
@@ -26090,7 +26097,7 @@ impl fmt::Display for Instruction {
                     "OpSpecConstant"
                 )?;
                 id_result_type.spirv_display(f)?;
-                writeln!(f, " {:#018X}", value)
+                write!(f, " {:#018X}", value)
             }),
             Instruction::SpecConstantComposite(OpSpecConstantComposite {
                 id_result_type,
@@ -26105,7 +26112,7 @@ impl fmt::Display for Instruction {
                 )?;
                 id_result_type.spirv_display(f)?;
                 constituents.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::SpecConstantOp(operation) => fmt::Display::fmt(operation, f),
             Instruction::Function(OpFunction {
@@ -26123,7 +26130,7 @@ impl fmt::Display for Instruction {
                 id_result_type.spirv_display(f)?;
                 function_control.spirv_display(f)?;
                 function_type.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::FunctionParameter(OpFunctionParameter {
                 id_result_type,
@@ -26136,11 +26143,11 @@ impl fmt::Display for Instruction {
                     "OpFunctionParameter"
                 )?;
                 id_result_type.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::FunctionEnd(OpFunctionEnd {}) => split_fn!({
                 write!(f, "{}{}", InstructionIndentAndResult(None), "OpFunctionEnd")?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::FunctionCall(OpFunctionCall {
                 id_result_type,
@@ -26157,7 +26164,7 @@ impl fmt::Display for Instruction {
                 id_result_type.spirv_display(f)?;
                 function.spirv_display(f)?;
                 arguments.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::Variable(OpVariable {
                 id_result_type,
@@ -26174,7 +26181,7 @@ impl fmt::Display for Instruction {
                 id_result_type.spirv_display(f)?;
                 storage_class.spirv_display(f)?;
                 initializer.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::ImageTexelPointer(OpImageTexelPointer {
                 id_result_type,
@@ -26193,7 +26200,7 @@ impl fmt::Display for Instruction {
                 image.spirv_display(f)?;
                 coordinate.spirv_display(f)?;
                 sample.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::Load(OpLoad {
                 id_result_type,
@@ -26210,7 +26217,7 @@ impl fmt::Display for Instruction {
                 id_result_type.spirv_display(f)?;
                 pointer.spirv_display(f)?;
                 memory_access.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::Store(OpStore {
                 pointer,
@@ -26221,7 +26228,7 @@ impl fmt::Display for Instruction {
                 pointer.spirv_display(f)?;
                 object.spirv_display(f)?;
                 memory_access.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::CopyMemory(OpCopyMemory {
                 target,
@@ -26234,7 +26241,7 @@ impl fmt::Display for Instruction {
                 source.spirv_display(f)?;
                 memory_access.spirv_display(f)?;
                 source_memory_access.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::CopyMemorySized(OpCopyMemorySized {
                 target,
@@ -26254,7 +26261,7 @@ impl fmt::Display for Instruction {
                 size.spirv_display(f)?;
                 memory_access.spirv_display(f)?;
                 source_memory_access.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::AccessChain(OpAccessChain {
                 id_result_type,
@@ -26271,7 +26278,7 @@ impl fmt::Display for Instruction {
                 id_result_type.spirv_display(f)?;
                 base.spirv_display(f)?;
                 indexes.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::InBoundsAccessChain(OpInBoundsAccessChain {
                 id_result_type,
@@ -26288,7 +26295,7 @@ impl fmt::Display for Instruction {
                 id_result_type.spirv_display(f)?;
                 base.spirv_display(f)?;
                 indexes.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::PtrAccessChain(OpPtrAccessChain {
                 id_result_type,
@@ -26307,7 +26314,7 @@ impl fmt::Display for Instruction {
                 base.spirv_display(f)?;
                 element.spirv_display(f)?;
                 indexes.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::ArrayLength(OpArrayLength {
                 id_result_type,
@@ -26324,7 +26331,7 @@ impl fmt::Display for Instruction {
                 id_result_type.spirv_display(f)?;
                 structure.spirv_display(f)?;
                 array_member.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GenericPtrMemSemantics(OpGenericPtrMemSemantics {
                 id_result_type,
@@ -26339,7 +26346,7 @@ impl fmt::Display for Instruction {
                 )?;
                 id_result_type.spirv_display(f)?;
                 pointer.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::InBoundsPtrAccessChain(OpInBoundsPtrAccessChain {
                 id_result_type,
@@ -26358,13 +26365,13 @@ impl fmt::Display for Instruction {
                 base.spirv_display(f)?;
                 element.spirv_display(f)?;
                 indexes.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::Decorate(OpDecorate { target, decoration }) => split_fn!({
                 write!(f, "{}{}", InstructionIndentAndResult(None), "OpDecorate")?;
                 target.spirv_display(f)?;
                 decoration.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::MemberDecorate(OpMemberDecorate {
                 structure_type,
@@ -26380,7 +26387,7 @@ impl fmt::Display for Instruction {
                 structure_type.spirv_display(f)?;
                 member.spirv_display(f)?;
                 decoration.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::DecorationGroup(OpDecorationGroup { id_result }) => split_fn!({
                 write!(
@@ -26389,7 +26396,7 @@ impl fmt::Display for Instruction {
                     InstructionIndentAndResult(Some(*id_result)),
                     "OpDecorationGroup"
                 )?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GroupDecorate(OpGroupDecorate {
                 decoration_group,
@@ -26403,7 +26410,7 @@ impl fmt::Display for Instruction {
                 )?;
                 decoration_group.spirv_display(f)?;
                 targets.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GroupMemberDecorate(OpGroupMemberDecorate {
                 decoration_group,
@@ -26417,7 +26424,7 @@ impl fmt::Display for Instruction {
                 )?;
                 decoration_group.spirv_display(f)?;
                 targets.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::VectorExtractDynamic(OpVectorExtractDynamic {
                 id_result_type,
@@ -26434,7 +26441,7 @@ impl fmt::Display for Instruction {
                 id_result_type.spirv_display(f)?;
                 vector.spirv_display(f)?;
                 index.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::VectorInsertDynamic(OpVectorInsertDynamic {
                 id_result_type,
@@ -26453,7 +26460,7 @@ impl fmt::Display for Instruction {
                 vector.spirv_display(f)?;
                 component.spirv_display(f)?;
                 index.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::VectorShuffle(OpVectorShuffle {
                 id_result_type,
@@ -26472,7 +26479,7 @@ impl fmt::Display for Instruction {
                 vector_1.spirv_display(f)?;
                 vector_2.spirv_display(f)?;
                 components.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::CompositeConstruct(OpCompositeConstruct {
                 id_result_type,
@@ -26487,7 +26494,7 @@ impl fmt::Display for Instruction {
                 )?;
                 id_result_type.spirv_display(f)?;
                 constituents.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::CompositeExtract(OpCompositeExtract {
                 id_result_type,
@@ -26504,7 +26511,7 @@ impl fmt::Display for Instruction {
                 id_result_type.spirv_display(f)?;
                 composite.spirv_display(f)?;
                 indexes.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::CompositeInsert(OpCompositeInsert {
                 id_result_type,
@@ -26523,7 +26530,7 @@ impl fmt::Display for Instruction {
                 object.spirv_display(f)?;
                 composite.spirv_display(f)?;
                 indexes.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::CopyObject(OpCopyObject {
                 id_result_type,
@@ -26538,7 +26545,7 @@ impl fmt::Display for Instruction {
                 )?;
                 id_result_type.spirv_display(f)?;
                 operand.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::Transpose(OpTranspose {
                 id_result_type,
@@ -26553,7 +26560,7 @@ impl fmt::Display for Instruction {
                 )?;
                 id_result_type.spirv_display(f)?;
                 matrix.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::SampledImage(OpSampledImage {
                 id_result_type,
@@ -26570,7 +26577,7 @@ impl fmt::Display for Instruction {
                 id_result_type.spirv_display(f)?;
                 image.spirv_display(f)?;
                 sampler.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::ImageSampleImplicitLod(OpImageSampleImplicitLod {
                 id_result_type,
@@ -26589,7 +26596,7 @@ impl fmt::Display for Instruction {
                 sampled_image.spirv_display(f)?;
                 coordinate.spirv_display(f)?;
                 image_operands.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::ImageSampleExplicitLod(OpImageSampleExplicitLod {
                 id_result_type,
@@ -26608,7 +26615,7 @@ impl fmt::Display for Instruction {
                 sampled_image.spirv_display(f)?;
                 coordinate.spirv_display(f)?;
                 image_operands.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::ImageSampleDrefImplicitLod(OpImageSampleDrefImplicitLod {
                 id_result_type,
@@ -26629,7 +26636,7 @@ impl fmt::Display for Instruction {
                 coordinate.spirv_display(f)?;
                 d_ref.spirv_display(f)?;
                 image_operands.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::ImageSampleDrefExplicitLod(OpImageSampleDrefExplicitLod {
                 id_result_type,
@@ -26650,7 +26657,7 @@ impl fmt::Display for Instruction {
                 coordinate.spirv_display(f)?;
                 d_ref.spirv_display(f)?;
                 image_operands.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::ImageSampleProjImplicitLod(OpImageSampleProjImplicitLod {
                 id_result_type,
@@ -26669,7 +26676,7 @@ impl fmt::Display for Instruction {
                 sampled_image.spirv_display(f)?;
                 coordinate.spirv_display(f)?;
                 image_operands.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::ImageSampleProjExplicitLod(OpImageSampleProjExplicitLod {
                 id_result_type,
@@ -26688,7 +26695,7 @@ impl fmt::Display for Instruction {
                 sampled_image.spirv_display(f)?;
                 coordinate.spirv_display(f)?;
                 image_operands.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::ImageSampleProjDrefImplicitLod(OpImageSampleProjDrefImplicitLod {
                 id_result_type,
@@ -26709,7 +26716,7 @@ impl fmt::Display for Instruction {
                 coordinate.spirv_display(f)?;
                 d_ref.spirv_display(f)?;
                 image_operands.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::ImageSampleProjDrefExplicitLod(OpImageSampleProjDrefExplicitLod {
                 id_result_type,
@@ -26730,7 +26737,7 @@ impl fmt::Display for Instruction {
                 coordinate.spirv_display(f)?;
                 d_ref.spirv_display(f)?;
                 image_operands.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::ImageFetch(OpImageFetch {
                 id_result_type,
@@ -26749,7 +26756,7 @@ impl fmt::Display for Instruction {
                 image.spirv_display(f)?;
                 coordinate.spirv_display(f)?;
                 image_operands.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::ImageGather(OpImageGather {
                 id_result_type,
@@ -26770,7 +26777,7 @@ impl fmt::Display for Instruction {
                 coordinate.spirv_display(f)?;
                 component.spirv_display(f)?;
                 image_operands.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::ImageDrefGather(OpImageDrefGather {
                 id_result_type,
@@ -26791,7 +26798,7 @@ impl fmt::Display for Instruction {
                 coordinate.spirv_display(f)?;
                 d_ref.spirv_display(f)?;
                 image_operands.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::ImageRead(OpImageRead {
                 id_result_type,
@@ -26810,7 +26817,7 @@ impl fmt::Display for Instruction {
                 image.spirv_display(f)?;
                 coordinate.spirv_display(f)?;
                 image_operands.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::ImageWrite(OpImageWrite {
                 image,
@@ -26823,7 +26830,7 @@ impl fmt::Display for Instruction {
                 coordinate.spirv_display(f)?;
                 texel.spirv_display(f)?;
                 image_operands.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::Image(OpImage {
                 id_result_type,
@@ -26838,7 +26845,7 @@ impl fmt::Display for Instruction {
                 )?;
                 id_result_type.spirv_display(f)?;
                 sampled_image.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::ImageQueryFormat(OpImageQueryFormat {
                 id_result_type,
@@ -26853,7 +26860,7 @@ impl fmt::Display for Instruction {
                 )?;
                 id_result_type.spirv_display(f)?;
                 image.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::ImageQueryOrder(OpImageQueryOrder {
                 id_result_type,
@@ -26868,7 +26875,7 @@ impl fmt::Display for Instruction {
                 )?;
                 id_result_type.spirv_display(f)?;
                 image.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::ImageQuerySizeLod(OpImageQuerySizeLod {
                 id_result_type,
@@ -26885,7 +26892,7 @@ impl fmt::Display for Instruction {
                 id_result_type.spirv_display(f)?;
                 image.spirv_display(f)?;
                 level_of_detail.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::ImageQuerySize(OpImageQuerySize {
                 id_result_type,
@@ -26900,7 +26907,7 @@ impl fmt::Display for Instruction {
                 )?;
                 id_result_type.spirv_display(f)?;
                 image.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::ImageQueryLod(OpImageQueryLod {
                 id_result_type,
@@ -26917,7 +26924,7 @@ impl fmt::Display for Instruction {
                 id_result_type.spirv_display(f)?;
                 sampled_image.spirv_display(f)?;
                 coordinate.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::ImageQueryLevels(OpImageQueryLevels {
                 id_result_type,
@@ -26932,7 +26939,7 @@ impl fmt::Display for Instruction {
                 )?;
                 id_result_type.spirv_display(f)?;
                 image.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::ImageQuerySamples(OpImageQuerySamples {
                 id_result_type,
@@ -26947,7 +26954,7 @@ impl fmt::Display for Instruction {
                 )?;
                 id_result_type.spirv_display(f)?;
                 image.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::ConvertFToU(OpConvertFToU {
                 id_result_type,
@@ -26962,7 +26969,7 @@ impl fmt::Display for Instruction {
                 )?;
                 id_result_type.spirv_display(f)?;
                 float_value.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::ConvertFToS(OpConvertFToS {
                 id_result_type,
@@ -26977,7 +26984,7 @@ impl fmt::Display for Instruction {
                 )?;
                 id_result_type.spirv_display(f)?;
                 float_value.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::ConvertSToF(OpConvertSToF {
                 id_result_type,
@@ -26992,7 +26999,7 @@ impl fmt::Display for Instruction {
                 )?;
                 id_result_type.spirv_display(f)?;
                 signed_value.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::ConvertUToF(OpConvertUToF {
                 id_result_type,
@@ -27007,7 +27014,7 @@ impl fmt::Display for Instruction {
                 )?;
                 id_result_type.spirv_display(f)?;
                 unsigned_value.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::UConvert(OpUConvert {
                 id_result_type,
@@ -27022,7 +27029,7 @@ impl fmt::Display for Instruction {
                 )?;
                 id_result_type.spirv_display(f)?;
                 unsigned_value.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::SConvert(OpSConvert {
                 id_result_type,
@@ -27037,7 +27044,7 @@ impl fmt::Display for Instruction {
                 )?;
                 id_result_type.spirv_display(f)?;
                 signed_value.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::FConvert(OpFConvert {
                 id_result_type,
@@ -27052,7 +27059,7 @@ impl fmt::Display for Instruction {
                 )?;
                 id_result_type.spirv_display(f)?;
                 float_value.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::QuantizeToF16(OpQuantizeToF16 {
                 id_result_type,
@@ -27067,7 +27074,7 @@ impl fmt::Display for Instruction {
                 )?;
                 id_result_type.spirv_display(f)?;
                 value.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::ConvertPtrToU(OpConvertPtrToU {
                 id_result_type,
@@ -27082,7 +27089,7 @@ impl fmt::Display for Instruction {
                 )?;
                 id_result_type.spirv_display(f)?;
                 pointer.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::SatConvertSToU(OpSatConvertSToU {
                 id_result_type,
@@ -27097,7 +27104,7 @@ impl fmt::Display for Instruction {
                 )?;
                 id_result_type.spirv_display(f)?;
                 signed_value.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::SatConvertUToS(OpSatConvertUToS {
                 id_result_type,
@@ -27112,7 +27119,7 @@ impl fmt::Display for Instruction {
                 )?;
                 id_result_type.spirv_display(f)?;
                 unsigned_value.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::ConvertUToPtr(OpConvertUToPtr {
                 id_result_type,
@@ -27127,7 +27134,7 @@ impl fmt::Display for Instruction {
                 )?;
                 id_result_type.spirv_display(f)?;
                 integer_value.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::PtrCastToGeneric(OpPtrCastToGeneric {
                 id_result_type,
@@ -27142,7 +27149,7 @@ impl fmt::Display for Instruction {
                 )?;
                 id_result_type.spirv_display(f)?;
                 pointer.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GenericCastToPtr(OpGenericCastToPtr {
                 id_result_type,
@@ -27157,7 +27164,7 @@ impl fmt::Display for Instruction {
                 )?;
                 id_result_type.spirv_display(f)?;
                 pointer.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GenericCastToPtrExplicit(OpGenericCastToPtrExplicit {
                 id_result_type,
@@ -27174,7 +27181,7 @@ impl fmt::Display for Instruction {
                 id_result_type.spirv_display(f)?;
                 pointer.spirv_display(f)?;
                 storage.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::Bitcast(OpBitcast {
                 id_result_type,
@@ -27189,7 +27196,7 @@ impl fmt::Display for Instruction {
                 )?;
                 id_result_type.spirv_display(f)?;
                 operand.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::SNegate(OpSNegate {
                 id_result_type,
@@ -27204,7 +27211,7 @@ impl fmt::Display for Instruction {
                 )?;
                 id_result_type.spirv_display(f)?;
                 operand.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::FNegate(OpFNegate {
                 id_result_type,
@@ -27219,7 +27226,7 @@ impl fmt::Display for Instruction {
                 )?;
                 id_result_type.spirv_display(f)?;
                 operand.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::IAdd(OpIAdd {
                 id_result_type,
@@ -27236,7 +27243,7 @@ impl fmt::Display for Instruction {
                 id_result_type.spirv_display(f)?;
                 operand_1.spirv_display(f)?;
                 operand_2.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::FAdd(OpFAdd {
                 id_result_type,
@@ -27253,7 +27260,7 @@ impl fmt::Display for Instruction {
                 id_result_type.spirv_display(f)?;
                 operand_1.spirv_display(f)?;
                 operand_2.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::ISub(OpISub {
                 id_result_type,
@@ -27270,7 +27277,7 @@ impl fmt::Display for Instruction {
                 id_result_type.spirv_display(f)?;
                 operand_1.spirv_display(f)?;
                 operand_2.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::FSub(OpFSub {
                 id_result_type,
@@ -27287,7 +27294,7 @@ impl fmt::Display for Instruction {
                 id_result_type.spirv_display(f)?;
                 operand_1.spirv_display(f)?;
                 operand_2.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::IMul(OpIMul {
                 id_result_type,
@@ -27304,7 +27311,7 @@ impl fmt::Display for Instruction {
                 id_result_type.spirv_display(f)?;
                 operand_1.spirv_display(f)?;
                 operand_2.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::FMul(OpFMul {
                 id_result_type,
@@ -27321,7 +27328,7 @@ impl fmt::Display for Instruction {
                 id_result_type.spirv_display(f)?;
                 operand_1.spirv_display(f)?;
                 operand_2.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::UDiv(OpUDiv {
                 id_result_type,
@@ -27338,7 +27345,7 @@ impl fmt::Display for Instruction {
                 id_result_type.spirv_display(f)?;
                 operand_1.spirv_display(f)?;
                 operand_2.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::SDiv(OpSDiv {
                 id_result_type,
@@ -27355,7 +27362,7 @@ impl fmt::Display for Instruction {
                 id_result_type.spirv_display(f)?;
                 operand_1.spirv_display(f)?;
                 operand_2.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::FDiv(OpFDiv {
                 id_result_type,
@@ -27372,7 +27379,7 @@ impl fmt::Display for Instruction {
                 id_result_type.spirv_display(f)?;
                 operand_1.spirv_display(f)?;
                 operand_2.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::UMod(OpUMod {
                 id_result_type,
@@ -27389,7 +27396,7 @@ impl fmt::Display for Instruction {
                 id_result_type.spirv_display(f)?;
                 operand_1.spirv_display(f)?;
                 operand_2.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::SRem(OpSRem {
                 id_result_type,
@@ -27406,7 +27413,7 @@ impl fmt::Display for Instruction {
                 id_result_type.spirv_display(f)?;
                 operand_1.spirv_display(f)?;
                 operand_2.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::SMod(OpSMod {
                 id_result_type,
@@ -27423,7 +27430,7 @@ impl fmt::Display for Instruction {
                 id_result_type.spirv_display(f)?;
                 operand_1.spirv_display(f)?;
                 operand_2.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::FRem(OpFRem {
                 id_result_type,
@@ -27440,7 +27447,7 @@ impl fmt::Display for Instruction {
                 id_result_type.spirv_display(f)?;
                 operand_1.spirv_display(f)?;
                 operand_2.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::FMod(OpFMod {
                 id_result_type,
@@ -27457,7 +27464,7 @@ impl fmt::Display for Instruction {
                 id_result_type.spirv_display(f)?;
                 operand_1.spirv_display(f)?;
                 operand_2.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::VectorTimesScalar(OpVectorTimesScalar {
                 id_result_type,
@@ -27474,7 +27481,7 @@ impl fmt::Display for Instruction {
                 id_result_type.spirv_display(f)?;
                 vector.spirv_display(f)?;
                 scalar.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::MatrixTimesScalar(OpMatrixTimesScalar {
                 id_result_type,
@@ -27491,7 +27498,7 @@ impl fmt::Display for Instruction {
                 id_result_type.spirv_display(f)?;
                 matrix.spirv_display(f)?;
                 scalar.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::VectorTimesMatrix(OpVectorTimesMatrix {
                 id_result_type,
@@ -27508,7 +27515,7 @@ impl fmt::Display for Instruction {
                 id_result_type.spirv_display(f)?;
                 vector.spirv_display(f)?;
                 matrix.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::MatrixTimesVector(OpMatrixTimesVector {
                 id_result_type,
@@ -27525,7 +27532,7 @@ impl fmt::Display for Instruction {
                 id_result_type.spirv_display(f)?;
                 matrix.spirv_display(f)?;
                 vector.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::MatrixTimesMatrix(OpMatrixTimesMatrix {
                 id_result_type,
@@ -27542,7 +27549,7 @@ impl fmt::Display for Instruction {
                 id_result_type.spirv_display(f)?;
                 left_matrix.spirv_display(f)?;
                 right_matrix.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OuterProduct(OpOuterProduct {
                 id_result_type,
@@ -27559,7 +27566,7 @@ impl fmt::Display for Instruction {
                 id_result_type.spirv_display(f)?;
                 vector_1.spirv_display(f)?;
                 vector_2.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::Dot(OpDot {
                 id_result_type,
@@ -27576,7 +27583,7 @@ impl fmt::Display for Instruction {
                 id_result_type.spirv_display(f)?;
                 vector_1.spirv_display(f)?;
                 vector_2.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::IAddCarry(OpIAddCarry {
                 id_result_type,
@@ -27593,7 +27600,7 @@ impl fmt::Display for Instruction {
                 id_result_type.spirv_display(f)?;
                 operand_1.spirv_display(f)?;
                 operand_2.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::ISubBorrow(OpISubBorrow {
                 id_result_type,
@@ -27610,7 +27617,7 @@ impl fmt::Display for Instruction {
                 id_result_type.spirv_display(f)?;
                 operand_1.spirv_display(f)?;
                 operand_2.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::UMulExtended(OpUMulExtended {
                 id_result_type,
@@ -27627,7 +27634,7 @@ impl fmt::Display for Instruction {
                 id_result_type.spirv_display(f)?;
                 operand_1.spirv_display(f)?;
                 operand_2.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::SMulExtended(OpSMulExtended {
                 id_result_type,
@@ -27644,7 +27651,7 @@ impl fmt::Display for Instruction {
                 id_result_type.spirv_display(f)?;
                 operand_1.spirv_display(f)?;
                 operand_2.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::Any(OpAny {
                 id_result_type,
@@ -27659,7 +27666,7 @@ impl fmt::Display for Instruction {
                 )?;
                 id_result_type.spirv_display(f)?;
                 vector.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::All(OpAll {
                 id_result_type,
@@ -27674,7 +27681,7 @@ impl fmt::Display for Instruction {
                 )?;
                 id_result_type.spirv_display(f)?;
                 vector.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::IsNan(OpIsNan {
                 id_result_type,
@@ -27689,7 +27696,7 @@ impl fmt::Display for Instruction {
                 )?;
                 id_result_type.spirv_display(f)?;
                 x.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::IsInf(OpIsInf {
                 id_result_type,
@@ -27704,7 +27711,7 @@ impl fmt::Display for Instruction {
                 )?;
                 id_result_type.spirv_display(f)?;
                 x.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::IsFinite(OpIsFinite {
                 id_result_type,
@@ -27719,7 +27726,7 @@ impl fmt::Display for Instruction {
                 )?;
                 id_result_type.spirv_display(f)?;
                 x.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::IsNormal(OpIsNormal {
                 id_result_type,
@@ -27734,7 +27741,7 @@ impl fmt::Display for Instruction {
                 )?;
                 id_result_type.spirv_display(f)?;
                 x.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::SignBitSet(OpSignBitSet {
                 id_result_type,
@@ -27749,7 +27756,7 @@ impl fmt::Display for Instruction {
                 )?;
                 id_result_type.spirv_display(f)?;
                 x.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::LessOrGreater(OpLessOrGreater {
                 id_result_type,
@@ -27766,7 +27773,7 @@ impl fmt::Display for Instruction {
                 id_result_type.spirv_display(f)?;
                 x.spirv_display(f)?;
                 y.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::Ordered(OpOrdered {
                 id_result_type,
@@ -27783,7 +27790,7 @@ impl fmt::Display for Instruction {
                 id_result_type.spirv_display(f)?;
                 x.spirv_display(f)?;
                 y.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::Unordered(OpUnordered {
                 id_result_type,
@@ -27800,7 +27807,7 @@ impl fmt::Display for Instruction {
                 id_result_type.spirv_display(f)?;
                 x.spirv_display(f)?;
                 y.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::LogicalEqual(OpLogicalEqual {
                 id_result_type,
@@ -27817,7 +27824,7 @@ impl fmt::Display for Instruction {
                 id_result_type.spirv_display(f)?;
                 operand_1.spirv_display(f)?;
                 operand_2.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::LogicalNotEqual(OpLogicalNotEqual {
                 id_result_type,
@@ -27834,7 +27841,7 @@ impl fmt::Display for Instruction {
                 id_result_type.spirv_display(f)?;
                 operand_1.spirv_display(f)?;
                 operand_2.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::LogicalOr(OpLogicalOr {
                 id_result_type,
@@ -27851,7 +27858,7 @@ impl fmt::Display for Instruction {
                 id_result_type.spirv_display(f)?;
                 operand_1.spirv_display(f)?;
                 operand_2.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::LogicalAnd(OpLogicalAnd {
                 id_result_type,
@@ -27868,7 +27875,7 @@ impl fmt::Display for Instruction {
                 id_result_type.spirv_display(f)?;
                 operand_1.spirv_display(f)?;
                 operand_2.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::LogicalNot(OpLogicalNot {
                 id_result_type,
@@ -27883,7 +27890,7 @@ impl fmt::Display for Instruction {
                 )?;
                 id_result_type.spirv_display(f)?;
                 operand.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::Select(OpSelect {
                 id_result_type,
@@ -27902,7 +27909,7 @@ impl fmt::Display for Instruction {
                 condition.spirv_display(f)?;
                 object_1.spirv_display(f)?;
                 object_2.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::IEqual(OpIEqual {
                 id_result_type,
@@ -27919,7 +27926,7 @@ impl fmt::Display for Instruction {
                 id_result_type.spirv_display(f)?;
                 operand_1.spirv_display(f)?;
                 operand_2.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::INotEqual(OpINotEqual {
                 id_result_type,
@@ -27936,7 +27943,7 @@ impl fmt::Display for Instruction {
                 id_result_type.spirv_display(f)?;
                 operand_1.spirv_display(f)?;
                 operand_2.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::UGreaterThan(OpUGreaterThan {
                 id_result_type,
@@ -27953,7 +27960,7 @@ impl fmt::Display for Instruction {
                 id_result_type.spirv_display(f)?;
                 operand_1.spirv_display(f)?;
                 operand_2.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::SGreaterThan(OpSGreaterThan {
                 id_result_type,
@@ -27970,7 +27977,7 @@ impl fmt::Display for Instruction {
                 id_result_type.spirv_display(f)?;
                 operand_1.spirv_display(f)?;
                 operand_2.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::UGreaterThanEqual(OpUGreaterThanEqual {
                 id_result_type,
@@ -27987,7 +27994,7 @@ impl fmt::Display for Instruction {
                 id_result_type.spirv_display(f)?;
                 operand_1.spirv_display(f)?;
                 operand_2.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::SGreaterThanEqual(OpSGreaterThanEqual {
                 id_result_type,
@@ -28004,7 +28011,7 @@ impl fmt::Display for Instruction {
                 id_result_type.spirv_display(f)?;
                 operand_1.spirv_display(f)?;
                 operand_2.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::ULessThan(OpULessThan {
                 id_result_type,
@@ -28021,7 +28028,7 @@ impl fmt::Display for Instruction {
                 id_result_type.spirv_display(f)?;
                 operand_1.spirv_display(f)?;
                 operand_2.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::SLessThan(OpSLessThan {
                 id_result_type,
@@ -28038,7 +28045,7 @@ impl fmt::Display for Instruction {
                 id_result_type.spirv_display(f)?;
                 operand_1.spirv_display(f)?;
                 operand_2.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::ULessThanEqual(OpULessThanEqual {
                 id_result_type,
@@ -28055,7 +28062,7 @@ impl fmt::Display for Instruction {
                 id_result_type.spirv_display(f)?;
                 operand_1.spirv_display(f)?;
                 operand_2.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::SLessThanEqual(OpSLessThanEqual {
                 id_result_type,
@@ -28072,7 +28079,7 @@ impl fmt::Display for Instruction {
                 id_result_type.spirv_display(f)?;
                 operand_1.spirv_display(f)?;
                 operand_2.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::FOrdEqual(OpFOrdEqual {
                 id_result_type,
@@ -28089,7 +28096,7 @@ impl fmt::Display for Instruction {
                 id_result_type.spirv_display(f)?;
                 operand_1.spirv_display(f)?;
                 operand_2.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::FUnordEqual(OpFUnordEqual {
                 id_result_type,
@@ -28106,7 +28113,7 @@ impl fmt::Display for Instruction {
                 id_result_type.spirv_display(f)?;
                 operand_1.spirv_display(f)?;
                 operand_2.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::FOrdNotEqual(OpFOrdNotEqual {
                 id_result_type,
@@ -28123,7 +28130,7 @@ impl fmt::Display for Instruction {
                 id_result_type.spirv_display(f)?;
                 operand_1.spirv_display(f)?;
                 operand_2.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::FUnordNotEqual(OpFUnordNotEqual {
                 id_result_type,
@@ -28140,7 +28147,7 @@ impl fmt::Display for Instruction {
                 id_result_type.spirv_display(f)?;
                 operand_1.spirv_display(f)?;
                 operand_2.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::FOrdLessThan(OpFOrdLessThan {
                 id_result_type,
@@ -28157,7 +28164,7 @@ impl fmt::Display for Instruction {
                 id_result_type.spirv_display(f)?;
                 operand_1.spirv_display(f)?;
                 operand_2.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::FUnordLessThan(OpFUnordLessThan {
                 id_result_type,
@@ -28174,7 +28181,7 @@ impl fmt::Display for Instruction {
                 id_result_type.spirv_display(f)?;
                 operand_1.spirv_display(f)?;
                 operand_2.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::FOrdGreaterThan(OpFOrdGreaterThan {
                 id_result_type,
@@ -28191,7 +28198,7 @@ impl fmt::Display for Instruction {
                 id_result_type.spirv_display(f)?;
                 operand_1.spirv_display(f)?;
                 operand_2.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::FUnordGreaterThan(OpFUnordGreaterThan {
                 id_result_type,
@@ -28208,7 +28215,7 @@ impl fmt::Display for Instruction {
                 id_result_type.spirv_display(f)?;
                 operand_1.spirv_display(f)?;
                 operand_2.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::FOrdLessThanEqual(OpFOrdLessThanEqual {
                 id_result_type,
@@ -28225,7 +28232,7 @@ impl fmt::Display for Instruction {
                 id_result_type.spirv_display(f)?;
                 operand_1.spirv_display(f)?;
                 operand_2.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::FUnordLessThanEqual(OpFUnordLessThanEqual {
                 id_result_type,
@@ -28242,7 +28249,7 @@ impl fmt::Display for Instruction {
                 id_result_type.spirv_display(f)?;
                 operand_1.spirv_display(f)?;
                 operand_2.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::FOrdGreaterThanEqual(OpFOrdGreaterThanEqual {
                 id_result_type,
@@ -28259,7 +28266,7 @@ impl fmt::Display for Instruction {
                 id_result_type.spirv_display(f)?;
                 operand_1.spirv_display(f)?;
                 operand_2.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::FUnordGreaterThanEqual(OpFUnordGreaterThanEqual {
                 id_result_type,
@@ -28276,7 +28283,7 @@ impl fmt::Display for Instruction {
                 id_result_type.spirv_display(f)?;
                 operand_1.spirv_display(f)?;
                 operand_2.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::ShiftRightLogical(OpShiftRightLogical {
                 id_result_type,
@@ -28293,7 +28300,7 @@ impl fmt::Display for Instruction {
                 id_result_type.spirv_display(f)?;
                 base.spirv_display(f)?;
                 shift.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::ShiftRightArithmetic(OpShiftRightArithmetic {
                 id_result_type,
@@ -28310,7 +28317,7 @@ impl fmt::Display for Instruction {
                 id_result_type.spirv_display(f)?;
                 base.spirv_display(f)?;
                 shift.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::ShiftLeftLogical(OpShiftLeftLogical {
                 id_result_type,
@@ -28327,7 +28334,7 @@ impl fmt::Display for Instruction {
                 id_result_type.spirv_display(f)?;
                 base.spirv_display(f)?;
                 shift.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::BitwiseOr(OpBitwiseOr {
                 id_result_type,
@@ -28344,7 +28351,7 @@ impl fmt::Display for Instruction {
                 id_result_type.spirv_display(f)?;
                 operand_1.spirv_display(f)?;
                 operand_2.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::BitwiseXor(OpBitwiseXor {
                 id_result_type,
@@ -28361,7 +28368,7 @@ impl fmt::Display for Instruction {
                 id_result_type.spirv_display(f)?;
                 operand_1.spirv_display(f)?;
                 operand_2.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::BitwiseAnd(OpBitwiseAnd {
                 id_result_type,
@@ -28378,7 +28385,7 @@ impl fmt::Display for Instruction {
                 id_result_type.spirv_display(f)?;
                 operand_1.spirv_display(f)?;
                 operand_2.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::Not(OpNot {
                 id_result_type,
@@ -28393,7 +28400,7 @@ impl fmt::Display for Instruction {
                 )?;
                 id_result_type.spirv_display(f)?;
                 operand.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::BitFieldInsert(OpBitFieldInsert {
                 id_result_type,
@@ -28414,7 +28421,7 @@ impl fmt::Display for Instruction {
                 insert.spirv_display(f)?;
                 offset.spirv_display(f)?;
                 count.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::BitFieldSExtract(OpBitFieldSExtract {
                 id_result_type,
@@ -28433,7 +28440,7 @@ impl fmt::Display for Instruction {
                 base.spirv_display(f)?;
                 offset.spirv_display(f)?;
                 count.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::BitFieldUExtract(OpBitFieldUExtract {
                 id_result_type,
@@ -28452,7 +28459,7 @@ impl fmt::Display for Instruction {
                 base.spirv_display(f)?;
                 offset.spirv_display(f)?;
                 count.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::BitReverse(OpBitReverse {
                 id_result_type,
@@ -28467,7 +28474,7 @@ impl fmt::Display for Instruction {
                 )?;
                 id_result_type.spirv_display(f)?;
                 base.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::BitCount(OpBitCount {
                 id_result_type,
@@ -28482,7 +28489,7 @@ impl fmt::Display for Instruction {
                 )?;
                 id_result_type.spirv_display(f)?;
                 base.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::DPdx(OpDPdx {
                 id_result_type,
@@ -28497,7 +28504,7 @@ impl fmt::Display for Instruction {
                 )?;
                 id_result_type.spirv_display(f)?;
                 p.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::DPdy(OpDPdy {
                 id_result_type,
@@ -28512,7 +28519,7 @@ impl fmt::Display for Instruction {
                 )?;
                 id_result_type.spirv_display(f)?;
                 p.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::Fwidth(OpFwidth {
                 id_result_type,
@@ -28527,7 +28534,7 @@ impl fmt::Display for Instruction {
                 )?;
                 id_result_type.spirv_display(f)?;
                 p.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::DPdxFine(OpDPdxFine {
                 id_result_type,
@@ -28542,7 +28549,7 @@ impl fmt::Display for Instruction {
                 )?;
                 id_result_type.spirv_display(f)?;
                 p.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::DPdyFine(OpDPdyFine {
                 id_result_type,
@@ -28557,7 +28564,7 @@ impl fmt::Display for Instruction {
                 )?;
                 id_result_type.spirv_display(f)?;
                 p.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::FwidthFine(OpFwidthFine {
                 id_result_type,
@@ -28572,7 +28579,7 @@ impl fmt::Display for Instruction {
                 )?;
                 id_result_type.spirv_display(f)?;
                 p.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::DPdxCoarse(OpDPdxCoarse {
                 id_result_type,
@@ -28587,7 +28594,7 @@ impl fmt::Display for Instruction {
                 )?;
                 id_result_type.spirv_display(f)?;
                 p.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::DPdyCoarse(OpDPdyCoarse {
                 id_result_type,
@@ -28602,7 +28609,7 @@ impl fmt::Display for Instruction {
                 )?;
                 id_result_type.spirv_display(f)?;
                 p.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::FwidthCoarse(OpFwidthCoarse {
                 id_result_type,
@@ -28617,11 +28624,11 @@ impl fmt::Display for Instruction {
                 )?;
                 id_result_type.spirv_display(f)?;
                 p.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::EmitVertex(OpEmitVertex {}) => split_fn!({
                 write!(f, "{}{}", InstructionIndentAndResult(None), "OpEmitVertex")?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::EndPrimitive(OpEndPrimitive {}) => split_fn!({
                 write!(
@@ -28630,7 +28637,7 @@ impl fmt::Display for Instruction {
                     InstructionIndentAndResult(None),
                     "OpEndPrimitive"
                 )?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::EmitStreamVertex(OpEmitStreamVertex { stream }) => split_fn!({
                 write!(
@@ -28640,7 +28647,7 @@ impl fmt::Display for Instruction {
                     "OpEmitStreamVertex"
                 )?;
                 stream.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::EndStreamPrimitive(OpEndStreamPrimitive { stream }) => split_fn!({
                 write!(
@@ -28650,7 +28657,7 @@ impl fmt::Display for Instruction {
                     "OpEndStreamPrimitive"
                 )?;
                 stream.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::ControlBarrier(OpControlBarrier {
                 execution,
@@ -28666,7 +28673,7 @@ impl fmt::Display for Instruction {
                 execution.spirv_display(f)?;
                 memory.spirv_display(f)?;
                 semantics.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::MemoryBarrier(OpMemoryBarrier { memory, semantics }) => split_fn!({
                 write!(
@@ -28677,7 +28684,7 @@ impl fmt::Display for Instruction {
                 )?;
                 memory.spirv_display(f)?;
                 semantics.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::AtomicLoad(OpAtomicLoad {
                 id_result_type,
@@ -28696,7 +28703,7 @@ impl fmt::Display for Instruction {
                 pointer.spirv_display(f)?;
                 memory.spirv_display(f)?;
                 semantics.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::AtomicStore(OpAtomicStore {
                 pointer,
@@ -28709,7 +28716,7 @@ impl fmt::Display for Instruction {
                 memory.spirv_display(f)?;
                 semantics.spirv_display(f)?;
                 value.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::AtomicExchange(OpAtomicExchange {
                 id_result_type,
@@ -28730,7 +28737,7 @@ impl fmt::Display for Instruction {
                 memory.spirv_display(f)?;
                 semantics.spirv_display(f)?;
                 value.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::AtomicCompareExchange(OpAtomicCompareExchange {
                 id_result_type,
@@ -28755,7 +28762,7 @@ impl fmt::Display for Instruction {
                 unequal.spirv_display(f)?;
                 value.spirv_display(f)?;
                 comparator.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::AtomicCompareExchangeWeak(OpAtomicCompareExchangeWeak {
                 id_result_type,
@@ -28780,7 +28787,7 @@ impl fmt::Display for Instruction {
                 unequal.spirv_display(f)?;
                 value.spirv_display(f)?;
                 comparator.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::AtomicIIncrement(OpAtomicIIncrement {
                 id_result_type,
@@ -28799,7 +28806,7 @@ impl fmt::Display for Instruction {
                 pointer.spirv_display(f)?;
                 memory.spirv_display(f)?;
                 semantics.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::AtomicIDecrement(OpAtomicIDecrement {
                 id_result_type,
@@ -28818,7 +28825,7 @@ impl fmt::Display for Instruction {
                 pointer.spirv_display(f)?;
                 memory.spirv_display(f)?;
                 semantics.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::AtomicIAdd(OpAtomicIAdd {
                 id_result_type,
@@ -28839,7 +28846,7 @@ impl fmt::Display for Instruction {
                 memory.spirv_display(f)?;
                 semantics.spirv_display(f)?;
                 value.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::AtomicISub(OpAtomicISub {
                 id_result_type,
@@ -28860,7 +28867,7 @@ impl fmt::Display for Instruction {
                 memory.spirv_display(f)?;
                 semantics.spirv_display(f)?;
                 value.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::AtomicSMin(OpAtomicSMin {
                 id_result_type,
@@ -28881,7 +28888,7 @@ impl fmt::Display for Instruction {
                 memory.spirv_display(f)?;
                 semantics.spirv_display(f)?;
                 value.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::AtomicUMin(OpAtomicUMin {
                 id_result_type,
@@ -28902,7 +28909,7 @@ impl fmt::Display for Instruction {
                 memory.spirv_display(f)?;
                 semantics.spirv_display(f)?;
                 value.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::AtomicSMax(OpAtomicSMax {
                 id_result_type,
@@ -28923,7 +28930,7 @@ impl fmt::Display for Instruction {
                 memory.spirv_display(f)?;
                 semantics.spirv_display(f)?;
                 value.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::AtomicUMax(OpAtomicUMax {
                 id_result_type,
@@ -28944,7 +28951,7 @@ impl fmt::Display for Instruction {
                 memory.spirv_display(f)?;
                 semantics.spirv_display(f)?;
                 value.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::AtomicAnd(OpAtomicAnd {
                 id_result_type,
@@ -28965,7 +28972,7 @@ impl fmt::Display for Instruction {
                 memory.spirv_display(f)?;
                 semantics.spirv_display(f)?;
                 value.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::AtomicOr(OpAtomicOr {
                 id_result_type,
@@ -28986,7 +28993,7 @@ impl fmt::Display for Instruction {
                 memory.spirv_display(f)?;
                 semantics.spirv_display(f)?;
                 value.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::AtomicXor(OpAtomicXor {
                 id_result_type,
@@ -29007,7 +29014,7 @@ impl fmt::Display for Instruction {
                 memory.spirv_display(f)?;
                 semantics.spirv_display(f)?;
                 value.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::Phi(OpPhi {
                 id_result_type,
@@ -29022,7 +29029,7 @@ impl fmt::Display for Instruction {
                 )?;
                 id_result_type.spirv_display(f)?;
                 variable_parent.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::LoopMerge(OpLoopMerge {
                 merge_block,
@@ -29033,7 +29040,7 @@ impl fmt::Display for Instruction {
                 merge_block.spirv_display(f)?;
                 continue_target.spirv_display(f)?;
                 loop_control.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::SelectionMerge(OpSelectionMerge {
                 merge_block,
@@ -29047,7 +29054,7 @@ impl fmt::Display for Instruction {
                 )?;
                 merge_block.spirv_display(f)?;
                 selection_control.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::Label(OpLabel { id_result }) => split_fn!({
                 write!(
@@ -29056,12 +29063,12 @@ impl fmt::Display for Instruction {
                     InstructionIndentAndResult(Some(*id_result)),
                     "OpLabel"
                 )?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::Branch(OpBranch { target_label }) => split_fn!({
                 write!(f, "{}{}", InstructionIndentAndResult(None), "OpBranch")?;
                 target_label.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::BranchConditional(OpBranchConditional {
                 condition,
@@ -29079,7 +29086,7 @@ impl fmt::Display for Instruction {
                 true_label.spirv_display(f)?;
                 false_label.spirv_display(f)?;
                 branch_weights.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::Switch32(OpSwitch32 {
                 selector,
@@ -29089,8 +29096,7 @@ impl fmt::Display for Instruction {
                 write!(f, "{}{}", InstructionIndentAndResult(None), "OpSwitch")?;
                 selector.spirv_display(f)?;
                 default.spirv_display(f)?;
-                target.spirv_display(f)?;
-                writeln!(f)
+                target.spirv_display(f)
             }),
             Instruction::Switch64(OpSwitch64 {
                 selector,
@@ -29100,25 +29106,24 @@ impl fmt::Display for Instruction {
                 write!(f, "{}{}", InstructionIndentAndResult(None), "OpSwitch")?;
                 selector.spirv_display(f)?;
                 default.spirv_display(f)?;
-                target.spirv_display(f)?;
-                writeln!(f)
+                target.spirv_display(f)
             }),
             Instruction::Kill(OpKill {}) => split_fn!({
                 write!(f, "{}{}", InstructionIndentAndResult(None), "OpKill")?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::Return(OpReturn {}) => split_fn!({
                 write!(f, "{}{}", InstructionIndentAndResult(None), "OpReturn")?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::ReturnValue(OpReturnValue { value }) => split_fn!({
                 write!(f, "{}{}", InstructionIndentAndResult(None), "OpReturnValue")?;
                 value.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::Unreachable(OpUnreachable {}) => split_fn!({
                 write!(f, "{}{}", InstructionIndentAndResult(None), "OpUnreachable")?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::LifetimeStart(OpLifetimeStart { pointer, size }) => split_fn!({
                 write!(
@@ -29129,7 +29134,7 @@ impl fmt::Display for Instruction {
                 )?;
                 pointer.spirv_display(f)?;
                 size.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::LifetimeStop(OpLifetimeStop { pointer, size }) => split_fn!({
                 write!(
@@ -29140,7 +29145,7 @@ impl fmt::Display for Instruction {
                 )?;
                 pointer.spirv_display(f)?;
                 size.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GroupAsyncCopy(OpGroupAsyncCopy {
                 id_result_type,
@@ -29165,7 +29170,7 @@ impl fmt::Display for Instruction {
                 num_elements.spirv_display(f)?;
                 stride.spirv_display(f)?;
                 event.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GroupWaitEvents(OpGroupWaitEvents {
                 execution,
@@ -29181,7 +29186,7 @@ impl fmt::Display for Instruction {
                 execution.spirv_display(f)?;
                 num_events.spirv_display(f)?;
                 events_list.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GroupAll(OpGroupAll {
                 id_result_type,
@@ -29198,7 +29203,7 @@ impl fmt::Display for Instruction {
                 id_result_type.spirv_display(f)?;
                 execution.spirv_display(f)?;
                 predicate.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GroupAny(OpGroupAny {
                 id_result_type,
@@ -29215,7 +29220,7 @@ impl fmt::Display for Instruction {
                 id_result_type.spirv_display(f)?;
                 execution.spirv_display(f)?;
                 predicate.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GroupBroadcast(OpGroupBroadcast {
                 id_result_type,
@@ -29234,7 +29239,7 @@ impl fmt::Display for Instruction {
                 execution.spirv_display(f)?;
                 value.spirv_display(f)?;
                 local_id.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GroupIAdd(OpGroupIAdd {
                 id_result_type,
@@ -29253,7 +29258,7 @@ impl fmt::Display for Instruction {
                 execution.spirv_display(f)?;
                 operation.spirv_display(f)?;
                 x.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GroupFAdd(OpGroupFAdd {
                 id_result_type,
@@ -29272,7 +29277,7 @@ impl fmt::Display for Instruction {
                 execution.spirv_display(f)?;
                 operation.spirv_display(f)?;
                 x.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GroupFMin(OpGroupFMin {
                 id_result_type,
@@ -29291,7 +29296,7 @@ impl fmt::Display for Instruction {
                 execution.spirv_display(f)?;
                 operation.spirv_display(f)?;
                 x.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GroupUMin(OpGroupUMin {
                 id_result_type,
@@ -29310,7 +29315,7 @@ impl fmt::Display for Instruction {
                 execution.spirv_display(f)?;
                 operation.spirv_display(f)?;
                 x.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GroupSMin(OpGroupSMin {
                 id_result_type,
@@ -29329,7 +29334,7 @@ impl fmt::Display for Instruction {
                 execution.spirv_display(f)?;
                 operation.spirv_display(f)?;
                 x.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GroupFMax(OpGroupFMax {
                 id_result_type,
@@ -29348,7 +29353,7 @@ impl fmt::Display for Instruction {
                 execution.spirv_display(f)?;
                 operation.spirv_display(f)?;
                 x.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GroupUMax(OpGroupUMax {
                 id_result_type,
@@ -29367,7 +29372,7 @@ impl fmt::Display for Instruction {
                 execution.spirv_display(f)?;
                 operation.spirv_display(f)?;
                 x.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GroupSMax(OpGroupSMax {
                 id_result_type,
@@ -29386,7 +29391,7 @@ impl fmt::Display for Instruction {
                 execution.spirv_display(f)?;
                 operation.spirv_display(f)?;
                 x.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::ReadPipe(OpReadPipe {
                 id_result_type,
@@ -29407,7 +29412,7 @@ impl fmt::Display for Instruction {
                 pointer.spirv_display(f)?;
                 packet_size.spirv_display(f)?;
                 packet_alignment.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::WritePipe(OpWritePipe {
                 id_result_type,
@@ -29428,7 +29433,7 @@ impl fmt::Display for Instruction {
                 pointer.spirv_display(f)?;
                 packet_size.spirv_display(f)?;
                 packet_alignment.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::ReservedReadPipe(OpReservedReadPipe {
                 id_result_type,
@@ -29453,7 +29458,7 @@ impl fmt::Display for Instruction {
                 pointer.spirv_display(f)?;
                 packet_size.spirv_display(f)?;
                 packet_alignment.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::ReservedWritePipe(OpReservedWritePipe {
                 id_result_type,
@@ -29478,7 +29483,7 @@ impl fmt::Display for Instruction {
                 pointer.spirv_display(f)?;
                 packet_size.spirv_display(f)?;
                 packet_alignment.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::ReserveReadPipePackets(OpReserveReadPipePackets {
                 id_result_type,
@@ -29499,7 +29504,7 @@ impl fmt::Display for Instruction {
                 num_packets.spirv_display(f)?;
                 packet_size.spirv_display(f)?;
                 packet_alignment.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::ReserveWritePipePackets(OpReserveWritePipePackets {
                 id_result_type,
@@ -29520,7 +29525,7 @@ impl fmt::Display for Instruction {
                 num_packets.spirv_display(f)?;
                 packet_size.spirv_display(f)?;
                 packet_alignment.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::CommitReadPipe(OpCommitReadPipe {
                 pipe,
@@ -29538,7 +29543,7 @@ impl fmt::Display for Instruction {
                 reserve_id.spirv_display(f)?;
                 packet_size.spirv_display(f)?;
                 packet_alignment.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::CommitWritePipe(OpCommitWritePipe {
                 pipe,
@@ -29556,7 +29561,7 @@ impl fmt::Display for Instruction {
                 reserve_id.spirv_display(f)?;
                 packet_size.spirv_display(f)?;
                 packet_alignment.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::IsValidReserveId(OpIsValidReserveId {
                 id_result_type,
@@ -29571,7 +29576,7 @@ impl fmt::Display for Instruction {
                 )?;
                 id_result_type.spirv_display(f)?;
                 reserve_id.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GetNumPipePackets(OpGetNumPipePackets {
                 id_result_type,
@@ -29590,7 +29595,7 @@ impl fmt::Display for Instruction {
                 pipe.spirv_display(f)?;
                 packet_size.spirv_display(f)?;
                 packet_alignment.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GetMaxPipePackets(OpGetMaxPipePackets {
                 id_result_type,
@@ -29609,7 +29614,7 @@ impl fmt::Display for Instruction {
                 pipe.spirv_display(f)?;
                 packet_size.spirv_display(f)?;
                 packet_alignment.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GroupReserveReadPipePackets(OpGroupReserveReadPipePackets {
                 id_result_type,
@@ -29632,7 +29637,7 @@ impl fmt::Display for Instruction {
                 num_packets.spirv_display(f)?;
                 packet_size.spirv_display(f)?;
                 packet_alignment.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GroupReserveWritePipePackets(OpGroupReserveWritePipePackets {
                 id_result_type,
@@ -29655,7 +29660,7 @@ impl fmt::Display for Instruction {
                 num_packets.spirv_display(f)?;
                 packet_size.spirv_display(f)?;
                 packet_alignment.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GroupCommitReadPipe(OpGroupCommitReadPipe {
                 execution,
@@ -29675,7 +29680,7 @@ impl fmt::Display for Instruction {
                 reserve_id.spirv_display(f)?;
                 packet_size.spirv_display(f)?;
                 packet_alignment.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GroupCommitWritePipe(OpGroupCommitWritePipe {
                 execution,
@@ -29695,7 +29700,7 @@ impl fmt::Display for Instruction {
                 reserve_id.spirv_display(f)?;
                 packet_size.spirv_display(f)?;
                 packet_alignment.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::EnqueueMarker(OpEnqueueMarker {
                 id_result_type,
@@ -29716,7 +29721,7 @@ impl fmt::Display for Instruction {
                 num_events.spirv_display(f)?;
                 wait_events.spirv_display(f)?;
                 ret_event.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::EnqueueKernel(OpEnqueueKernel {
                 id_result_type,
@@ -29751,7 +29756,7 @@ impl fmt::Display for Instruction {
                 param_size.spirv_display(f)?;
                 param_align.spirv_display(f)?;
                 local_size.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GetKernelNDrangeSubGroupCount(OpGetKernelNDrangeSubGroupCount {
                 id_result_type,
@@ -29774,7 +29779,7 @@ impl fmt::Display for Instruction {
                 param.spirv_display(f)?;
                 param_size.spirv_display(f)?;
                 param_align.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GetKernelNDrangeMaxSubGroupSize(OpGetKernelNDrangeMaxSubGroupSize {
                 id_result_type,
@@ -29797,7 +29802,7 @@ impl fmt::Display for Instruction {
                 param.spirv_display(f)?;
                 param_size.spirv_display(f)?;
                 param_align.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GetKernelWorkGroupSize(OpGetKernelWorkGroupSize {
                 id_result_type,
@@ -29818,7 +29823,7 @@ impl fmt::Display for Instruction {
                 param.spirv_display(f)?;
                 param_size.spirv_display(f)?;
                 param_align.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GetKernelPreferredWorkGroupSizeMultiple(
                 OpGetKernelPreferredWorkGroupSizeMultiple {
@@ -29841,12 +29846,12 @@ impl fmt::Display for Instruction {
                 param.spirv_display(f)?;
                 param_size.spirv_display(f)?;
                 param_align.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::RetainEvent(OpRetainEvent { event }) => split_fn!({
                 write!(f, "{}{}", InstructionIndentAndResult(None), "OpRetainEvent")?;
                 event.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::ReleaseEvent(OpReleaseEvent { event }) => split_fn!({
                 write!(
@@ -29856,7 +29861,7 @@ impl fmt::Display for Instruction {
                     "OpReleaseEvent"
                 )?;
                 event.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::CreateUserEvent(OpCreateUserEvent {
                 id_result_type,
@@ -29869,7 +29874,7 @@ impl fmt::Display for Instruction {
                     "OpCreateUserEvent"
                 )?;
                 id_result_type.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::IsValidEvent(OpIsValidEvent {
                 id_result_type,
@@ -29884,7 +29889,7 @@ impl fmt::Display for Instruction {
                 )?;
                 id_result_type.spirv_display(f)?;
                 event.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::SetUserEventStatus(OpSetUserEventStatus { event, status }) => split_fn!({
                 write!(
@@ -29895,7 +29900,7 @@ impl fmt::Display for Instruction {
                 )?;
                 event.spirv_display(f)?;
                 status.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::CaptureEventProfilingInfo(OpCaptureEventProfilingInfo {
                 event,
@@ -29911,7 +29916,7 @@ impl fmt::Display for Instruction {
                 event.spirv_display(f)?;
                 profiling_info.spirv_display(f)?;
                 value.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GetDefaultQueue(OpGetDefaultQueue {
                 id_result_type,
@@ -29924,7 +29929,7 @@ impl fmt::Display for Instruction {
                     "OpGetDefaultQueue"
                 )?;
                 id_result_type.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::BuildNDRange(OpBuildNDRange {
                 id_result_type,
@@ -29943,7 +29948,7 @@ impl fmt::Display for Instruction {
                 global_work_size.spirv_display(f)?;
                 local_work_size.spirv_display(f)?;
                 global_work_offset.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::ImageSparseSampleImplicitLod(OpImageSparseSampleImplicitLod {
                 id_result_type,
@@ -29962,7 +29967,7 @@ impl fmt::Display for Instruction {
                 sampled_image.spirv_display(f)?;
                 coordinate.spirv_display(f)?;
                 image_operands.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::ImageSparseSampleExplicitLod(OpImageSparseSampleExplicitLod {
                 id_result_type,
@@ -29981,7 +29986,7 @@ impl fmt::Display for Instruction {
                 sampled_image.spirv_display(f)?;
                 coordinate.spirv_display(f)?;
                 image_operands.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::ImageSparseSampleDrefImplicitLod(OpImageSparseSampleDrefImplicitLod {
                 id_result_type,
@@ -30002,7 +30007,7 @@ impl fmt::Display for Instruction {
                 coordinate.spirv_display(f)?;
                 d_ref.spirv_display(f)?;
                 image_operands.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::ImageSparseSampleDrefExplicitLod(OpImageSparseSampleDrefExplicitLod {
                 id_result_type,
@@ -30023,7 +30028,7 @@ impl fmt::Display for Instruction {
                 coordinate.spirv_display(f)?;
                 d_ref.spirv_display(f)?;
                 image_operands.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::ImageSparseFetch(OpImageSparseFetch {
                 id_result_type,
@@ -30042,7 +30047,7 @@ impl fmt::Display for Instruction {
                 image.spirv_display(f)?;
                 coordinate.spirv_display(f)?;
                 image_operands.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::ImageSparseGather(OpImageSparseGather {
                 id_result_type,
@@ -30063,7 +30068,7 @@ impl fmt::Display for Instruction {
                 coordinate.spirv_display(f)?;
                 component.spirv_display(f)?;
                 image_operands.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::ImageSparseDrefGather(OpImageSparseDrefGather {
                 id_result_type,
@@ -30084,7 +30089,7 @@ impl fmt::Display for Instruction {
                 coordinate.spirv_display(f)?;
                 d_ref.spirv_display(f)?;
                 image_operands.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::ImageSparseTexelsResident(OpImageSparseTexelsResident {
                 id_result_type,
@@ -30099,11 +30104,11 @@ impl fmt::Display for Instruction {
                 )?;
                 id_result_type.spirv_display(f)?;
                 resident_code.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::NoLine(OpNoLine {}) => split_fn!({
                 write!(f, "{}{}", InstructionIndentAndResult(None), "OpNoLine")?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::AtomicFlagTestAndSet(OpAtomicFlagTestAndSet {
                 id_result_type,
@@ -30122,7 +30127,7 @@ impl fmt::Display for Instruction {
                 pointer.spirv_display(f)?;
                 memory.spirv_display(f)?;
                 semantics.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::AtomicFlagClear(OpAtomicFlagClear {
                 pointer,
@@ -30138,7 +30143,7 @@ impl fmt::Display for Instruction {
                 pointer.spirv_display(f)?;
                 memory.spirv_display(f)?;
                 semantics.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::ImageSparseRead(OpImageSparseRead {
                 id_result_type,
@@ -30157,7 +30162,7 @@ impl fmt::Display for Instruction {
                 image.spirv_display(f)?;
                 coordinate.spirv_display(f)?;
                 image_operands.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::SizeOf(OpSizeOf {
                 id_result_type,
@@ -30172,7 +30177,7 @@ impl fmt::Display for Instruction {
                 )?;
                 id_result_type.spirv_display(f)?;
                 pointer.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::TypePipeStorage(OpTypePipeStorage { id_result }) => split_fn!({
                 write!(
@@ -30181,7 +30186,7 @@ impl fmt::Display for Instruction {
                     InstructionIndentAndResult(Some(*id_result)),
                     "OpTypePipeStorage"
                 )?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::ConstantPipeStorage(OpConstantPipeStorage {
                 id_result_type,
@@ -30200,7 +30205,7 @@ impl fmt::Display for Instruction {
                 packet_size.spirv_display(f)?;
                 packet_alignment.spirv_display(f)?;
                 capacity.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::CreatePipeFromPipeStorage(OpCreatePipeFromPipeStorage {
                 id_result_type,
@@ -30215,7 +30220,7 @@ impl fmt::Display for Instruction {
                 )?;
                 id_result_type.spirv_display(f)?;
                 pipe_storage.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GetKernelLocalSizeForSubgroupCount(
                 OpGetKernelLocalSizeForSubgroupCount {
@@ -30240,7 +30245,7 @@ impl fmt::Display for Instruction {
                 param.spirv_display(f)?;
                 param_size.spirv_display(f)?;
                 param_align.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GetKernelMaxNumSubgroups(OpGetKernelMaxNumSubgroups {
                 id_result_type,
@@ -30261,7 +30266,7 @@ impl fmt::Display for Instruction {
                 param.spirv_display(f)?;
                 param_size.spirv_display(f)?;
                 param_align.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::TypeNamedBarrier(OpTypeNamedBarrier { id_result }) => split_fn!({
                 write!(
@@ -30270,7 +30275,7 @@ impl fmt::Display for Instruction {
                     InstructionIndentAndResult(Some(*id_result)),
                     "OpTypeNamedBarrier"
                 )?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::NamedBarrierInitialize(OpNamedBarrierInitialize {
                 id_result_type,
@@ -30285,7 +30290,7 @@ impl fmt::Display for Instruction {
                 )?;
                 id_result_type.spirv_display(f)?;
                 subgroup_count.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::MemoryNamedBarrier(OpMemoryNamedBarrier {
                 named_barrier,
@@ -30301,7 +30306,7 @@ impl fmt::Display for Instruction {
                 named_barrier.spirv_display(f)?;
                 memory.spirv_display(f)?;
                 semantics.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::ModuleProcessed(OpModuleProcessed { process }) => split_fn!({
                 write!(
@@ -30311,7 +30316,7 @@ impl fmt::Display for Instruction {
                     "OpModuleProcessed"
                 )?;
                 process.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::ExecutionModeId(OpExecutionModeId { entry_point, mode }) => split_fn!({
                 write!(
@@ -30322,13 +30327,13 @@ impl fmt::Display for Instruction {
                 )?;
                 entry_point.spirv_display(f)?;
                 mode.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::DecorateId(OpDecorateId { target, decoration }) => split_fn!({
                 write!(f, "{}{}", InstructionIndentAndResult(None), "OpDecorateId")?;
                 target.spirv_display(f)?;
                 decoration.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GroupNonUniformElect(OpGroupNonUniformElect {
                 id_result_type,
@@ -30343,7 +30348,7 @@ impl fmt::Display for Instruction {
                 )?;
                 id_result_type.spirv_display(f)?;
                 execution.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GroupNonUniformAll(OpGroupNonUniformAll {
                 id_result_type,
@@ -30360,7 +30365,7 @@ impl fmt::Display for Instruction {
                 id_result_type.spirv_display(f)?;
                 execution.spirv_display(f)?;
                 predicate.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GroupNonUniformAny(OpGroupNonUniformAny {
                 id_result_type,
@@ -30377,7 +30382,7 @@ impl fmt::Display for Instruction {
                 id_result_type.spirv_display(f)?;
                 execution.spirv_display(f)?;
                 predicate.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GroupNonUniformAllEqual(OpGroupNonUniformAllEqual {
                 id_result_type,
@@ -30394,7 +30399,7 @@ impl fmt::Display for Instruction {
                 id_result_type.spirv_display(f)?;
                 execution.spirv_display(f)?;
                 value.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GroupNonUniformBroadcast(OpGroupNonUniformBroadcast {
                 id_result_type,
@@ -30413,7 +30418,7 @@ impl fmt::Display for Instruction {
                 execution.spirv_display(f)?;
                 value.spirv_display(f)?;
                 id.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GroupNonUniformBroadcastFirst(OpGroupNonUniformBroadcastFirst {
                 id_result_type,
@@ -30430,7 +30435,7 @@ impl fmt::Display for Instruction {
                 id_result_type.spirv_display(f)?;
                 execution.spirv_display(f)?;
                 value.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GroupNonUniformBallot(OpGroupNonUniformBallot {
                 id_result_type,
@@ -30447,7 +30452,7 @@ impl fmt::Display for Instruction {
                 id_result_type.spirv_display(f)?;
                 execution.spirv_display(f)?;
                 predicate.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GroupNonUniformInverseBallot(OpGroupNonUniformInverseBallot {
                 id_result_type,
@@ -30464,7 +30469,7 @@ impl fmt::Display for Instruction {
                 id_result_type.spirv_display(f)?;
                 execution.spirv_display(f)?;
                 value.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GroupNonUniformBallotBitExtract(OpGroupNonUniformBallotBitExtract {
                 id_result_type,
@@ -30483,7 +30488,7 @@ impl fmt::Display for Instruction {
                 execution.spirv_display(f)?;
                 value.spirv_display(f)?;
                 index.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GroupNonUniformBallotBitCount(OpGroupNonUniformBallotBitCount {
                 id_result_type,
@@ -30502,7 +30507,7 @@ impl fmt::Display for Instruction {
                 execution.spirv_display(f)?;
                 operation.spirv_display(f)?;
                 value.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GroupNonUniformBallotFindLSB(OpGroupNonUniformBallotFindLSB {
                 id_result_type,
@@ -30519,7 +30524,7 @@ impl fmt::Display for Instruction {
                 id_result_type.spirv_display(f)?;
                 execution.spirv_display(f)?;
                 value.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GroupNonUniformBallotFindMSB(OpGroupNonUniformBallotFindMSB {
                 id_result_type,
@@ -30536,7 +30541,7 @@ impl fmt::Display for Instruction {
                 id_result_type.spirv_display(f)?;
                 execution.spirv_display(f)?;
                 value.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GroupNonUniformShuffle(OpGroupNonUniformShuffle {
                 id_result_type,
@@ -30555,7 +30560,7 @@ impl fmt::Display for Instruction {
                 execution.spirv_display(f)?;
                 value.spirv_display(f)?;
                 id.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GroupNonUniformShuffleXor(OpGroupNonUniformShuffleXor {
                 id_result_type,
@@ -30574,7 +30579,7 @@ impl fmt::Display for Instruction {
                 execution.spirv_display(f)?;
                 value.spirv_display(f)?;
                 mask.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GroupNonUniformShuffleUp(OpGroupNonUniformShuffleUp {
                 id_result_type,
@@ -30593,7 +30598,7 @@ impl fmt::Display for Instruction {
                 execution.spirv_display(f)?;
                 value.spirv_display(f)?;
                 delta.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GroupNonUniformShuffleDown(OpGroupNonUniformShuffleDown {
                 id_result_type,
@@ -30612,7 +30617,7 @@ impl fmt::Display for Instruction {
                 execution.spirv_display(f)?;
                 value.spirv_display(f)?;
                 delta.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GroupNonUniformIAdd(OpGroupNonUniformIAdd {
                 id_result_type,
@@ -30633,7 +30638,7 @@ impl fmt::Display for Instruction {
                 operation.spirv_display(f)?;
                 value.spirv_display(f)?;
                 cluster_size.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GroupNonUniformFAdd(OpGroupNonUniformFAdd {
                 id_result_type,
@@ -30654,7 +30659,7 @@ impl fmt::Display for Instruction {
                 operation.spirv_display(f)?;
                 value.spirv_display(f)?;
                 cluster_size.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GroupNonUniformIMul(OpGroupNonUniformIMul {
                 id_result_type,
@@ -30675,7 +30680,7 @@ impl fmt::Display for Instruction {
                 operation.spirv_display(f)?;
                 value.spirv_display(f)?;
                 cluster_size.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GroupNonUniformFMul(OpGroupNonUniformFMul {
                 id_result_type,
@@ -30696,7 +30701,7 @@ impl fmt::Display for Instruction {
                 operation.spirv_display(f)?;
                 value.spirv_display(f)?;
                 cluster_size.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GroupNonUniformSMin(OpGroupNonUniformSMin {
                 id_result_type,
@@ -30717,7 +30722,7 @@ impl fmt::Display for Instruction {
                 operation.spirv_display(f)?;
                 value.spirv_display(f)?;
                 cluster_size.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GroupNonUniformUMin(OpGroupNonUniformUMin {
                 id_result_type,
@@ -30738,7 +30743,7 @@ impl fmt::Display for Instruction {
                 operation.spirv_display(f)?;
                 value.spirv_display(f)?;
                 cluster_size.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GroupNonUniformFMin(OpGroupNonUniformFMin {
                 id_result_type,
@@ -30759,7 +30764,7 @@ impl fmt::Display for Instruction {
                 operation.spirv_display(f)?;
                 value.spirv_display(f)?;
                 cluster_size.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GroupNonUniformSMax(OpGroupNonUniformSMax {
                 id_result_type,
@@ -30780,7 +30785,7 @@ impl fmt::Display for Instruction {
                 operation.spirv_display(f)?;
                 value.spirv_display(f)?;
                 cluster_size.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GroupNonUniformUMax(OpGroupNonUniformUMax {
                 id_result_type,
@@ -30801,7 +30806,7 @@ impl fmt::Display for Instruction {
                 operation.spirv_display(f)?;
                 value.spirv_display(f)?;
                 cluster_size.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GroupNonUniformFMax(OpGroupNonUniformFMax {
                 id_result_type,
@@ -30822,7 +30827,7 @@ impl fmt::Display for Instruction {
                 operation.spirv_display(f)?;
                 value.spirv_display(f)?;
                 cluster_size.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GroupNonUniformBitwiseAnd(OpGroupNonUniformBitwiseAnd {
                 id_result_type,
@@ -30843,7 +30848,7 @@ impl fmt::Display for Instruction {
                 operation.spirv_display(f)?;
                 value.spirv_display(f)?;
                 cluster_size.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GroupNonUniformBitwiseOr(OpGroupNonUniformBitwiseOr {
                 id_result_type,
@@ -30864,7 +30869,7 @@ impl fmt::Display for Instruction {
                 operation.spirv_display(f)?;
                 value.spirv_display(f)?;
                 cluster_size.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GroupNonUniformBitwiseXor(OpGroupNonUniformBitwiseXor {
                 id_result_type,
@@ -30885,7 +30890,7 @@ impl fmt::Display for Instruction {
                 operation.spirv_display(f)?;
                 value.spirv_display(f)?;
                 cluster_size.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GroupNonUniformLogicalAnd(OpGroupNonUniformLogicalAnd {
                 id_result_type,
@@ -30906,7 +30911,7 @@ impl fmt::Display for Instruction {
                 operation.spirv_display(f)?;
                 value.spirv_display(f)?;
                 cluster_size.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GroupNonUniformLogicalOr(OpGroupNonUniformLogicalOr {
                 id_result_type,
@@ -30927,7 +30932,7 @@ impl fmt::Display for Instruction {
                 operation.spirv_display(f)?;
                 value.spirv_display(f)?;
                 cluster_size.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GroupNonUniformLogicalXor(OpGroupNonUniformLogicalXor {
                 id_result_type,
@@ -30948,7 +30953,7 @@ impl fmt::Display for Instruction {
                 operation.spirv_display(f)?;
                 value.spirv_display(f)?;
                 cluster_size.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GroupNonUniformQuadBroadcast(OpGroupNonUniformQuadBroadcast {
                 id_result_type,
@@ -30967,7 +30972,7 @@ impl fmt::Display for Instruction {
                 execution.spirv_display(f)?;
                 value.spirv_display(f)?;
                 index.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GroupNonUniformQuadSwap(OpGroupNonUniformQuadSwap {
                 id_result_type,
@@ -30986,7 +30991,7 @@ impl fmt::Display for Instruction {
                 execution.spirv_display(f)?;
                 value.spirv_display(f)?;
                 direction.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::CopyLogical(OpCopyLogical {
                 id_result_type,
@@ -31001,7 +31006,7 @@ impl fmt::Display for Instruction {
                 )?;
                 id_result_type.spirv_display(f)?;
                 operand.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::PtrEqual(OpPtrEqual {
                 id_result_type,
@@ -31018,7 +31023,7 @@ impl fmt::Display for Instruction {
                 id_result_type.spirv_display(f)?;
                 operand_1.spirv_display(f)?;
                 operand_2.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::PtrNotEqual(OpPtrNotEqual {
                 id_result_type,
@@ -31035,7 +31040,7 @@ impl fmt::Display for Instruction {
                 id_result_type.spirv_display(f)?;
                 operand_1.spirv_display(f)?;
                 operand_2.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::PtrDiff(OpPtrDiff {
                 id_result_type,
@@ -31052,7 +31057,7 @@ impl fmt::Display for Instruction {
                 id_result_type.spirv_display(f)?;
                 operand_1.spirv_display(f)?;
                 operand_2.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::DecorateString(OpDecorateString { target, decoration }) => split_fn!({
                 write!(
@@ -31063,7 +31068,7 @@ impl fmt::Display for Instruction {
                 )?;
                 target.spirv_display(f)?;
                 decoration.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::MemberDecorateString(OpMemberDecorateString {
                 struct_type,
@@ -31079,7 +31084,7 @@ impl fmt::Display for Instruction {
                 struct_type.spirv_display(f)?;
                 member.spirv_display(f)?;
                 decoration.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdAcos(OpOpenCLStdAcos {
                 id_result_type,
@@ -31096,7 +31101,7 @@ impl fmt::Display for Instruction {
                     "acos",
                 )?;
                 x.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdAcosh(OpOpenCLStdAcosh {
                 id_result_type,
@@ -31113,7 +31118,7 @@ impl fmt::Display for Instruction {
                     "acosh",
                 )?;
                 x.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdAcospi(OpOpenCLStdAcospi {
                 id_result_type,
@@ -31130,7 +31135,7 @@ impl fmt::Display for Instruction {
                     "acospi",
                 )?;
                 x.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdAsin(OpOpenCLStdAsin {
                 id_result_type,
@@ -31147,7 +31152,7 @@ impl fmt::Display for Instruction {
                     "asin",
                 )?;
                 x.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdAsinh(OpOpenCLStdAsinh {
                 id_result_type,
@@ -31164,7 +31169,7 @@ impl fmt::Display for Instruction {
                     "asinh",
                 )?;
                 x.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdAsinpi(OpOpenCLStdAsinpi {
                 id_result_type,
@@ -31181,7 +31186,7 @@ impl fmt::Display for Instruction {
                     "asinpi",
                 )?;
                 x.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdAtan(OpOpenCLStdAtan {
                 id_result_type,
@@ -31198,7 +31203,7 @@ impl fmt::Display for Instruction {
                     "atan",
                 )?;
                 x.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdAtan2(OpOpenCLStdAtan2 {
                 id_result_type,
@@ -31217,7 +31222,7 @@ impl fmt::Display for Instruction {
                 )?;
                 y.spirv_display(f)?;
                 x.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdAtanh(OpOpenCLStdAtanh {
                 id_result_type,
@@ -31234,7 +31239,7 @@ impl fmt::Display for Instruction {
                     "atanh",
                 )?;
                 x.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdAtanpi(OpOpenCLStdAtanpi {
                 id_result_type,
@@ -31251,7 +31256,7 @@ impl fmt::Display for Instruction {
                     "atanpi",
                 )?;
                 x.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdAtan2pi(OpOpenCLStdAtan2pi {
                 id_result_type,
@@ -31270,7 +31275,7 @@ impl fmt::Display for Instruction {
                 )?;
                 y.spirv_display(f)?;
                 x.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdCbrt(OpOpenCLStdCbrt {
                 id_result_type,
@@ -31287,7 +31292,7 @@ impl fmt::Display for Instruction {
                     "cbrt",
                 )?;
                 x.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdCeil(OpOpenCLStdCeil {
                 id_result_type,
@@ -31304,7 +31309,7 @@ impl fmt::Display for Instruction {
                     "ceil",
                 )?;
                 x.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdCopysign(OpOpenCLStdCopysign {
                 id_result_type,
@@ -31323,7 +31328,7 @@ impl fmt::Display for Instruction {
                 )?;
                 x.spirv_display(f)?;
                 y.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdCos(OpOpenCLStdCos {
                 id_result_type,
@@ -31340,7 +31345,7 @@ impl fmt::Display for Instruction {
                     "cos",
                 )?;
                 x.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdCosh(OpOpenCLStdCosh {
                 id_result_type,
@@ -31357,7 +31362,7 @@ impl fmt::Display for Instruction {
                     "cosh",
                 )?;
                 x.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdCospi(OpOpenCLStdCospi {
                 id_result_type,
@@ -31374,7 +31379,7 @@ impl fmt::Display for Instruction {
                     "cospi",
                 )?;
                 x.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdErfc(OpOpenCLStdErfc {
                 id_result_type,
@@ -31391,7 +31396,7 @@ impl fmt::Display for Instruction {
                     "erfc",
                 )?;
                 x.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdErf(OpOpenCLStdErf {
                 id_result_type,
@@ -31408,7 +31413,7 @@ impl fmt::Display for Instruction {
                     "erf",
                 )?;
                 x.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdExp(OpOpenCLStdExp {
                 id_result_type,
@@ -31425,7 +31430,7 @@ impl fmt::Display for Instruction {
                     "exp",
                 )?;
                 x.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdExp2(OpOpenCLStdExp2 {
                 id_result_type,
@@ -31442,7 +31447,7 @@ impl fmt::Display for Instruction {
                     "exp2",
                 )?;
                 x.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdExp10(OpOpenCLStdExp10 {
                 id_result_type,
@@ -31459,7 +31464,7 @@ impl fmt::Display for Instruction {
                     "exp10",
                 )?;
                 x.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdExpm1(OpOpenCLStdExpm1 {
                 id_result_type,
@@ -31476,7 +31481,7 @@ impl fmt::Display for Instruction {
                     "expm1",
                 )?;
                 x.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdFabs(OpOpenCLStdFabs {
                 id_result_type,
@@ -31493,7 +31498,7 @@ impl fmt::Display for Instruction {
                     "fabs",
                 )?;
                 x.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdFdim(OpOpenCLStdFdim {
                 id_result_type,
@@ -31512,7 +31517,7 @@ impl fmt::Display for Instruction {
                 )?;
                 x.spirv_display(f)?;
                 y.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdFloor(OpOpenCLStdFloor {
                 id_result_type,
@@ -31529,7 +31534,7 @@ impl fmt::Display for Instruction {
                     "floor",
                 )?;
                 x.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdFma(OpOpenCLStdFma {
                 id_result_type,
@@ -31550,7 +31555,7 @@ impl fmt::Display for Instruction {
                 a.spirv_display(f)?;
                 b.spirv_display(f)?;
                 c.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdFmax(OpOpenCLStdFmax {
                 id_result_type,
@@ -31569,7 +31574,7 @@ impl fmt::Display for Instruction {
                 )?;
                 x.spirv_display(f)?;
                 y.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdFmin(OpOpenCLStdFmin {
                 id_result_type,
@@ -31588,7 +31593,7 @@ impl fmt::Display for Instruction {
                 )?;
                 x.spirv_display(f)?;
                 y.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdFmod(OpOpenCLStdFmod {
                 id_result_type,
@@ -31607,7 +31612,7 @@ impl fmt::Display for Instruction {
                 )?;
                 x.spirv_display(f)?;
                 y.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdFract(OpOpenCLStdFract {
                 id_result_type,
@@ -31626,7 +31631,7 @@ impl fmt::Display for Instruction {
                 )?;
                 x.spirv_display(f)?;
                 ptr.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdFrexp(OpOpenCLStdFrexp {
                 id_result_type,
@@ -31645,7 +31650,7 @@ impl fmt::Display for Instruction {
                 )?;
                 x.spirv_display(f)?;
                 exp.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdHypot(OpOpenCLStdHypot {
                 id_result_type,
@@ -31664,7 +31669,7 @@ impl fmt::Display for Instruction {
                 )?;
                 x.spirv_display(f)?;
                 y.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdIlogb(OpOpenCLStdIlogb {
                 id_result_type,
@@ -31681,7 +31686,7 @@ impl fmt::Display for Instruction {
                     "ilogb",
                 )?;
                 x.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdLdexp(OpOpenCLStdLdexp {
                 id_result_type,
@@ -31700,7 +31705,7 @@ impl fmt::Display for Instruction {
                 )?;
                 x.spirv_display(f)?;
                 k.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdLgamma(OpOpenCLStdLgamma {
                 id_result_type,
@@ -31717,7 +31722,7 @@ impl fmt::Display for Instruction {
                     "lgamma",
                 )?;
                 x.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdLgammaR(OpOpenCLStdLgammaR {
                 id_result_type,
@@ -31736,7 +31741,7 @@ impl fmt::Display for Instruction {
                 )?;
                 x.spirv_display(f)?;
                 signp.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdLog(OpOpenCLStdLog {
                 id_result_type,
@@ -31753,7 +31758,7 @@ impl fmt::Display for Instruction {
                     "log",
                 )?;
                 x.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdLog2(OpOpenCLStdLog2 {
                 id_result_type,
@@ -31770,7 +31775,7 @@ impl fmt::Display for Instruction {
                     "log2",
                 )?;
                 x.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdLog10(OpOpenCLStdLog10 {
                 id_result_type,
@@ -31787,7 +31792,7 @@ impl fmt::Display for Instruction {
                     "log10",
                 )?;
                 x.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdLog1p(OpOpenCLStdLog1p {
                 id_result_type,
@@ -31804,7 +31809,7 @@ impl fmt::Display for Instruction {
                     "log1p",
                 )?;
                 x.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdLogb(OpOpenCLStdLogb {
                 id_result_type,
@@ -31821,7 +31826,7 @@ impl fmt::Display for Instruction {
                     "logb",
                 )?;
                 x.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdMad(OpOpenCLStdMad {
                 id_result_type,
@@ -31842,7 +31847,7 @@ impl fmt::Display for Instruction {
                 a.spirv_display(f)?;
                 b.spirv_display(f)?;
                 c.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdMaxmag(OpOpenCLStdMaxmag {
                 id_result_type,
@@ -31861,7 +31866,7 @@ impl fmt::Display for Instruction {
                 )?;
                 x.spirv_display(f)?;
                 y.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdMinmag(OpOpenCLStdMinmag {
                 id_result_type,
@@ -31880,7 +31885,7 @@ impl fmt::Display for Instruction {
                 )?;
                 x.spirv_display(f)?;
                 y.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdModf(OpOpenCLStdModf {
                 id_result_type,
@@ -31899,7 +31904,7 @@ impl fmt::Display for Instruction {
                 )?;
                 x.spirv_display(f)?;
                 iptr.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdNan(OpOpenCLStdNan {
                 id_result_type,
@@ -31916,7 +31921,7 @@ impl fmt::Display for Instruction {
                     "nan",
                 )?;
                 nancode.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdNextafter(OpOpenCLStdNextafter {
                 id_result_type,
@@ -31935,7 +31940,7 @@ impl fmt::Display for Instruction {
                 )?;
                 x.spirv_display(f)?;
                 y.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdPow(OpOpenCLStdPow {
                 id_result_type,
@@ -31954,7 +31959,7 @@ impl fmt::Display for Instruction {
                 )?;
                 x.spirv_display(f)?;
                 y.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdPown(OpOpenCLStdPown {
                 id_result_type,
@@ -31973,7 +31978,7 @@ impl fmt::Display for Instruction {
                 )?;
                 x.spirv_display(f)?;
                 y.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdPowr(OpOpenCLStdPowr {
                 id_result_type,
@@ -31992,7 +31997,7 @@ impl fmt::Display for Instruction {
                 )?;
                 x.spirv_display(f)?;
                 y.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdRemainder(OpOpenCLStdRemainder {
                 id_result_type,
@@ -32011,7 +32016,7 @@ impl fmt::Display for Instruction {
                 )?;
                 x.spirv_display(f)?;
                 y.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdRemquo(OpOpenCLStdRemquo {
                 id_result_type,
@@ -32032,7 +32037,7 @@ impl fmt::Display for Instruction {
                 x.spirv_display(f)?;
                 y.spirv_display(f)?;
                 quo.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdRint(OpOpenCLStdRint {
                 id_result_type,
@@ -32049,7 +32054,7 @@ impl fmt::Display for Instruction {
                     "rint",
                 )?;
                 x.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdRootn(OpOpenCLStdRootn {
                 id_result_type,
@@ -32068,7 +32073,7 @@ impl fmt::Display for Instruction {
                 )?;
                 x.spirv_display(f)?;
                 y.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdRound(OpOpenCLStdRound {
                 id_result_type,
@@ -32085,7 +32090,7 @@ impl fmt::Display for Instruction {
                     "round",
                 )?;
                 x.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdRsqrt(OpOpenCLStdRsqrt {
                 id_result_type,
@@ -32102,7 +32107,7 @@ impl fmt::Display for Instruction {
                     "rsqrt",
                 )?;
                 x.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdSin(OpOpenCLStdSin {
                 id_result_type,
@@ -32119,7 +32124,7 @@ impl fmt::Display for Instruction {
                     "sin",
                 )?;
                 x.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdSincos(OpOpenCLStdSincos {
                 id_result_type,
@@ -32138,7 +32143,7 @@ impl fmt::Display for Instruction {
                 )?;
                 x.spirv_display(f)?;
                 cosval.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdSinh(OpOpenCLStdSinh {
                 id_result_type,
@@ -32155,7 +32160,7 @@ impl fmt::Display for Instruction {
                     "sinh",
                 )?;
                 x.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdSinpi(OpOpenCLStdSinpi {
                 id_result_type,
@@ -32172,7 +32177,7 @@ impl fmt::Display for Instruction {
                     "sinpi",
                 )?;
                 x.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdSqrt(OpOpenCLStdSqrt {
                 id_result_type,
@@ -32189,7 +32194,7 @@ impl fmt::Display for Instruction {
                     "sqrt",
                 )?;
                 x.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdTan(OpOpenCLStdTan {
                 id_result_type,
@@ -32206,7 +32211,7 @@ impl fmt::Display for Instruction {
                     "tan",
                 )?;
                 x.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdTanh(OpOpenCLStdTanh {
                 id_result_type,
@@ -32223,7 +32228,7 @@ impl fmt::Display for Instruction {
                     "tanh",
                 )?;
                 x.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdTanpi(OpOpenCLStdTanpi {
                 id_result_type,
@@ -32240,7 +32245,7 @@ impl fmt::Display for Instruction {
                     "tanpi",
                 )?;
                 x.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdTgamma(OpOpenCLStdTgamma {
                 id_result_type,
@@ -32257,7 +32262,7 @@ impl fmt::Display for Instruction {
                     "tgamma",
                 )?;
                 x.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdTrunc(OpOpenCLStdTrunc {
                 id_result_type,
@@ -32274,7 +32279,7 @@ impl fmt::Display for Instruction {
                     "trunc",
                 )?;
                 x.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdHalfCos(OpOpenCLStdHalfCos {
                 id_result_type,
@@ -32291,7 +32296,7 @@ impl fmt::Display for Instruction {
                     "half_cos",
                 )?;
                 x.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdHalfDivide(OpOpenCLStdHalfDivide {
                 id_result_type,
@@ -32310,7 +32315,7 @@ impl fmt::Display for Instruction {
                 )?;
                 x.spirv_display(f)?;
                 y.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdHalfExp(OpOpenCLStdHalfExp {
                 id_result_type,
@@ -32327,7 +32332,7 @@ impl fmt::Display for Instruction {
                     "half_exp",
                 )?;
                 x.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdHalfExp2(OpOpenCLStdHalfExp2 {
                 id_result_type,
@@ -32344,7 +32349,7 @@ impl fmt::Display for Instruction {
                     "half_exp2",
                 )?;
                 x.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdHalfExp10(OpOpenCLStdHalfExp10 {
                 id_result_type,
@@ -32361,7 +32366,7 @@ impl fmt::Display for Instruction {
                     "half_exp10",
                 )?;
                 x.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdHalfLog(OpOpenCLStdHalfLog {
                 id_result_type,
@@ -32378,7 +32383,7 @@ impl fmt::Display for Instruction {
                     "half_log",
                 )?;
                 x.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdHalfLog2(OpOpenCLStdHalfLog2 {
                 id_result_type,
@@ -32395,7 +32400,7 @@ impl fmt::Display for Instruction {
                     "half_log2",
                 )?;
                 x.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdHalfLog10(OpOpenCLStdHalfLog10 {
                 id_result_type,
@@ -32412,7 +32417,7 @@ impl fmt::Display for Instruction {
                     "half_log10",
                 )?;
                 x.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdHalfPowr(OpOpenCLStdHalfPowr {
                 id_result_type,
@@ -32431,7 +32436,7 @@ impl fmt::Display for Instruction {
                 )?;
                 x.spirv_display(f)?;
                 y.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdHalfRecip(OpOpenCLStdHalfRecip {
                 id_result_type,
@@ -32448,7 +32453,7 @@ impl fmt::Display for Instruction {
                     "half_recip",
                 )?;
                 x.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdHalfRsqrt(OpOpenCLStdHalfRsqrt {
                 id_result_type,
@@ -32465,7 +32470,7 @@ impl fmt::Display for Instruction {
                     "half_rsqrt",
                 )?;
                 x.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdHalfSin(OpOpenCLStdHalfSin {
                 id_result_type,
@@ -32482,7 +32487,7 @@ impl fmt::Display for Instruction {
                     "half_sin",
                 )?;
                 x.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdHalfSqrt(OpOpenCLStdHalfSqrt {
                 id_result_type,
@@ -32499,7 +32504,7 @@ impl fmt::Display for Instruction {
                     "half_sqrt",
                 )?;
                 x.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdHalfTan(OpOpenCLStdHalfTan {
                 id_result_type,
@@ -32516,7 +32521,7 @@ impl fmt::Display for Instruction {
                     "half_tan",
                 )?;
                 x.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdNativeCos(OpOpenCLStdNativeCos {
                 id_result_type,
@@ -32533,7 +32538,7 @@ impl fmt::Display for Instruction {
                     "native_cos",
                 )?;
                 x.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdNativeDivide(OpOpenCLStdNativeDivide {
                 id_result_type,
@@ -32552,7 +32557,7 @@ impl fmt::Display for Instruction {
                 )?;
                 x.spirv_display(f)?;
                 y.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdNativeExp(OpOpenCLStdNativeExp {
                 id_result_type,
@@ -32569,7 +32574,7 @@ impl fmt::Display for Instruction {
                     "native_exp",
                 )?;
                 x.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdNativeExp2(OpOpenCLStdNativeExp2 {
                 id_result_type,
@@ -32586,7 +32591,7 @@ impl fmt::Display for Instruction {
                     "native_exp2",
                 )?;
                 x.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdNativeExp10(OpOpenCLStdNativeExp10 {
                 id_result_type,
@@ -32603,7 +32608,7 @@ impl fmt::Display for Instruction {
                     "native_exp10",
                 )?;
                 x.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdNativeLog(OpOpenCLStdNativeLog {
                 id_result_type,
@@ -32620,7 +32625,7 @@ impl fmt::Display for Instruction {
                     "native_log",
                 )?;
                 x.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdNativeLog2(OpOpenCLStdNativeLog2 {
                 id_result_type,
@@ -32637,7 +32642,7 @@ impl fmt::Display for Instruction {
                     "native_log2",
                 )?;
                 x.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdNativeLog10(OpOpenCLStdNativeLog10 {
                 id_result_type,
@@ -32654,7 +32659,7 @@ impl fmt::Display for Instruction {
                     "native_log10",
                 )?;
                 x.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdNativePowr(OpOpenCLStdNativePowr {
                 id_result_type,
@@ -32673,7 +32678,7 @@ impl fmt::Display for Instruction {
                 )?;
                 x.spirv_display(f)?;
                 y.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdNativeRecip(OpOpenCLStdNativeRecip {
                 id_result_type,
@@ -32690,7 +32695,7 @@ impl fmt::Display for Instruction {
                     "native_recip",
                 )?;
                 x.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdNativeRsqrt(OpOpenCLStdNativeRsqrt {
                 id_result_type,
@@ -32707,7 +32712,7 @@ impl fmt::Display for Instruction {
                     "native_rsqrt",
                 )?;
                 x.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdNativeSin(OpOpenCLStdNativeSin {
                 id_result_type,
@@ -32724,7 +32729,7 @@ impl fmt::Display for Instruction {
                     "native_sin",
                 )?;
                 x.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdNativeSqrt(OpOpenCLStdNativeSqrt {
                 id_result_type,
@@ -32741,7 +32746,7 @@ impl fmt::Display for Instruction {
                     "native_sqrt",
                 )?;
                 x.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdNativeTan(OpOpenCLStdNativeTan {
                 id_result_type,
@@ -32758,7 +32763,7 @@ impl fmt::Display for Instruction {
                     "native_tan",
                 )?;
                 x.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdSAbs(OpOpenCLStdSAbs {
                 id_result_type,
@@ -32775,7 +32780,7 @@ impl fmt::Display for Instruction {
                     "s_abs",
                 )?;
                 x.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdSAbsDiff(OpOpenCLStdSAbsDiff {
                 id_result_type,
@@ -32794,7 +32799,7 @@ impl fmt::Display for Instruction {
                 )?;
                 x.spirv_display(f)?;
                 y.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdSAddSat(OpOpenCLStdSAddSat {
                 id_result_type,
@@ -32813,7 +32818,7 @@ impl fmt::Display for Instruction {
                 )?;
                 x.spirv_display(f)?;
                 y.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdUAddSat(OpOpenCLStdUAddSat {
                 id_result_type,
@@ -32832,7 +32837,7 @@ impl fmt::Display for Instruction {
                 )?;
                 x.spirv_display(f)?;
                 y.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdSHadd(OpOpenCLStdSHadd {
                 id_result_type,
@@ -32851,7 +32856,7 @@ impl fmt::Display for Instruction {
                 )?;
                 x.spirv_display(f)?;
                 y.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdUHadd(OpOpenCLStdUHadd {
                 id_result_type,
@@ -32870,7 +32875,7 @@ impl fmt::Display for Instruction {
                 )?;
                 x.spirv_display(f)?;
                 y.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdSRhadd(OpOpenCLStdSRhadd {
                 id_result_type,
@@ -32889,7 +32894,7 @@ impl fmt::Display for Instruction {
                 )?;
                 x.spirv_display(f)?;
                 y.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdURhadd(OpOpenCLStdURhadd {
                 id_result_type,
@@ -32908,7 +32913,7 @@ impl fmt::Display for Instruction {
                 )?;
                 x.spirv_display(f)?;
                 y.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdSClamp(OpOpenCLStdSClamp {
                 id_result_type,
@@ -32929,7 +32934,7 @@ impl fmt::Display for Instruction {
                 x.spirv_display(f)?;
                 minval.spirv_display(f)?;
                 maxval.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdUClamp(OpOpenCLStdUClamp {
                 id_result_type,
@@ -32950,7 +32955,7 @@ impl fmt::Display for Instruction {
                 x.spirv_display(f)?;
                 minval.spirv_display(f)?;
                 maxval.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdClz(OpOpenCLStdClz {
                 id_result_type,
@@ -32967,7 +32972,7 @@ impl fmt::Display for Instruction {
                     "clz",
                 )?;
                 x.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdCtz(OpOpenCLStdCtz {
                 id_result_type,
@@ -32984,7 +32989,7 @@ impl fmt::Display for Instruction {
                     "ctz",
                 )?;
                 x.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdSMadHi(OpOpenCLStdSMadHi {
                 id_result_type,
@@ -33005,7 +33010,7 @@ impl fmt::Display for Instruction {
                 a.spirv_display(f)?;
                 b.spirv_display(f)?;
                 c.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdUMadSat(OpOpenCLStdUMadSat {
                 id_result_type,
@@ -33026,7 +33031,7 @@ impl fmt::Display for Instruction {
                 x.spirv_display(f)?;
                 y.spirv_display(f)?;
                 z.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdSMadSat(OpOpenCLStdSMadSat {
                 id_result_type,
@@ -33047,7 +33052,7 @@ impl fmt::Display for Instruction {
                 x.spirv_display(f)?;
                 y.spirv_display(f)?;
                 z.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdSMax(OpOpenCLStdSMax {
                 id_result_type,
@@ -33066,7 +33071,7 @@ impl fmt::Display for Instruction {
                 )?;
                 x.spirv_display(f)?;
                 y.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdUMax(OpOpenCLStdUMax {
                 id_result_type,
@@ -33085,7 +33090,7 @@ impl fmt::Display for Instruction {
                 )?;
                 x.spirv_display(f)?;
                 y.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdSMin(OpOpenCLStdSMin {
                 id_result_type,
@@ -33104,7 +33109,7 @@ impl fmt::Display for Instruction {
                 )?;
                 x.spirv_display(f)?;
                 y.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdUMin(OpOpenCLStdUMin {
                 id_result_type,
@@ -33123,7 +33128,7 @@ impl fmt::Display for Instruction {
                 )?;
                 x.spirv_display(f)?;
                 y.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdSMulHi(OpOpenCLStdSMulHi {
                 id_result_type,
@@ -33142,7 +33147,7 @@ impl fmt::Display for Instruction {
                 )?;
                 x.spirv_display(f)?;
                 y.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdRotate(OpOpenCLStdRotate {
                 id_result_type,
@@ -33161,7 +33166,7 @@ impl fmt::Display for Instruction {
                 )?;
                 v.spirv_display(f)?;
                 i.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdSSubSat(OpOpenCLStdSSubSat {
                 id_result_type,
@@ -33180,7 +33185,7 @@ impl fmt::Display for Instruction {
                 )?;
                 x.spirv_display(f)?;
                 y.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdUSubSat(OpOpenCLStdUSubSat {
                 id_result_type,
@@ -33199,7 +33204,7 @@ impl fmt::Display for Instruction {
                 )?;
                 x.spirv_display(f)?;
                 y.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdUUpsample(OpOpenCLStdUUpsample {
                 id_result_type,
@@ -33218,7 +33223,7 @@ impl fmt::Display for Instruction {
                 )?;
                 hi.spirv_display(f)?;
                 lo.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdSUpsample(OpOpenCLStdSUpsample {
                 id_result_type,
@@ -33237,7 +33242,7 @@ impl fmt::Display for Instruction {
                 )?;
                 hi.spirv_display(f)?;
                 lo.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdPopcount(OpOpenCLStdPopcount {
                 id_result_type,
@@ -33254,7 +33259,7 @@ impl fmt::Display for Instruction {
                     "popcount",
                 )?;
                 x.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdSMad24(OpOpenCLStdSMad24 {
                 id_result_type,
@@ -33275,7 +33280,7 @@ impl fmt::Display for Instruction {
                 x.spirv_display(f)?;
                 y.spirv_display(f)?;
                 z.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdUMad24(OpOpenCLStdUMad24 {
                 id_result_type,
@@ -33296,7 +33301,7 @@ impl fmt::Display for Instruction {
                 x.spirv_display(f)?;
                 y.spirv_display(f)?;
                 z.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdSMul24(OpOpenCLStdSMul24 {
                 id_result_type,
@@ -33315,7 +33320,7 @@ impl fmt::Display for Instruction {
                 )?;
                 x.spirv_display(f)?;
                 y.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdUMul24(OpOpenCLStdUMul24 {
                 id_result_type,
@@ -33334,7 +33339,7 @@ impl fmt::Display for Instruction {
                 )?;
                 x.spirv_display(f)?;
                 y.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdUAbs(OpOpenCLStdUAbs {
                 id_result_type,
@@ -33351,7 +33356,7 @@ impl fmt::Display for Instruction {
                     "u_abs",
                 )?;
                 x.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdUAbsDiff(OpOpenCLStdUAbsDiff {
                 id_result_type,
@@ -33370,7 +33375,7 @@ impl fmt::Display for Instruction {
                 )?;
                 x.spirv_display(f)?;
                 y.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdUMulHi(OpOpenCLStdUMulHi {
                 id_result_type,
@@ -33389,7 +33394,7 @@ impl fmt::Display for Instruction {
                 )?;
                 x.spirv_display(f)?;
                 y.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdUMadHi(OpOpenCLStdUMadHi {
                 id_result_type,
@@ -33410,7 +33415,7 @@ impl fmt::Display for Instruction {
                 a.spirv_display(f)?;
                 b.spirv_display(f)?;
                 c.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdFclamp(OpOpenCLStdFclamp {
                 id_result_type,
@@ -33431,7 +33436,7 @@ impl fmt::Display for Instruction {
                 x.spirv_display(f)?;
                 minval.spirv_display(f)?;
                 maxval.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdDegrees(OpOpenCLStdDegrees {
                 id_result_type,
@@ -33448,7 +33453,7 @@ impl fmt::Display for Instruction {
                     "degrees",
                 )?;
                 radians.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdFmaxCommon(OpOpenCLStdFmaxCommon {
                 id_result_type,
@@ -33467,7 +33472,7 @@ impl fmt::Display for Instruction {
                 )?;
                 x.spirv_display(f)?;
                 y.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdFminCommon(OpOpenCLStdFminCommon {
                 id_result_type,
@@ -33486,7 +33491,7 @@ impl fmt::Display for Instruction {
                 )?;
                 x.spirv_display(f)?;
                 y.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdMix(OpOpenCLStdMix {
                 id_result_type,
@@ -33507,7 +33512,7 @@ impl fmt::Display for Instruction {
                 x.spirv_display(f)?;
                 y.spirv_display(f)?;
                 a.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdRadians(OpOpenCLStdRadians {
                 id_result_type,
@@ -33524,7 +33529,7 @@ impl fmt::Display for Instruction {
                     "radians",
                 )?;
                 degrees.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdStep(OpOpenCLStdStep {
                 id_result_type,
@@ -33543,7 +33548,7 @@ impl fmt::Display for Instruction {
                 )?;
                 edge.spirv_display(f)?;
                 x.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdSmoothstep(OpOpenCLStdSmoothstep {
                 id_result_type,
@@ -33564,7 +33569,7 @@ impl fmt::Display for Instruction {
                 edge0.spirv_display(f)?;
                 edge1.spirv_display(f)?;
                 x.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdSign(OpOpenCLStdSign {
                 id_result_type,
@@ -33581,7 +33586,7 @@ impl fmt::Display for Instruction {
                     "sign",
                 )?;
                 x.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdCross(OpOpenCLStdCross {
                 id_result_type,
@@ -33600,7 +33605,7 @@ impl fmt::Display for Instruction {
                 )?;
                 p0.spirv_display(f)?;
                 p1.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdDistance(OpOpenCLStdDistance {
                 id_result_type,
@@ -33619,7 +33624,7 @@ impl fmt::Display for Instruction {
                 )?;
                 p0.spirv_display(f)?;
                 p1.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdLength(OpOpenCLStdLength {
                 id_result_type,
@@ -33636,7 +33641,7 @@ impl fmt::Display for Instruction {
                     "length",
                 )?;
                 p.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdNormalize(OpOpenCLStdNormalize {
                 id_result_type,
@@ -33653,7 +33658,7 @@ impl fmt::Display for Instruction {
                     "normalize",
                 )?;
                 p.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdFastDistance(OpOpenCLStdFastDistance {
                 id_result_type,
@@ -33672,7 +33677,7 @@ impl fmt::Display for Instruction {
                 )?;
                 p0.spirv_display(f)?;
                 p1.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdFastLength(OpOpenCLStdFastLength {
                 id_result_type,
@@ -33689,7 +33694,7 @@ impl fmt::Display for Instruction {
                     "fast_length",
                 )?;
                 p.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdFastNormalize(OpOpenCLStdFastNormalize {
                 id_result_type,
@@ -33706,7 +33711,7 @@ impl fmt::Display for Instruction {
                     "fast_normalize",
                 )?;
                 p.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdBitselect(OpOpenCLStdBitselect {
                 id_result_type,
@@ -33727,7 +33732,7 @@ impl fmt::Display for Instruction {
                 a.spirv_display(f)?;
                 b.spirv_display(f)?;
                 c.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdSelect(OpOpenCLStdSelect {
                 id_result_type,
@@ -33748,7 +33753,7 @@ impl fmt::Display for Instruction {
                 a.spirv_display(f)?;
                 b.spirv_display(f)?;
                 c.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdVloadn(OpOpenCLStdVloadn {
                 id_result_type,
@@ -33769,7 +33774,7 @@ impl fmt::Display for Instruction {
                 offset.spirv_display(f)?;
                 p.spirv_display(f)?;
                 n.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdVstoren(OpOpenCLStdVstoren {
                 id_result_type,
@@ -33790,7 +33795,7 @@ impl fmt::Display for Instruction {
                 data.spirv_display(f)?;
                 offset.spirv_display(f)?;
                 p.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdVloadHalf(OpOpenCLStdVloadHalf {
                 id_result_type,
@@ -33809,7 +33814,7 @@ impl fmt::Display for Instruction {
                 )?;
                 offset.spirv_display(f)?;
                 p.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdVloadHalfn(OpOpenCLStdVloadHalfn {
                 id_result_type,
@@ -33830,7 +33835,7 @@ impl fmt::Display for Instruction {
                 offset.spirv_display(f)?;
                 p.spirv_display(f)?;
                 n.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdVstoreHalf(OpOpenCLStdVstoreHalf {
                 id_result_type,
@@ -33851,7 +33856,7 @@ impl fmt::Display for Instruction {
                 data.spirv_display(f)?;
                 offset.spirv_display(f)?;
                 p.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdVstoreHalfR(OpOpenCLStdVstoreHalfR {
                 id_result_type,
@@ -33874,7 +33879,7 @@ impl fmt::Display for Instruction {
                 offset.spirv_display(f)?;
                 p.spirv_display(f)?;
                 mode.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdVstoreHalfn(OpOpenCLStdVstoreHalfn {
                 id_result_type,
@@ -33895,7 +33900,7 @@ impl fmt::Display for Instruction {
                 data.spirv_display(f)?;
                 offset.spirv_display(f)?;
                 p.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdVstoreHalfnR(OpOpenCLStdVstoreHalfnR {
                 id_result_type,
@@ -33918,7 +33923,7 @@ impl fmt::Display for Instruction {
                 offset.spirv_display(f)?;
                 p.spirv_display(f)?;
                 mode.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdVloadaHalfn(OpOpenCLStdVloadaHalfn {
                 id_result_type,
@@ -33939,7 +33944,7 @@ impl fmt::Display for Instruction {
                 offset.spirv_display(f)?;
                 p.spirv_display(f)?;
                 n.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdVstoreaHalfn(OpOpenCLStdVstoreaHalfn {
                 id_result_type,
@@ -33960,7 +33965,7 @@ impl fmt::Display for Instruction {
                 data.spirv_display(f)?;
                 offset.spirv_display(f)?;
                 p.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdVstoreaHalfnR(OpOpenCLStdVstoreaHalfnR {
                 id_result_type,
@@ -33983,7 +33988,7 @@ impl fmt::Display for Instruction {
                 offset.spirv_display(f)?;
                 p.spirv_display(f)?;
                 mode.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdShuffle(OpOpenCLStdShuffle {
                 id_result_type,
@@ -34002,7 +34007,7 @@ impl fmt::Display for Instruction {
                 )?;
                 x.spirv_display(f)?;
                 shuffle_mask.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdShuffle2(OpOpenCLStdShuffle2 {
                 id_result_type,
@@ -34023,7 +34028,7 @@ impl fmt::Display for Instruction {
                 x.spirv_display(f)?;
                 y.spirv_display(f)?;
                 shuffle_mask.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdPrintf(OpOpenCLStdPrintf {
                 id_result_type,
@@ -34042,7 +34047,7 @@ impl fmt::Display for Instruction {
                 )?;
                 format.spirv_display(f)?;
                 additional_arguments.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::OpenCLStdPrefetch(OpOpenCLStdPrefetch {
                 id_result_type,
@@ -34061,7 +34066,7 @@ impl fmt::Display for Instruction {
                 )?;
                 ptr.spirv_display(f)?;
                 num_elements.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GLSLStd450Round(OpGLSLStd450Round {
                 id_result_type,
@@ -34078,7 +34083,7 @@ impl fmt::Display for Instruction {
                     "Round",
                 )?;
                 x.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GLSLStd450RoundEven(OpGLSLStd450RoundEven {
                 id_result_type,
@@ -34095,7 +34100,7 @@ impl fmt::Display for Instruction {
                     "RoundEven",
                 )?;
                 x.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GLSLStd450Trunc(OpGLSLStd450Trunc {
                 id_result_type,
@@ -34112,7 +34117,7 @@ impl fmt::Display for Instruction {
                     "Trunc",
                 )?;
                 x.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GLSLStd450FAbs(OpGLSLStd450FAbs {
                 id_result_type,
@@ -34129,7 +34134,7 @@ impl fmt::Display for Instruction {
                     "FAbs",
                 )?;
                 x.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GLSLStd450SAbs(OpGLSLStd450SAbs {
                 id_result_type,
@@ -34146,7 +34151,7 @@ impl fmt::Display for Instruction {
                     "SAbs",
                 )?;
                 x.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GLSLStd450FSign(OpGLSLStd450FSign {
                 id_result_type,
@@ -34163,7 +34168,7 @@ impl fmt::Display for Instruction {
                     "FSign",
                 )?;
                 x.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GLSLStd450SSign(OpGLSLStd450SSign {
                 id_result_type,
@@ -34180,7 +34185,7 @@ impl fmt::Display for Instruction {
                     "SSign",
                 )?;
                 x.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GLSLStd450Floor(OpGLSLStd450Floor {
                 id_result_type,
@@ -34197,7 +34202,7 @@ impl fmt::Display for Instruction {
                     "Floor",
                 )?;
                 x.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GLSLStd450Ceil(OpGLSLStd450Ceil {
                 id_result_type,
@@ -34214,7 +34219,7 @@ impl fmt::Display for Instruction {
                     "Ceil",
                 )?;
                 x.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GLSLStd450Fract(OpGLSLStd450Fract {
                 id_result_type,
@@ -34231,7 +34236,7 @@ impl fmt::Display for Instruction {
                     "Fract",
                 )?;
                 x.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GLSLStd450Radians(OpGLSLStd450Radians {
                 id_result_type,
@@ -34248,7 +34253,7 @@ impl fmt::Display for Instruction {
                     "Radians",
                 )?;
                 degrees.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GLSLStd450Degrees(OpGLSLStd450Degrees {
                 id_result_type,
@@ -34265,7 +34270,7 @@ impl fmt::Display for Instruction {
                     "Degrees",
                 )?;
                 radians.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GLSLStd450Sin(OpGLSLStd450Sin {
                 id_result_type,
@@ -34282,7 +34287,7 @@ impl fmt::Display for Instruction {
                     "Sin",
                 )?;
                 x.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GLSLStd450Cos(OpGLSLStd450Cos {
                 id_result_type,
@@ -34299,7 +34304,7 @@ impl fmt::Display for Instruction {
                     "Cos",
                 )?;
                 x.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GLSLStd450Tan(OpGLSLStd450Tan {
                 id_result_type,
@@ -34316,7 +34321,7 @@ impl fmt::Display for Instruction {
                     "Tan",
                 )?;
                 x.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GLSLStd450Asin(OpGLSLStd450Asin {
                 id_result_type,
@@ -34333,7 +34338,7 @@ impl fmt::Display for Instruction {
                     "Asin",
                 )?;
                 x.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GLSLStd450Acos(OpGLSLStd450Acos {
                 id_result_type,
@@ -34350,7 +34355,7 @@ impl fmt::Display for Instruction {
                     "Acos",
                 )?;
                 x.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GLSLStd450Atan(OpGLSLStd450Atan {
                 id_result_type,
@@ -34367,7 +34372,7 @@ impl fmt::Display for Instruction {
                     "Atan",
                 )?;
                 y_over_x.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GLSLStd450Sinh(OpGLSLStd450Sinh {
                 id_result_type,
@@ -34384,7 +34389,7 @@ impl fmt::Display for Instruction {
                     "Sinh",
                 )?;
                 x.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GLSLStd450Cosh(OpGLSLStd450Cosh {
                 id_result_type,
@@ -34401,7 +34406,7 @@ impl fmt::Display for Instruction {
                     "Cosh",
                 )?;
                 x.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GLSLStd450Tanh(OpGLSLStd450Tanh {
                 id_result_type,
@@ -34418,7 +34423,7 @@ impl fmt::Display for Instruction {
                     "Tanh",
                 )?;
                 x.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GLSLStd450Asinh(OpGLSLStd450Asinh {
                 id_result_type,
@@ -34435,7 +34440,7 @@ impl fmt::Display for Instruction {
                     "Asinh",
                 )?;
                 x.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GLSLStd450Acosh(OpGLSLStd450Acosh {
                 id_result_type,
@@ -34452,7 +34457,7 @@ impl fmt::Display for Instruction {
                     "Acosh",
                 )?;
                 x.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GLSLStd450Atanh(OpGLSLStd450Atanh {
                 id_result_type,
@@ -34469,7 +34474,7 @@ impl fmt::Display for Instruction {
                     "Atanh",
                 )?;
                 x.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GLSLStd450Atan2(OpGLSLStd450Atan2 {
                 id_result_type,
@@ -34488,7 +34493,7 @@ impl fmt::Display for Instruction {
                 )?;
                 y.spirv_display(f)?;
                 x.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GLSLStd450Pow(OpGLSLStd450Pow {
                 id_result_type,
@@ -34507,7 +34512,7 @@ impl fmt::Display for Instruction {
                 )?;
                 x.spirv_display(f)?;
                 y.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GLSLStd450Exp(OpGLSLStd450Exp {
                 id_result_type,
@@ -34524,7 +34529,7 @@ impl fmt::Display for Instruction {
                     "Exp",
                 )?;
                 x.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GLSLStd450Log(OpGLSLStd450Log {
                 id_result_type,
@@ -34541,7 +34546,7 @@ impl fmt::Display for Instruction {
                     "Log",
                 )?;
                 x.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GLSLStd450Exp2(OpGLSLStd450Exp2 {
                 id_result_type,
@@ -34558,7 +34563,7 @@ impl fmt::Display for Instruction {
                     "Exp2",
                 )?;
                 x.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GLSLStd450Log2(OpGLSLStd450Log2 {
                 id_result_type,
@@ -34575,7 +34580,7 @@ impl fmt::Display for Instruction {
                     "Log2",
                 )?;
                 x.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GLSLStd450Sqrt(OpGLSLStd450Sqrt {
                 id_result_type,
@@ -34592,7 +34597,7 @@ impl fmt::Display for Instruction {
                     "Sqrt",
                 )?;
                 x.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GLSLStd450InverseSqrt(OpGLSLStd450InverseSqrt {
                 id_result_type,
@@ -34609,7 +34614,7 @@ impl fmt::Display for Instruction {
                     "InverseSqrt",
                 )?;
                 x.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GLSLStd450Determinant(OpGLSLStd450Determinant {
                 id_result_type,
@@ -34626,7 +34631,7 @@ impl fmt::Display for Instruction {
                     "Determinant",
                 )?;
                 x.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GLSLStd450MatrixInverse(OpGLSLStd450MatrixInverse {
                 id_result_type,
@@ -34643,7 +34648,7 @@ impl fmt::Display for Instruction {
                     "MatrixInverse",
                 )?;
                 x.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GLSLStd450Modf(OpGLSLStd450Modf {
                 id_result_type,
@@ -34662,7 +34667,7 @@ impl fmt::Display for Instruction {
                 )?;
                 x.spirv_display(f)?;
                 i.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GLSLStd450ModfStruct(OpGLSLStd450ModfStruct {
                 id_result_type,
@@ -34679,7 +34684,7 @@ impl fmt::Display for Instruction {
                     "ModfStruct",
                 )?;
                 x.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GLSLStd450FMin(OpGLSLStd450FMin {
                 id_result_type,
@@ -34698,7 +34703,7 @@ impl fmt::Display for Instruction {
                 )?;
                 x.spirv_display(f)?;
                 y.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GLSLStd450UMin(OpGLSLStd450UMin {
                 id_result_type,
@@ -34717,7 +34722,7 @@ impl fmt::Display for Instruction {
                 )?;
                 x.spirv_display(f)?;
                 y.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GLSLStd450SMin(OpGLSLStd450SMin {
                 id_result_type,
@@ -34736,7 +34741,7 @@ impl fmt::Display for Instruction {
                 )?;
                 x.spirv_display(f)?;
                 y.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GLSLStd450FMax(OpGLSLStd450FMax {
                 id_result_type,
@@ -34755,7 +34760,7 @@ impl fmt::Display for Instruction {
                 )?;
                 x.spirv_display(f)?;
                 y.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GLSLStd450UMax(OpGLSLStd450UMax {
                 id_result_type,
@@ -34774,7 +34779,7 @@ impl fmt::Display for Instruction {
                 )?;
                 x.spirv_display(f)?;
                 y.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GLSLStd450SMax(OpGLSLStd450SMax {
                 id_result_type,
@@ -34793,7 +34798,7 @@ impl fmt::Display for Instruction {
                 )?;
                 x.spirv_display(f)?;
                 y.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GLSLStd450FClamp(OpGLSLStd450FClamp {
                 id_result_type,
@@ -34814,7 +34819,7 @@ impl fmt::Display for Instruction {
                 x.spirv_display(f)?;
                 min_val.spirv_display(f)?;
                 max_val.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GLSLStd450UClamp(OpGLSLStd450UClamp {
                 id_result_type,
@@ -34835,7 +34840,7 @@ impl fmt::Display for Instruction {
                 x.spirv_display(f)?;
                 min_val.spirv_display(f)?;
                 max_val.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GLSLStd450SClamp(OpGLSLStd450SClamp {
                 id_result_type,
@@ -34856,7 +34861,7 @@ impl fmt::Display for Instruction {
                 x.spirv_display(f)?;
                 min_val.spirv_display(f)?;
                 max_val.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GLSLStd450FMix(OpGLSLStd450FMix {
                 id_result_type,
@@ -34877,7 +34882,7 @@ impl fmt::Display for Instruction {
                 x.spirv_display(f)?;
                 y.spirv_display(f)?;
                 a.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GLSLStd450IMix(OpGLSLStd450IMix {
                 id_result_type,
@@ -34898,7 +34903,7 @@ impl fmt::Display for Instruction {
                 x.spirv_display(f)?;
                 y.spirv_display(f)?;
                 a.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GLSLStd450Step(OpGLSLStd450Step {
                 id_result_type,
@@ -34917,7 +34922,7 @@ impl fmt::Display for Instruction {
                 )?;
                 edge.spirv_display(f)?;
                 x.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GLSLStd450SmoothStep(OpGLSLStd450SmoothStep {
                 id_result_type,
@@ -34938,7 +34943,7 @@ impl fmt::Display for Instruction {
                 edge0.spirv_display(f)?;
                 edge1.spirv_display(f)?;
                 x.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GLSLStd450Fma(OpGLSLStd450Fma {
                 id_result_type,
@@ -34959,7 +34964,7 @@ impl fmt::Display for Instruction {
                 a.spirv_display(f)?;
                 b.spirv_display(f)?;
                 c.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GLSLStd450Frexp(OpGLSLStd450Frexp {
                 id_result_type,
@@ -34978,7 +34983,7 @@ impl fmt::Display for Instruction {
                 )?;
                 x.spirv_display(f)?;
                 exp.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GLSLStd450FrexpStruct(OpGLSLStd450FrexpStruct {
                 id_result_type,
@@ -34995,7 +35000,7 @@ impl fmt::Display for Instruction {
                     "FrexpStruct",
                 )?;
                 x.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GLSLStd450Ldexp(OpGLSLStd450Ldexp {
                 id_result_type,
@@ -35014,7 +35019,7 @@ impl fmt::Display for Instruction {
                 )?;
                 x.spirv_display(f)?;
                 exp.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GLSLStd450PackSnorm4x8(OpGLSLStd450PackSnorm4x8 {
                 id_result_type,
@@ -35031,7 +35036,7 @@ impl fmt::Display for Instruction {
                     "PackSnorm4x8",
                 )?;
                 v.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GLSLStd450PackUnorm4x8(OpGLSLStd450PackUnorm4x8 {
                 id_result_type,
@@ -35048,7 +35053,7 @@ impl fmt::Display for Instruction {
                     "PackUnorm4x8",
                 )?;
                 v.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GLSLStd450PackSnorm2x16(OpGLSLStd450PackSnorm2x16 {
                 id_result_type,
@@ -35065,7 +35070,7 @@ impl fmt::Display for Instruction {
                     "PackSnorm2x16",
                 )?;
                 v.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GLSLStd450PackUnorm2x16(OpGLSLStd450PackUnorm2x16 {
                 id_result_type,
@@ -35082,7 +35087,7 @@ impl fmt::Display for Instruction {
                     "PackUnorm2x16",
                 )?;
                 v.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GLSLStd450PackHalf2x16(OpGLSLStd450PackHalf2x16 {
                 id_result_type,
@@ -35099,7 +35104,7 @@ impl fmt::Display for Instruction {
                     "PackHalf2x16",
                 )?;
                 v.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GLSLStd450PackDouble2x32(OpGLSLStd450PackDouble2x32 {
                 id_result_type,
@@ -35116,7 +35121,7 @@ impl fmt::Display for Instruction {
                     "PackDouble2x32",
                 )?;
                 v.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GLSLStd450UnpackSnorm2x16(OpGLSLStd450UnpackSnorm2x16 {
                 id_result_type,
@@ -35133,7 +35138,7 @@ impl fmt::Display for Instruction {
                     "UnpackSnorm2x16",
                 )?;
                 p.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GLSLStd450UnpackUnorm2x16(OpGLSLStd450UnpackUnorm2x16 {
                 id_result_type,
@@ -35150,7 +35155,7 @@ impl fmt::Display for Instruction {
                     "UnpackUnorm2x16",
                 )?;
                 p.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GLSLStd450UnpackHalf2x16(OpGLSLStd450UnpackHalf2x16 {
                 id_result_type,
@@ -35167,7 +35172,7 @@ impl fmt::Display for Instruction {
                     "UnpackHalf2x16",
                 )?;
                 v.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GLSLStd450UnpackSnorm4x8(OpGLSLStd450UnpackSnorm4x8 {
                 id_result_type,
@@ -35184,7 +35189,7 @@ impl fmt::Display for Instruction {
                     "UnpackSnorm4x8",
                 )?;
                 p.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GLSLStd450UnpackUnorm4x8(OpGLSLStd450UnpackUnorm4x8 {
                 id_result_type,
@@ -35201,7 +35206,7 @@ impl fmt::Display for Instruction {
                     "UnpackUnorm4x8",
                 )?;
                 p.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GLSLStd450UnpackDouble2x32(OpGLSLStd450UnpackDouble2x32 {
                 id_result_type,
@@ -35218,7 +35223,7 @@ impl fmt::Display for Instruction {
                     "UnpackDouble2x32",
                 )?;
                 v.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GLSLStd450Length(OpGLSLStd450Length {
                 id_result_type,
@@ -35235,7 +35240,7 @@ impl fmt::Display for Instruction {
                     "Length",
                 )?;
                 x.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GLSLStd450Distance(OpGLSLStd450Distance {
                 id_result_type,
@@ -35254,7 +35259,7 @@ impl fmt::Display for Instruction {
                 )?;
                 p0.spirv_display(f)?;
                 p1.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GLSLStd450Cross(OpGLSLStd450Cross {
                 id_result_type,
@@ -35273,7 +35278,7 @@ impl fmt::Display for Instruction {
                 )?;
                 x.spirv_display(f)?;
                 y.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GLSLStd450Normalize(OpGLSLStd450Normalize {
                 id_result_type,
@@ -35290,7 +35295,7 @@ impl fmt::Display for Instruction {
                     "Normalize",
                 )?;
                 x.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GLSLStd450FaceForward(OpGLSLStd450FaceForward {
                 id_result_type,
@@ -35311,7 +35316,7 @@ impl fmt::Display for Instruction {
                 n.spirv_display(f)?;
                 i.spirv_display(f)?;
                 nref.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GLSLStd450Reflect(OpGLSLStd450Reflect {
                 id_result_type,
@@ -35330,7 +35335,7 @@ impl fmt::Display for Instruction {
                 )?;
                 i.spirv_display(f)?;
                 n.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GLSLStd450Refract(OpGLSLStd450Refract {
                 id_result_type,
@@ -35351,7 +35356,7 @@ impl fmt::Display for Instruction {
                 i.spirv_display(f)?;
                 n.spirv_display(f)?;
                 eta.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GLSLStd450FindILsb(OpGLSLStd450FindILsb {
                 id_result_type,
@@ -35368,7 +35373,7 @@ impl fmt::Display for Instruction {
                     "FindILsb",
                 )?;
                 value.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GLSLStd450FindSMsb(OpGLSLStd450FindSMsb {
                 id_result_type,
@@ -35385,7 +35390,7 @@ impl fmt::Display for Instruction {
                     "FindSMsb",
                 )?;
                 value.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GLSLStd450FindUMsb(OpGLSLStd450FindUMsb {
                 id_result_type,
@@ -35402,7 +35407,7 @@ impl fmt::Display for Instruction {
                     "FindUMsb",
                 )?;
                 value.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GLSLStd450InterpolateAtCentroid(OpGLSLStd450InterpolateAtCentroid {
                 id_result_type,
@@ -35419,7 +35424,7 @@ impl fmt::Display for Instruction {
                     "InterpolateAtCentroid",
                 )?;
                 interpolant.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GLSLStd450InterpolateAtSample(OpGLSLStd450InterpolateAtSample {
                 id_result_type,
@@ -35438,7 +35443,7 @@ impl fmt::Display for Instruction {
                 )?;
                 interpolant.spirv_display(f)?;
                 sample.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GLSLStd450InterpolateAtOffset(OpGLSLStd450InterpolateAtOffset {
                 id_result_type,
@@ -35457,7 +35462,7 @@ impl fmt::Display for Instruction {
                 )?;
                 interpolant.spirv_display(f)?;
                 offset.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GLSLStd450NMin(OpGLSLStd450NMin {
                 id_result_type,
@@ -35476,7 +35481,7 @@ impl fmt::Display for Instruction {
                 )?;
                 x.spirv_display(f)?;
                 y.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GLSLStd450NMax(OpGLSLStd450NMax {
                 id_result_type,
@@ -35495,7 +35500,7 @@ impl fmt::Display for Instruction {
                 )?;
                 x.spirv_display(f)?;
                 y.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
             Instruction::GLSLStd450NClamp(OpGLSLStd450NClamp {
                 id_result_type,
@@ -35516,7 +35521,7 @@ impl fmt::Display for Instruction {
                 x.spirv_display(f)?;
                 min_val.spirv_display(f)?;
                 max_val.spirv_display(f)?;
-                writeln!(f)
+                Ok(())
             }),
         }
     }
@@ -36667,7 +36672,7 @@ mod input_file_tests {
         input_file_test ( "../spirv-parser-generator/src/ast.rs" , b"^\xEA\x97\xA1\x06\x07\x18\xF5\xE3/|z]s\x0C\xF7\xE5(W\xFC\x84\x0B\xAE\x08q{MxjO\x8F\xF8" ) ;
         input_file_test(
             "../spirv-parser-generator/src/generate.rs",
-            b"\xA1~\xCD\x8E\xC08\xE5Z\x82\x8D\x94-h\xD1\xE0\x01\x88c3\x9C\xDD]w\xB5,~\xE1'O\xBE]p",
+            b"\xB0Eo_\x85\xED-h\x91f%\xF5\x87\xE2\xC63R/wc\xDB\xD3\xE7~\xDDF\xACV\xD9\xDC\xAF\xDB",
         );
         input_file_test ( "../spirv-parser-generator/src/lib.rs" , b"\xED\xEA6\x8E\x83=*W\xCF3jN\xFC\xD6t\x8E(\xA5V\xFF#\x0F\xE4R\xE2\x8B~s\x15\x1C\xE6\xA5" ) ;
         input_file_test ( "../spirv-parser-generator/src/util.rs" , b"\xA5\x0C;C\x02\x06o9*\x1B\x0B\xDB+\x11\xEA\xB9\xB5\xC3\x91\x954\xD2\xF9\xD8B\x97\xBF\xA4?F\x8F\xDD" ) ;

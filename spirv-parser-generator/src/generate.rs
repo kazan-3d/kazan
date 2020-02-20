@@ -921,7 +921,7 @@ pub(crate) fn generate(
                             #display_opname,
                         )?;
                         #(#display_operations)*
-                        writeln!(f)
+                        Ok(())
                     }),
                 };
                 instruction_extension_display_cases.push(instruction_extension_display_case);
@@ -957,7 +957,7 @@ pub(crate) fn generate(
                     }),};
                     instruction_display_case = quote! {
                         Instruction::ExtInstImport(OpExtInstImport { id_result, name }) => split_fn!({
-                            writeln!(f, "{}{} {:?}", InstructionIndentAndResult(Some(*id_result)), #display_opname, name)
+                            write!(f, "{}{} {:?}", InstructionIndentAndResult(Some(*id_result)), #display_opname, name)
                         }),
                     };
                 }
@@ -1011,8 +1011,7 @@ pub(crate) fn generate(
                             id_result_type.spirv_display(f)?;
                             set.spirv_display(f)?;
                             instruction.spirv_display(f)?;
-                            operands.spirv_display(f)?;
-                            writeln!(f)
+                            operands.spirv_display(f)
                         }),
                     };
                 }
@@ -1055,8 +1054,7 @@ pub(crate) fn generate(
                                 "OpTypeInt"
                             )?;
                             width.spirv_display(f)?;
-                            signedness.spirv_display(f)?;
-                            writeln!(f)
+                            signedness.spirv_display(f)
                         }),
                     };
                 }
@@ -1089,8 +1087,7 @@ pub(crate) fn generate(
                                 InstructionIndentAndResult(Some(*id_result)),
                                 "OpTypeFloat"
                             )?;
-                            width.spirv_display(f)?;
-                            writeln!(f)
+                            width.spirv_display(f)
                         }),
                     };
                 }
@@ -1148,8 +1145,7 @@ pub(crate) fn generate(
                             )?;
                             selector.spirv_display(f)?;
                             default.spirv_display(f)?;
-                            target.spirv_display(f)?;
-                            writeln!(f)
+                            target.spirv_display(f)
                         }),
                         Instruction::Switch64(OpSwitch64 {
                             selector,
@@ -1164,8 +1160,7 @@ pub(crate) fn generate(
                             )?;
                             selector.spirv_display(f)?;
                             default.spirv_display(f)?;
-                            target.spirv_display(f)?;
-                            writeln!(f)
+                            target.spirv_display(f)
                         }),
                     };
                 }
@@ -1226,7 +1221,7 @@ pub(crate) fn generate(
                                 "OpConstant"
                             )?;
                             id_result_type.spirv_display(f)?;
-                            writeln!(f, " {:#010X}", value)
+                            write!(f, " {:#010X}", value)
                         }),
                         Instruction::Constant64(OpConstant64 {
                             id_result_type,
@@ -1240,7 +1235,7 @@ pub(crate) fn generate(
                                 "OpConstant"
                             )?;
                             id_result_type.spirv_display(f)?;
-                            writeln!(f, " {:#018X}", value)
+                            write!(f, " {:#018X}", value)
                         }),
                     };
                 }
@@ -1301,7 +1296,7 @@ pub(crate) fn generate(
                                 "OpSpecConstant"
                             )?;
                             id_result_type.spirv_display(f)?;
-                            writeln!(f, " {:#010X}", value)
+                            write!(f, " {:#010X}", value)
                         }),
                         Instruction::SpecConstant64(OpSpecConstant64 {
                             id_result_type,
@@ -1315,7 +1310,7 @@ pub(crate) fn generate(
                                 "OpSpecConstant"
                             )?;
                             id_result_type.spirv_display(f)?;
-                            writeln!(f, " {:#018X}", value)
+                            write!(f, " {:#018X}", value)
                         }),
                     };
                 }
@@ -1394,7 +1389,7 @@ pub(crate) fn generate(
                         }) => split_fn!({
                             write!(f, "{}{}", InstructionIndentAndResult(#result_value), #display_opname)?;
                             #(#display_operations)*
-                            writeln!(f)
+                            Ok(())
                         }),
                     };
                 }
@@ -1499,7 +1494,7 @@ pub(crate) fn generate(
                         id_result_type.spirv_display(f)?;
                         f.write_str(concat!(" ", #display_opname_without_initial_op))?;
                         #(#display_operations)*
-                        writeln!(f)
+                        Ok(())
                     }
                 });
             }
@@ -1546,7 +1541,7 @@ pub(crate) fn generate(
                         writeln!(f, "; Version: {}.{}", self.version.0, self.version.1)?;
                         writeln!(f, "; Generator: {:#X}", self.generator)?;
                         writeln!(f, "; Bound: {}", self.bound)?;
-                        writeln!(f, "; Schema: {}", self.instruction_schema)
+                        write!(f, "; Schema: {}", self.instruction_schema)
                     }
                 }
 
@@ -1703,6 +1698,7 @@ pub(crate) fn generate(
                 #[derive(Clone, Debug)]
                 pub struct Parser<'a> {
                     words: &'a [u32],
+                    next_location: usize,
                     header: Header,
                     parse_state: ParseState,
                 }
@@ -1717,12 +1713,19 @@ pub(crate) fn generate(
                 }
 
                 impl<'a> Parser<'a> {
+                    /// get the parsed SPIR-V header.
                     pub fn header(&self) -> &Header {
                         &self.header
                     }
+                    /// get the word index of the result of the next call to `self.next()`.
+                    pub fn next_location(&self) -> usize {
+                        self.next_location
+                    }
+                    /// create a new `Parser` and parse the SPIR-V header.
                     pub fn start(mut words: &'a [u32]) -> Result<Self> {
-                        let header = words.get(0..5).ok_or(Error::MissingHeader)?;
-                        words = &words[5..];
+                        const HEADER_LEN: usize = 5;
+                        let header = words.get(0..HEADER_LEN).ok_or(Error::MissingHeader)?;
+                        words = &words[HEADER_LEN..];
                         let header = match *header {
                             [MAGIC_NUMBER, version, generator, bound, instruction_schema @ 0] if bound >= 1 => {
                                 let version = parse_version(version)?;
@@ -1743,6 +1746,7 @@ pub(crate) fn generate(
                         } else {
                             Ok(Self {
                                 words,
+                                next_location: HEADER_LEN,
                                 header,
                                 parse_state: ParseState {
                                     id_states: vec![IdState::Unknown; header.bound as usize],
@@ -1758,6 +1762,7 @@ pub(crate) fn generate(
                         }
                         let instruction_words = self.words.get(1..length).ok_or(Error::SourcePrematurelyEnded)?;
                         self.words = &self.words[length..];
+                        self.next_location += length;
                         parse_instruction(opcode, instruction_words, &mut self.parse_state)
                     }
                 }
