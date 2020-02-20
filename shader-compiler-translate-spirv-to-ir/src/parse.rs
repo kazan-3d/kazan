@@ -178,7 +178,10 @@ impl<'g, 'i> TranslationStateBase<'g, 'i> {
             "{:?}",
             self.spirv_instructions_current_location
         )?;
-        Ok(self.spirv_instructions_next_location.next())
+        Ok(self
+            .spirv_instructions_next_location
+            .next()
+            .map(|(instruction, location)| (&instruction.instruction, location)))
     }
     fn next_instruction(&mut self) -> TranslationResult<Option<&'i Instruction>> {
         Ok(self

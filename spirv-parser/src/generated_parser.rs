@@ -16153,9 +16153,24 @@ impl ParseState {
     }
 }
 #[derive(Clone, Debug)]
+pub struct InstructionAndLocation {
+    pub instruction: Instruction,
+    pub word_index: usize,
+}
+impl InstructionAndLocation {
+    pub fn byte_index(&self) -> usize {
+        self.word_index * mem::size_of::<u32>()
+    }
+}
+impl fmt::Display for InstructionAndLocation {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{} ; 0x{:08x}", self.instruction, self.byte_index())
+    }
+}
+#[derive(Clone, Debug)]
 pub struct Parser<'a> {
     words: &'a [u32],
-    next_location: usize,
+    next_word_index: usize,
     header: Header,
     parse_state: ParseState,
 }
@@ -16173,8 +16188,8 @@ impl<'a> Parser<'a> {
         &self.header
     }
     #[doc = r" get the word index of the result of the next call to `self.next()`."]
-    pub fn next_location(&self) -> usize {
-        self.next_location
+    pub fn next_word_index(&self) -> usize {
+        self.next_word_index
     }
     #[doc = r" create a new `Parser` and parse the SPIR-V header."]
     pub fn start(mut words: &'a [u32]) -> Result<Self> {
@@ -16201,7 +16216,7 @@ impl<'a> Parser<'a> {
         } else {
             Ok(Self {
                 words,
-                next_location: HEADER_LEN,
+                next_word_index: HEADER_LEN,
                 header,
                 parse_state: ParseState {
                     id_states: vec![IdState::Unknown; header.bound as usize],
@@ -16209,7 +16224,7 @@ impl<'a> Parser<'a> {
             })
         }
     }
-    fn next_helper(&mut self, length_and_opcode: u32) -> Result<Instruction> {
+    fn next_helper(&mut self, length_and_opcode: u32) -> Result<InstructionAndLocation> {
         let length = (length_and_opcode >> 16) as usize;
         let opcode = length_and_opcode as u16;
         if length == 0 {
@@ -16220,13 +16235,18 @@ impl<'a> Parser<'a> {
             .get(1..length)
             .ok_or(Error::SourcePrematurelyEnded)?;
         self.words = &self.words[length..];
-        self.next_location += length;
-        parse_instruction(opcode, instruction_words, &mut self.parse_state)
+        let word_index = self.next_word_index;
+        self.next_word_index += length;
+        let instruction = parse_instruction(opcode, instruction_words, &mut self.parse_state)?;
+        Ok(InstructionAndLocation {
+            instruction,
+            word_index,
+        })
     }
 }
 impl<'a> Iterator for Parser<'a> {
-    type Item = Result<Instruction>;
-    fn next(&mut self) -> Option<Result<Instruction>> {
+    type Item = Result<InstructionAndLocation>;
+    fn next(&mut self) -> Option<Result<InstructionAndLocation>> {
         let length_and_opcode = self.words.get(0)?;
         Some(self.next_helper(*length_and_opcode))
     }
@@ -36672,7 +36692,7 @@ mod input_file_tests {
         input_file_test ( "../spirv-parser-generator/src/ast.rs" , b"^\xEA\x97\xA1\x06\x07\x18\xF5\xE3/|z]s\x0C\xF7\xE5(W\xFC\x84\x0B\xAE\x08q{MxjO\x8F\xF8" ) ;
         input_file_test(
             "../spirv-parser-generator/src/generate.rs",
-            b"\xB0Eo_\x85\xED-h\x91f%\xF5\x87\xE2\xC63R/wc\xDB\xD3\xE7~\xDDF\xACV\xD9\xDC\xAF\xDB",
+            b"\xE7n\x8C\x87RV\0\xF5\xD9\xA34A\x845\x8F\x0F\xE9)\x7F\x8Fgr0\xBB\xCFko\nEClv",
         );
         input_file_test ( "../spirv-parser-generator/src/lib.rs" , b"\xED\xEA6\x8E\x83=*W\xCF3jN\xFC\xD6t\x8E(\xA5V\xFF#\x0F\xE4R\xE2\x8B~s\x15\x1C\xE6\xA5" ) ;
         input_file_test ( "../spirv-parser-generator/src/util.rs" , b"\xA5\x0C;C\x02\x06o9*\x1B\x0B\xDB+\x11\xEA\xB9\xB5\xC3\x91\x954\xD2\xF9\xD8B\x97\xBF\xA4?F\x8F\xDD" ) ;

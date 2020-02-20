@@ -15,7 +15,6 @@ pub use generated_parser::*;
 #[cfg(test)]
 mod tests {
     use super::*;
-    use core::mem;
     use std::io::Write;
 
     /// produce dump output using:
@@ -29,20 +28,15 @@ mod tests {
     /// the generator header field.
     fn parse_and_dump(bytes: &[u8]) -> Result<String> {
         let words = convert_bytes_to_words(bytes)?;
-        let mut parser = Parser::start(&words)?;
+        let parser = Parser::start(&words)?;
         let mut out = Vec::<u8>::new();
         println!("Dumped output:");
         println!("{}", parser.header());
         writeln!(&mut out, "{}", parser.header()).unwrap();
-        loop {
-            let next_byte_location = parser.next_location() * mem::size_of::<u32>();
-            if let Some(instruction) = parser.next() {
-                let instruction = instruction?;
-                println!("{} ; 0x{:08x}", instruction, next_byte_location);
-                writeln!(&mut out, "{} ; 0x{:08x}", instruction, next_byte_location).unwrap();
-            } else {
-                break;
-            }
+        for instruction in parser {
+            let instruction = instruction?;
+            println!("{}", instruction);
+            writeln!(&mut out, "{}", instruction).unwrap();
         }
         println!();
         Ok(String::from_utf8(out).unwrap())

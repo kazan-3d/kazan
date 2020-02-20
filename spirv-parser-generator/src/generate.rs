@@ -1696,9 +1696,27 @@ pub(crate) fn generate(
                 }
 
                 #[derive(Clone, Debug)]
+                pub struct InstructionAndLocation {
+                    pub instruction: Instruction,
+                    pub word_index: usize,
+                }
+
+                impl InstructionAndLocation {
+                    pub fn byte_index(&self) -> usize {
+                        self.word_index * mem::size_of::<u32>()
+                    }
+                }
+
+                impl fmt::Display for InstructionAndLocation {
+                    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+                        write!(f, "{} ; 0x{:08x}", self.instruction, self.byte_index())
+                    }
+                }
+
+                #[derive(Clone, Debug)]
                 pub struct Parser<'a> {
                     words: &'a [u32],
-                    next_location: usize,
+                    next_word_index: usize,
                     header: Header,
                     parse_state: ParseState,
                 }
@@ -1718,8 +1736,8 @@ pub(crate) fn generate(
                         &self.header
                     }
                     /// get the word index of the result of the next call to `self.next()`.
-                    pub fn next_location(&self) -> usize {
-                        self.next_location
+                    pub fn next_word_index(&self) -> usize {
+                        self.next_word_index
                     }
                     /// create a new `Parser` and parse the SPIR-V header.
                     pub fn start(mut words: &'a [u32]) -> Result<Self> {
@@ -1746,7 +1764,7 @@ pub(crate) fn generate(
                         } else {
                             Ok(Self {
                                 words,
-                                next_location: HEADER_LEN,
+                                next_word_index: HEADER_LEN,
                                 header,
                                 parse_state: ParseState {
                                     id_states: vec![IdState::Unknown; header.bound as usize],
@@ -1754,7 +1772,7 @@ pub(crate) fn generate(
                             })
                         }
                     }
-                    fn next_helper(&mut self, length_and_opcode: u32) -> Result<Instruction> {
+                    fn next_helper(&mut self, length_and_opcode: u32) -> Result<InstructionAndLocation> {
                         let length = (length_and_opcode >> 16) as usize;
                         let opcode = length_and_opcode as u16;
                         if length == 0 {
@@ -1762,14 +1780,16 @@ pub(crate) fn generate(
                         }
                         let instruction_words = self.words.get(1..length).ok_or(Error::SourcePrematurelyEnded)?;
                         self.words = &self.words[length..];
-                        self.next_location += length;
-                        parse_instruction(opcode, instruction_words, &mut self.parse_state)
+                        let word_index = self.next_word_index;
+                        self.next_word_index += length;
+                        let instruction = parse_instruction(opcode, instruction_words, &mut self.parse_state)?;
+                        Ok(InstructionAndLocation { instruction, word_index })
                     }
                 }
 
                 impl<'a> Iterator for Parser<'a> {
-                    type Item = Result<Instruction>;
-                    fn next(&mut self) -> Option<Result<Instruction>> {
+                    type Item = Result<InstructionAndLocation>;
+                    fn next(&mut self) -> Option<Result<InstructionAndLocation>> {
                         let length_and_opcode = self.words.get(0)?;
                         Some(self.next_helper(*length_and_opcode))
                     }

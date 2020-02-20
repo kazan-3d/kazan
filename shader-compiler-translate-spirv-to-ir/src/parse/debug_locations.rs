@@ -20,12 +20,12 @@ impl<'g, 'i> TranslationStateParseBaseTypesConstantsAndGlobals<'g, 'i> {
         &mut self,
         location: SPIRVInstructionLocation<'i>,
     ) -> TranslationResult<Option<Interned<'g, Location<'g>>>> {
-        if location.index >= self.spirv_instructions.len() {
+        if location.instruction_index >= self.spirv_instructions.len() {
             return Ok(None);
         }
         let mut current_debug_location = self.debug_locations.last().copied().flatten();
-        for index in self.debug_locations.len()..=location.index {
-            match self.spirv_instructions[index] {
+        for index in self.debug_locations.len()..=location.instruction_index {
+            match self.spirv_instructions[index].instruction {
                 Instruction::Line(OpLine { file, line, column }) => {
                     let file = self.get_debug_string(file)?;
                     current_debug_location =
@@ -43,7 +43,11 @@ impl<'g, 'i> TranslationStateParseBaseTypesConstantsAndGlobals<'g, 'i> {
                 _ => self.debug_locations.push(current_debug_location),
             }
         }
-        Ok(self.debug_locations.get(location.index).copied().flatten())
+        Ok(self
+            .debug_locations
+            .get(location.instruction_index)
+            .copied()
+            .flatten())
     }
     pub(crate) fn get_current_debug_location(
         &mut self,

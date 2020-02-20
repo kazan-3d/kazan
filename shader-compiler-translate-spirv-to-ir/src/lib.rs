@@ -24,7 +24,7 @@ pub use crate::errors::*;
 use alloc::vec::Vec;
 use core::{fmt, slice};
 use shader_compiler_ir::{GlobalState, Internable, Interned, Module, TargetProperties};
-use spirv_parser::ExecutionModel;
+use spirv_parser::{ExecutionModel, InstructionAndLocation};
 
 pub struct UnresolvedSpecialization {
     pub constant_id: u32,
@@ -94,32 +94,34 @@ pub struct DefaultSpecializationResolver;
 
 #[derive(Clone)]
 struct SPIRVInstructionLocation<'i> {
-    index: usize,
-    iter: slice::Iter<'i, spirv_parser::Instruction>,
+    instruction_index: usize,
+    iter: slice::Iter<'i, InstructionAndLocation>,
 }
 
 impl<'i> fmt::Debug for SPIRVInstructionLocation<'i> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        if let Some(instruction) = self.get_instruction() {
-            writeln!(f, "{:05}: {}", self.index, instruction)
+        if let Some((instruction, _)) = self.clone().next() {
+            writeln!(f, "{}", instruction)
         } else {
-            writeln!(f, "{:05}: <EOF>", self.index)
+            writeln!(f, "<EOF>")
         }
     }
 }
 
 impl<'i> SPIRVInstructionLocation<'i> {
     fn get_instruction(&self) -> Option<&'i spirv_parser::Instruction> {
-        self.clone().next().map(|(instruction, _)| instruction)
+        self.clone()
+            .next()
+            .map(|(instruction, _)| &instruction.instruction)
     }
 }
 
 impl<'i> Iterator for SPIRVInstructionLocation<'i> {
-    type Item = (&'i spirv_parser::Instruction, Self);
+    type Item = (&'i InstructionAndLocation, Self);
     fn next(&mut self) -> Option<Self::Item> {
         let location = self.clone();
         let instruction = self.iter.next()?;
-        self.index += 1;
+        self.instruction_index += 1;
         Some((instruction, location))
     }
 }
@@ -132,7 +134,7 @@ struct TranslationStateBase<'g, 'i> {
     entry_point_name: &'i str,
     entry_point_execution_model: ExecutionModel,
     spirv_header: spirv_parser::Header,
-    spirv_instructions: &'i [spirv_parser::Instruction],
+    spirv_instructions: &'i [InstructionAndLocation],
     spirv_instructions_current_location: SPIRVInstructionLocation<'i>,
     spirv_instructions_next_location: SPIRVInstructionLocation<'i>,
 }
@@ -147,10 +149,10 @@ impl<'g, 'i> TranslationStateBase<'g, 'i> {
         entry_point_name: &'i str,
         entry_point_execution_model: ExecutionModel,
         spirv_header: spirv_parser::Header,
-        spirv_instructions: &'i [spirv_parser::Instruction],
+        spirv_instructions: &'i [InstructionAndLocation],
     ) -> Self {
         let spirv_instructions_location = SPIRVInstructionLocation {
-            index: 0,
+            instruction_index: 0,
             iter: spirv_instructions.iter(),
         };
         Self {
@@ -196,7 +198,7 @@ impl<'g> TranslatedSPIRVShader<'g> {
     ) -> Result<Self, TranslationError> {
         let spirv_parser = spirv_parser::Parser::start(spirv_code)?;
         let spirv_header = *spirv_parser.header();
-        let spirv_instructions = spirv_parser.collect::<Result<Vec<_>, spirv_parser::Error>>()?;
+        let spirv_instructions = spirv_parser.collect::<Result<Vec<_>, _>>()?;
         TranslationStateBase::new(
             global_state,
             target_properties.intern(global_state),
