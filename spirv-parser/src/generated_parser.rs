@@ -31,7 +31,7 @@ use alloc::{
 };
 use core::{convert::TryInto, fmt, mem, ops::Deref, result, str::Utf8Error};
 macro_rules! split_fn {
-    ($body:expr) => {
+    ( $ body : expr ) => {
         (|| $body)()
     };
 }
@@ -16057,10 +16057,14 @@ impl fmt::Display for Error {
         match *self {
             Error::MissingHeader => write!(f, "SPIR-V source is missing the file header"),
             Error::InvalidHeader => write!(f, "SPIR-V source has an invalid file header"),
-            Error::BoundTooBig(bound) => write !
-            (f,
-             "SPIR-V source has an invalid file header; the id bound is way bigger than needed: {}",
-             bound,),
+            Error::BoundTooBig(bound) => write!(
+                f,
+                concat!(
+                    "SPIR-V source has an invalid file header; ",
+                    "the id bound is way bigger than needed: {}",
+                ),
+                bound,
+            ),
             Error::UnsupportedVersion(major, minor) => write!(
                 f,
                 "SPIR-V source has an unsupported version: {}.{}",
@@ -36661,7 +36665,10 @@ mod input_file_tests {
         println!("checking that generated code is up to date -- update by running:");
         println!("cargo build --features=spirv-parser-generator");
         input_file_test ( "../spirv-parser-generator/src/ast.rs" , b"^\xEA\x97\xA1\x06\x07\x18\xF5\xE3/|z]s\x0C\xF7\xE5(W\xFC\x84\x0B\xAE\x08q{MxjO\x8F\xF8" ) ;
-        input_file_test ( "../spirv-parser-generator/src/generate.rs" , b"Ct\xDF\xF4\xD6j\xE5\xD7^\x9C\x13\xBF\x83dJ\x83\xC2\xF1!\xE0U\xA2^A\x13\x97\x92\x93\xAA\xBF\xB2\x05" ) ;
+        input_file_test(
+            "../spirv-parser-generator/src/generate.rs",
+            b"\xA1~\xCD\x8E\xC08\xE5Z\x82\x8D\x94-h\xD1\xE0\x01\x88c3\x9C\xDD]w\xB5,~\xE1'O\xBE]p",
+        );
         input_file_test ( "../spirv-parser-generator/src/lib.rs" , b"\xED\xEA6\x8E\x83=*W\xCF3jN\xFC\xD6t\x8E(\xA5V\xFF#\x0F\xE4R\xE2\x8B~s\x15\x1C\xE6\xA5" ) ;
         input_file_test ( "../spirv-parser-generator/src/util.rs" , b"\xA5\x0C;C\x02\x06o9*\x1B\x0B\xDB+\x11\xEA\xB9\xB5\xC3\x91\x954\xD2\xF9\xD8B\x97\xBF\xA4?F\x8F\xDD" ) ;
         input_file_test ( "../spirv-parser-generator/Cargo.toml" , b"\xB2\xBB?\xE5\xB5\xB3\xED\x96]\x8Cj\xDDM+\xB0\xFB\xC9\xBB\xAB\xF8\tH\x02\xFF\xA7\x05\xD3\x0E\xDE\x98\r\x02" ) ;

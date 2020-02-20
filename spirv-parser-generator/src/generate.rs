@@ -206,30 +206,20 @@ pub(crate) fn generate(
     writeln!(
         &mut out,
         "{}",
-        stringify!(
+        quote! {
             use alloc::{
                 borrow::Cow,
                 string::{FromUtf8Error, String},
                 vec::Vec,
             };
             use core::{convert::TryInto, fmt, mem, ops::Deref, result, str::Utf8Error};
-        )
-    )?;
-    writeln!(
-        &mut out,
-        "{}",
-        concat!(
-            "macro_rules! split_fn {\n",
-            "    ($body:expr) => {\n",
-            "        (|| $body)()\n",
-            "    }\n",
-            "}"
-        )
-    )?;
-    writeln!(
-        &mut out,
-        "{}",
-        stringify!(
+
+            macro_rules! split_fn {
+                ($body:expr) => {
+                    (|| $body)()
+                }
+            }
+
             pub fn convert_bytes_to_words(bytes: &[u8]) -> Result<Vec<u32>> {
                 if bytes.len() % mem::size_of::<u32>() != 0 {
                     return Err(Error::InvalidByteCount);
@@ -452,12 +442,7 @@ pub(crate) fn generate(
                     write!(f, " {}", self)
                 }
             }
-        )
-    )?;
-    writeln!(
-        &mut out,
-        "{}",
-        quote! {
+
             pub const MAGIC_NUMBER: u32 = #magic_number;
             pub const MAJOR_VERSION: u32 = #major_version;
             pub const MINOR_VERSION: u32 = #minor_version;
@@ -572,37 +557,24 @@ pub(crate) fn generate(
                             #(#enumerant_members),*
                         }
                         #(#enumerant_items)*
-                    }
-                )?;
-                let parse_body = quote! {
-                    let (mut mask, words) = u32::spirv_parse(words, parse_state)?;
-                    #(#enumerant_parse_operations)*
-                    if mask != 0 {
-                        Err(Error::InvalidEnumValue)
-                    } else {
-                        Ok((Self {
-                            #(#enumerant_member_names,)*
-                        }, words))
-                    }
-                };
-                writeln!(
-                    &mut out,
-                    "{}",
-                    quote! {
+
                         impl SPIRVParse for #kind_id {
                             fn spirv_parse<'a>(
                                 words: &'a [u32],
                                 parse_state: &mut ParseState,
                             ) -> Result<(Self, &'a [u32])> {
-                                #parse_body
+                                let (mut mask, words) = u32::spirv_parse(words, parse_state)?;
+                                #(#enumerant_parse_operations)*
+                                if mask != 0 {
+                                    Err(Error::InvalidEnumValue)
+                                } else {
+                                    Ok((Self {
+                                        #(#enumerant_member_names,)*
+                                    }, words))
+                                }
                             }
                         }
-                    }
-                )?;
-                writeln!(
-                    &mut out,
-                    "{}",
-                    quote! {
+
                         impl SPIRVDisplay for #kind_id {
                             fn spirv_display(&self, f: &mut fmt::Formatter) -> fmt::Result {
                                 let mut any_members = false;
@@ -726,12 +698,7 @@ pub(crate) fn generate(
                         pub enum #kind_id {
                             #(#generated_enumerants,)*
                         }
-                    }
-                )?;
-                writeln!(
-                    &mut out,
-                    "{}",
-                    quote! {
+
                         impl SPIRVParse for #kind_id {
                             fn spirv_parse<'a>(
                                 words: &'a [u32],
@@ -744,12 +711,7 @@ pub(crate) fn generate(
                                 }
                             }
                         }
-                    }
-                )?;
-                writeln!(
-                    &mut out,
-                    "{}",
-                    quote! {
+
                         impl SPIRVDisplay for #kind_id {
                             fn spirv_display(&self, f: &mut fmt::Formatter) -> fmt::Result {
                                 match self {
@@ -789,23 +751,13 @@ pub(crate) fn generate(
                                     IdRef::spirv_parse(words, parse_state).map(|(value, words)| (#kind_id(value), words))
                                 }
                             }
-                        }
-                    )?;
-                    writeln!(
-                        &mut out,
-                        "{}",
-                        quote! {
+
                             impl fmt::Display for #kind_id {
                                 fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
                                     fmt::Display::fmt(&self.0, f)
                                 }
                             }
-                        }
-                    )?;
-                    writeln!(
-                        &mut out,
-                        "{}",
-                        quote! {
+
                             impl SPIRVDisplay for #kind_id {
                                 fn spirv_display(&self, f: &mut fmt::Formatter) -> fmt::Result {
                                     self.0.spirv_display(f)
@@ -1562,12 +1514,7 @@ pub(crate) fn generate(
                 pub enum OpSpecConstantOp {
                     #(#spec_constant_op_instruction_enumerants,)*
                 }
-            }
-        )?;
-        writeln!(
-            &mut out,
-            "{}",
-            quote! {
+
                 impl fmt::Display for OpSpecConstantOp {
                     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
                         match self {
@@ -1575,12 +1522,7 @@ pub(crate) fn generate(
                         }
                     }
                 }
-            }
-        )?;
-        writeln!(
-            &mut out,
-            "{}",
-            quote! {
+
                 #(#instruction_enumerant_structs)*
                 #(#instruction_extension_enumerant_structs)*
 
@@ -1589,12 +1531,7 @@ pub(crate) fn generate(
                     #(#instruction_enumerants,)*
                     #(#instruction_extension_enumerants,)*
                 }
-            }
-        )?;
-        writeln!(
-            &mut out,
-            "{}",
-            stringify!(
+
                 #[derive(Copy, Clone, Debug)]
                 pub struct Header {
                     pub version: (u32, u32),
@@ -1672,7 +1609,10 @@ pub(crate) fn generate(
                             Error::InvalidHeader => write!(f, "SPIR-V source has an invalid file header"),
                             Error::BoundTooBig(bound) => write!(
                                 f,
-                                "SPIR-V source has an invalid file header; the id bound is way bigger than needed: {}",
+                                concat!(
+                                    "SPIR-V source has an invalid file header; ",
+                                    "the id bound is way bigger than needed: {}",
+                                ),
                                 bound,
                             ),
                             Error::UnsupportedVersion(major, minor) => write!(
@@ -1829,24 +1769,14 @@ pub(crate) fn generate(
                         Some(self.next_helper(*length_and_opcode))
                     }
                 }
-            )
-        )?;
-        writeln!(
-            &mut out,
-            "{}",
-            quote! {
+
                 fn parse_instruction(opcode: u16, words: &[u32], parse_state: &mut ParseState) -> Result<Instruction> {
                     match opcode {
                         #(#instruction_parse_cases)*
                         opcode => Err(Error::UnknownOpcode(opcode)),
                     }
                 }
-            }
-        )?;
-        writeln!(
-            &mut out,
-            "{}",
-            quote! {
+
                 impl fmt::Display for Instruction {
                     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
                         match self {
@@ -1855,27 +1785,19 @@ pub(crate) fn generate(
                         }
                     }
                 }
-            }
-        )?;
-        let body = quote! {
-            let (id_result_type, words) = IdResultType::spirv_parse(words, parse_state)?;
-            let (id_result, words) = IdResult::spirv_parse(words, parse_state)?;
-            let (opcode, words) = u32::spirv_parse(words, parse_state)?;
-            match opcode {
-                #(#instruction_spec_constant_parse_cases)*
-                opcode => Err(Error::UnknownSpecConstantOpcode(opcode)),
-            }
-        };
-        writeln!(
-            &mut out,
-            "{}",
-            quote! {
+
                 impl SPIRVParse for OpSpecConstantOp {
                     fn spirv_parse<'a>(
                         words: &'a [u32],
                         parse_state: &mut ParseState
                     ) -> Result<(Self, &'a [u32])> {
-                        #body
+                        let (id_result_type, words) = IdResultType::spirv_parse(words, parse_state)?;
+                        let (id_result, words) = IdResult::spirv_parse(words, parse_state)?;
+                        let (opcode, words) = u32::spirv_parse(words, parse_state)?;
+                        match opcode {
+                            #(#instruction_spec_constant_parse_cases)*
+                            opcode => Err(Error::UnknownSpecConstantOpcode(opcode)),
+                        }
                     }
                 }
             }
@@ -1927,12 +1849,7 @@ pub(crate) fn generate(
                     #(#extension_instruction_set_enumerants,)*
                     Other(String),
                 }
-            }
-        )?;
-        writeln!(
-            &mut out,
-            "{}",
-            quote! {
+
                 impl<'a> From<Cow<'a, str>> for ExtensionInstructionSet {
                     fn from(s: Cow<'a, str>) -> ExtensionInstructionSet {
                         match s.as_ref() {
@@ -1942,12 +1859,7 @@ pub(crate) fn generate(
                         ExtensionInstructionSet::Other(s.into_owned())
                     }
                 }
-            }
-        )?;
-        writeln!(
-            &mut out,
-            "{}",
-            quote! {
+
                 impl Deref for ExtensionInstructionSet {
                     type Target = str;
                     fn deref(&self) -> &str {
@@ -1957,12 +1869,7 @@ pub(crate) fn generate(
                         }
                     }
                 }
-            }
-        )?;
-        writeln!(
-            &mut out,
-            "{}",
-            stringify!(
+
                 impl AsRef<str> for ExtensionInstructionSet {
                     fn as_ref(&self) -> &str {
                         &**self
@@ -1996,7 +1903,7 @@ pub(crate) fn generate(
                         fmt::Display::fmt(s, f)
                     }
                 }
-            )
+            }
         )?;
     }
     {
