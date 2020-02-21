@@ -11,6 +11,10 @@ extern crate std;
 #[macro_use]
 extern crate alloc;
 
+#[doc(hidden)]
+#[macro_use]
+pub mod macros;
+
 #[macro_use]
 pub mod text;
 pub mod prelude;
