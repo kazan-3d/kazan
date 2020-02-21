@@ -8,9 +8,10 @@ use crate::{
         FromTextSymbolsStateBase, FromToTextListForm, NamedId, NewOrOld, Punctuation, ToTextState,
         TokenKind,
     },
-    Allocate, IdRef, OnceCell,
+    Allocate, IdRef,
 };
 use core::{fmt, ops::Deref};
+use once_cell::unsync::OnceCell;
 
 /// the definition of a SSA value -- the point at which the value is assigned to
 #[derive(Eq, PartialEq, Hash)]

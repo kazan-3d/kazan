@@ -13,7 +13,8 @@ use crate::{
 };
 use alloc::rc::Rc;
 use core::ops::Deref;
-use shader_compiler_ir::{GlobalState, OnceCell};
+use once_cell::unsync::OnceCell;
+use shader_compiler_ir::GlobalState;
 use spirv_parser::{BuiltIn, StorageClass};
 
 pub(crate) trait GenericSPIRVValue<'g>:

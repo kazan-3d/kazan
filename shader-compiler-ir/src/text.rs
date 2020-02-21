@@ -3,7 +3,7 @@
 
 //! conversion from/to text
 
-use crate::{prelude::*, IdRef, OnceCell, StructType};
+use crate::{prelude::*, IdRef, StructType};
 use alloc::{
     string::{String, ToString},
     vec::Vec,
@@ -18,6 +18,7 @@ use core::{
     str::FromStr,
 };
 use hashbrown::{hash_map::Entry, HashMap};
+use once_cell::unsync::OnceCell;
 use unicode_width::UnicodeWidthChar;
 
 macro_rules! impl_display_as_to_text {

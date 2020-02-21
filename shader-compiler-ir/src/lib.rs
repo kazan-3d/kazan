@@ -31,7 +31,6 @@ pub use crate::{
     block::*, consts::*, debug_info::*, function::*, global_state::*, instructions_impl::*,
     interface::*, module::*, target_properties::*, types::*, values::*,
 };
-pub use once_cell::unsync::OnceCell;
 
 /// code structure input/output
 pub trait CodeIO<'g> {

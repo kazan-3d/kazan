@@ -8,10 +8,10 @@ use crate::{
         FromTextSymbolsStateBase, FromToTextListForm, ListForm, NamedId, Punctuation, TextSpan,
         ToTextState, Token, TokenKind,
     },
-    Allocate, IdRef, InstructionKind, OnceCell,
+    Allocate, IdRef, InstructionKind,
 };
 use alloc::vec::Vec;
-use core::{fmt, ops::Deref};
+use core::{cell::RefCell, fmt, ops::Deref};
 
 /// break out of a block.
 /// jumps to the first instruction after `self.block`.
@@ -117,7 +117,7 @@ pub struct BlockData<'g> {
     /// the name of the `Block` -- doesn't need to be unique
     pub name: Interned<'g, str>,
     /// the body of the `Block`
-    pub body: OnceCell<Vec<Instruction<'g>>>,
+    pub body: RefCell<Option<Vec<Instruction<'g>>>>,
     /// The `ValueDefinition`s assigned to by `BreakBlock` when the block finishes executing.
     /// Is `Uninhabited` if there is no `BreakBlock` targeting `self`.
     pub result_definitions: Inhabitable<Vec<ValueDefinition<'g>>>,
@@ -130,8 +130,10 @@ impl<'g> BlockData<'g> {
     ///
     /// Panics if the body was already set.
     pub fn set_body(&self, body: Vec<Instruction<'g>>) {
-        #![allow(clippy::ok_expect)]
-        self.body.set(body).ok().expect("block body already set");
+        assert!(
+            self.body.borrow_mut().replace(body).is_none(),
+            "block body already set",
+        );
     }
     /// convert the block body to text.
     /// The block body extends from the opening curly brace (`{`) up to and
@@ -139,7 +141,7 @@ impl<'g> BlockData<'g> {
     pub fn body_to_text(&self, state: &mut ToTextState<'g, '_>) -> fmt::Result {
         writeln!(state, "{{")?;
         state.indent(|state| -> fmt::Result {
-            for instruction in self.body.get().expect("block body not set") {
+            for instruction in self.body.borrow().as_ref().expect("block body not set") {
                 instruction.to_text(state)?;
                 writeln!(state, ";")?;
             }
@@ -193,14 +195,10 @@ impl<'g> Block<'g> {
         result_definitions: Inhabitable<Vec<ValueDefinition<'g>>>,
         global_state: &'g GlobalState<'g>,
     ) -> Self {
-        let body = match body {
-            None => OnceCell::new(),
-            Some(v) => OnceCell::from(v),
-        };
         Block {
             value: global_state.alloc(BlockData {
                 name: name.intern(global_state),
-                body,
+                body: RefCell::new(body),
                 result_definitions,
             }),
         }

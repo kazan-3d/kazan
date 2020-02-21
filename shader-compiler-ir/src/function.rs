@@ -8,11 +8,10 @@ use crate::{
         FromTextSymbolsStateBase, FromToTextListForm, Keyword, ListForm, NamedId, Punctuation,
         ToTextState, TokenKind,
     },
-    Alignment, Allocate, DataPointerType, FunctionPointerType, IdRef, OnceCell,
-    ParsedBlockNameDefinition,
+    Alignment, Allocate, DataPointerType, FunctionPointerType, IdRef, ParsedBlockNameDefinition,
 };
 use alloc::vec::Vec;
-use core::{fmt, ops::Deref};
+use core::{cell::RefCell, fmt, ops::Deref};
 
 /// the function entry, holds the `ValueDefinition`s for the function's arguments
 pub struct FunctionEntry<'g> {
@@ -225,7 +224,7 @@ pub struct FunctionData<'g> {
     /// the function entry, holds the `ValueDefinition`s for the function's arguments
     pub entry: FunctionEntry<'g>,
     /// the local variables of this function
-    pub local_variables: OnceCell<Vec<Variable<'g>>>,
+    pub local_variables: RefCell<Option<Vec<Variable<'g>>>>,
     /// The body of the function, the function returns when `body` finishes.
     /// The values defined in `body.result_definitions` are the return values.
     pub body: Block<'g>,
@@ -238,11 +237,13 @@ impl<'g> FunctionData<'g> {
     ///
     /// Panics if the local variables were already set.
     pub fn set_local_variables(&self, local_variables: Vec<Variable<'g>>) {
-        #![allow(clippy::ok_expect)]
-        self.local_variables
-            .set(local_variables)
-            .ok()
-            .expect("function local variables already set");
+        assert!(
+            self.local_variables
+                .borrow_mut()
+                .replace(local_variables)
+                .is_none(),
+            "function local variables already set",
+        );
     }
 }
 
@@ -297,7 +298,7 @@ impl<'g> Function<'g> {
                 entry: FunctionEntry {
                     argument_definitions,
                 },
-                local_variables: local_variables.map_or_else(OnceCell::new, OnceCell::from),
+                local_variables: RefCell::new(local_variables),
                 body,
             }),
         }
@@ -454,8 +455,9 @@ impl<'g> ToText<'g> for Function<'g> {
             local_variables,
             body,
         } = &***self;
+        let local_variables = local_variables.borrow();
         let local_variables = local_variables
-            .get()
+            .as_ref()
             .expect("function local variables not set");
         argument_definitions.to_text(state)?;
         write!(state, " -> ")?;

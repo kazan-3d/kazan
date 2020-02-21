@@ -22,7 +22,7 @@ use crate::{
     values::{SPIRVVariable, SPIRVVariableData},
 };
 use alloc::vec::Vec;
-use shader_compiler_ir::OnceCell;
+use once_cell::unsync::OnceCell;
 use spirv_parser::{
     BuiltIn, DecorationBinding, DecorationBuiltIn, DecorationDescriptorSet, DecorationIndex,
     DecorationInputAttachmentIndex, IdResult, IdResultType, OpVariable, StorageClass,
