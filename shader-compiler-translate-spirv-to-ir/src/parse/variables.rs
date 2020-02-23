@@ -18,7 +18,7 @@ use crate::{
         TranslationStateParseBaseTypesConstantsAndGlobals,
         TranslationStateParsingTypesConstantsAndGlobals,
     },
-    types::{GenericSPIRVType, PointerType, PointerTypeData},
+    types::{structs::StructKind, GenericSPIRVType, PointerType, PointerTypeData},
     values::{SPIRVVariable, SPIRVVariableData},
 };
 use alloc::vec::Vec;
@@ -222,6 +222,47 @@ impl ParseInstruction for OpVariable {
             variable_or_struct_member,
             object,
         } = parse_variable(self, state, VariableScope::Global)?;
+        let ir_value = if state.entry_point_interface_variables.contains(&id_result.0) {
+            match storage_class {
+                StorageClass::UniformConstant(_) => todo!(),
+                StorageClass::Uniform(_) => todo!(),
+                StorageClass::Input(_) | StorageClass::Output(_) => {
+                    if let Some(built_in) = built_in {
+                        todo!();
+                    } else {
+                        match result_type
+                            .get()
+                            .expect("known to be Some")
+                            .pointee_type
+                            .struct_type()
+                        {
+                            Some(struct_type) if struct_type.kind == StructKind::BuiltIns => {
+                                todo!();
+                            }
+                            _ => {
+                                todo!();
+                            }
+                        }
+                    }
+                }
+                StorageClass::Workgroup(_) => todo!(),
+                StorageClass::CrossWorkgroup(_) => todo!(),
+                StorageClass::Private(_) => todo!(),
+                StorageClass::Function(_) => todo!(),
+                StorageClass::Generic(_) => todo!(),
+                StorageClass::PushConstant(_) => todo!(),
+                StorageClass::AtomicCounter(_) => todo!(),
+                StorageClass::Image(_) => todo!(),
+                StorageClass::StorageBuffer(_) => todo!(),
+                StorageClass::PhysicalStorageBuffer(_) => todo!(),
+            }
+        } else {
+            shader_compiler_ir::ValueUse::from_const(
+                shader_compiler_ir::DataPointerType.null(),
+                state.get_or_make_debug_name(id_result.0)?,
+                state.global_state,
+            )
+        };
         state.define_value(
             id_result,
             SPIRVVariable::new(SPIRVVariableData {
@@ -237,7 +278,7 @@ impl ParseInstruction for OpVariable {
                 object,
                 storage_class,
                 initializer,
-                ir_value: OnceCell::new(),
+                ir_value,
             }),
         )
     }
@@ -290,7 +331,7 @@ impl ParseInstruction for OpVariable {
                 state.global_state,
             ),
         };
-        let ir_value = OnceCell::from(shader_compiler_ir::ValueUse::new(variable.pointer.value()));
+        let ir_value = shader_compiler_ir::ValueUse::new(variable.pointer.value());
         state.local_variables.push(variable);
         if let Some(initializer) = initializer {
             todo!()
