@@ -16,12 +16,12 @@ use crate::{
         TooManyOpFunctionParameterInstructions, TranslationResult,
     },
     functions::{SPIRVFunction, SPIRVFunctionData},
-    parse::{ParseInstruction, TranslationStateParsedTypesConstantsAndGlobals},
+    parse::{ModuleState, ParseInstruction, TranslationStateParsedTypesConstantsAndGlobals},
     types::GenericSPIRVType,
     SPIRVInstructionLocation, TranslatedSPIRVShader,
 };
 use alloc::vec::Vec;
-use core::cell::RefCell;
+use core::mem;
 use petgraph::visit::IntoNodeReferences;
 use shader_compiler_ir::{
     Alignment, Block, DataPointerType, Function, FunctionHints, FunctionRef, FunctionSideEffects,
@@ -398,40 +398,45 @@ impl<'g, 'i> TranslationStateParsedFunctions<'g, 'i> {
     pub(crate) fn translate(mut self) -> TranslationResult<TranslatedSPIRVShader<'g>> {
         let global_state = self.global_state;
         let target_properties = self.target_properties;
-        let built_in_inputs_block = InterfaceBlock::new(
-            ValueDefinition::new(DataPointerType, "built_in_inputs_block", global_state),
-            StructSize::Fixed { size: 0 },
-            Alignment::default(),
-            vec![],
+        let ModuleState {
+            built_in_inputs_block,
+            built_in_inputs,
+            built_in_outputs_block,
+            built_in_outputs,
+            invocation_global_variables,
+        } = mem::replace(&mut self.module_state, ModuleState::default());
+        macro_rules! unwrap_interface_blocks {
+            ($global_state:ident,[$($interface_block:ident,)+]) => {
+                $(
+                    let $interface_block = $interface_block.unwrap_or_else(|| {
+                        InterfaceBlock::new(
+                            ValueDefinition::new(DataPointerType, stringify!($interface_block), $global_state),
+                            StructSize::Fixed { size: 0 },
+                            Alignment::default(),
+                            vec![],
+                        )
+                    });
+                )+
+            };
+        }
+        let user_inputs_block = None; // FIXME
+        let user_outputs_block = None; // FIXME
+        unwrap_interface_blocks!(
+            global_state,
+            [
+                built_in_inputs_block,
+                user_inputs_block,
+                built_in_outputs_block,
+                user_outputs_block,
+            ]
         );
-        let built_in_inputs = Vec::new();
-        let user_inputs_block = InterfaceBlock::new(
-            ValueDefinition::new(DataPointerType, "user_inputs_block", global_state),
-            StructSize::Fixed { size: 0 },
-            Alignment::default(),
-            vec![],
-        );
-        let built_in_outputs_block = InterfaceBlock::new(
-            ValueDefinition::new(DataPointerType, "built_in_outputs_block", global_state),
-            StructSize::Fixed { size: 0 },
-            Alignment::default(),
-            vec![],
-        );
-        let built_in_outputs = Vec::new();
-        let user_outputs_block = InterfaceBlock::new(
-            ValueDefinition::new(DataPointerType, "user_outputs_block", global_state),
-            StructSize::Fixed { size: 0 },
-            Alignment::default(),
-            vec![],
-        );
-        let invocation_global_variables = vec![];
         let entry_point_id = self.entry_point_id;
         let entry_point = FunctionRef::new(self.get_function(entry_point_id)?.ir_value);
         let TranslationStateParsedFunctions {
             base:
                 TranslationStateParseFunctionsBase {
                     base: state,
-                    functions,
+                    functions: _functions,
                     ir_functions,
                 },
         } = self;
