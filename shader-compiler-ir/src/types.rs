@@ -33,6 +33,8 @@ pub trait GenericType<'g>: Internable<'g, Interned = Type<'g>> {
     }
     /// get the required alignment for `self`
     fn alignment(&self, target_properties: &TargetProperties) -> Alignment;
+    /// get the required size for `self`
+    fn size(&self, target_properties: &TargetProperties) -> StructSize;
 }
 
 /// an integer type
@@ -64,6 +66,16 @@ impl<'g> GenericType<'g> for IntegerType {
             IntegerType::Int16 => Alignment::new(2).unwrap(),
             IntegerType::Int32 | IntegerType::RelaxedInt32 => Alignment::new(4).unwrap(),
             IntegerType::Int64 => Alignment::new(8).unwrap(),
+        }
+    }
+    fn size(&self, _target_properties: &TargetProperties) -> StructSize {
+        StructSize::Fixed {
+            size: match self {
+                IntegerType::Int8 => 1,
+                IntegerType::Int16 => 2,
+                IntegerType::Int32 | IntegerType::RelaxedInt32 => 4,
+                IntegerType::Int64 => 8,
+            },
         }
     }
 }
@@ -100,6 +112,15 @@ impl<'g> GenericType<'g> for FloatType {
             FloatType::Float16 => Alignment::new(2).unwrap(),
             FloatType::Float32 | FloatType::RelaxedFloat32 => Alignment::new(4).unwrap(),
             FloatType::Float64 => Alignment::new(8).unwrap(),
+        }
+    }
+    fn size(&self, _target_properties: &TargetProperties) -> StructSize {
+        StructSize::Fixed {
+            size: match self {
+                FloatType::Float16 => 2,
+                FloatType::Float32 | FloatType::RelaxedFloat32 => 4,
+                FloatType::Float64 => 8,
+            },
         }
     }
 }
@@ -141,6 +162,11 @@ impl<'g> GenericType<'g> for OpaqueType<'g> {
             OpaqueType::_Unimplemented(_, v) => match *v {},
         }
     }
+    fn size(&self, _target_properties: &TargetProperties) -> StructSize {
+        match self {
+            OpaqueType::_Unimplemented(_, v) => match *v {},
+        }
+    }
 }
 
 /// the `bool` type
@@ -157,6 +183,9 @@ impl<'g> Internable<'g> for BoolType {
 impl<'g> GenericType<'g> for BoolType {
     fn alignment(&self, _target_properties: &TargetProperties) -> Alignment {
         Alignment::new(1).unwrap()
+    }
+    fn size(&self, _target_properties: &TargetProperties) -> StructSize {
+        StructSize::Fixed { size: 1 }
     }
 }
 
@@ -182,6 +211,11 @@ impl<'g> GenericType<'g> for DataPointerType {
         target_properties
             .data_pointer_underlying_type
             .alignment(target_properties)
+    }
+    fn size(&self, target_properties: &TargetProperties) -> StructSize {
+        target_properties
+            .data_pointer_underlying_type
+            .size(target_properties)
     }
 }
 
@@ -240,6 +274,12 @@ impl<'g> GenericType<'g> for PointerType<'g> {
             PointerType::Function(v) => v.alignment(target_properties),
         }
     }
+    fn size(&self, target_properties: &TargetProperties) -> StructSize {
+        match self {
+            PointerType::Data(v) => v.size(target_properties),
+            PointerType::Function(v) => v.size(target_properties),
+        }
+    }
 }
 
 /// a vector type.
@@ -251,7 +291,7 @@ impl<'g> GenericType<'g> for PointerType<'g> {
 #[derive(Clone, Eq, PartialEq, Hash)]
 pub struct VectorType<'g> {
     /// the number of elements for non-scalable vectors and the multiplier of the number of elements for scalable vectors
-    pub len: usize,
+    pub len: u32,
     /// determines if the vector type is scalable or not.
     pub scalable: bool,
     /// the type of an element
@@ -268,6 +308,22 @@ impl<'g> Internable<'g> for VectorType<'g> {
 impl<'g> GenericType<'g> for VectorType<'g> {
     fn alignment(&self, target_properties: &TargetProperties) -> Alignment {
         self.element.alignment(target_properties)
+    }
+    fn size(&self, target_properties: &TargetProperties) -> StructSize {
+        if self.scalable {
+            StructSize::Variable { fixed_part_size: 0 }
+        } else {
+            match self.element.size(target_properties) {
+                StructSize::Variable { .. } => {
+                    unreachable!("vector element size must not be variable-sized")
+                }
+                StructSize::Fixed { size } => StructSize::Fixed {
+                    size: size
+                        .checked_mul(self.len)
+                        .expect("overflow calculating VectorType size"),
+                },
+            }
+        }
     }
 }
 
@@ -316,6 +372,11 @@ impl<'g> GenericType<'g> for FunctionPointerType<'g> {
         target_properties
             .function_pointer_underlying_type
             .alignment(target_properties)
+    }
+    fn size(&self, target_properties: &TargetProperties) -> StructSize {
+        target_properties
+            .function_pointer_underlying_type
+            .size(target_properties)
     }
 }
 
@@ -388,6 +449,37 @@ impl Alignment {
     pub const fn get(self) -> u32 {
         self.0.get()
     }
+    /// Calculates the first byte position/count greater than or equal to `byte_count` that is properly aligned to alignment `self`. Wraps on overflow.
+    ///
+    /// Example:
+    /// ```
+    /// # use shader_compiler_ir::Alignment;
+    /// let align = Alignment::new(4).unwrap();
+    /// assert_eq!(align.align_up_wrapping(22), 24);
+    /// assert_eq!(align.align_up_wrapping(20), 20);
+    /// assert_eq!(align.align_up_wrapping(0xFFFF_FFFF), 0);
+    /// ```
+    pub const fn align_up_wrapping(self, byte_count: u32) -> u32 {
+        byte_count.wrapping_add(self.get()).wrapping_sub(1) & !self.get().wrapping_sub(1)
+    }
+    /// Calculates the first byte position/count greater than or equal to `byte_count` that is properly aligned to alignment `self`. Returns `None` on overflow.
+    ///
+    /// Example:
+    /// ```
+    /// # use shader_compiler_ir::Alignment;
+    /// let align = Alignment::new(4).unwrap();
+    /// assert_eq!(align.align_up_checked(22), Some(24));
+    /// assert_eq!(align.align_up_checked(20), Some(20));
+    /// assert_eq!(align.align_up_checked(0xFFFF_FFFF), None);
+    /// ```
+    pub fn align_up_checked(self, byte_count: u32) -> Option<u32> {
+        let retval = self.align_up_wrapping(byte_count);
+        if retval >= byte_count {
+            Some(retval)
+        } else {
+            None
+        }
+    }
 }
 
 impl_display_as_to_text!(Alignment);
@@ -419,6 +511,9 @@ impl<'g> Internable<'g> for StructType<'g> {
 impl<'g> GenericType<'g> for StructType<'g> {
     fn alignment(&self, _target_properties: &TargetProperties) -> Alignment {
         self.alignment
+    }
+    fn size(&self, _target_properties: &TargetProperties) -> StructSize {
+        self.size
     }
 }
 
@@ -455,11 +550,25 @@ impl<'g> GenericType<'g> for Type<'g> {
             Type::Struct(v) => v.alignment(target_properties),
         }
     }
+    fn size(&self, target_properties: &TargetProperties) -> StructSize {
+        match self {
+            Type::Integer(v) => v.size(target_properties),
+            Type::Float(v) => v.size(target_properties),
+            Type::Bool(v) => v.size(target_properties),
+            Type::Pointer(v) => v.size(target_properties),
+            Type::Vector(v) => v.size(target_properties),
+            Type::Opaque(v) => v.size(target_properties),
+            Type::Struct(v) => v.size(target_properties),
+        }
+    }
 }
 
 impl<'g> GenericType<'g> for Interned<'g, Type<'g>> {
     fn alignment(&self, target_properties: &TargetProperties) -> Alignment {
         self.get().alignment(target_properties)
+    }
+    fn size(&self, target_properties: &TargetProperties) -> StructSize {
+        self.get().size(target_properties)
     }
 }
 
@@ -628,7 +737,7 @@ impl<'g> FromText<'g> for VectorType<'g> {
                     false
                 };
                 let len = state.parse_token()?;
-                let len: usize = match len.kind {
+                let len: u32 = match len.kind {
                     TokenKind::Integer(IntegerToken { value, suffix }) => {
                         if suffix.is_some() {
                             state.error_at(

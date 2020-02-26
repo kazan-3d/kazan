@@ -10,7 +10,10 @@ use crate::{
     BoolType, FloatType, IntegerType, PointerType, VectorType,
 };
 use alloc::vec::Vec;
-use core::{convert::TryInto, fmt};
+use core::{
+    convert::{TryFrom, TryInto},
+    fmt,
+};
 
 /// a constant integer
 #[derive(Copy, Clone, Eq, PartialEq, Hash)]
@@ -214,6 +217,7 @@ impl<'g> ConstVector<'g> {
             .into_iter()
             .map(|v| v.intern(global_state))
             .collect();
+        u32::try_from(elements.len()).expect("too many elements in ConstVector");
         let mut iter = elements.iter();
         let element_type = iter
             .next()
@@ -245,7 +249,11 @@ impl<'g> ConstVector<'g> {
         VectorType {
             element: self.element_type,
             scalable: false,
-            len: self.elements.len(),
+            len: self
+                .elements
+                .len()
+                .try_into()
+                .expect("too many elements in ConstVector"),
         }
         .intern(global_state)
     }

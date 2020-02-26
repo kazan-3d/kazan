@@ -361,7 +361,7 @@ impl<'g> GenericSPIRVType<'g> for FunctionType<'g> {
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
 pub(crate) struct VectorType {
     pub(crate) component_type: ScalarType,
-    pub(crate) component_count: usize,
+    pub(crate) component_count: u32,
 }
 
 impl From<VectorType> for SPIRVType<'_> {

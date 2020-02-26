@@ -307,14 +307,14 @@ impl ParseInstruction for OpTypeVector {
                     component_type_id: component_type,
                 })?;
         let component_count = match component_count {
-            2..=4 => component_count as usize,
+            2..=4 => component_count,
             _ => return Err(InvalidVectorComponentCount { component_count }.into()),
         };
         state.define_type(
             id_result,
             VectorType {
                 component_type,
-                component_count: component_count as usize,
+                component_count,
             },
         )
     }
