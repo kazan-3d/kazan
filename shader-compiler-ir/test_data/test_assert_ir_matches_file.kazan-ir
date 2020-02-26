@@ -24,6 +24,7 @@ module {
         align: 0x1;
     }
     built_in_outputs {
+        <4 x f32>, align: 0x4 -> vertex_position_out : data_ptr: { kind: vertex_position };
     }
     user_outputs_block {
         -> user_outputs_block : data_ptr;
