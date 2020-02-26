@@ -4,7 +4,7 @@ module {
         function_pointer_underlying_type: i64,
     }
     built_in_inputs_block {
-        -> built_in_inputs_block : data_ptr;
+        -> built_in_inputs_block: data_ptr;
         size: fixed 0x10;
         align: 0x4;
         0x0: <4 x f32>: { kind: vertex_position };
@@ -12,28 +12,28 @@ module {
     built_in_inputs {
     }
     user_inputs_block {
-        -> user_inputs_block : data_ptr;
+        -> user_inputs_block: data_ptr;
         size: fixed 0x8;
         align: 0x4;
         0x0: i32: {};
         0x4: i32: {};
     }
     built_in_outputs_block {
-        -> built_in_outputs_block : data_ptr;
+        -> built_in_outputs_block: data_ptr;
         size: fixed 0x0;
         align: 0x1;
     }
     built_in_outputs {
-        <4 x f32>, align: 0x4 -> vertex_position_out : data_ptr: { kind: vertex_position };
+        <4 x f32>, align: 0x4 -> vertex_position_out: data_ptr: { kind: vertex_position };
     }
     user_outputs_block {
-        -> user_outputs_block : data_ptr;
+        -> user_outputs_block: data_ptr;
         size: fixed 0x4;
         align: 0x4;
         0x0: i32: {};
     }
     invocation_global_variables {
-        i32, align: 0x4 -> global_var1 : data_ptr;
+        i32, align: 0x4 -> global_var1: data_ptr;
     }
     fn main[] -> [] {
         hints {

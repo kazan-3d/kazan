@@ -4,26 +4,26 @@ module {
         function_pointer_underlying_type: i64,
     }
     built_in_inputs_block {
-        -> built_in_inputs_block : data_ptr;
+        -> built_in_inputs_block: data_ptr;
         size: fixed 0x0;
         align: 0x1;
     }
     built_in_inputs {
     }
     user_inputs_block {
-        -> user_inputs_block : data_ptr;
+        -> user_inputs_block: data_ptr;
         size: fixed 0x0;
         align: 0x1;
     }
     built_in_outputs_block {
-        -> built_in_outputs_block : data_ptr;
+        -> built_in_outputs_block: data_ptr;
         size: fixed 0x0;
         align: 0x1;
     }
     built_in_outputs {
     }
     user_outputs_block {
-        -> user_outputs_block : data_ptr;
+        -> user_outputs_block: data_ptr;
         size: fixed 0x0;
         align: 0x1;
     }

@@ -611,14 +611,14 @@ mod tests {
     test_instruction_from_to_text! {
         test_add_instruction_from_to_text, global_state;
         Add [arg0: IntegerType::Int32, arg1: IntegerType::Int32] => [result: IntegerType::Int32];
-        "[arg0 : i32, arg1 : i32]\n",
-        "add [arg0, arg1] -> [result : i32]"
+        "[arg0: i32, arg1: i32]\n",
+        "add [arg0, arg1] -> [result: i32]"
     }
 
     test_instruction_from_to_text! {
         test_load_instruction_from_to_text, global_state;
         Load [arg0: DataPointerType], alignment: Alignment::new(4).unwrap() => [result: IntegerType::Int32];
-        "[arg0 : data_ptr]\n",
-        "load [arg0], align: 0x4 -> [result : i32]"
+        "[arg0: data_ptr]\n",
+        "load [arg0], align: 0x4 -> [result: i32]"
     }
 }

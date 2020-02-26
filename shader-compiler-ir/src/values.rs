@@ -206,7 +206,7 @@ impl<'g> ToText<'g> for ValueDefinition<'g> {
         let name = state.get_value_named_id(self.value());
         let name = state.check_name_definition(name, "value definition must be written first");
         name.to_text(state)?;
-        write!(state, " : ")?;
+        write!(state, ": ")?;
         self.value().value_type.to_text(state)
     }
 }
@@ -218,7 +218,7 @@ impl<'g> ToText<'g> for ValueUse<'g> {
         let name = state.get_value_named_id(self.value());
         if let (Some(const_value), NewOrOld::New(name)) = (self.value().const_value.get(), &name) {
             name.to_text(state)?;
-            write!(state, " : ")?;
+            write!(state, ": ")?;
             const_value.to_text(state)
         } else {
             let name = state.check_name_use(name, "value definition must be written first");

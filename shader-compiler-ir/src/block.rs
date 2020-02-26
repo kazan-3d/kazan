@@ -831,7 +831,7 @@ mod tests {
             global_state,
             concat!(
                 "block block1 -> [] {\n",
-                "    add [\"\"0 : 0x1i32, \"\"1 : 0x2i32] -> [add_result : i32];\n",
+                "    add [\"\"0: 0x1i32, \"\"1: 0x2i32] -> [add_result: i32];\n",
                 "    branch [add_result], {\n",
                 "        0x3i32 -> break block1[];\n",
                 "    } -> [];\n",
