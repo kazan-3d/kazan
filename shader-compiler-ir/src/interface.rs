@@ -6,7 +6,7 @@ use crate::{
         FromText, FromTextError, FromTextState, FromToTextListForm, Keyword, ListForm, Punctuation,
         ToText, ToTextState,
     },
-    Alignment, DataPointerType, StructMember, StructSize, StructType, ValueDefinition,
+    Alignment, DataPointerType, StructMember, StructSize, StructType, ValueDefinition, Variable,
 };
 use alloc::vec::Vec;
 use core::{fmt, iter, slice};
@@ -63,6 +63,70 @@ impl_built_in_kind! {
         /// Vertex Position
         #[text = "vertex_position"]
         VertexPosition,
+    }
+}
+
+/// an interface variable -- a single variable used for an input/output for a shader
+pub struct InterfaceVariable<'g, Attributes: 'g + FromText<'g, Parsed = Attributes> + ToText<'g>> {
+    /// the variable
+    pub variable: Variable<'g>,
+    /// the attributes
+    pub attributes: Attributes,
+}
+
+impl<'g, Attributes: FromText<'g, Parsed = Attributes> + ToText<'g>> fmt::Display
+    for InterfaceVariable<'g, Attributes>
+{
+    fn fmt(&self, f: &mut core::fmt::Formatter) -> fmt::Result {
+        self.display().fmt(f)
+    }
+}
+
+impl<'g, Attributes: FromText<'g, Parsed = Attributes> + ToText<'g>> fmt::Debug
+    for InterfaceVariable<'g, Attributes>
+{
+    fn fmt(&self, f: &mut core::fmt::Formatter) -> fmt::Result {
+        self.display().fmt(f)
+    }
+}
+
+impl<'g, Attributes: FromText<'g, Parsed = Attributes> + ToText<'g>> FromToTextListForm
+    for InterfaceVariable<'g, Attributes>
+{
+    fn from_to_text_list_form() -> ListForm {
+        ListForm::STATEMENTS
+    }
+}
+
+impl<'g, Attributes: FromText<'g, Parsed = Attributes> + ToText<'g>> ToText<'g>
+    for InterfaceVariable<'g, Attributes>
+{
+    fn to_text(&self, state: &mut ToTextState<'g, '_>) -> fmt::Result {
+        let InterfaceVariable {
+            variable,
+            attributes,
+        } = self;
+        variable.to_text(state)?;
+        write!(state, ": ")?;
+        attributes.to_text(state)
+    }
+}
+
+impl<'g, Attributes: FromText<'g, Parsed = Attributes> + ToText<'g>> FromText<'g>
+    for InterfaceVariable<'g, Attributes>
+{
+    type Parsed = Self;
+    fn from_text(state: &mut FromTextState<'g, '_>) -> Result<Self::Parsed, FromTextError> {
+        let variable = Variable::from_text(state)?;
+        state.parse_punct_token_or_error(
+            Punctuation::Colon,
+            "missing colon (`:`) before interface variable attributes",
+        )?;
+        let attributes = Attributes::from_text(state)?;
+        Ok(InterfaceVariable {
+            variable,
+            attributes,
+        })
     }
 }
 

@@ -404,6 +404,7 @@ impl<'g, 'i> TranslationStateParsedFunctions<'g, 'i> {
             Alignment::default(),
             vec![],
         );
+        let built_in_inputs = Vec::new();
         let user_inputs_block = InterfaceBlock::new(
             ValueDefinition::new(DataPointerType, "user_inputs_block", global_state),
             StructSize::Fixed { size: 0 },
@@ -416,6 +417,7 @@ impl<'g, 'i> TranslationStateParsedFunctions<'g, 'i> {
             Alignment::default(),
             vec![],
         );
+        let built_in_outputs = Vec::new();
         let user_outputs_block = InterfaceBlock::new(
             ValueDefinition::new(DataPointerType, "user_outputs_block", global_state),
             StructSize::Fixed { size: 0 },
@@ -436,8 +438,10 @@ impl<'g, 'i> TranslationStateParsedFunctions<'g, 'i> {
         let module = Module {
             target_properties,
             built_in_inputs_block,
+            built_in_inputs,
             user_inputs_block,
             built_in_outputs_block,
+            built_in_outputs,
             user_outputs_block,
             invocation_global_variables,
             functions: ir_functions,

@@ -7,7 +7,7 @@ use crate::{
         FromText, FromTextError, FromTextState, FromToTextListForm, Keyword, ListForm, Punctuation,
         ToText, ToTextDisplay, ToTextState,
     },
-    BuiltInInterfaceVariableAttributes, InterfaceBlock, TargetProperties,
+    BuiltInInterfaceVariableAttributes, InterfaceBlock, InterfaceVariable, TargetProperties,
     UserInterfaceVariableAttributes, Variable,
 };
 use alloc::vec::Vec;
@@ -133,12 +133,18 @@ impl_module! {
         /// the inputs interface block for built-ins
         #[keyword = "built_in_inputs_block"]
         pub built_in_inputs_block: InterfaceBlock<'g, BuiltInInterfaceVariableAttributes>,
+        /// the inputs interface variables for built-ins
+        #[keyword = "built_in_inputs"]
+        pub built_in_inputs: Vec<InterfaceVariable<'g, BuiltInInterfaceVariableAttributes>>,
         /// the inputs interface block for user variables
         #[keyword = "user_inputs_block"]
         pub user_inputs_block: InterfaceBlock<'g, UserInterfaceVariableAttributes>,
         /// the outputs interface block for built-ins
         #[keyword = "built_in_outputs_block"]
         pub built_in_outputs_block: InterfaceBlock<'g, BuiltInInterfaceVariableAttributes>,
+        /// the outputs interface variables for built-ins
+        #[keyword = "built_in_outputs"]
+        pub built_in_outputs: Vec<InterfaceVariable<'g, BuiltInInterfaceVariableAttributes>>,
         /// the outputs interface block for user variables
         #[keyword = "user_outputs_block"]
         pub user_outputs_block: InterfaceBlock<'g, UserInterfaceVariableAttributes>,
