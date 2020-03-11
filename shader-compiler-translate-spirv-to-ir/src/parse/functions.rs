@@ -16,6 +16,7 @@ use crate::{
         TooManyOpFunctionParameterInstructions, TranslationResult,
     },
     functions::{SPIRVFunction, SPIRVFunctionData},
+    io_layout::io_interface_block_alignment,
     parse::{ModuleState, ParseInstruction, TranslationStateParsedTypesConstantsAndGlobals},
     types::GenericSPIRVType,
     SPIRVInstructionLocation, TranslatedSPIRVShader,
@@ -25,7 +26,8 @@ use core::mem;
 use petgraph::visit::IntoNodeReferences;
 use shader_compiler_ir::{
     Alignment, Block, DataPointerType, Function, FunctionHints, FunctionRef, FunctionSideEffects,
-    Inhabited, InliningHint, InterfaceBlock, Module, StructSize, ValueDefinition,
+    GenericType, Inhabited, InliningHint, InterfaceBlock, InterfaceBlockMember, Module, StructSize,
+    ValueDefinition,
 };
 use spirv_id_map::IdMap;
 use spirv_parser::{
@@ -401,10 +403,31 @@ impl<'g, 'i> TranslationStateParsedFunctions<'g, 'i> {
         let ModuleState {
             built_in_inputs,
             built_in_outputs,
+            user_inputs,
+            user_outputs,
             invocation_global_variables,
         } = mem::replace(&mut self.module_state, ModuleState::default());
-        let user_inputs = Vec::new(); // FIXME
-        let user_outputs = Vec::new(); // FIXME
+        let make_user_interface_block =
+            |interface_block_members: Vec<InterfaceBlockMember<'g, _>>, interface_block_name| {
+                let size = interface_block_members
+                    .iter()
+                    .map(
+                        |v| match v.struct_member.member_type.size(&target_properties) {
+                            StructSize::Fixed { size } => v.struct_member.offset + size,
+                            StructSize::Variable { .. } => unreachable!(),
+                        },
+                    )
+                    .max()
+                    .unwrap_or(0);
+                InterfaceBlock::new(
+                    ValueDefinition::new(DataPointerType, interface_block_name, global_state),
+                    StructSize::Fixed { size },
+                    io_interface_block_alignment(),
+                    interface_block_members,
+                )
+            };
+        let user_inputs_block = make_user_interface_block(user_inputs, "user_inputs_block");
+        let user_outputs_block = make_user_interface_block(user_outputs, "user_outputs_block");
         let entry_point_id = self.entry_point_id;
         let entry_point = FunctionRef::new(self.get_function(entry_point_id)?.ir_value);
         let TranslationStateParsedFunctions {
@@ -418,9 +441,9 @@ impl<'g, 'i> TranslationStateParsedFunctions<'g, 'i> {
         let module = Module {
             target_properties,
             built_in_inputs,
-            user_inputs,
+            user_inputs_block,
             built_in_outputs,
-            user_outputs,
+            user_outputs_block,
             invocation_global_variables,
             functions: ir_functions,
             entry_point,

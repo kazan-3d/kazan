@@ -3,13 +3,17 @@
 
 use crate::{errors::InvalidVectorComponentCount, types::IntegerType, TranslationResult};
 use alloc::{boxed::Box, rc::Rc, vec::Vec};
-use core::cell::RefCell;
-use shader_compiler_ir::{FloatType, ValueUse};
+use core::cell::Cell;
+use shader_compiler_ir::{Alignment, FloatType, ValueUse};
 
 pub(crate) const COMPONENT_SIZE_IN_BYTES: u32 = 4;
 pub(crate) const LOCATION_SIZE_IN_COMPONENTS: u32 = 4;
 pub(crate) const LOCATION_SIZE_IN_BYTES: u32 =
     COMPONENT_SIZE_IN_BYTES * LOCATION_SIZE_IN_COMPONENTS;
+
+pub(crate) fn io_interface_block_alignment() -> Alignment {
+    Alignment::new(LOCATION_SIZE_IN_BYTES).expect("known to be a valid alignment")
+}
 
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
 pub(crate) enum IOLayoutScalar {
@@ -239,43 +243,43 @@ impl IOLayoutNonStructType {
 }
 
 #[derive(Clone, Debug)]
-pub(crate) struct IOLayoutNonStruct<'g> {
+pub(crate) struct IOLayoutNonStruct {
     pub(crate) start_location: u32,
     pub(crate) io_layout_type: IOLayoutNonStructType,
-    pub(crate) ir_value: RefCell<Option<ValueUse<'g>>>,
+    pub(crate) interface_block_field_index: Cell<Option<u32>>,
 }
 
 #[derive(Clone, Debug)]
-pub(crate) struct IOLayoutStruct<'g> {
-    pub(crate) members: Vec<IOLayout<'g>>,
+pub(crate) struct IOLayoutStruct {
+    pub(crate) members: Vec<IOLayout>,
 }
 
 #[derive(Clone, Debug)]
-pub(crate) enum IOLayout<'g> {
-    NonStruct(Rc<IOLayoutNonStruct<'g>>),
-    Struct(Rc<IOLayoutStruct<'g>>),
+pub(crate) enum IOLayout {
+    NonStruct(Rc<IOLayoutNonStruct>),
+    Struct(Rc<IOLayoutStruct>),
 }
 
-impl<'g> From<Rc<IOLayoutNonStruct<'g>>> for IOLayout<'g> {
-    fn from(v: Rc<IOLayoutNonStruct<'g>>) -> Self {
+impl From<Rc<IOLayoutNonStruct>> for IOLayout {
+    fn from(v: Rc<IOLayoutNonStruct>) -> Self {
         Self::NonStruct(v)
     }
 }
 
-impl<'g> From<Rc<IOLayoutStruct<'g>>> for IOLayout<'g> {
-    fn from(v: Rc<IOLayoutStruct<'g>>) -> Self {
+impl From<Rc<IOLayoutStruct>> for IOLayout {
+    fn from(v: Rc<IOLayoutStruct>) -> Self {
         Self::Struct(v)
     }
 }
 
-impl<'g> From<IOLayoutNonStruct<'g>> for IOLayout<'g> {
-    fn from(v: IOLayoutNonStruct<'g>) -> Self {
+impl From<IOLayoutNonStruct> for IOLayout {
+    fn from(v: IOLayoutNonStruct) -> Self {
         Rc::new(v).into()
     }
 }
 
-impl<'g> From<IOLayoutStruct<'g>> for IOLayout<'g> {
-    fn from(v: IOLayoutStruct<'g>) -> Self {
+impl From<IOLayoutStruct> for IOLayout {
+    fn from(v: IOLayoutStruct) -> Self {
         Rc::new(v).into()
     }
 }

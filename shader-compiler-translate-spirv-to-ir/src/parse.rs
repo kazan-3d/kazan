@@ -38,7 +38,10 @@ use crate::{
     SPIRVInstructionLocation, TranslationResult, TranslationStateBase,
 };
 use alloc::vec::Vec;
-use shader_compiler_ir::{BuiltInInterfaceVariableAttributes, InterfaceBlock, InterfaceVariable};
+use shader_compiler_ir::{
+    BuiltInInterfaceVariableAttributes, InterfaceBlock, InterfaceBlockMember, InterfaceVariable,
+    UserInterfaceVariableAttributes,
+};
 use spirv_id_map::IdMap;
 use spirv_parser::{IdRef, IdResult, Instruction};
 
@@ -46,6 +49,8 @@ use spirv_parser::{IdRef, IdResult, Instruction};
 pub(crate) struct ModuleState<'g> {
     pub(crate) built_in_inputs: Vec<InterfaceVariable<'g, BuiltInInterfaceVariableAttributes>>,
     pub(crate) built_in_outputs: Vec<InterfaceVariable<'g, BuiltInInterfaceVariableAttributes>>,
+    pub(crate) user_inputs: Vec<InterfaceBlockMember<'g, UserInterfaceVariableAttributes>>,
+    pub(crate) user_outputs: Vec<InterfaceBlockMember<'g, UserInterfaceVariableAttributes>>,
     pub(crate) invocation_global_variables: Vec<shader_compiler_ir::Variable<'g>>,
 }
 
@@ -104,6 +109,8 @@ impl<'g, 'i> TranslationStateParsedAnnotations<'g, 'i> {
                 module_state: ModuleState {
                     built_in_inputs: Vec::new(),
                     built_in_outputs: Vec::new(),
+                    user_inputs: Vec::new(),
+                    user_outputs: Vec::new(),
                     invocation_global_variables: Vec::new(),
                 },
             },

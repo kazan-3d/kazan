@@ -7,7 +7,7 @@ use crate::{
         FromText, FromTextError, FromTextState, FromToTextListForm, Keyword, ListForm, Punctuation,
         ToText, ToTextDisplay, ToTextState,
     },
-    BuiltInInterfaceVariableAttributes, InterfaceVariable, TargetProperties,
+    BuiltInInterfaceVariableAttributes, InterfaceBlock, InterfaceVariable, TargetProperties,
     UserInterfaceVariableAttributes, Variable,
 };
 use alloc::vec::Vec;
@@ -133,15 +133,15 @@ impl_module! {
         /// the inputs interface variables for built-ins
         #[keyword = "built_in_inputs"]
         pub built_in_inputs: Vec<InterfaceVariable<'g, BuiltInInterfaceVariableAttributes>>,
-        /// the inputs interface variables for user variables
-        #[keyword = "user_inputs"]
-        pub user_inputs: Vec<InterfaceVariable<'g, UserInterfaceVariableAttributes>>,
+        /// the inputs interface block for user variables
+        #[keyword = "user_inputs_block"]
+        pub user_inputs_block: InterfaceBlock<'g, UserInterfaceVariableAttributes>,
         /// the outputs interface variables for built-ins
         #[keyword = "built_in_outputs"]
         pub built_in_outputs: Vec<InterfaceVariable<'g, BuiltInInterfaceVariableAttributes>>,
-        /// the outputs interface variables for user variables
-        #[keyword = "user_outputs"]
-        pub user_outputs: Vec<InterfaceVariable<'g, UserInterfaceVariableAttributes>>,
+        /// the outputs interface block for user variables
+        #[keyword = "user_outputs_block"]
+        pub user_outputs_block: InterfaceBlock<'g, UserInterfaceVariableAttributes>,
         /// the per-invocation global variables of this module
         #[keyword = "invocation_global_variables"]
         pub invocation_global_variables: Vec<Variable<'g>>,
