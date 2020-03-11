@@ -247,7 +247,7 @@ pub(crate) enum Uninhabited<'g> {
 
 impl Uninhabited<'_> {
     #[allow(clippy::trivially_copy_pass_by_ref)] // pass by ref makes it easier to call
-    pub(crate) fn into(&self) -> ! {
+    pub(crate) fn into_never(&self) -> ! {
         match *self {
             Uninhabited::_Uninhabited(_, v) => match v {},
         }
@@ -557,7 +557,7 @@ impl<'g> GenericSPIRVType<'g> for SPIRVType<'g> {
             SPIRVType::Vector(ty) => ty.get_ir_type_with_state(state),
             SPIRVType::Struct(ty) => ty.get_ir_type_with_state(state),
             SPIRVType::Pointer(ty) => ty.get_ir_type_with_state(state),
-            SPIRVType::_Uninhabited(v) => v.into(),
+            SPIRVType::_Uninhabited(v) => v.into_never(),
         }
     }
     fn get_relaxed_precision_type(&self) -> Option<SPIRVType<'g>> {
@@ -568,7 +568,7 @@ impl<'g> GenericSPIRVType<'g> for SPIRVType<'g> {
             SPIRVType::Vector(ty) => ty.get_relaxed_precision_type(),
             SPIRVType::Struct(ty) => ty.get_relaxed_precision_type(),
             SPIRVType::Pointer(ty) => ty.get_relaxed_precision_type(),
-            SPIRVType::_Uninhabited(v) => v.into(),
+            SPIRVType::_Uninhabited(v) => v.into_never(),
         }
     }
     fn get_alignment<I: FnOnce() -> spirv_parser::Instruction>(
@@ -597,7 +597,7 @@ impl<'g> GenericSPIRVType<'g> for SPIRVType<'g> {
             SPIRVType::Pointer(ty) => {
                 ty.get_alignment(target_properties, global_state, type_id, instruction)
             }
-            SPIRVType::_Uninhabited(v) => v.into(),
+            SPIRVType::_Uninhabited(v) => v.into_never(),
         }
     }
 }

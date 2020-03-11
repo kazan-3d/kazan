@@ -3,6 +3,7 @@
 
 use crate::{
     errors::TranslationResult,
+    io_layout::IOLayoutStruct,
     types::{GenericSPIRVType, GetIrTypeState, SPIRVType},
 };
 use alloc::{rc::Rc, vec::Vec};
@@ -28,6 +29,7 @@ pub(crate) struct StructTypeData<'g> {
     pub(crate) id: spirv_parser::IdRef,
     pub(crate) kind: StructKind,
     pub(crate) members: Vec<StructMember<'g>>,
+    pub(crate) io_layout: Option<Rc<IOLayoutStruct>>,
 }
 
 impl PartialEq<StructTypeData<'_>> for StructTypeData<'_> {

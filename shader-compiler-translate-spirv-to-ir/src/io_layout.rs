@@ -4,7 +4,10 @@
 use crate::{errors::InvalidVectorComponentCount, types::IntegerType, TranslationResult};
 use alloc::{boxed::Box, rc::Rc, vec::Vec};
 use core::cell::Cell;
-use shader_compiler_ir::{Alignment, FloatType, ValueUse};
+use shader_compiler_ir::{
+    Alignment, FloatType, GlobalState, Internable, Interned, StructMember, Type, ValueUse,
+    VectorType,
+};
 
 pub(crate) const COMPONENT_SIZE_IN_BYTES: u32 = 4;
 pub(crate) const LOCATION_SIZE_IN_COMPONENTS: u32 = 4;
@@ -50,6 +53,15 @@ impl IOLayoutScalar {
             Self::Float(FloatType::Float64) => 2,
         }
     }
+    pub(crate) fn get_ir_type<'g>(
+        self,
+        global_state: &'g GlobalState<'g>,
+    ) -> Interned<'g, Type<'g>> {
+        match self {
+            Self::Integer(ty) => ty.ir_type.intern(global_state),
+            Self::Float(ty) => ty.intern(global_state),
+        }
+    }
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -64,6 +76,18 @@ impl From<IOLayoutScalar> for IOLayoutVector {
             component_type,
             component_count: 1,
         }
+    }
+}
+
+impl From<IntegerType> for IOLayoutVector {
+    fn from(component_type: IntegerType) -> Self {
+        IOLayoutScalar::from(component_type).into()
+    }
+}
+
+impl From<FloatType> for IOLayoutVector {
+    fn from(component_type: FloatType) -> Self {
+        IOLayoutScalar::from(component_type).into()
     }
 }
 
@@ -104,6 +128,17 @@ impl IOLayoutVector {
             (2, 2) | (2, 3) | (2, 4) => start_io_component == 0,
             _ => unreachable!("invalid IOLayoutVector: {:?}", self),
         }
+    }
+    pub(crate) fn get_ir_type<'g>(
+        self,
+        global_state: &'g GlobalState<'g>,
+    ) -> Interned<'g, Type<'g>> {
+        VectorType {
+            len: self.component_count,
+            scalable: false,
+            element: self.component_type.get_ir_type(global_state),
+        }
+        .intern(global_state)
     }
 }
 
@@ -149,6 +184,12 @@ impl IOLayoutMatrix {
     pub(crate) fn location_count(self) -> u32 {
         self.column_type.location_count() * self.column_count
     }
+    pub(crate) fn get_ir_type<'g>(
+        self,
+        global_state: &'g GlobalState<'g>,
+    ) -> Interned<'g, Type<'g>> {
+        todo!()
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -190,6 +231,16 @@ impl IOLayoutArrayElement {
             Self::Array(v) => v.location_count(),
         }
     }
+    pub(crate) fn get_ir_type<'g>(
+        &self,
+        global_state: &'g GlobalState<'g>,
+    ) -> Interned<'g, Type<'g>> {
+        match self {
+            Self::Vector(ty) => ty.get_ir_type(global_state),
+            Self::Matrix(ty) => ty.get_ir_type(global_state),
+            Self::Array(ty) => ty.get_ir_type(global_state),
+        }
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -204,6 +255,12 @@ impl IOLayoutArray {
     }
     pub(crate) fn location_count(&self) -> u32 {
         self.element_type.location_count() * self.len
+    }
+    pub(crate) fn get_ir_type<'g>(
+        &self,
+        global_state: &'g GlobalState<'g>,
+    ) -> Interned<'g, Type<'g>> {
+        todo!()
     }
 }
 
@@ -238,6 +295,25 @@ impl IOLayoutNonStructType {
             Self::Vector(v) => v.location_count(),
             Self::Matrix(v) => v.location_count(),
             Self::Array(v) => v.location_count(),
+        }
+    }
+    pub(crate) fn get_ir<'g>(
+        &self,
+        global_state: &'g GlobalState<'g>,
+        start_location: u32,
+    ) -> StructMember<'g> {
+        let (start_io_component, ir_type) = match *self {
+            Self::Vector(IOLayoutVectorAtComponent {
+                vector_type,
+                start_io_component,
+            }) => (start_io_component, vector_type.get_ir_type(global_state)),
+            Self::Matrix(ty) => (0, ty.get_ir_type(global_state)),
+            Self::Array(ref ty) => (0, ty.get_ir_type(global_state)),
+        };
+        StructMember {
+            offset: start_location * LOCATION_SIZE_IN_BYTES
+                + start_io_component * COMPONENT_SIZE_IN_BYTES,
+            member_type: ir_type,
         }
     }
 }

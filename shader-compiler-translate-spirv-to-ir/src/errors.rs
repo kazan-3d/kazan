@@ -414,6 +414,12 @@ impl_errors! {
     pub struct SwitchCaseBranchesToMultipleCases {
         pub switch_instruction: spirv_parser::Instruction,
     }
+
+    #[display = "invalid SPIR-V component decoration on variable or struct member with type {type_id}: Component {component}"]
+    pub struct InvalidComponentDecorationOnVariableOrStructMember {
+        pub type_id: spirv_parser::IdRef,
+        pub component: u32,
+    }
 }
 
 pub(crate) type TranslationResult<T> = Result<T, TranslationError>;

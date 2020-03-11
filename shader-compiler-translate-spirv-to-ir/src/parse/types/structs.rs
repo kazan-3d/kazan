@@ -130,12 +130,14 @@ impl ParseInstruction for OpTypeStruct {
                 member_type,
             });
         }
+        let io_layout = todo!();
         state.define_type(
             id_result,
             StructType::new(StructTypeData {
                 id: id_result.0,
                 kind: struct_kind,
                 members,
+                io_layout,
             }),
         )
     }
