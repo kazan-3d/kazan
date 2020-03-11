@@ -2,8 +2,9 @@
 // See Notices.txt for copyright information
 
 use crate::{errors::InvalidVectorComponentCount, types::IntegerType, TranslationResult};
-use alloc::{boxed::Box, vec::Vec};
-use shader_compiler_ir::FloatType;
+use alloc::{boxed::Box, rc::Rc, vec::Vec};
+use core::cell::RefCell;
+use shader_compiler_ir::{FloatType, ValueUse};
 
 pub(crate) const COMPONENT_SIZE_IN_BYTES: u32 = 4;
 pub(crate) const LOCATION_SIZE_IN_COMPONENTS: u32 = 4;
@@ -238,30 +239,43 @@ impl IOLayoutNonStructType {
 }
 
 #[derive(Clone, Debug)]
-pub(crate) struct IOLayoutNonStruct {
+pub(crate) struct IOLayoutNonStruct<'g> {
     pub(crate) start_location: u32,
-    pub(crate) non_struct_type: IOLayoutNonStructType,
+    pub(crate) io_layout_type: IOLayoutNonStructType,
+    pub(crate) ir_value: RefCell<Option<ValueUse<'g>>>,
 }
 
 #[derive(Clone, Debug)]
-pub(crate) struct IOLayoutStruct {
-    pub(crate) members: Vec<IOLayout>,
+pub(crate) struct IOLayoutStruct<'g> {
+    pub(crate) members: Vec<IOLayout<'g>>,
 }
 
 #[derive(Clone, Debug)]
-pub(crate) enum IOLayout {
-    NonStruct(IOLayoutNonStruct),
-    Struct(IOLayoutStruct),
+pub(crate) enum IOLayout<'g> {
+    NonStruct(Rc<IOLayoutNonStruct<'g>>),
+    Struct(Rc<IOLayoutStruct<'g>>),
 }
 
-impl From<IOLayoutNonStruct> for IOLayout {
-    fn from(v: IOLayoutNonStruct) -> Self {
+impl<'g> From<Rc<IOLayoutNonStruct<'g>>> for IOLayout<'g> {
+    fn from(v: Rc<IOLayoutNonStruct<'g>>) -> Self {
         Self::NonStruct(v)
     }
 }
 
-impl From<IOLayoutStruct> for IOLayout {
-    fn from(v: IOLayoutStruct) -> Self {
+impl<'g> From<Rc<IOLayoutStruct<'g>>> for IOLayout<'g> {
+    fn from(v: Rc<IOLayoutStruct<'g>>) -> Self {
         Self::Struct(v)
+    }
+}
+
+impl<'g> From<IOLayoutNonStruct<'g>> for IOLayout<'g> {
+    fn from(v: IOLayoutNonStruct<'g>) -> Self {
+        Rc::new(v).into()
+    }
+}
+
+impl<'g> From<IOLayoutStruct<'g>> for IOLayout<'g> {
+    fn from(v: IOLayoutStruct<'g>) -> Self {
+        Rc::new(v).into()
     }
 }
