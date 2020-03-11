@@ -44,11 +44,7 @@ use spirv_parser::{IdRef, IdResult, Instruction};
 
 #[derive(Default)]
 pub(crate) struct ModuleState<'g> {
-    pub(crate) built_in_inputs_block:
-        Option<InterfaceBlock<'g, BuiltInInterfaceVariableAttributes>>,
     pub(crate) built_in_inputs: Vec<InterfaceVariable<'g, BuiltInInterfaceVariableAttributes>>,
-    pub(crate) built_in_outputs_block:
-        Option<InterfaceBlock<'g, BuiltInInterfaceVariableAttributes>>,
     pub(crate) built_in_outputs: Vec<InterfaceVariable<'g, BuiltInInterfaceVariableAttributes>>,
     pub(crate) invocation_global_variables: Vec<shader_compiler_ir::Variable<'g>>,
 }
@@ -106,9 +102,7 @@ impl<'g, 'i> TranslationStateParsedAnnotations<'g, 'i> {
                 debug_locations: Vec::with_capacity(self.spirv_instructions.len()),
                 base: self,
                 module_state: ModuleState {
-                    built_in_inputs_block: None,
                     built_in_inputs: Vec::new(),
-                    built_in_outputs_block: None,
                     built_in_outputs: Vec::new(),
                     invocation_global_variables: Vec::new(),
                 },

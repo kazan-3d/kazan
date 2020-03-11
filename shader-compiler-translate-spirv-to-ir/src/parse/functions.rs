@@ -399,37 +399,12 @@ impl<'g, 'i> TranslationStateParsedFunctions<'g, 'i> {
         let global_state = self.global_state;
         let target_properties = self.target_properties;
         let ModuleState {
-            built_in_inputs_block,
             built_in_inputs,
-            built_in_outputs_block,
             built_in_outputs,
             invocation_global_variables,
         } = mem::replace(&mut self.module_state, ModuleState::default());
-        macro_rules! unwrap_interface_blocks {
-            ($global_state:ident,[$($interface_block:ident,)+]) => {
-                $(
-                    let $interface_block = $interface_block.unwrap_or_else(|| {
-                        InterfaceBlock::new(
-                            ValueDefinition::new(DataPointerType, stringify!($interface_block), $global_state),
-                            StructSize::Fixed { size: 0 },
-                            Alignment::default(),
-                            vec![],
-                        )
-                    });
-                )+
-            };
-        }
-        let user_inputs_block = None; // FIXME
-        let user_outputs_block = None; // FIXME
-        unwrap_interface_blocks!(
-            global_state,
-            [
-                built_in_inputs_block,
-                user_inputs_block,
-                built_in_outputs_block,
-                user_outputs_block,
-            ]
-        );
+        let user_inputs = Vec::new(); // FIXME
+        let user_outputs = Vec::new(); // FIXME
         let entry_point_id = self.entry_point_id;
         let entry_point = FunctionRef::new(self.get_function(entry_point_id)?.ir_value);
         let TranslationStateParsedFunctions {
@@ -442,12 +417,10 @@ impl<'g, 'i> TranslationStateParsedFunctions<'g, 'i> {
         } = self;
         let module = Module {
             target_properties,
-            built_in_inputs_block,
             built_in_inputs,
-            user_inputs_block,
-            built_in_outputs_block,
+            user_inputs,
             built_in_outputs,
-            user_outputs_block,
+            user_outputs,
             invocation_global_variables,
             functions: ir_functions,
             entry_point,
