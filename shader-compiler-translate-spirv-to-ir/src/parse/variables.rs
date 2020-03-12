@@ -9,11 +9,8 @@ use crate::{
         VariableOrStructMember,
     },
     errors::{
-        DecorationNotAllowedOnInstruction, InvalidComponentDecorationOnVariableOrStructMember,
-        RelaxedPrecisionDecorationNotAllowed, TranslationResult, VariableResultTypeMustBePointer,
-    },
-    io_layout::{
-        IOLayoutNonStruct, IOLayoutNonStructType, IOLayoutVector, IOLayoutVectorAtComponent,
+        DecorationNotAllowedOnInstruction, RelaxedPrecisionDecorationNotAllowed, TranslationResult,
+        VariableResultTypeMustBePointer,
     },
     parse::{
         functions::TranslationStateParsingFunctionBody,
@@ -28,80 +25,11 @@ use crate::{
     values::{SPIRVVariable, SPIRVVariableData},
 };
 use alloc::vec::Vec;
-use core::cell::Cell;
 use shader_compiler_ir::{Interned, ValueDefinition, ValueUse};
 use spirv_parser::{
     BuiltIn, DecorationBinding, DecorationBuiltIn, DecorationDescriptorSet, DecorationIndex,
     DecorationInputAttachmentIndex, IdRef, IdResult, IdResultType, OpVariable, StorageClass,
 };
-
-fn parse_io_layout_non_struct_type<'g>(
-    spirv_type: &SPIRVType<'g>,
-    type_id: IdRef,
-    start_io_component: Option<u32>,
-) -> TranslationResult<Option<IOLayoutNonStructType>> {
-    let start_io_component = start_io_component.unwrap_or(0);
-    Ok(match *spirv_type {
-        SPIRVType::Scalar(ty) => {
-            let scalar_type = match ty {
-                ScalarType::Integer(ty) => ty.into(),
-                ScalarType::Float(ty) => ty.into(),
-                ScalarType::Bool(_) => return Ok(None),
-            };
-            Some(
-                IOLayoutVectorAtComponent::new(scalar_type, start_io_component)
-                    .map_err(|()| InvalidComponentDecorationOnVariableOrStructMember {
-                        type_id,
-                        component: start_io_component,
-                    })?
-                    .into(),
-            )
-        }
-        SPIRVType::Void(_) => None,
-        SPIRVType::Function(_) => None,
-        SPIRVType::Vector(VectorType {
-            component_type,
-            component_count,
-        }) => {
-            let component_type = match component_type {
-                ScalarType::Integer(ty) => ty.into(),
-                ScalarType::Float(ty) => ty.into(),
-                ScalarType::Bool(_) => return Ok(None),
-            };
-            let vector_type = IOLayoutVector::new(component_type, component_count)?;
-            Some(
-                IOLayoutVectorAtComponent::new(vector_type, start_io_component)
-                    .map_err(|()| InvalidComponentDecorationOnVariableOrStructMember {
-                        type_id,
-                        component: start_io_component,
-                    })?
-                    .into(),
-            )
-        }
-        SPIRVType::Struct(_) => None,
-        SPIRVType::Pointer(_) => None,
-        SPIRVType::_Uninhabited(ty) => ty.into_never(),
-    })
-}
-
-pub(crate) fn parse_io_layout_non_struct<'g, 'i>(
-    state: &mut TranslationStateParseBaseTypesConstantsAndGlobals<'g, 'i>,
-    type_id: IdRef,
-    start_location: u32,
-    start_io_component: Option<u32>,
-) -> TranslationResult<Option<IOLayoutNonStruct>> {
-    if let Some(io_layout_type) =
-        parse_io_layout_non_struct_type(state.get_type(type_id)?, type_id, start_io_component)?
-    {
-        Ok(Some(IOLayoutNonStruct {
-            start_location,
-            io_layout_type,
-            interface_block_field_index: Cell::new(None),
-        }))
-    } else {
-        Ok(None)
-    }
-}
 
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
 enum VariableScope {

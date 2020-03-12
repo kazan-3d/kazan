@@ -3,7 +3,14 @@
 
 pub(crate) mod structs;
 
-use crate::errors::{TranslationResult, VoidNotAllowedHere};
+use crate::{
+    errors::{
+        InvalidComponentDecorationOnVariableOrStructMember,
+        MissingLocationDecorationOnVariableOrStructMember, TranslationResult,
+        TypeNotAllowedInUserDefinedVariableInterface, VoidNotAllowedHere,
+    },
+    io_layout::{COMPONENT_SIZE_IN_BYTES, LOCATION_SIZE_IN_BYTES},
+};
 use alloc::{rc::Rc, vec::Vec};
 use core::{marker::PhantomData, ops::Deref};
 use once_cell::unsync::OnceCell;
@@ -13,6 +20,13 @@ use structs::StructType;
 
 pub(crate) struct GetIrTypeState<'g> {
     global_state: &'g GlobalState<'g>,
+}
+
+pub(crate) struct GetIOUserInterfaceIRTypeResult<'g> {
+    pub(crate) byte_offset: u32,
+    pub(crate) size_in_bytes: u32,
+    pub(crate) first_location_after: Option<u32>,
+    pub(crate) ir_type: Interned<'g, shader_compiler_ir::Type<'g>>,
 }
 
 pub(crate) trait GenericSPIRVType<'g>: Eq + Clone + Into<SPIRVType<'g>> {
@@ -48,6 +62,18 @@ pub(crate) trait GenericSPIRVType<'g>: Eq + Clone + Into<SPIRVType<'g>> {
         type_id: IdRef,
         instruction: I,
     ) -> TranslationResult<Alignment>;
+    fn get_io_user_interface_ir_type(
+        &self,
+        global_state: &'g GlobalState<'g>,
+        type_id: IdRef,
+        start_location: Option<u32>,
+        start_io_component: Option<u32>,
+    ) -> TranslationResult<GetIOUserInterfaceIRTypeResult<'g>>;
+}
+
+pub(crate) trait GenericIOScalarType {
+    fn io_component_count(&self) -> Option<u32>;
+    fn io_size_in_bytes(&self) -> Option<u32>;
 }
 
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
@@ -75,6 +101,48 @@ impl Signedness {
 pub(crate) struct IntegerType {
     pub(crate) ir_type: shader_compiler_ir::IntegerType,
     pub(crate) signedness: Signedness,
+}
+
+fn is_start_io_component_valid(
+    vector_component_type: &impl GenericIOScalarType,
+    vector_component_count: u32,
+    start_io_component: u32,
+) -> bool {
+    match (
+        vector_component_type
+            .io_component_count()
+            .expect("invalid component_type"),
+        vector_component_count,
+    ) {
+        (1, 1) => start_io_component < 4,
+        (1, 2) => start_io_component < 3,
+        (1, 3) => start_io_component < 2,
+        (1, 4) => start_io_component == 0,
+        (2, 1) => start_io_component == 0 || start_io_component == 2,
+        (2, 2) | (2, 3) | (2, 4) => start_io_component == 0,
+        _ => unreachable!(),
+    }
+}
+
+impl GenericIOScalarType for IntegerType {
+    fn io_component_count(&self) -> Option<u32> {
+        Some(match self.ir_type {
+            shader_compiler_ir::IntegerType::Int8
+            | shader_compiler_ir::IntegerType::Int16
+            | shader_compiler_ir::IntegerType::Int32
+            | shader_compiler_ir::IntegerType::RelaxedInt32 => 1,
+            shader_compiler_ir::IntegerType::Int64 => 2,
+        })
+    }
+    fn io_size_in_bytes(&self) -> Option<u32> {
+        Some(match self.ir_type {
+            shader_compiler_ir::IntegerType::Int8 => 1,
+            shader_compiler_ir::IntegerType::Int16 => 2,
+            shader_compiler_ir::IntegerType::Int32
+            | shader_compiler_ir::IntegerType::RelaxedInt32 => 4,
+            shader_compiler_ir::IntegerType::Int64 => 8,
+        })
+    }
 }
 
 impl<'g> GenericSPIRVType<'g> for IntegerType {
@@ -112,6 +180,48 @@ impl<'g> GenericSPIRVType<'g> for IntegerType {
     ) -> TranslationResult<Alignment> {
         Ok(self.ir_type.alignment(&target_properties))
     }
+    fn get_io_user_interface_ir_type(
+        &self,
+        global_state: &'g GlobalState<'g>,
+        type_id: IdRef,
+        start_location: Option<u32>,
+        start_io_component: Option<u32>,
+    ) -> TranslationResult<GetIOUserInterfaceIRTypeResult<'g>> {
+        let start_location = start_location
+            .ok_or_else(|| MissingLocationDecorationOnVariableOrStructMember { type_id })?;
+        let start_io_component = start_io_component.unwrap_or(0);
+        if !is_start_io_component_valid(self, 1, start_io_component) {
+            return Err(InvalidComponentDecorationOnVariableOrStructMember {
+                type_id,
+                component: start_io_component,
+            }
+            .into());
+        }
+        let byte_offset =
+            LOCATION_SIZE_IN_BYTES * start_location + COMPONENT_SIZE_IN_BYTES * start_io_component;
+        Ok(GetIOUserInterfaceIRTypeResult {
+            byte_offset,
+            size_in_bytes: self.io_size_in_bytes().expect("known to be valid"),
+            first_location_after: Some(start_location + 1),
+            ir_type: self.ir_type.intern(global_state),
+        })
+    }
+}
+
+impl GenericIOScalarType for FloatType {
+    fn io_component_count(&self) -> Option<u32> {
+        Some(match self {
+            FloatType::Float16 | FloatType::Float32 | FloatType::RelaxedFloat32 => 1,
+            FloatType::Float64 => 2,
+        })
+    }
+    fn io_size_in_bytes(&self) -> Option<u32> {
+        Some(match self {
+            FloatType::Float16 => 2,
+            FloatType::Float32 | FloatType::RelaxedFloat32 => 4,
+            FloatType::Float64 => 8,
+        })
+    }
 }
 
 impl<'g> GenericSPIRVType<'g> for FloatType {
@@ -138,6 +248,32 @@ impl<'g> GenericSPIRVType<'g> for FloatType {
     ) -> TranslationResult<Alignment> {
         Ok(self.alignment(&target_properties))
     }
+    fn get_io_user_interface_ir_type(
+        &self,
+        global_state: &'g GlobalState<'g>,
+        type_id: IdRef,
+        start_location: Option<u32>,
+        start_io_component: Option<u32>,
+    ) -> TranslationResult<GetIOUserInterfaceIRTypeResult<'g>> {
+        let start_location = start_location
+            .ok_or_else(|| MissingLocationDecorationOnVariableOrStructMember { type_id })?;
+        let start_io_component = start_io_component.unwrap_or(0);
+        if !is_start_io_component_valid(self, 1, start_io_component) {
+            return Err(InvalidComponentDecorationOnVariableOrStructMember {
+                type_id,
+                component: start_io_component,
+            }
+            .into());
+        }
+        let byte_offset =
+            LOCATION_SIZE_IN_BYTES * start_location + COMPONENT_SIZE_IN_BYTES * start_io_component;
+        Ok(GetIOUserInterfaceIRTypeResult {
+            byte_offset,
+            size_in_bytes: self.io_size_in_bytes().expect("known to be valid"),
+            first_location_after: Some(start_location + 1),
+            ir_type: self.intern(global_state),
+        })
+    }
 }
 
 impl<'g> GenericSPIRVType<'g> for BoolType {
@@ -158,6 +294,15 @@ impl<'g> GenericSPIRVType<'g> for BoolType {
         _instruction: I,
     ) -> TranslationResult<Alignment> {
         Ok(self.alignment(&target_properties))
+    }
+    fn get_io_user_interface_ir_type(
+        &self,
+        _global_state: &'g GlobalState<'g>,
+        type_id: IdRef,
+        _start_location: Option<u32>,
+        _start_io_component: Option<u32>,
+    ) -> TranslationResult<GetIOUserInterfaceIRTypeResult<'g>> {
+        Err(TypeNotAllowedInUserDefinedVariableInterface { type_id }.into())
     }
 }
 
@@ -219,6 +364,24 @@ macro_rules! impl_scalar_type {
                     )+
                 }
             }
+            fn get_io_user_interface_ir_type(
+                &self,
+                global_state: &'g GlobalState<'g>,
+                type_id: IdRef,
+                start_location: Option<u32>,
+                start_io_component: Option<u32>,
+            ) -> TranslationResult<GetIOUserInterfaceIRTypeResult<'g>> {
+                match self {
+                    $(
+                        Self::$member_name(ty) => ty.get_io_user_interface_ir_type(
+                            global_state,
+                            type_id,
+                            start_location,
+                            start_io_component,
+                        ),
+                    )+
+                }
+            }
         }
     };
 }
@@ -228,6 +391,23 @@ impl_scalar_type! {
         Integer(IntegerType),
         Float(FloatType),
         Bool(BoolType),
+    }
+}
+
+impl GenericIOScalarType for ScalarType {
+    fn io_component_count(&self) -> Option<u32> {
+        match self {
+            ScalarType::Integer(v) => v.io_component_count(),
+            ScalarType::Float(v) => v.io_component_count(),
+            ScalarType::Bool(_) => None,
+        }
+    }
+    fn io_size_in_bytes(&self) -> Option<u32> {
+        match self {
+            ScalarType::Integer(v) => v.io_size_in_bytes(),
+            ScalarType::Float(v) => v.io_size_in_bytes(),
+            ScalarType::Bool(_) => None,
+        }
     }
 }
 
@@ -246,8 +426,7 @@ pub(crate) enum Uninhabited<'g> {
 }
 
 impl Uninhabited<'_> {
-    #[allow(clippy::trivially_copy_pass_by_ref)] // pass by ref makes it easier to call
-    pub(crate) fn into_never(&self) -> ! {
+    pub(crate) fn as_never(&self) -> ! {
         match *self {
             Uninhabited::_Uninhabited(_, v) => match v {},
         }
@@ -285,6 +464,15 @@ impl<'g> GenericSPIRVType<'g> for VoidType {
             instruction: instruction(),
         }
         .into())
+    }
+    fn get_io_user_interface_ir_type(
+        &self,
+        _global_state: &'g GlobalState<'g>,
+        type_id: IdRef,
+        _start_location: Option<u32>,
+        _start_io_component: Option<u32>,
+    ) -> TranslationResult<GetIOUserInterfaceIRTypeResult<'g>> {
+        Err(TypeNotAllowedInUserDefinedVariableInterface { type_id }.into())
     }
 }
 
@@ -356,6 +544,15 @@ impl<'g> GenericSPIRVType<'g> for FunctionType<'g> {
     ) -> TranslationResult<Alignment> {
         todo!()
     }
+    fn get_io_user_interface_ir_type(
+        &self,
+        _global_state: &'g GlobalState<'g>,
+        type_id: IdRef,
+        _start_location: Option<u32>,
+        _start_io_component: Option<u32>,
+    ) -> TranslationResult<GetIOUserInterfaceIRTypeResult<'g>> {
+        Err(TypeNotAllowedInUserDefinedVariableInterface { type_id }.into())
+    }
 }
 
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
@@ -416,6 +613,51 @@ impl<'g> GenericSPIRVType<'g> for VectorType {
             .get_ir_type(global_state)?
             .expect("known to be non-void")
             .alignment(&target_properties))
+    }
+    fn get_io_user_interface_ir_type(
+        &self,
+        global_state: &'g GlobalState<'g>,
+        type_id: IdRef,
+        start_location: Option<u32>,
+        start_io_component: Option<u32>,
+    ) -> TranslationResult<GetIOUserInterfaceIRTypeResult<'g>> {
+        let start_location = start_location
+            .ok_or_else(|| MissingLocationDecorationOnVariableOrStructMember { type_id })?;
+        let start_io_component = start_io_component.unwrap_or(0);
+        let io_components_per_component = self
+            .component_type
+            .io_component_count()
+            .ok_or_else(|| TypeNotAllowedInUserDefinedVariableInterface { type_id })?;
+        let size_in_locations = match (self.component_count, io_components_per_component) {
+            (2, 1) | (3, 1) | (4, 1) | (2, 2) => 1,
+            (3, 2) | (4, 2) => 2,
+            _ => unreachable!(),
+        };
+        if !is_start_io_component_valid(
+            &self.component_type,
+            self.component_count,
+            start_io_component,
+        ) {
+            return Err(InvalidComponentDecorationOnVariableOrStructMember {
+                type_id,
+                component: start_io_component,
+            }
+            .into());
+        }
+        let byte_offset =
+            LOCATION_SIZE_IN_BYTES * start_location + COMPONENT_SIZE_IN_BYTES * start_io_component;
+        Ok(GetIOUserInterfaceIRTypeResult {
+            byte_offset,
+            size_in_bytes: self
+                .component_type
+                .io_size_in_bytes()
+                .expect("known to be valid")
+                * self.component_count,
+            first_location_after: Some(start_location + size_in_locations),
+            ir_type: self
+                .get_ir_type(global_state)?
+                .expect("known to be non-void"),
+        })
     }
 }
 
@@ -484,6 +726,15 @@ impl<'g> GenericSPIRVType<'g> for PointerType<'g> {
         _instruction: I,
     ) -> TranslationResult<Alignment> {
         todo!()
+    }
+    fn get_io_user_interface_ir_type(
+        &self,
+        _global_state: &'g GlobalState<'g>,
+        type_id: IdRef,
+        _start_location: Option<u32>,
+        _start_io_component: Option<u32>,
+    ) -> TranslationResult<GetIOUserInterfaceIRTypeResult<'g>> {
+        Err(TypeNotAllowedInUserDefinedVariableInterface { type_id }.into())
     }
 }
 
@@ -557,7 +808,7 @@ impl<'g> GenericSPIRVType<'g> for SPIRVType<'g> {
             SPIRVType::Vector(ty) => ty.get_ir_type_with_state(state),
             SPIRVType::Struct(ty) => ty.get_ir_type_with_state(state),
             SPIRVType::Pointer(ty) => ty.get_ir_type_with_state(state),
-            SPIRVType::_Uninhabited(v) => v.into_never(),
+            SPIRVType::_Uninhabited(v) => v.as_never(),
         }
     }
     fn get_relaxed_precision_type(&self) -> Option<SPIRVType<'g>> {
@@ -568,7 +819,7 @@ impl<'g> GenericSPIRVType<'g> for SPIRVType<'g> {
             SPIRVType::Vector(ty) => ty.get_relaxed_precision_type(),
             SPIRVType::Struct(ty) => ty.get_relaxed_precision_type(),
             SPIRVType::Pointer(ty) => ty.get_relaxed_precision_type(),
-            SPIRVType::_Uninhabited(v) => v.into_never(),
+            SPIRVType::_Uninhabited(v) => v.as_never(),
         }
     }
     fn get_alignment<I: FnOnce() -> spirv_parser::Instruction>(
@@ -597,7 +848,54 @@ impl<'g> GenericSPIRVType<'g> for SPIRVType<'g> {
             SPIRVType::Pointer(ty) => {
                 ty.get_alignment(target_properties, global_state, type_id, instruction)
             }
-            SPIRVType::_Uninhabited(v) => v.into_never(),
+            SPIRVType::_Uninhabited(v) => v.as_never(),
+        }
+    }
+    fn get_io_user_interface_ir_type(
+        &self,
+        global_state: &'g GlobalState<'g>,
+        type_id: IdRef,
+        start_location: Option<u32>,
+        start_io_component: Option<u32>,
+    ) -> TranslationResult<GetIOUserInterfaceIRTypeResult<'g>> {
+        match self {
+            SPIRVType::Scalar(ty) => ty.get_io_user_interface_ir_type(
+                global_state,
+                type_id,
+                start_location,
+                start_io_component,
+            ),
+            SPIRVType::Void(ty) => ty.get_io_user_interface_ir_type(
+                global_state,
+                type_id,
+                start_location,
+                start_io_component,
+            ),
+            SPIRVType::Function(ty) => ty.get_io_user_interface_ir_type(
+                global_state,
+                type_id,
+                start_location,
+                start_io_component,
+            ),
+            SPIRVType::Vector(ty) => ty.get_io_user_interface_ir_type(
+                global_state,
+                type_id,
+                start_location,
+                start_io_component,
+            ),
+            SPIRVType::Struct(ty) => ty.get_io_user_interface_ir_type(
+                global_state,
+                type_id,
+                start_location,
+                start_io_component,
+            ),
+            SPIRVType::Pointer(ty) => ty.get_io_user_interface_ir_type(
+                global_state,
+                type_id,
+                start_location,
+                start_io_component,
+            ),
+            SPIRVType::_Uninhabited(v) => v.as_never(),
         }
     }
 }

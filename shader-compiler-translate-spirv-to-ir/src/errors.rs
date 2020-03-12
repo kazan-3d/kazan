@@ -420,6 +420,16 @@ impl_errors! {
         pub type_id: spirv_parser::IdRef,
         pub component: u32,
     }
+
+    #[display = "missing SPIR-V Location decoration on variable or struct member with type {type_id}"]
+    pub struct MissingLocationDecorationOnVariableOrStructMember {
+        pub type_id: spirv_parser::IdRef,
+    }
+
+    #[display = "type {type_id} not allowed in User-defined Variable Interface"]
+    pub struct TypeNotAllowedInUserDefinedVariableInterface {
+        pub type_id: spirv_parser::IdRef,
+    }
 }
 
 pub(crate) type TranslationResult<T> = Result<T, TranslationError>;

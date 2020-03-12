@@ -2,7 +2,10 @@
 // See Notices.txt for copyright information
 
 use crate::{
-    decorations::{DecorationClass, DecorationClassMisc, DecorationClassStruct},
+    decorations::{
+        DecorationAspect, DecorationClass, DecorationClassMisc, DecorationClassStruct,
+        MemoryObjectDeclarationOrStructMember, VariableOrStructMember,
+    },
     errors::{
         BuiltInAndNonBuiltInNotAllowedInSameStruct, DecorationNotAllowedOnInstruction,
         MemberDecorationIndexOutOfBounds, MemberDecorationNotAllowed, TranslationResult,
@@ -14,6 +17,8 @@ use crate::{
     types::structs::{StructKind, StructMember, StructType, StructTypeData},
 };
 use alloc::vec::Vec;
+use core::cell::RefCell;
+use hashbrown::HashMap;
 use spirv_parser::{DecorationBuiltIn, OpTypeStruct};
 
 impl ParseInstruction for OpTypeStruct {
@@ -80,11 +85,13 @@ impl ParseInstruction for OpTypeStruct {
         }
         let mut is_built_ins = None;
         let mut members = Vec::with_capacity(member_types.len());
-        for (member_index, (&member_type, member_decorations)) in
-            member_types.iter().zip(member_decorations).enumerate()
+        for ((&member_type_id, member_decorations), member_index) in
+            member_types.iter().zip(member_decorations).zip(0u32..)
         {
-            let member_type = state.get_type(member_type)?.clone();
+            let member_type = state.get_type(member_type_id)?.clone();
             let mut built_in = None;
+            let mut memory_object_declaration_or_struct_member_decorations = Vec::new();
+            let mut variable_or_struct_member_decorations = Vec::new();
             for member_decoration in member_decorations {
                 match member_decoration {
                     DecorationClass::Ignored(_) => {}
@@ -94,17 +101,22 @@ impl ParseInstruction for OpTypeStruct {
                     DecorationClass::Misc(DecorationClassMisc::ArrayStride(_)) => todo!(),
                     DecorationClass::Misc(DecorationClassMisc::FPRoundingMode(_)) => todo!(),
                     DecorationClass::RelaxedPrecision(_) => todo!(),
-                    DecorationClass::MemoryObjectDeclarationOrStructMember(_)
-                    | DecorationClass::Object(_)
-                    | DecorationClass::VariableOrStructMember(_)
-                    | DecorationClass::StructMember(_) => todo!(),
+                    DecorationClass::MemoryObjectDeclarationOrStructMember(member_decoration) => {
+                        memory_object_declaration_or_struct_member_decorations
+                            .push(member_decoration);
+                    }
+                    DecorationClass::Object(_) => todo!(),
+                    DecorationClass::VariableOrStructMember(member_decoration) => {
+                        variable_or_struct_member_decorations.push(member_decoration);
+                    }
+                    DecorationClass::StructMember(_) => todo!(),
                     DecorationClass::Misc(DecorationClassMisc::SpecId(_))
                     | DecorationClass::MemoryObjectDeclaration(_)
                     | DecorationClass::Variable(_)
                     | DecorationClass::Struct(_)
                     | DecorationClass::Invalid(_) => {
                         return Err(MemberDecorationNotAllowed {
-                            member_index: member_index as u32,
+                            member_index,
                             decoration: member_decoration.into(),
                             instruction: self.clone().into(),
                         }
@@ -115,7 +127,7 @@ impl ParseInstruction for OpTypeStruct {
             if let Some(is_built_ins) = is_built_ins {
                 if is_built_ins != built_in.is_some() {
                     return Err(BuiltInAndNonBuiltInNotAllowedInSameStruct {
-                        member_index: member_index as u32,
+                        member_index,
                         instruction: self.clone().into(),
                     }
                     .into());
@@ -125,19 +137,31 @@ impl ParseInstruction for OpTypeStruct {
             if built_in.is_some() {
                 struct_kind = StructKind::BuiltIns;
             }
+            let memory_object_declaration_or_struct_member =
+                MemoryObjectDeclarationOrStructMember::parse_decorations(
+                    memory_object_declaration_or_struct_member_decorations,
+                    Some(member_index),
+                    || self.clone().into(),
+                )?;
+            let variable_or_struct_member = VariableOrStructMember::parse_decorations(
+                variable_or_struct_member_decorations,
+                Some(member_index),
+                || self.clone().into(),
+            )?;
             members.push(StructMember {
                 built_in,
                 member_type,
+                member_type_id,
+                memory_object_declaration_or_struct_member,
+                variable_or_struct_member,
             });
         }
-        let io_layout = todo!();
         state.define_type(
             id_result,
             StructType::new(StructTypeData {
                 id: id_result.0,
                 kind: struct_kind,
                 members,
-                io_layout,
             }),
         )
     }
