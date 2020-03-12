@@ -4,17 +4,19 @@
 use crate::{
     decorations::{MemoryObjectDeclarationOrStructMember, VariableOrStructMember},
     errors::{
+        BlockStructTypeNotAllowedAsMemberOfNonBlockStruct,
         InvalidComponentDecorationOnVariableOrStructMember, MemberDecorationNotAllowed,
         MissingLocationDecorationOnVariableOrStructMember, TranslationResult,
         TypeNotAllowedInUserDefinedVariableInterface,
     },
     io_layout::{io_interface_block_alignment, LOCATION_SIZE_IN_BYTES},
-    types::{GenericSPIRVType, GetIOUserInterfaceIRTypeResult, GetIrTypeState, SPIRVType},
+    types::{GenericSPIRVType, GetIrTypeState, IOInterfaceIR, IOInterfaceIRResult, SPIRVType},
 };
 use alloc::{rc::Rc, vec::Vec};
 use core::ops::Deref;
 use shader_compiler_ir::{
-    Alignment, GlobalState, Internable, Interned, StructSize, TargetProperties,
+    Alignment, GlobalState, InterfaceBlockMember, Internable, Interned, StructSize,
+    TargetProperties, UserInterfaceVariableAttributes,
 };
 use spirv_parser::{BuiltIn, DecorationLocation, IdResult, OpTypeStruct};
 
@@ -100,83 +102,116 @@ impl<'g> GenericSPIRVType<'g> for StructType<'g> {
     ) -> TranslationResult<Alignment> {
         todo!()
     }
-    fn get_io_user_interface_ir_type(
+    fn translate_io_interface_to_ir(
         &self,
         global_state: &'g GlobalState<'g>,
         type_id: spirv_parser::IdRef,
         start_location: Option<u32>,
         start_io_component: Option<u32>,
-    ) -> TranslationResult<GetIOUserInterfaceIRTypeResult<'g>> {
+    ) -> TranslationResult<IOInterfaceIRResult<'g>> {
         if let Some(component) = start_io_component {
             return Err(
                 InvalidComponentDecorationOnVariableOrStructMember { type_id, component }.into(),
             );
         }
-        let struct_byte_offset;
-        let mut next_location = match self.kind {
+        let mut struct_size_in_bytes = 0;
+        match self.kind {
             StructKind::Generic => {
-                let location = start_location
+                let mut next_location = start_location
                     .ok_or_else(|| MissingLocationDecorationOnVariableOrStructMember { type_id })?;
-                struct_byte_offset = location * LOCATION_SIZE_IN_BYTES;
-                Some(location)
+                let struct_byte_offset = next_location * LOCATION_SIZE_IN_BYTES;
+                let mut members = Vec::with_capacity(self.members.len());
+                for (member_index, member) in self.members.iter().enumerate() {
+                    if let Some(location) = member.variable_or_struct_member.location {
+                        return Err(MemberDecorationNotAllowed {
+                            decoration: DecorationLocation { location }.into(),
+                            member_index: member_index as u32,
+                            instruction: self.get_struct_instruction().into(),
+                        }
+                        .into());
+                    }
+                    let IOInterfaceIRResult {
+                        byte_offset,
+                        size_in_bytes,
+                        first_location_after,
+                        ir,
+                    } = member.member_type.translate_io_interface_to_ir(
+                        global_state,
+                        member.member_type_id,
+                        Some(next_location),
+                        member.memory_object_declaration_or_struct_member.component,
+                    )?;
+                    let member_type = match ir {
+                        IOInterfaceIR::IRType(v) => v,
+                        IOInterfaceIR::UserInterfaceBlockMembers(_)
+                        | IOInterfaceIR::BuiltInInterfaceVariables(_) => {
+                            return Err(BlockStructTypeNotAllowedAsMemberOfNonBlockStruct {
+                                member_type_id: member.member_type_id,
+                                outer_type_id: type_id,
+                            }
+                            .into())
+                        }
+                    };
+                    next_location =
+                        first_location_after.expect("first_location_after is known to be Some");
+                    let offset = byte_offset
+                        .checked_sub(struct_byte_offset)
+                        .expect("invalid byte offset for struct member");
+                    struct_size_in_bytes = struct_size_in_bytes.max(offset + size_in_bytes);
+                    members.push(shader_compiler_ir::StructMember {
+                        member_type,
+                        offset,
+                    });
+                }
+                Ok(IOInterfaceIRResult {
+                    byte_offset: struct_byte_offset,
+                    size_in_bytes: struct_size_in_bytes,
+                    first_location_after: Some(next_location),
+                    ir: shader_compiler_ir::StructType {
+                        alignment: io_interface_block_alignment(),
+                        size: StructSize::Fixed {
+                            size: struct_size_in_bytes,
+                        },
+                        members,
+                    }
+                    .intern(global_state)
+                    .into(),
+                })
             }
             StructKind::Block { .. } => {
-                struct_byte_offset = 0;
-                start_location
-            }
-            StructKind::BuiltIns => {
-                return Err(TypeNotAllowedInUserDefinedVariableInterface { type_id }.into());
-            }
-        };
-        let mut struct_size_in_bytes = 0;
-        let mut members = Vec::with_capacity(self.members.len());
-        for (member_index, member) in self.members.iter().enumerate() {
-            let member_start_location = match (member.variable_or_struct_member.location, self.kind)
-            {
-                (location @ Some(_), StructKind::Block { .. }) => location,
-                (Some(location), _) => {
-                    return Err(MemberDecorationNotAllowed {
-                        decoration: DecorationLocation { location }.into(),
-                        member_index: member_index as u32,
-                        instruction: self.get_struct_instruction().into(),
-                    }
-                    .into());
+                let mut next_location = start_location;
+                let mut members = Vec::with_capacity(self.members.len());
+                for (member_index, member) in self.members.iter().enumerate() {
+                    let member_start_location =
+                        member.variable_or_struct_member.location.or(next_location);
+                    let IOInterfaceIRResult {
+                        byte_offset,
+                        size_in_bytes,
+                        first_location_after,
+                        ir,
+                    } = member.member_type.translate_io_interface_to_ir(
+                        global_state,
+                        member.member_type_id,
+                        member_start_location,
+                        member.memory_object_declaration_or_struct_member.component,
+                    )?;
+                    next_location = first_location_after;
+                    struct_size_in_bytes = struct_size_in_bytes.max(byte_offset + size_in_bytes);
+                    members.append(&mut ir.into_user_interface_block_members(
+                        byte_offset,
+                        || TypeNotAllowedInUserDefinedVariableInterface {
+                            type_id: member.member_type_id,
+                        },
+                    )?);
                 }
-                (None, _) => next_location,
-            };
-            let GetIOUserInterfaceIRTypeResult {
-                byte_offset,
-                size_in_bytes,
-                first_location_after,
-                ir_type: member_type,
-            } = member.member_type.get_io_user_interface_ir_type(
-                global_state,
-                member.member_type_id,
-                member_start_location,
-                member.memory_object_declaration_or_struct_member.component,
-            )?;
-            next_location = first_location_after;
-            let offset = byte_offset
-                .checked_sub(struct_byte_offset)
-                .expect("invalid byte offset for struct member");
-            struct_size_in_bytes = struct_size_in_bytes.max(offset + size_in_bytes);
-            members.push(shader_compiler_ir::StructMember {
-                member_type,
-                offset,
-            });
-        }
-        Ok(GetIOUserInterfaceIRTypeResult {
-            byte_offset: struct_byte_offset,
-            size_in_bytes: struct_size_in_bytes,
-            first_location_after: next_location,
-            ir_type: shader_compiler_ir::StructType {
-                alignment: io_interface_block_alignment(),
-                size: StructSize::Fixed {
-                    size: struct_size_in_bytes,
-                },
-                members,
+                Ok(IOInterfaceIRResult {
+                    byte_offset: 0,
+                    size_in_bytes: struct_size_in_bytes,
+                    first_location_after: next_location,
+                    ir: IOInterfaceIR::UserInterfaceBlockMembers(members),
+                })
             }
-            .intern(global_state),
-        })
+            StructKind::BuiltIns => todo!(),
+        }
     }
 }

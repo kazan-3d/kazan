@@ -430,6 +430,13 @@ impl_errors! {
     pub struct TypeNotAllowedInUserDefinedVariableInterface {
         pub type_id: spirv_parser::IdRef,
     }
+
+    #[display = "struct type ({member_type_id}) decorated with Block (or BufferBlock) is not allowed as \
+        the member of a struct type ({outer_type_id}) not decorated with Block"]
+    pub struct BlockStructTypeNotAllowedAsMemberOfNonBlockStruct {
+        pub member_type_id: spirv_parser::IdRef,
+        pub outer_type_id: spirv_parser::IdRef,
+    }
 }
 
 pub(crate) type TranslationResult<T> = Result<T, TranslationError>;

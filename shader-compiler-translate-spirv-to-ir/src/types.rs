@@ -10,11 +10,15 @@ use crate::{
         TypeNotAllowedInUserDefinedVariableInterface, VoidNotAllowedHere,
     },
     io_layout::{COMPONENT_SIZE_IN_BYTES, LOCATION_SIZE_IN_BYTES},
+    TranslationError,
 };
 use alloc::{rc::Rc, vec::Vec};
 use core::{marker::PhantomData, ops::Deref};
 use once_cell::unsync::OnceCell;
-use shader_compiler_ir::{prelude::*, Alignment, BoolType, FloatType, TargetProperties};
+use shader_compiler_ir::{
+    prelude::*, Alignment, BoolType, BuiltInInterfaceVariableAttributes, FloatType,
+    InterfaceBlockMember, InterfaceVariable, TargetProperties, UserInterfaceVariableAttributes,
+};
 use spirv_parser::{IdRef, StorageClass};
 use structs::StructType;
 
@@ -22,11 +26,57 @@ pub(crate) struct GetIrTypeState<'g> {
     global_state: &'g GlobalState<'g>,
 }
 
-pub(crate) struct GetIOUserInterfaceIRTypeResult<'g> {
+pub(crate) enum IOInterfaceIR<'g> {
+    IRType(Interned<'g, shader_compiler_ir::Type<'g>>),
+    UserInterfaceBlockMembers(Vec<InterfaceBlockMember<'g, UserInterfaceVariableAttributes>>),
+    BuiltInInterfaceVariables(Vec<InterfaceVariable<'g, BuiltInInterfaceVariableAttributes>>),
+}
+
+impl<'g> From<Interned<'g, shader_compiler_ir::Type<'g>>> for IOInterfaceIR<'g> {
+    fn from(v: Interned<'g, shader_compiler_ir::Type<'g>>) -> Self {
+        Self::IRType(v)
+    }
+}
+
+impl<'g> IOInterfaceIR<'g> {
+    pub(crate) fn into_user_interface_block_members<E: Into<TranslationError>>(
+        self,
+        byte_offset: u32,
+        error_on_built_in_interface_variables: impl FnOnce() -> E,
+    ) -> TranslationResult<Vec<InterfaceBlockMember<'g, UserInterfaceVariableAttributes>>> {
+        match self {
+            IOInterfaceIR::IRType(member_type) => Ok(vec![InterfaceBlockMember {
+                struct_member: shader_compiler_ir::StructMember {
+                    member_type,
+                    offset: byte_offset,
+                },
+                attributes: UserInterfaceVariableAttributes {},
+            }]),
+            IOInterfaceIR::UserInterfaceBlockMembers(members) => Ok(members),
+            IOInterfaceIR::BuiltInInterfaceVariables(_) => {
+                Err(error_on_built_in_interface_variables().into())
+            }
+        }
+    }
+    pub(crate) fn into_built_in_interface_variables<E: Into<TranslationError>>(
+        self,
+        error_on_user_interface_block_members: impl FnOnce() -> E,
+    ) -> TranslationResult<Vec<InterfaceVariable<'g, BuiltInInterfaceVariableAttributes>>> {
+        match self {
+            IOInterfaceIR::IRType(member_type) => todo!(),
+            IOInterfaceIR::BuiltInInterfaceVariables(variables) => Ok(variables),
+            IOInterfaceIR::UserInterfaceBlockMembers(_) => {
+                Err(error_on_user_interface_block_members().into())
+            }
+        }
+    }
+}
+
+pub(crate) struct IOInterfaceIRResult<'g> {
     pub(crate) byte_offset: u32,
     pub(crate) size_in_bytes: u32,
     pub(crate) first_location_after: Option<u32>,
-    pub(crate) ir_type: Interned<'g, shader_compiler_ir::Type<'g>>,
+    pub(crate) ir: IOInterfaceIR<'g>,
 }
 
 pub(crate) trait GenericSPIRVType<'g>: Eq + Clone + Into<SPIRVType<'g>> {
@@ -62,13 +112,13 @@ pub(crate) trait GenericSPIRVType<'g>: Eq + Clone + Into<SPIRVType<'g>> {
         type_id: IdRef,
         instruction: I,
     ) -> TranslationResult<Alignment>;
-    fn get_io_user_interface_ir_type(
+    fn translate_io_interface_to_ir(
         &self,
         global_state: &'g GlobalState<'g>,
         type_id: IdRef,
         start_location: Option<u32>,
         start_io_component: Option<u32>,
-    ) -> TranslationResult<GetIOUserInterfaceIRTypeResult<'g>>;
+    ) -> TranslationResult<IOInterfaceIRResult<'g>>;
 }
 
 pub(crate) trait GenericIOScalarType {
@@ -180,13 +230,13 @@ impl<'g> GenericSPIRVType<'g> for IntegerType {
     ) -> TranslationResult<Alignment> {
         Ok(self.ir_type.alignment(&target_properties))
     }
-    fn get_io_user_interface_ir_type(
+    fn translate_io_interface_to_ir(
         &self,
         global_state: &'g GlobalState<'g>,
         type_id: IdRef,
         start_location: Option<u32>,
         start_io_component: Option<u32>,
-    ) -> TranslationResult<GetIOUserInterfaceIRTypeResult<'g>> {
+    ) -> TranslationResult<IOInterfaceIRResult<'g>> {
         let start_location = start_location
             .ok_or_else(|| MissingLocationDecorationOnVariableOrStructMember { type_id })?;
         let start_io_component = start_io_component.unwrap_or(0);
@@ -199,11 +249,11 @@ impl<'g> GenericSPIRVType<'g> for IntegerType {
         }
         let byte_offset =
             LOCATION_SIZE_IN_BYTES * start_location + COMPONENT_SIZE_IN_BYTES * start_io_component;
-        Ok(GetIOUserInterfaceIRTypeResult {
+        Ok(IOInterfaceIRResult {
             byte_offset,
             size_in_bytes: self.io_size_in_bytes().expect("known to be valid"),
             first_location_after: Some(start_location + 1),
-            ir_type: self.ir_type.intern(global_state),
+            ir: self.ir_type.intern(global_state).into(),
         })
     }
 }
@@ -248,13 +298,13 @@ impl<'g> GenericSPIRVType<'g> for FloatType {
     ) -> TranslationResult<Alignment> {
         Ok(self.alignment(&target_properties))
     }
-    fn get_io_user_interface_ir_type(
+    fn translate_io_interface_to_ir(
         &self,
         global_state: &'g GlobalState<'g>,
         type_id: IdRef,
         start_location: Option<u32>,
         start_io_component: Option<u32>,
-    ) -> TranslationResult<GetIOUserInterfaceIRTypeResult<'g>> {
+    ) -> TranslationResult<IOInterfaceIRResult<'g>> {
         let start_location = start_location
             .ok_or_else(|| MissingLocationDecorationOnVariableOrStructMember { type_id })?;
         let start_io_component = start_io_component.unwrap_or(0);
@@ -267,11 +317,11 @@ impl<'g> GenericSPIRVType<'g> for FloatType {
         }
         let byte_offset =
             LOCATION_SIZE_IN_BYTES * start_location + COMPONENT_SIZE_IN_BYTES * start_io_component;
-        Ok(GetIOUserInterfaceIRTypeResult {
+        Ok(IOInterfaceIRResult {
             byte_offset,
             size_in_bytes: self.io_size_in_bytes().expect("known to be valid"),
             first_location_after: Some(start_location + 1),
-            ir_type: self.intern(global_state),
+            ir: self.intern(global_state).into(),
         })
     }
 }
@@ -295,13 +345,13 @@ impl<'g> GenericSPIRVType<'g> for BoolType {
     ) -> TranslationResult<Alignment> {
         Ok(self.alignment(&target_properties))
     }
-    fn get_io_user_interface_ir_type(
+    fn translate_io_interface_to_ir(
         &self,
         _global_state: &'g GlobalState<'g>,
         type_id: IdRef,
         _start_location: Option<u32>,
         _start_io_component: Option<u32>,
-    ) -> TranslationResult<GetIOUserInterfaceIRTypeResult<'g>> {
+    ) -> TranslationResult<IOInterfaceIRResult<'g>> {
         Err(TypeNotAllowedInUserDefinedVariableInterface { type_id }.into())
     }
 }
@@ -364,16 +414,16 @@ macro_rules! impl_scalar_type {
                     )+
                 }
             }
-            fn get_io_user_interface_ir_type(
+            fn translate_io_interface_to_ir(
                 &self,
                 global_state: &'g GlobalState<'g>,
                 type_id: IdRef,
                 start_location: Option<u32>,
                 start_io_component: Option<u32>,
-            ) -> TranslationResult<GetIOUserInterfaceIRTypeResult<'g>> {
+            ) -> TranslationResult<IOInterfaceIRResult<'g>> {
                 match self {
                     $(
-                        Self::$member_name(ty) => ty.get_io_user_interface_ir_type(
+                        Self::$member_name(ty) => ty.translate_io_interface_to_ir(
                             global_state,
                             type_id,
                             start_location,
@@ -465,13 +515,13 @@ impl<'g> GenericSPIRVType<'g> for VoidType {
         }
         .into())
     }
-    fn get_io_user_interface_ir_type(
+    fn translate_io_interface_to_ir(
         &self,
         _global_state: &'g GlobalState<'g>,
         type_id: IdRef,
         _start_location: Option<u32>,
         _start_io_component: Option<u32>,
-    ) -> TranslationResult<GetIOUserInterfaceIRTypeResult<'g>> {
+    ) -> TranslationResult<IOInterfaceIRResult<'g>> {
         Err(TypeNotAllowedInUserDefinedVariableInterface { type_id }.into())
     }
 }
@@ -544,13 +594,13 @@ impl<'g> GenericSPIRVType<'g> for FunctionType<'g> {
     ) -> TranslationResult<Alignment> {
         todo!()
     }
-    fn get_io_user_interface_ir_type(
+    fn translate_io_interface_to_ir(
         &self,
         _global_state: &'g GlobalState<'g>,
         type_id: IdRef,
         _start_location: Option<u32>,
         _start_io_component: Option<u32>,
-    ) -> TranslationResult<GetIOUserInterfaceIRTypeResult<'g>> {
+    ) -> TranslationResult<IOInterfaceIRResult<'g>> {
         Err(TypeNotAllowedInUserDefinedVariableInterface { type_id }.into())
     }
 }
@@ -614,13 +664,13 @@ impl<'g> GenericSPIRVType<'g> for VectorType {
             .expect("known to be non-void")
             .alignment(&target_properties))
     }
-    fn get_io_user_interface_ir_type(
+    fn translate_io_interface_to_ir(
         &self,
         global_state: &'g GlobalState<'g>,
         type_id: IdRef,
         start_location: Option<u32>,
         start_io_component: Option<u32>,
-    ) -> TranslationResult<GetIOUserInterfaceIRTypeResult<'g>> {
+    ) -> TranslationResult<IOInterfaceIRResult<'g>> {
         let start_location = start_location
             .ok_or_else(|| MissingLocationDecorationOnVariableOrStructMember { type_id })?;
         let start_io_component = start_io_component.unwrap_or(0);
@@ -646,7 +696,7 @@ impl<'g> GenericSPIRVType<'g> for VectorType {
         }
         let byte_offset =
             LOCATION_SIZE_IN_BYTES * start_location + COMPONENT_SIZE_IN_BYTES * start_io_component;
-        Ok(GetIOUserInterfaceIRTypeResult {
+        Ok(IOInterfaceIRResult {
             byte_offset,
             size_in_bytes: self
                 .component_type
@@ -654,9 +704,10 @@ impl<'g> GenericSPIRVType<'g> for VectorType {
                 .expect("known to be valid")
                 * self.component_count,
             first_location_after: Some(start_location + size_in_locations),
-            ir_type: self
+            ir: self
                 .get_ir_type(global_state)?
-                .expect("known to be non-void"),
+                .expect("known to be non-void")
+                .into(),
         })
     }
 }
@@ -727,13 +778,13 @@ impl<'g> GenericSPIRVType<'g> for PointerType<'g> {
     ) -> TranslationResult<Alignment> {
         todo!()
     }
-    fn get_io_user_interface_ir_type(
+    fn translate_io_interface_to_ir(
         &self,
         _global_state: &'g GlobalState<'g>,
         type_id: IdRef,
         _start_location: Option<u32>,
         _start_io_component: Option<u32>,
-    ) -> TranslationResult<GetIOUserInterfaceIRTypeResult<'g>> {
+    ) -> TranslationResult<IOInterfaceIRResult<'g>> {
         Err(TypeNotAllowedInUserDefinedVariableInterface { type_id }.into())
     }
 }
@@ -851,45 +902,45 @@ impl<'g> GenericSPIRVType<'g> for SPIRVType<'g> {
             SPIRVType::_Uninhabited(v) => v.as_never(),
         }
     }
-    fn get_io_user_interface_ir_type(
+    fn translate_io_interface_to_ir(
         &self,
         global_state: &'g GlobalState<'g>,
         type_id: IdRef,
         start_location: Option<u32>,
         start_io_component: Option<u32>,
-    ) -> TranslationResult<GetIOUserInterfaceIRTypeResult<'g>> {
+    ) -> TranslationResult<IOInterfaceIRResult<'g>> {
         match self {
-            SPIRVType::Scalar(ty) => ty.get_io_user_interface_ir_type(
+            SPIRVType::Scalar(ty) => ty.translate_io_interface_to_ir(
                 global_state,
                 type_id,
                 start_location,
                 start_io_component,
             ),
-            SPIRVType::Void(ty) => ty.get_io_user_interface_ir_type(
+            SPIRVType::Void(ty) => ty.translate_io_interface_to_ir(
                 global_state,
                 type_id,
                 start_location,
                 start_io_component,
             ),
-            SPIRVType::Function(ty) => ty.get_io_user_interface_ir_type(
+            SPIRVType::Function(ty) => ty.translate_io_interface_to_ir(
                 global_state,
                 type_id,
                 start_location,
                 start_io_component,
             ),
-            SPIRVType::Vector(ty) => ty.get_io_user_interface_ir_type(
+            SPIRVType::Vector(ty) => ty.translate_io_interface_to_ir(
                 global_state,
                 type_id,
                 start_location,
                 start_io_component,
             ),
-            SPIRVType::Struct(ty) => ty.get_io_user_interface_ir_type(
+            SPIRVType::Struct(ty) => ty.translate_io_interface_to_ir(
                 global_state,
                 type_id,
                 start_location,
                 start_io_component,
             ),
-            SPIRVType::Pointer(ty) => ty.get_io_user_interface_ir_type(
+            SPIRVType::Pointer(ty) => ty.translate_io_interface_to_ir(
                 global_state,
                 type_id,
                 start_location,
